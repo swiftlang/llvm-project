@@ -2561,12 +2561,15 @@ static std::vector<lldb::addr_t> FindTaskAddrsFromThreadList(Process &process) {
   return task_addrs;
 }
 
-static std::vector<lldb::addr_t>
+namespace {
+enum class TaskFindingMethod { Threads, TaskRegistry, None };
+} // namespace
+static std::pair<TaskFindingMethod, std::vector<lldb::addr_t>>
 FindTaskAddrs(ReflectionContextInterface &reflection_ctx, Process &process) {
   if (std::optional<std::vector<lldb::addr_t>> addrs_from_registry =
           FindTaskAddrsFromRegistry(reflection_ctx, process))
-    return *addrs_from_registry;
-  return FindTaskAddrsFromThreadList(process);
+    return {TaskFindingMethod::TaskRegistry, std::move(*addrs_from_registry)};
+  return {TaskFindingMethod::Threads, FindTaskAddrsFromThreadList(process)};
 }
 
 /// Helper class to find Tasks in the swift program, either by inspecting the
@@ -2576,11 +2579,17 @@ class TaskExplorer {
 public:
   TaskExplorer(ReflectionContextInterface &reflection_ctx, Process &process)
       : m_reflection_ctx(reflection_ctx) {
-    for (lldb::addr_t task_addr : FindTaskAddrs(reflection_ctx, process)) {
+
+    auto [method, task_addrs] = FindTaskAddrs(reflection_ctx, process);
+    m_method = method;
+
+    for (lldb::addr_t task_addr : task_addrs) {
       int32_t max_nodes = 1000;
       ExploreTask(task_addr, max_nodes);
     }
   }
+
+  TaskFindingMethod MethodUsed() const { return m_method; }
 
   /// Returns a range containing all root Tasks discovered.
   auto GetRootTasks() const {
@@ -2626,6 +2635,8 @@ private:
   /// into m_known_tasks values, which is safe because std::map guarantees
   /// pointer stability on insertion.
   llvm::DenseMap<addr_t, TaskInfo *> m_blocked_by;
+
+  TaskFindingMethod m_method = TaskFindingMethod::None;
 
   // Finds all Tasks reachable from the Task represented by `task_addr`.
   // This follows child pointers, parent pointers, "waited by" pointers.
@@ -2938,6 +2949,10 @@ private:
                [](const auto &t1, const auto &t2) { return t1.id < t2.id; });
 
     Stream &strm = result.GetOutputStream();
+    if (task_explorer.MethodUsed() == TaskFindingMethod::Threads)
+      result.AppendWarning("Task registry was not found in the concurrency "
+                           "runtime. Task list may be incomplete");
+
     for (const TaskInfo &task_info : all_tasks) {
       if (task_info.isComplete)
         continue;
@@ -3006,6 +3021,9 @@ private:
     }
 
     TaskExplorer task_explorer(**reflection_ctx, m_exe_ctx.GetProcessRef());
+    if (task_explorer.MethodUsed() == TaskFindingMethod::Threads)
+      result.AppendWarning("Task registry was not found in the concurrency "
+                           "runtime. Task list may be incomplete");
 
     // Make a copy of the TaskInfos so that the range may be sorted by Task id.
     llvm::SmallVector<TaskInfo> root_tasks(task_explorer.GetRootTasks());
