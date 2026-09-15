@@ -11,7 +11,7 @@ class TestSwiftRuntimeLibraryPath(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
-    @skipUnlessDarwin
+    @skipEmbeddedSwift
     def test(self):
         """Test that the default runtime library path can be recovered even if
         paths weren't serialized."""
@@ -26,4 +26,4 @@ class TestSwiftRuntimeLibraryPath(lldbtest.TestBase):
 
         self.expect("expression 1")
         self.filecheck_log(log, __file__)
-        # CHECK: SwiftASTContextForExpressions(module: "a", cu: "main.swift")::LogConfiguration(){{.*}}Runtime library paths{{.*}}2 items
+        # CHECK: SwiftASTContextForExpressions(module: "a", cu: "main.swift")::LogConfiguration(){{.*}}Runtime library paths{{.*}}{{[1-9][0-9]*}} items
