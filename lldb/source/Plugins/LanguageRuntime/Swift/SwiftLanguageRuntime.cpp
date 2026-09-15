@@ -2495,21 +2495,90 @@ static void PrintFramesForTask(ExecutionContext &exe_ctx,
 
 /// A helper class to find Tasks in the swift program. It implements the
 /// algorithm described in g_task_list_tree_common_text.
+
+static std::optional<std::vector<lldb::addr_t>>
+FindTaskAddrsFromRegistry(ReflectionContextInterface &reflection_ctx,
+                          Process &process) {
+  auto &reader = reflection_ctx.GetReader();
+  auto registry_addr =
+      reader.getSymbolAddress("_swift_concurrency_task_registry");
+  if (!registry_addr)
+    return std::nullopt;
+
+  auto enabled_addr =
+      reader.getSymbolAddress("_swift_concurrency_task_registry_enabled");
+  if (enabled_addr) {
+    uint8_t val = 0;
+    if (!reader.readInteger(enabled_addr, 1, &val) || val == 0)
+      return std::nullopt;
+  }
+
+  auto shard_size_addr =
+      reader.getSymbolAddress("_swift_concurrency_task_registry_shard_size");
+  if (!shard_size_addr)
+    return std::nullopt;
+
+  uint8_t pointer_size = process.GetAddressByteSize();
+  uint64_t shard_size = 0;
+  if (!reader.readInteger(shard_size_addr, pointer_size, &shard_size))
+    return std::nullopt;
+
+  std::vector<lldb::addr_t> task_addrs;
+  const uint32_t task_registry_shard_count = 64;
+  for (uint32_t i = 0; i < task_registry_shard_count; ++i) {
+    auto shard_addr = swift::remote::RemoteAddress(
+        registry_addr.getRawAddress() + (i * shard_size),
+        registry_addr.getAddressSpace());
+
+    uint64_t task_addr = 0;
+    if (!reader.readInteger(shard_addr, pointer_size, &task_addr))
+      continue;
+
+    int32_t nodes = 0;
+    int32_t max_registry_nodes = 10000;
+    while (task_addr && nodes++ < max_registry_nodes) {
+      task_addrs.push_back(task_addr);
+
+      auto task_info_expected = reflection_ctx.asyncTaskInfo(task_addr, 0, 0);
+      if (!task_info_expected) {
+        llvm::consumeError(task_info_expected.takeError());
+        break;
+      }
+
+      task_addr = task_info_expected->registryNext;
+    }
+  }
+  return task_addrs;
+}
+
+static std::vector<lldb::addr_t> FindTaskAddrsFromThreadList(Process &process) {
+  std::vector<lldb::addr_t> task_addrs;
+  auto task_finder = GetTaskFinder(process);
+  for (const ThreadSP &thread : process.GetThreadList().Threads()) {
+    if (!thread)
+      continue;
+    if (std::optional<lldb::addr_t> maybe_task_addr =
+            task_finder->GetTaskAddrForThread(*thread))
+      task_addrs.push_back(*maybe_task_addr);
+  }
+  return task_addrs;
+}
+
+static std::vector<lldb::addr_t>
+FindTaskAddrs(ReflectionContextInterface &reflection_ctx, Process &process) {
+  if (std::optional<std::vector<lldb::addr_t>> addrs_from_registry =
+          FindTaskAddrsFromRegistry(reflection_ctx, process))
+    return *addrs_from_registry;
+  return FindTaskAddrsFromThreadList(process);
+}
+
 class TaskExplorer {
 public:
   TaskExplorer(ReflectionContextInterface &reflection_ctx, Process &process)
       : m_reflection_ctx(reflection_ctx) {
-    auto task_finder = GetTaskFinder(process);
-
-    for (const ThreadSP &thread : process.GetThreadList().Threads()) {
-      if (!thread)
-        continue;
-      std::optional<lldb::addr_t> maybe_task_addr =
-          task_finder->GetTaskAddrForThread(*thread);
-      if (!maybe_task_addr)
-        continue;
+    for (lldb::addr_t task_addr : FindTaskAddrs(reflection_ctx, process)) {
       int32_t max_nodes = 1000;
-      ExploreTask(*maybe_task_addr, max_nodes);
+      ExploreTask(task_addr, max_nodes);
     }
   }
 
