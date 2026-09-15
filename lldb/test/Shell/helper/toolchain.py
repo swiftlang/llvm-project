@@ -87,6 +87,25 @@ class ShTestLldb(ShTest):
         return super().execute(test, litConfig)
 
 
+def _find_windows_distribution_lldb(config):
+    """Return the lldb.exe installed under CMAKE_INSTALL_PREFIX, or None.
+
+    "Distribution toolchain lldb" means the lldb that is installed as part of a
+    Swift toolchain (<prefix>\\bin\\lldb.exe, next to the Swift runtime DLLs of
+    that same toolchain), as opposed to the lldb in the build tree. Windows has
+    no rpath, so an lldb picks up whichever swiftCore.dll & co. it finds first;
+    for the build-tree lldb that is the stdlib built alongside it, whose ABI
+    diverges from the distribution stdlib lldb itself was compiled against.
+    """
+    if sys.platform != "win32" or not getattr(config, "lldb_enable_swift", False):
+        return None
+    prefix = getattr(config, "cmake_install_prefix", "") or ""
+    if not prefix:
+        return None
+    lldb_exe = os.path.join(prefix, "bin", "lldb.exe")
+    return lldb_exe if os.path.isfile(lldb_exe) else None
+
+
 def use_lldb_substitutions(config):
     # Set up substitutions for primary tools.  These tools must come from config.lldb_tools_dir
     # which is basically the build output directory.  We do not want to find these in path or
@@ -119,22 +138,35 @@ def use_lldb_substitutions(config):
 
     lldb_init = _get_lldb_init_path(config)
 
+    # Which lldb %lldb runs. Normally the one in the build output directory,
+    # but on Windows a Swift build instead uses the lldb installed in the
+    # distribution toolchain because the build-tree lldb crashes in the
+    # Swift REPL.
+    lldb_exe = os.environ.get(
+        "LLDB_TEST_LLDB_EXECUTABLE", ""
+    ) or _find_windows_distribution_lldb(config)
+    if lldb_exe:
+        llvm_config.lit_config.note("using lldb for %%lldb: %r" % lldb_exe)
+        lldb_command = '"{0}"'.format(lldb_exe)
+    else:
+        lldb_command = FindTool("lldb")
+
     primary_tools = [
         ToolSubst(
             "%lldb",
-            command=FindTool("lldb"),
+            command=lldb_command,
             extra_args=get_lldb_args(config),
             unresolved="fatal",
         ),
         ToolSubst(
             "%lldb-init",
-            command=FindTool("lldb"),
+            command=lldb_command,
             extra_args=["-S", lldb_init],
             unresolved="fatal",
         ),
         ToolSubst(
             "%lldb-noinit",
-            command=FindTool("lldb"),
+            command=lldb_command,
             extra_args=["--no-lldbinit"],
             unresolved="fatal",
         ),
@@ -231,8 +263,8 @@ def use_support_substitutions(config):
             llvm_config.lit_config.note("using SDKROOT: %r" % sdk_path)
             host_flags += ["-isysroot", sdk_path]
     elif sys.platform == "win32":
-        # Required in SwiftREPL tests
-        sdk_path = os.environ.get("SDKROOT")
+        # Required in SwiftREPL tests.
+        sdk_path = os.environ.get("SDKROOT") or getattr(config, "swift_sdkroot", "")
         if sdk_path:
             llvm_config.lit_config.note(f"using SDKROOT: {sdk_path}")
             llvm_config.with_environment("SDKROOT", sdk_path)
