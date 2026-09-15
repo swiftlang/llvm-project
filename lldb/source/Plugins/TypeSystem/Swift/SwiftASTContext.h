@@ -294,6 +294,13 @@ public:
   bool IsModuleAvailableInCAS(llvm::StringRef key) const;
   bool HasNonexistentExplicitModule(llvm::ArrayRef<std::string> args);
 
+  /// Returns true if the explicit Swift module map references a .swiftmodule
+  /// file that no longer exists on disk (e.g. its SDK was removed). Used to
+  /// fall back to implicit module loading. Unlike HasNonexistentExplicitModule
+  /// this is independent of the Clang arguments, so it applies on the
+  /// DirectClangCC1ModuleBuild path too.
+  bool HasNonexistentExplicitSwiftModule();
+
   /// Add a list of Clang arguments to the ClangImporter options and
   /// apply the working directory to any relative paths.
   void AddExtraClangArgs(

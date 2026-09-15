@@ -16,11 +16,16 @@ class TestSwiftMissingSDK(TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
-    @skipIf(oslist=['windows'])
-    @skipIfDarwinEmbedded # swift crash inspecting swift stdlib with little other swift loaded <rdar://problem/55079456> 
+    @skipIfDarwinEmbedded # swift crash inspecting swift stdlib with little other swift loaded <rdar://problem/55079456>
     def testMissingSDK(self):
         self.build()
-        os.unlink(self.getBuildArtifact("fakesdk"))
+        fakesdk = self.getBuildArtifact("fakesdk")
+        # On Windows fakesdk is a directory junction. os.rmdir removes the
+        # junction without touching the real SDK. Elsewhere it is a symlink.
+        if os.path.isdir(fakesdk) and not os.path.islink(fakesdk):
+            os.rmdir(fakesdk)
+        else:
+            os.unlink(fakesdk)
         lldbutil.run_to_source_breakpoint(self, 'break here',
                                           lldb.SBFileSpec('main.swift'))
         self.expect("expression message", VARIABLES_DISPLAYED_CORRECTLY,
