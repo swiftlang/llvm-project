@@ -2471,6 +2471,13 @@ TypeSystemSwiftTypeRefForExpressions::TypeSystemSwiftTypeRefForExpressions(
   LLDB_LOGF(GetLog(LLDBLog::Types),
             "%s::TypeSystemSwiftTypeRefForExpressions()",
             m_description.c_str());
+  // The modules already in the target were taken into account when this context
+  // was set up, so a later announcement of them is not news: see m_modules_seen.
+  target.GetImages().ForEach([&](const lldb::ModuleSP &module_sp) {
+    if (module_sp)
+      m_modules_seen.insert(module_sp.get());
+    return IterationAction::Continue;
+  });
   if (repl || playground) {
     SymbolContext global_sc(target.shared_from_this(),
                             target.GetExecutableModule());
@@ -2518,12 +2525,22 @@ void TypeSystemSwiftTypeRef::NotifyAllTypeSystems(
 
 void TypeSystemSwiftTypeRefForExpressions::ModulesDidLoad(
     ModuleList &module_list) {
+  // Ignore modules this context has already seen: see m_modules_seen.
+  ModuleList new_modules;
+  module_list.ForEach([&](const lldb::ModuleSP &module_sp) {
+    if (module_sp && m_modules_seen.insert(module_sp.get()).second)
+      new_modules.Append(module_sp);
+    return IterationAction::Continue;
+  });
+  if (new_modules.IsEmpty())
+    return;
+
   ++m_generation;
   m_clang_type_cache.Clear();
   NotifyAllTypeSystems([&](TypeSystemSP ts_sp) {
     if (auto swift_ast_ctx =
             llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(ts_sp.get()))
-      swift_ast_ctx->ModulesDidLoad(module_list);
+      swift_ast_ctx->ModulesDidLoad(new_modules);
   });
 }
 
