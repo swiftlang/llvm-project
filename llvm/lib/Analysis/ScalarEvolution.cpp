@@ -13539,8 +13539,22 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   ICmpInst::Predicate Cond = IsSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT;
 
   const SCEV *Stride = IV->getStepRecurrence(*this);
+  const SCEV *GuardedStride = Stride;
+
+  // Whether the IV may reach the maximum value before the exit is taken.
+  bool IVMayOverflow = true;
 
   bool PositiveStride = isKnownPositive(Stride);
+  // A dominating guard may prove the stride positive.
+  if (!PositiveStride) {
+    const SCEV *LoopGuardedStride = applyLoopGuards(Stride, L);
+    if (isKnownPositive(LoopGuardedStride)) {
+      GuardedStride = LoopGuardedStride;
+      PositiveStride = true;
+      // Encode the context-sensitive stride > 0 fact into the expression
+      Stride = getUMaxExpr(Stride, getOne(Stride->getType()));
+    }
+  }
 
   // Avoid negative or zero stride values.
   if (!PositiveStride) {
@@ -13611,10 +13625,11 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
         Stride = getUMaxExpr(Stride, getOne(Stride->getType()));
       }
     }
-  } else if (!NoWrap) {
+  } else {
     // Avoid proven overflow cases: this will ensure that the backedge taken
     // count will not generate any unsigned overflow.
-    if (canIVOverflowOnLT(RHS, Stride, IsSigned))
+    IVMayOverflow = canIVOverflowOnLT(RHS, GuardedStride, IsSigned);
+    if (IVMayOverflow && !NoWrap)
       return getCouldNotCompute();
   }
 
@@ -13795,8 +13810,12 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
       //
       // Using this information, try to prove whether the addition in
       // "(Start - End) + (Stride - 1)" has unsigned overflow.
+      //
+      // If the IV cannot overflow, RHS is at least Stride - 1 below the maximum
+      // value, so the distance End - Start is at most UMAX - (Stride - 1) and
+      // the (Stride - 1) addition below cannot overflow.
       const SCEV *One = getOne(Stride->getType());
-      bool MayAddOverflow = [&] {
+      bool MayAddOverflow = IVMayOverflow && [&] {
         if (isKnownToBeAPowerOfTwo(Stride)) {
           // Suppose Stride is a power of two, and Start/End are unsigned
           // integers.  Let UMAX be the largest representable unsigned
