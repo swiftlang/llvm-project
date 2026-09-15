@@ -16,6 +16,7 @@
 #include "CoverageMappingGen.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/Support/CommandLine.h"
@@ -248,8 +249,9 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
     }
 
     if (const Expr *E = dyn_cast<Expr>(S)) {
-      const BinaryOperator *BinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
-      if (BinOp && BinOp->isLogicalOp()) {
+      if (const auto *BinOp =
+              dyn_cast<BinaryOperator>(CodeGenFunction::stripCond(E));
+          BinOp && BinOp->isLogicalOp()) {
         /// Check for "split-nested" logical operators. This happens when a new
         /// boolean expression logical-op nest is encountered within an existing
         /// boolean expression, separated by a non-logical operator.  For
@@ -281,7 +283,8 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
       return true;
 
     if (const Expr *E = dyn_cast<Expr>(S)) {
-      const BinaryOperator *BinOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
+      const BinaryOperator *BinOp =
+          dyn_cast<BinaryOperator>(CodeGenFunction::stripCond(E));
       if (BinOp && BinOp->isLogicalOp()) {
         assert(LogOpStack.back() == BinOp);
         LogOpStack.pop_back();
@@ -290,28 +293,19 @@ struct MapRegionCounters : public RecursiveASTVisitor<MapRegionCounters> {
         if (LogOpStack.empty()) {
           /// Was the "split-nested" logical operator case encountered?
           if (SplitNestedLogicalOp) {
-            unsigned DiagID = Diag.getCustomDiagID(
-                DiagnosticsEngine::Warning,
-                "unsupported MC/DC boolean expression; "
-                "contains an operation with a nested boolean expression. "
-                "Expression will not be covered");
-            Diag.Report(S->getBeginLoc(), DiagID);
+            Diag.Report(S->getBeginLoc(), diag::warn_pgo_nested_boolean_expr);
             return true;
           }
 
           /// Was the maximum number of conditions encountered?
           if (NumCond > MCDCMaxCond) {
-            unsigned DiagID = Diag.getCustomDiagID(
-                DiagnosticsEngine::Warning,
-                "unsupported MC/DC boolean expression; "
-                "number of conditions (%0) exceeds max (%1). "
-                "Expression will not be covered");
-            Diag.Report(S->getBeginLoc(), DiagID) << NumCond << MCDCMaxCond;
+            Diag.Report(S->getBeginLoc(), diag::warn_pgo_condition_limit)
+                << NumCond << MCDCMaxCond;
             return true;
           }
 
           // Otherwise, allocate the Decision.
-          MCDCState.DecisionByStmt[BinOp].BitmapIdx = 0;
+          MCDCState.DecisionByStmt[BinOp].ID = MCDCState.DecisionByStmt.size();
         }
         return true;
       }

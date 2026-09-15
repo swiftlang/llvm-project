@@ -3144,12 +3144,11 @@ void LoopAccessInfoManager::clear() {
   // analyzed loop or SCEVs that may have been modified or invalidated. At the
   // moment, that is loops requiring memory or SCEV runtime checks, as those cache
   // SCEVs, e.g. for pointer expressions.
-  for (const auto &[L, LAI] : LoopAccessInfoMap) {
-    if (LAI->getRuntimePointerChecking()->getChecks().empty() &&
-        LAI->getPSE().getPredicate().isAlwaysTrue())
-      continue;
-    LoopAccessInfoMap.erase(L);
-  }
+  LoopAccessInfoMap.remove_if([](const auto &Entry) {
+    const auto &LAI = Entry.second;
+    return !(LAI->getRuntimePointerChecking()->getChecks().empty() &&
+             LAI->getPSE().getPredicate().isAlwaysTrue());
+  });
 }
 
 bool LoopAccessInfoManager::invalidate(
