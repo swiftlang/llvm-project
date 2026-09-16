@@ -390,10 +390,12 @@ SwiftLanguageRuntime::FindConcurrencyInfo(Process &process) {
   uint32_t version = *version_word & g_concurrency_version_mask;
   uint8_t storage_kind_raw = *version_word >> g_concurrency_storage_kind_shift;
   std::optional<CurrentTaskStorageKind> storage_kind;
-  if (version >= 3 &&
-      (storage_kind_raw & g_concurrency_storage_kind_deferred_mask)) {
-    // The deferred flag explicitly overrides any storage_kind possibly defined
-    // in `storage_kind_raw`.
+  if (version < 3)
+    return {version, DeriveStorageKind(version, storage_kind_raw), concurrency_module};
+
+  // The deferred flag intentionally overrides any storage_kind possibly defined
+  // in `storage_kind_raw`.
+  if (storage_kind_raw & g_concurrency_storage_kind_deferred_mask) {
     storage_kind = FindDeferredStorageKind(process, version);
   } else {
     storage_kind = DeriveStorageKind(version, storage_kind_raw);
