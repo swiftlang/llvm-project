@@ -7,7 +7,7 @@ actor Fibonacci {
          }
          let n_1 = await fibonacci(n - 1)
          let n_2 = await fibonacci(n - 2) // recurse
-         print(n, n_1, n_2)
+         print(n)
          let res = n_1 + n_2 // compute result
          assert(n == _cache.count)
          _cache.append(res)
@@ -22,7 +22,7 @@ func fibonacci(_ n: Int) async -> Int {
     }
     let n_1 = await fibonacci(n - 1)
     let n_2 = await fibonacci(n - 2) // recurse
-    print(n, n_1, n_2)
+    print(n)
     return n_1 + n_2 // compute result
 }
 
