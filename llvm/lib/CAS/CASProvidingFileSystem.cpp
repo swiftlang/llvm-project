@@ -66,6 +66,10 @@ public:
                               SmallVectorImpl<char> &Output) final {
     return FS->getRealPath(Path, Output);
   }
+  void getDirectoryContentSources(const Twine &Dir,
+                                  SmallVectorImpl<std::string> &Out) final {
+    FS->getDirectoryContentSources(Dir, Out);
+  }
   std::error_code isLocal(const Twine &Path, bool &Result) final {
     return FS->isLocal(Path, Result);
   }

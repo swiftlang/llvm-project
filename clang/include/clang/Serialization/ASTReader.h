@@ -1626,6 +1626,10 @@ private:
                                        unsigned ClientLoadCapabilities);
   llvm::Error ReadSubmoduleBlock(ModuleFile &F,
                                  unsigned ClientLoadCapabilities);
+
+  ASTReadResult ReadDirectoryDependencies(const RecordData &Record,
+                                          ModuleFile &F,
+                                          unsigned ClientLoadCapabilities);
   static bool ParseLanguageOptions(const RecordData &Record,
                                    StringRef ModuleFilename, bool Complain,
                                    ASTReaderListener &Listener,
