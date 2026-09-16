@@ -229,6 +229,11 @@ llvm::Function *getObjCDirectMethodCallee(CodeGenModule &CGM,
                                           bool ReceiverCanBeNull,
                                           bool ClassObjectCanBeUnrealized);
 
+/// Emit what the Itanium C++ ABI emits alongside a definition of the virtual
+/// method \p MD, for a client that defines \p MD's body itself rather than
+/// through a C++ definition.
+void emitVirtualMethodTables(CodeGenModule &CGM, const CXXMethodDecl *MD);
+
 }  // end namespace CodeGen
 }  // end namespace clang
 

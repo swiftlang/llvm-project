@@ -486,6 +486,10 @@ private:
   /// A queue of (optional) vtables that may be emitted opportunistically.
   std::vector<const CXXRecordDecl *> OpportunisticVTables;
 
+  /// Classes whose key function is defined by the client of this module rather
+  /// than by a C++ body in the AST.
+  llvm::SmallPtrSet<const CXXRecordDecl *, 4> ClientDefinedKeyFunctions;
+
   /// List of global values which are required to be present in the object file;
   /// bitcast to i8*. This is used for forcing visibility of symbols which may
   /// otherwise be optimized out.
@@ -1561,6 +1565,15 @@ public:
   void EmitExternalDeclaration(const DeclaratorDecl *D);
 
   void EmitVTable(CXXRecordDecl *Class);
+
+  /// Note that the client of this module defines the body of \p RD's key
+  /// function itself, without a C++ definition in the AST.
+  void noteClientDefinedKeyFunction(const CXXRecordDecl *RD) {
+    ClientDefinedKeyFunctions.insert(RD);
+  }
+  bool hasClientDefinedKeyFunction(const CXXRecordDecl *RD) const {
+    return ClientDefinedKeyFunctions.contains(RD);
+  }
 
   void RefreshTypeCacheForClass(const CXXRecordDecl *Class);
 
