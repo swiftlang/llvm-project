@@ -421,8 +421,7 @@ void AArch64PointerAuthImpl::authenticateLR(
     // RET{A,B} requires the SP to match its incoming value on entry to the
     // function.
     bool TerminatorIsCombinable = TI != MBB.end() &&
-                                  (TI->getOpcode() == AArch64::RET ||
-                                   TI->getOpcode() == AArch64::RET_ReallyLR) &&
+                                  TI->getOpcode() == AArch64::RET &&
                                   ArgumentStackToRestore == 0;
 
     if (Subtarget->hasPAuth() && TerminatorIsCombinable && !NeedsWinCFI &&
