@@ -32,6 +32,16 @@
 
 namespace __asan {
 
+#if SANITIZER_APPLE
+// TO_UPSTREAM(crashreporter_global)
+// Defined in asan_mac_crashreport.cpp; populates the Darwin crash-reporter
+// payload for the current error. Walks state via the public
+// __asan_get_report_* / __asan_locate_address / __asan_get_alloc_stack /
+// __asan_get_free_stack interface, so it doesn't depend on internal types
+// here. Must be called with the asanThreadRegistry locked.
+void OnAsanReportPrinted(void);
+#endif
+
 // -------------------- User-specified callbacks ----------------- {{{1
 static void (*error_report_callback)(const char*);
 using ErrorMessageBuffer = InternalMmapVectorNoCtor<char, true>;
@@ -173,6 +183,11 @@ class ScopedInErrorReport {
 
     // Make sure the current thread is announced.
     DescribeThread(GetCurrentThread());
+#if SANITIZER_APPLE
+    // TO_UPSTREAM(crashreporter_global)
+    if (current_error_.IsValid())
+      OnAsanReportPrinted();
+#endif
     // We may want to grab this lock again when printing stats.
     asanThreadRegistry().Unlock();
     // Print memory stats.
