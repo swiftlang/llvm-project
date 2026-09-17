@@ -1,0 +1,5 @@
+framework module LLDB {
+  umbrella header "LLDB.h"
+  export *
+  module * { export * }
+}

@@ -93,8 +93,35 @@ foreach(source_header ${public_headers})
   list(APPEND preprocessed_headers ${parked_header})
 endforeach()
 
+# Copy the umbrella header so LLDBRPC.framework can be imported as a Clang module.
+set(lldbrpc_umbrella_header_output
+  ${CMAKE_CURRENT_BINARY_DIR}/ParkedHeaders/Headers/LLDBRPC.h)
+add_custom_command(OUTPUT ${lldbrpc_umbrella_header_output}
+  COMMAND ${CMAKE_COMMAND} -E copy
+          ${CMAKE_CURRENT_SOURCE_DIR}/LLDBRPC.h
+          ${lldbrpc_umbrella_header_output}
+  COMMENT "LLDBRPC: copy umbrella header"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/LLDBRPC.h
+)
+
+# Copy the module map so LLDBRPC.framework can be imported as a Clang module.
+set(lldbrpc_modulemap_output
+  ${CMAKE_CURRENT_BINARY_DIR}/ParkedHeaders/Modules/module.modulemap)
+add_custom_command(OUTPUT ${lldbrpc_modulemap_output}
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          ${CMAKE_CURRENT_BINARY_DIR}/ParkedHeaders/Modules
+  COMMAND ${CMAKE_COMMAND} -E copy
+          ${CMAKE_CURRENT_SOURCE_DIR}/LLDBRPC-framework.modulemap
+          ${lldbrpc_modulemap_output}
+  COMMENT "LLDBRPC: copy module map"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/LLDBRPC-framework.modulemap
+)
+
 # Wrap header preprocessing in a target, so liblldbrpc can depend on.
-add_custom_target(liblldbrpc-headers DEPENDS ${preprocessed_headers})
+add_custom_target(liblldbrpc-headers
+  DEPENDS ${preprocessed_headers}
+          ${lldbrpc_umbrella_header_output}
+          ${lldbrpc_modulemap_output})
 add_dependencies(liblldbrpc-headers copy-aux-rpc-headers liblldb-header-staging)
 set_target_properties(liblldbrpc-headers PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ParkedHeaders
