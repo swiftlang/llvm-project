@@ -4753,6 +4753,15 @@ bool TargetProperties::GetSwiftAllowExplicitModules() const {
   return true;
 }
 
+void TargetProperties::SetSwiftAllowExplicitModules(bool b) const {
+  const Property *exp_property =
+      m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
+  OptionValueProperties *exp_values =
+      exp_property->GetValue()->GetAsProperties();
+  if (exp_values)
+    exp_values->SetPropertyAtIndex(ePropertySwiftAllowExplicitModules, b);
+}
+
 bool TargetProperties::GetSwiftAllowImplicitModules() const {
   const Property *exp_property =
       m_collection_sp->GetPropertyAtIndex(ePropertyExperimental);
