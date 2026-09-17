@@ -983,6 +983,9 @@ private:
   /// added to the reflection context once it's being initialized.
   ModuleList m_modules_to_add;
 
+  /// Load addresses of the images already handed to the reflection context.
+  llvm::DenseSet<lldb::addr_t> m_registered_reflection_images;
+
   /// Increased every time SymbolsDidLoad is called.
   unsigned m_generation = 0;
   /// Add the image to the reflection context.
