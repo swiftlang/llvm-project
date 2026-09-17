@@ -1749,6 +1749,10 @@ bool CursorVisitor::VisitValueTerminatedTypeLoc(ValueTerminatedTypeLoc TL) {
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
+bool CursorVisitor::VisitLateParsedAttrTypeLoc(LateParsedAttrTypeLoc TL) {
+  return Visit(TL.getInnerLoc());
+}
+
 bool CursorVisitor::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
   return Visit(TL.getWrappedLoc());
 }
