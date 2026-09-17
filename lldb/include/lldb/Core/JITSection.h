@@ -18,23 +18,23 @@ namespace lldb_private {
 class JITSection : public Section {
 public:
   JITSection(const lldb::ModuleSP &module_sp, ObjectFile *obj_file,
-             lldb::user_id_t sect_id, ConstString name,
+             lldb::user_id_t sect_id, std::string name,
              lldb::SectionType sect_type, lldb::addr_t file_vm_addr,
              lldb::addr_t vm_size, lldb::offset_t file_offset,
              lldb::offset_t file_size, uint32_t log2align, uint32_t flags,
              size_t non_jit_size, uint32_t target_byte_size = 1)
-      : Section(module_sp, obj_file, sect_id, name, sect_type, file_vm_addr,
+      : Section(module_sp, obj_file, sect_id, std::move(name), sect_type, file_vm_addr,
                 vm_size, file_offset, file_size, log2align, flags),
         m_non_jit_size(non_jit_size) {}
 
   JITSection(const lldb::SectionSP &parent_section_sp,
              const lldb::ModuleSP &module_sp, ObjectFile *obj_file,
-             lldb::user_id_t sect_id, ConstString name,
+             lldb::user_id_t sect_id, std::string name,
              lldb::SectionType sect_type, lldb::addr_t file_vm_addr,
              lldb::addr_t vm_size, lldb::offset_t file_offset,
              lldb::offset_t file_size, uint32_t log2align, uint32_t flags,
              size_t non_jit_size, uint32_t target_byte_size = 1)
-      : Section(parent_section_sp, module_sp, obj_file, sect_id, name,
+      : Section(parent_section_sp, module_sp, obj_file, sect_id, std::move(name),
                 sect_type, file_vm_addr, vm_size, file_offset, file_size,
                 log2align, flags),
         m_non_jit_size(non_jit_size) {}
