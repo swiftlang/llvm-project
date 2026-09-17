@@ -2068,6 +2068,10 @@ void AggExprEmitter::EmitCheckedBoundPointerArithmetic(
   LValue BaseLV = CGF.EmitAggExprToLValue(Base);
   EmitBoundPointerArithmetic(DestLV, BaseLV, Idx, IsSigned, IsSub);
 
+  if (IsSub) {
+    Idx = Builder.CreateNeg(Idx, "idx.neg");
+  }
+
   if (CGF.SanOpts.has(SanitizerKind::ArrayBounds))
     CGF.EmitBoundsCheck(E, Base, Idx, IdxType,
                         /*Accessed*/ false);
