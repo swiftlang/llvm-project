@@ -2,10 +2,23 @@
 Test that Float16 reports a scalar value.
 """
 
+import os
+
 import lldb
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
+
+
+def isAmazonLinux2023():
+    for path in ("/etc/os-release", "/usr/lib/os-release"):
+        if os.path.exists(path):
+            with open(path) as f:
+                contents = f.read()
+            if 'PLATFORM_ID="platform:al2023"' in contents:
+                return "Amazon Linux 2023 is not supported."
+
+    return None
 
 
 class TestSwiftFloat16(TestBase):
@@ -13,6 +26,11 @@ class TestSwiftFloat16(TestBase):
     @skipEmbeddedSwiftOnWindows
     # Float16 is unavailable in the stdlib on x86_64 macOS.
     @skipIf(oslist=["macosx"], archs=["x86_64"])
+    # The distro check inspects the host, which says nothing about the target
+    # when the test runs against a remote platform.
+    @skipIfRemote
+    # Amazon Linux 2023 has no Float16 support.
+    @skipTestIfFn(isAmazonLinux2023)
     def test(self):
         """Test that Float16 has a value, like Float and Double do."""
         self.build()
