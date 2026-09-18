@@ -1009,6 +1009,7 @@ Sema::ImpCastExprToType(Expr *E, QualType Ty, CastKind Kind, ExprValueKind VK,
           Ty = PreservingAttributes(Ty, [=](QualType QT) {
             QualType PT = Context.getPointerType(
                 QT->getPointeeType(), BoundsSafetyPointerAttributes::single());
+            PT = Context.getAttributedType(attr::PtrSingle, PT, PT);
             return Context.getValueTerminatedType(PT, VTT->getTerminatorExpr());
           });
           break;
@@ -1034,7 +1035,8 @@ Sema::ImpCastExprToType(Expr *E, QualType Ty, CastKind Kind, ExprValueKind VK,
         BoundsSafetyPointerAttributes FA;
         FA.setSingle();
         auto PT = Ty->getAs<PointerType>();
-        return Context.getPointerType(PT->getPointeeType(), FA);
+        QualType NewTy = Context.getPointerType(PT->getPointeeType(), FA);
+        return Context.getAttributedType(attr::PtrSingle, NewTy, NewTy);
       });
       break;
     }
