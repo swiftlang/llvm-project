@@ -182,6 +182,30 @@ if platform.system() == "Windows":
     # for specific stdout/stderr content.
     config.environment["LLDB_LAUNCH_FLAG_USE_PIPES"] = "1"
 
+    # Windows has no rpath. The Swift REPL / expression evaluator embedded in
+    # liblldb, and the inferiors launched by shell tests, need the Swift
+    # runtime DLLs (swiftCore, Foundation, ...) on PATH at launch. Mirror the
+    # API test harness (test/API/lit.cfg.py): prepend the configured runtime
+    # bin (falling back to the SDK sysroot's usr/bin), followed by the lldb
+    # shared-library dir which holds the just-built swiftCore.
+    runtime_bin = getattr(config, "test_inferior_runtime_bin", "") or ""
+    if not runtime_bin:
+        sysroot = getattr(config, "cmake_sysroot", "") or ""
+        if sysroot:
+            runtime_bin = os.path.join(sysroot, "usr", "bin")
+    win_paths = []
+    if config.llvm_shlib_dir:
+        win_paths.append(config.llvm_shlib_dir)
+    if runtime_bin and os.path.isdir(runtime_bin):
+        win_paths.append(runtime_bin)
+    if config.lldb_enable_swift:
+        py_dir = os.path.dirname(getattr(config, "python_executable", "") or "")
+        if py_dir and os.path.isdir(py_dir):
+            win_paths.insert(0, py_dir)
+            config.environment.setdefault("PYTHONHOME", py_dir)
+    win_paths.append(config.environment.get("PATH", ""))
+    config.environment["PATH"] = os.path.pathsep.join(win_paths)
+
 # NetBSD permits setting dbregs either if one is root
 # or if user_set_dbregs is enabled
 can_set_dbregs = True
