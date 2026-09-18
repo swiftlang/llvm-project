@@ -8,12 +8,14 @@ void foo(char tag[3]);
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL:%.*]] = alloca [3 x i8], align 1
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[DOTCOMPOUNDLITERAL]]) #[[ATTR3:[0-9]+]]
 // CHECK-NEXT:    store i8 65, ptr [[DOTCOMPOUNDLITERAL]], align 1, !tbaa [[TBAA6:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT:%.*]] = getelementptr inbounds nuw i8, ptr [[DOTCOMPOUNDLITERAL]], i64 1
 // CHECK-NEXT:    store i8 66, ptr [[ARRAYINIT_ELEMENT]], align 1, !tbaa [[TBAA6]]
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT1:%.*]] = getelementptr inbounds nuw i8, ptr [[DOTCOMPOUNDLITERAL]], i64 2
 // CHECK-NEXT:    store i8 67, ptr [[ARRAYINIT_ELEMENT1]], align 1, !tbaa [[TBAA6]]
-// CHECK-NEXT:    call void @foo(ptr noundef nonnull [[DOTCOMPOUNDLITERAL]]) #[[ATTR2:[0-9]+]]
+// CHECK-NEXT:    call void @foo(ptr noundef nonnull [[DOTCOMPOUNDLITERAL]]) #[[ATTR3]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[DOTCOMPOUNDLITERAL]]) #[[ATTR3]]
 // CHECK-NEXT:    ret void
 //
 void bar(void) {

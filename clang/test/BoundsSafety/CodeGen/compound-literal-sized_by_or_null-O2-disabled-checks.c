@@ -62,10 +62,10 @@ void receive_transparent_union(union TransparentUnion);
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6:![0-9]+]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7:![0-9]+]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr(struct sbon* ptr, int new_count,
@@ -77,7 +77,7 @@ void assign_via_ptr(struct sbon* ptr, int new_count,
 }
 
 // CHECK-LABEL: define void @assign_operator(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -91,7 +91,7 @@ void assign_operator(int new_count, char* __bidi_indexable new_ptr) {
 
 
 // CHECK-LABEL: define void @local_var_init(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -105,8 +105,8 @@ void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-LABEL: define void @call_arg(
 // CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[NEW_COUNT]] to i64
+// CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue [2 x i64] poison, i64 [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT]], 0
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]] to i64
 // CHECK-NEXT:    [[DOTFCA_1_INSERT:%.*]] = insertvalue [2 x i64] [[DOTFCA_0_INSERT]], i64 [[TMP0]], 1
@@ -138,7 +138,7 @@ struct sbon return_sbon(int new_count, char* __bidi_indexable new_ptr) {
 }
 
 // CHECK-LABEL: define void @construct_not_used(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofreeobj noundef readnone align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -153,10 +153,10 @@ void construct_not_used(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((0, 16)) [[PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]]) local_unnamed_addr #[[ATTR7:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nullptr(struct sbon* ptr, int new_count) {
@@ -171,14 +171,14 @@ void assign_via_ptr_nullptr(struct sbon* ptr, int new_count) {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nested(struct nested_sbon* ptr,
@@ -195,14 +195,14 @@ void assign_via_ptr_nested(struct nested_sbon* ptr,
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nested_v2(struct nested_sbon* ptr,
@@ -219,16 +219,16 @@ void assign_via_ptr_nested_v2(struct nested_sbon* ptr,
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 24
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_8_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 24
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_8_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nested_v3(struct nested_and_outer_sbon* ptr,
@@ -275,14 +275,14 @@ void array_of_struct_init(char* __bidi_indexable new_ptr,
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_other_data_side_effect(struct sbon_with_other_data* ptr,
@@ -301,14 +301,14 @@ void assign_via_ptr_other_data_side_effect(struct sbon_with_other_data* ptr,
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_other_data_side_effect_zero_ptr(struct sbon_with_other_data* ptr,
@@ -357,14 +357,14 @@ void call_arg_transparent_union(int new_count,
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[BYVAL_TEMP]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA17:![0-9]+]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0_BYVAL_TEMP_SROA_IDX]], align 8
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA17:![0-9]+]]
 // CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    ret void
@@ -389,8 +389,8 @@ void call_arg_transparent_union_untransparently(int new_count,
 // CHECK-LABEL: define void @assign_via_ptr_from_ptr(
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((4, 8)) [[PTR:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_from_ptr(struct sbon* ptr) {
@@ -404,10 +404,10 @@ void assign_via_ptr_from_ptr(struct sbon* ptr) {
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((0, 16)) [[PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]], ptr noundef [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_from_sbon(struct sbon* ptr, int new_count,
@@ -419,7 +419,7 @@ void assign_via_ptr_from_sbon(struct sbon* ptr, int new_count,
 }
 
 // CHECK-LABEL: define void @assign_operator_from_sbon(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -434,7 +434,7 @@ void assign_operator_from_sbon(int new_count,
 
 
 // CHECK-LABEL: define void @local_var_init_from_sbon(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -465,7 +465,7 @@ void call_arg_from_sbon(int new_count,
 }
 
 // CHECK-LABEL: define [2 x i64] @return_sbon_from_sbon(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr noundef [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr noundef [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[NEW_PTR]] to i64
 // CHECK-NEXT:    [[RETVAL_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[NEW_COUNT]] to i64
@@ -482,7 +482,7 @@ struct sbon return_sbon_from_sbon(int new_count,
 }
 
 // CHECK-LABEL: define void @construct_not_used_from_sbon(
-// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR2]] {
+// CHECK-SAME: i32 noundef [[NEW_COUNT:%.*]], ptr nofree noundef readnone captures(none) [[NEW_PTR:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret void
 //
@@ -498,14 +498,14 @@ void construct_not_used_from_sbon(int new_count,
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((0, 24)) [[PTR:%.*]], ptr noundef [[NEW_PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nested_from_sbon(struct nested_sbon* ptr,
@@ -521,14 +521,14 @@ void assign_via_ptr_nested_from_sbon(struct nested_sbon* ptr,
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) initializes((0, 24)) [[PTR:%.*]], ptr noundef [[NEW_PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_nested_v2_from_sbon(struct nested_sbon* ptr,
@@ -570,14 +570,14 @@ void array_of_struct_init_from_sbon(char* __sized_by_or_null(new_count) new_ptr,
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr [[NEW_PTR]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_other_data_side_effect_from_sbon(struct sbon_with_other_data* ptr,
@@ -596,14 +596,14 @@ void assign_via_ptr_other_data_side_effect_from_sbon(struct sbon_with_other_data
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
-// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_3_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
-// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0__SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
+// CHECK-NEXT:    store ptr null, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0__SROA_IDX]], align 8, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 16
+// CHECK-NEXT:    store i32 [[CALL]], ptr [[DOTCOMPOUNDLITERAL_SROA_6_0__SROA_IDX]], align 8, !tbaa [[TBAA6]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0__SROA_IDX]], align 4
 // CHECK-NEXT:    ret void
 //
 void assign_via_ptr_other_data_side_effect_zero_ptr_from_sbon(struct sbon_with_other_data* ptr,
@@ -653,14 +653,14 @@ void call_arg_transparent_union_from_sbon(int new_count,
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[BYVAL_TEMP]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX]], align 4
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
-// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_3_0_BYVAL_TEMP_SROA_IDX]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 8
-// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
-// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA17]]
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_4_0_BYVAL_TEMP_SROA_IDX]], align 4
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 8
+// CHECK-NEXT:    store ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_6_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 16
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_6_0_BYVAL_TEMP_SROA_IDX]], align 8
+// CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_7_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
+// CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_7_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA17]]
 // CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR8]]
 // CHECK-NEXT:    ret void

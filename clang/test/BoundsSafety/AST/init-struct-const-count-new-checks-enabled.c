@@ -367,263 +367,265 @@ void init_list_cb_bidi(int count_param, int* __bidi_indexable ptr) {
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct cb' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct cb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count)':'int *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | | |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | | | |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | | |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | | |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'int *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |   |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |   | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |   |   |-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         |   |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |   |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |           `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |             |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |             | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |             | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |             | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |             | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             | | `-<<<NULL>>>
-// CHECK-NEXT: |   |             | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
-// CHECK-NEXT: |   |             `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |               `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |                 `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct cb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count)':'int *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | | |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | | | |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | | |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | | |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'int *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |   |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |   | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |   |   |-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           |   |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |   |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |             `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |               |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |               | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |               | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |               | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               | | `-<<<NULL>>>
+// CHECK-NEXT: |   |               | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               |-OpaqueValueExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               |   `-DeclRefExpr {{.+}} 'int *__single __counted_by(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by(count_param)':'int *__single'
+// CHECK-NEXT: |   |               `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
@@ -640,63 +642,65 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct cb' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct cb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count)':'int *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'int *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |   |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |   | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |   |   |-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         |   |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |             `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct cb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by(count)':'int *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'int *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |   |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |   | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |   |   |-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           |   |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |             `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |               `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
@@ -1105,293 +1109,295 @@ void init_list_cbon_bidi(int count_param, int*__bidi_indexable ptr) {
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct cbon' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct cbon' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cbon' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct cbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cbon'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count)':'int *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | | |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | | | |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | | |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | | |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | | |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | | |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'int *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         | |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         | |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '||'
-// CHECK-NEXT: |   |         |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
-// CHECK-NEXT: |   |         |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |     |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |     | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |     |   |-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         |     |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |     |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |     |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |     |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |     |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |     |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |     |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |         |     |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |     |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |         |     |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |           `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |             |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |             | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |             | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | |-BinaryOperator {{.+}} 'int *' '+'
-// CHECK-NEXT: |   |             | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |             | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             | | `-<<<NULL>>>
-// CHECK-NEXT: |   |             | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
-// CHECK-NEXT: |   |             `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |               `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |                 `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cbon'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct cbon' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct cbon' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct cbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct cbon'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count)':'int *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | | |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | | | |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | | |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | | |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | |       |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |       | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | | |       | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | |       | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | |       | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | | |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'int *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           | |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           | |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '||'
+// CHECK-NEXT: |   |           |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
+// CHECK-NEXT: |   |           |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |     |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |     | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |     |   |-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           |     |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   |   `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |     |   |     |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |     |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   |     | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |     |   |     | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |   |     | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |     |   |     | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   |     |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |       `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |     |         |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |     |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |         | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |           |     |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |         | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |     |         | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |         |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |           |     |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |             `-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |               |-MaterializeSequenceExpr {{.+}} 'int *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |               | | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | |-BinaryOperator {{.+}} 'int *' '+'
+// CHECK-NEXT: |   |               | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |               | | | | `-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | |   `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | | |     `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               | | `-<<<NULL>>>
+// CHECK-NEXT: |   |               | |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               |-OpaqueValueExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               |   `-DeclRefExpr {{.+}} 'int *__single __counted_by_or_null(count_param)':'int *__single' lvalue ParmVar {{.+}} 'ptr' 'int *__single __counted_by_or_null(count_param)':'int *__single'
+// CHECK-NEXT: |   |               `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cbon)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cbon)' Function {{.+}} 'consume_cbon' 'void (struct cbon)'
@@ -1408,68 +1414,70 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct cbon' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct cbon' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cbon' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct cbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cbon'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count)':'int *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'int *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '||'
-// CHECK-NEXT: |   |         |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
-// CHECK-NEXT: |   |         |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |     |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |     | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |     |   |-GetBoundExpr {{.+}} 'int *' upper
-// CHECK-NEXT: |   |         |     |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
-// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |             `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cbon'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct cbon' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct cbon' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct cbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct cbon'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int *__single __counted_by_or_null(count)':'int *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'int *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '||'
+// CHECK-NEXT: |   |           |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
+// CHECK-NEXT: |   |           |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |     |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |     | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |     |   |-GetBoundExpr {{.+}} 'int *' upper
+// CHECK-NEXT: |   |           |     |   | `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   |   `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   `-ImplicitCastExpr {{.+}} 'int *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |     `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |       `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'int *__bidi_indexable'
+// CHECK-NEXT: |   |             `-ImplicitCastExpr {{.+}} 'int *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |               `-DeclRefExpr {{.+}} 'int *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'int *__bidi_indexable'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cbon)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cbon)' Function {{.+}} 'consume_cbon' 'void (struct cbon)'
@@ -1843,263 +1851,265 @@ void init_list_bidi(int count_param, char*__bidi_indexable ptr) {
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct sb' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct sb' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct sb' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct sb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct sb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | | |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | | | |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | | |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | | |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |   |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |   | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |   |   |-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         |   |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |   |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |   |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |           `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |             |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |             | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |             | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |             | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             | | `-<<<NULL>>>
-// CHECK-NEXT: |   |             | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
-// CHECK-NEXT: |   |             `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |               `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |                 `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct sb'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct sb' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct sb' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct sb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct sb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | | |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | | | |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | | |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | | |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |   |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |   | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |   |   |-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           |   |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |   |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |   |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |               | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               | | `-<<<NULL>>>
+// CHECK-NEXT: |   |               | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               |-OpaqueValueExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               |   `-DeclRefExpr {{.+}} 'char *__single __sized_by(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by(count_param)':'char *__single'
+// CHECK-NEXT: |   |               `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct sb)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct sb)' Function {{.+}} 'consume_sb' 'void (struct sb)'
@@ -2116,63 +2126,65 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct sb' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct sb' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct sb' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct sb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct sb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |   |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |   | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |   |   |-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         |   |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |             `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct sb'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct sb' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct sb' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct sb' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct sb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |   |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |   | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |   |   |-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           |   |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |     |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct sb)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct sb)' Function {{.+}} 'consume_sb' 'void (struct sb)'
@@ -2581,293 +2593,295 @@ void init_list_sbon_bidi(int count_param, char*__bidi_indexable ptr) {
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used c 'struct sbon' cinit
-// CHECK-NEXT: |   |   `-ImplicitCastExpr {{.+}} 'struct sbon' <LValueToRValue>
-// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct sbon' lvalue
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct sbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct sbon'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | | |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | | |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | | | |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | | |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | | |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | | |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | | |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | | |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | | |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | | |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | | |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | | |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         | |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         | |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         | |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         | |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         | |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         | |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '||'
-// CHECK-NEXT: |   |         |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
-// CHECK-NEXT: |   |         |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |   `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         |     |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT: |   |         |     | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT: |   |         |     |   |-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |     |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |     |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |     |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |     |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |   |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |         |     |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |         |     |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |         |     |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |         |     |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         |     |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |         | | `-<<<NULL>>>
-// CHECK-NEXT: |   |         |     |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |         |     |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |     |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |     |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |     `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
-// CHECK-NEXT: |   |         |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT: |   |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |           `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |             |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |             | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |             | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |             | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             | | `-<<<NULL>>>
-// CHECK-NEXT: |   |             | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |             |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |             |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT: |   |             |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |             |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
-// CHECK-NEXT: |   |             `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |               `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |                 `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct sbon'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-ImplicitCastExpr {{.+}} 'struct sbon' <LValueToRValue>
+// CHECK-NEXT: |   |       `-CompoundLiteralExpr {{.+}} 'struct sbon' lvalue
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct sbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct sbon'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | | |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | | |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | | |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | | | |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | | |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | | |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | | |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | | |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | | |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |     `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | | |       |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | | |       | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | | |       | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | | |       | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | | |       | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | | |       | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |       |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | |       |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |       |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | | |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | | |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | | |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |   |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           | |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           | |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           | |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           | |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           | |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           | |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           | |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           | |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '||'
+// CHECK-NEXT: |   |           |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
+// CHECK-NEXT: |   |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |   `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           |     |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT: |   |           |     | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT: |   |           |     |   |-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |     |   |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |     |   |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |   |     | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |     |   |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |   |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |     |   |     | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   |     |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |     |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |   |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |   |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |   |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |           |     |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |           |     |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |           |     |         | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |           |     |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           |     |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |         | | `-<<<NULL>>>
+// CHECK-NEXT: |   |           |     |         | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     |         |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |         |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |           |     |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |     |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |     |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |     `-BinaryOperator {{.+}} <<invalid sloc>, line:{{.+}}> 'int' '<='
+// CHECK-NEXT: |   |           |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT: |   |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |               | | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               | | `-<<<NULL>>>
+// CHECK-NEXT: |   |               | |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               | |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT: |   |               |-OpaqueValueExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |               |   `-DeclRefExpr {{.+}} 'char *__single __sized_by_or_null(count_param)':'char *__single' lvalue ParmVar {{.+}} 'ptr' 'char *__single __sized_by_or_null(count_param)':'char *__single'
+// CHECK-NEXT: |   |               `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct sbon)' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct sbon)' Function {{.+}} 'consume_sbon' 'void (struct sbon)'
@@ -2884,68 +2898,70 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // CHECK-NEXT:   `-CompoundStmt {{.+}}
 // CHECK-NEXT:     |-DeclStmt {{.+}}
 // CHECK-NEXT:     | `-VarDecl {{.+}} used c 'struct sbon' cinit
-// CHECK-NEXT:     |   `-ImplicitCastExpr {{.+}} 'struct sbon' <LValueToRValue>
-// CHECK-NEXT:     |     `-CompoundLiteralExpr {{.+}} 'struct sbon' lvalue
-// CHECK-NEXT:     |       `-BoundsCheckExpr {{.+}} 'struct sbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
-// CHECK-NEXT:     |         |-InitListExpr {{.+}} 'struct sbon'
-// CHECK-NEXT:     |         | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT:     |         | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT:     |         | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT:     |         | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:     |         |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT:     |         | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT:     |         | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:     |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:     |         | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         | | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT:     |         | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:     |         | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT:     |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:     |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         | `-BinaryOperator {{.+}} 'int' '||'
-// CHECK-NEXT:     |         |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
-// CHECK-NEXT:     |         |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |   `-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT:     |         |     |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:     |         |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
-// CHECK-NEXT:     |         |     | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT:     |         |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT:     |         |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT:     |         |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
-// CHECK-NEXT:     |         |     |   |-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT:     |         |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:     |         |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |         |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:     |         |     `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
-// CHECK-NEXT:     |         |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
-// CHECK-NEXT:     |         |       `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT:     |         |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT:     |         |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT:     |         |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT:     |         | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT:     |         |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
-// CHECK-NEXT:     |         `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:     |           `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:     |             `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |   `-ExprWithCleanups {{.+}} 'struct sbon'
+// CHECK-NEXT:     |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT:     |     `-ImplicitCastExpr {{.+}} 'struct sbon' <LValueToRValue>
+// CHECK-NEXT:     |       `-CompoundLiteralExpr {{.+}} 'struct sbon' lvalue
+// CHECK-NEXT:     |         `-BoundsCheckExpr {{.+}} 'struct sbon' 'ptr <= __builtin_get_pointer_upper_bound(ptr) && __builtin_get_pointer_lower_bound(ptr) <= ptr && !ptr || count_param <= __builtin_get_pointer_upper_bound(ptr) - ptr && 0 <= count_param'
+// CHECK-NEXT:     |           |-InitListExpr {{.+}} 'struct sbon'
+// CHECK-NEXT:     |           | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT:     |           | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT:     |           | |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT:     |           | `-ImplicitCastExpr {{.+}} 'char *__single __sized_by_or_null(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT:     |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT:     |           | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT:     |           | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:     |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:     |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           | | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT:     |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:     |           | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT:     |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:     |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           | `-BinaryOperator {{.+}} 'int' '||'
+// CHECK-NEXT:     |           |   |-UnaryOperator {{.+}} 'int' prefix '!' cannot overflow
+// CHECK-NEXT:     |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |   `-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT:     |           |     |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:     |           |     | |-ImplicitCastExpr {{.+}} '__ptrdiff_t':'long' <IntegralCast>
+// CHECK-NEXT:     |           |     | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT:     |           |     | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT:     |           |     | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT:     |           |     | `-BinaryOperator {{.+}} '__ptrdiff_t':'long' '-'
+// CHECK-NEXT:     |           |     |   |-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT:     |           |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:     |           |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |           |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:     |           |     `-BinaryOperator {{.+}} <<invalid sloc>, col:{{.+}}> 'int' '<='
+// CHECK-NEXT:     |           |       |-IntegerLiteral {{.+}} <<invalid sloc>> 'int' 0
+// CHECK-NEXT:     |           |       `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT:     |           |         `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT:     |           |           `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT:     |           |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT:     |           | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT:     |           |   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'count_param' 'int'
+// CHECK-NEXT:     |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:     |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:     |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'ptr' 'char *__bidi_indexable'
 // CHECK-NEXT:     `-CallExpr {{.+}} 'void'
 // CHECK-NEXT:       |-ImplicitCastExpr {{.+}} 'void (*__single)(struct sbon)' <FunctionToPointerDecay>
 // CHECK-NEXT:       | `-DeclRefExpr {{.+}} 'void (struct sbon)' Function {{.+}} 'consume_sbon' 'void (struct sbon)'

@@ -73,135 +73,12 @@ void receive_transparent_union(union TransparentUnion);
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-void assign_via_ptr(struct eb* ptr,
-                    char* __bidi_indexable new_start, char* new_end) {
-  *ptr = (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator 'void (char *__bidi_indexable, char *__single)'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   |-DeclStmt {{.+}}
-// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct eb'
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-DeclRefExpr {{.+}} 'struct eb' lvalue Var {{.+}} 'new' 'struct eb'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-void assign_operator(char* __bidi_indexable new_start, char* new_end) {
-  struct eb new;
-  new = (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init 'void (char *__bidi_indexable, char *__single)'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-DeclStmt {{.+}}
-// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct eb' cinit
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
 // CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
 // CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
 // CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
@@ -249,6 +126,135 @@ void assign_operator(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
 // CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
 // CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+void assign_via_ptr(struct eb* ptr,
+                    char* __bidi_indexable new_start, char* new_end) {
+  *ptr = (struct eb) {
+    .start = new_start,
+    .end = new_end
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator 'void (char *__bidi_indexable, char *__single)'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   |-DeclStmt {{.+}}
+// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct eb'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-DeclRefExpr {{.+}} 'struct eb' lvalue Var {{.+}} 'new' 'struct eb'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+void assign_operator(char* __bidi_indexable new_start, char* new_end) {
+  struct eb new;
+  new = (struct eb) {
+    .start = new_start,
+    .end = new_end
+  };
+}
+
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init 'void (char *__bidi_indexable, char *__single)'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-DeclStmt {{.+}}
+// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct eb' cinit
+// CHECK-NEXT: |       `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |         |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |             `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |               |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |               | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |               |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |               | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |               | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |               | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |               | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |               | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |               | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |               |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |               |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void local_var_init(char* __bidi_indexable new_start, char* new_end) {
   struct eb new = (struct eb) {
     .start = new_start,
@@ -260,56 +266,58 @@ void local_var_init(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct eb)' Function {{.+}} 'consume_eb' 'void (struct eb)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (struct eb)' Function {{.+}} 'consume_eb' 'void (struct eb)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void call_arg(char* __bidi_indexable new_start, char* new_end) {
   consume_eb((struct eb) {
     .start = new_start,
@@ -322,53 +330,55 @@ void call_arg(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   `-ReturnStmt {{.+}}
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |     `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 struct eb return_eb(char* __bidi_indexable new_start, char* new_end) {
   return (struct eb) {
     .start = new_start,
@@ -380,54 +390,56 @@ struct eb return_eb(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue> part_of_explicit_cast
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CStyleCastExpr {{.+}} 'void' <ToVoid>
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue> part_of_explicit_cast
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void construct_not_used(char* __bidi_indexable new_start, char* new_end) {
   (void)(struct eb) {
     .start = new_start,
@@ -439,46 +451,48 @@ void construct_not_used(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void assign_via_ptr_nullptr(struct eb* ptr, char* new_end) {
   *ptr = (struct eb) {
     // Diagnostic emitted here but suppressed for this test case
@@ -492,59 +506,61 @@ void assign_via_ptr_nullptr(struct eb* ptr, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_eb'
-// CHECK-NEXT: |           |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           | |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |             |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             | |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested(struct nested_eb* ptr,
                            char* __bidi_indexable new_start,
                            char* new_end) {
@@ -559,61 +575,64 @@ void assign_via_ptr_nested(struct nested_eb* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_eb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |           | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |           |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |     |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |     |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           |     | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           |     | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |     | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |     | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |             | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |             |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |     |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |     |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             |     | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             |     | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |     | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |     | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested_v2(struct nested_eb* ptr,
                               char* __bidi_indexable new_start,
                               char* new_end) {
@@ -628,105 +647,108 @@ void assign_via_ptr_nested_v2(struct nested_eb* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_and_outer_eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_and_outer_eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_and_outer_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_and_outer_eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_and_outer_eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct nested_and_outer_eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct nested_and_outer_eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |           | | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |           | |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           | |     |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |     |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |     | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |     | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |     | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |     | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |     | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |     |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           | |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | |-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_and_outer_eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_and_outer_eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_and_outer_eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_and_outer_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_and_outer_eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_and_outer_eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct nested_and_outer_eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct nested_and_outer_eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |             | | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |             | |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             | |     |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |     |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |     | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |     | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |     | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |     | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |     | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |     |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             | |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | |-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void assign_via_ptr_nested_v3(struct nested_and_outer_eb* ptr,
                               char* __bidi_indexable new_start,
                               char* new_end) {
@@ -744,87 +766,89 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_eb* ptr,
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used arr 'struct eb[2]' cinit
-// CHECK-NEXT: |   |   `-CompoundLiteralExpr {{.+}} 'struct eb[2]'
-// CHECK-NEXT: |   |     `-InitListExpr {{.+}} 'struct eb[2]'
-// CHECK-NEXT: |   |       |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |   |       | |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |   |       | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |   |       | |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |   |       | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |       | | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |       | | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |   |       | | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |   |       | | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |       | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |   |       | | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |   |       | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |   |       | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |   |       | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |   |       | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |   |       |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct eb' '0 <= __builtin_get_pointer_upper_bound(0) && 0 <= 0'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | `-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
-// CHECK-NEXT: |   |         |   `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |     `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | |-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |         | | | `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |         | | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |         |       `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |             `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |         |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |   |         | |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |   |         | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |         | | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |   |         | | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   |         | | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |         | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |   |         | | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   |         | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |   |         |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct eb' '0 <= __builtin_get_pointer_upper_bound(0) && 0 <= 0'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | `-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
+// CHECK-NEXT: |   |           |   `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |     `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | |-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |           | | | `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |           | | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |           |     `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |           |       `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |             `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |               `-IntegerLiteral {{.+}} 'int' 0
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb (*__single)[])' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct eb (*__single)[])' Function {{.+}} 'consume_eb_arr' 'void (struct eb (*__single)[])'
@@ -854,60 +878,62 @@ void array_of_struct_init(char* __bidi_indexable new_start, char* new_end) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void assign_via_ptr_other_data_side_effect(struct eb_with_other_data* ptr,
                                            char* __bidi_indexable new_start,
                                            char* new_end) {
@@ -923,49 +949,51 @@ void assign_via_ptr_other_data_side_effect(struct eb_with_other_data* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb_with_other_data *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void assign_via_ptr_other_data_side_effect_zero_ptr(struct eb_with_other_data* ptr,
                                                     char* new_end) {
   *ptr = (struct eb_with_other_data) {
@@ -980,13 +1008,84 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct eb_with_other_data* p
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
-// CHECK-NEXT: |       `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
-// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
+// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
+// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |             `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |               `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |                 |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |                 | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |                 | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |                 |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |                 | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 | | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                 | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |                 | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |                 | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                 | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |                 | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |                 |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+void call_arg_transparent_union(char* __bidi_indexable new_start,
+                                char* new_end) {
+  receive_transparent_union(
+    (struct eb_with_other_data) {
+      .start = new_start,
+      .end = new_end,
+      .other = 0x0
+    }
+  );
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_transparent_union_untransparently 'void (char *__bidi_indexable, char *__single)'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
 // CHECK-NEXT: |             `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
 // CHECK-NEXT: |               |-InitListExpr {{.+}} 'struct eb_with_other_data'
 // CHECK-NEXT: |               | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
@@ -1033,73 +1132,6 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct eb_with_other_data* p
 // CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'char *__single'
 // CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
 // CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-void call_arg_transparent_union(char* __bidi_indexable new_start,
-                                char* new_end) {
-  receive_transparent_union(
-    (struct eb_with_other_data) {
-      .start = new_start,
-      .end = new_end,
-      .other = 0x0
-    }
-  );
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_transparent_union_untransparently 'void (char *__bidi_indexable, char *__single)'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__bidi_indexable'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
-// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |             | `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |             | | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             | | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |             | | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             | |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             | |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_start' 'char *__bidi_indexable'
-// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
 void call_arg_transparent_union_untransparently(
   char* __bidi_indexable new_start,
   char* new_end) {
@@ -1125,215 +1157,12 @@ void call_arg_transparent_union_untransparently(
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void assign_via_ptr_from_eb(struct eb* ptr,
-                    char* __ended_by(new_end) new_start, char* new_end) {
-  *ptr = (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   |-DeclStmt {{.+}}
-// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct eb'
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-DeclRefExpr {{.+}} 'struct eb' lvalue Var {{.+}} 'new' 'struct eb'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void assign_operator_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  struct eb new;
-  new = (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-DeclStmt {{.+}}
-// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct eb' cinit
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
 // CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
 // CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
 // CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
@@ -1421,911 +1250,132 @@ void assign_operator_from_eb(char* __ended_by(new_end) new_start, char* new_end)
 // CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
 // CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void local_var_init_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  struct eb new = (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct eb)' Function {{.+}} 'consume_eb' 'void (struct eb)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void call_arg_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  consume_eb((struct eb) {
-    .start = new_start,
-    .end = new_end
-  });
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} return_eb_from_eb 'struct eb (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-ReturnStmt {{.+}}
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-struct eb return_eb_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  return (struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} construct_not_used_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue> part_of_explicit_cast
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void construct_not_used_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  (void)(struct eb) {
-    .start = new_start,
-    .end = new_end
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nullptr_from_eb 'void (struct eb *__single, char *__single)'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-void assign_via_ptr_nullptr_from_eb(struct eb* ptr, char* new_end) {
+void assign_via_ptr_from_eb(struct eb* ptr,
+                    char* __ended_by(new_end) new_start, char* new_end) {
   *ptr = (struct eb) {
-    // Diagnostic emitted here but suppressed for this test case
-    .start = 0x0,
+    .start = new_start,
     .end = new_end
   };
 }
 
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nested_from_eb 'void (struct nested_eb *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct nested_eb *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_eb'
-// CHECK-NEXT: |           |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           | |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
-void assign_via_ptr_nested_from_eb(struct nested_eb* ptr,
-                           char* __ended_by(new_end) new_start,
-                           char* new_end) {
-  *ptr = (struct nested_eb) {
-    .nested = {.start = new_start, .end = new_end },
-    .other = 0x0
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nested_v2_from_eb 'void (struct nested_eb *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct nested_eb *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_eb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_eb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
-// CHECK-NEXT: |           | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
-// CHECK-NEXT: |           |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |     |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |           |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           |     | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           |     | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |     |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |     |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
-void assign_via_ptr_nested_v2_from_eb(struct nested_eb* ptr,
-                              char* __ended_by(new_end) new_start,
-                              char* new_end) {
-  *ptr = (struct nested_eb) {
-    .nested = (struct eb){.start = new_start, .end = new_end },
-    .other = 0x0
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} array_of_struct_init_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
-// CHECK-NEXT: |   | `-VarDecl {{.+}} used arr 'struct eb[2]' cinit
-// CHECK-NEXT: |   |   `-CompoundLiteralExpr {{.+}} 'struct eb[2]'
-// CHECK-NEXT: |   |     `-InitListExpr {{.+}} 'struct eb[2]'
-// CHECK-NEXT: |   |       |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |   |       | |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |   |       | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |       | | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |       | | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |       | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |       | |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |   |       | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       | |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       | |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       | |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |   |       |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |   |       `-BoundsCheckExpr {{.+}} 'struct eb' '0 <= __builtin_get_pointer_upper_bound(0) && 0 <= 0'
-// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct eb'
-// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | `-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
-// CHECK-NEXT: |   |         |   `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |     `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         | | |-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |         | | | `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |         | | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |   |         |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |   `-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |         |       `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         |-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
-// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |         |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         `-OpaqueValueExpr {{.+}} 'char *'
-// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
-// CHECK-NEXT: |   |             `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb (*__single)[])' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct eb (*__single)[])' Function {{.+}} 'consume_eb_arr' 'void (struct eb (*__single)[])'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb (*__single)[]' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb (*__bidi_indexable)[]' <BitCast>
-// CHECK-NEXT: |         `-UnaryOperator {{.+}} 'struct eb (*__bidi_indexable)[2]' prefix '&' cannot overflow
-// CHECK-NEXT: |           `-DeclRefExpr {{.+}} 'struct eb[2]' lvalue Var {{.+}} 'arr' 'struct eb[2]'
-void array_of_struct_init_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
-  struct eb arr[] = (struct eb[]) {
-    {.start = new_start, .end = new_end},
-    // Note the type of `.start` and `.end`'s assignments here looks odd in the
-    // AST (child of
-    // BoundsCheckExpr that should be materialized) because the compound literal
-    // is used as the base. E.g.:
-    // 'char *__single /* __started_by((struct eb[2]){{.start = new_start, .end = new_end}, {.start = 0, .end = 0}}[1UL].start) */ ':'char *__single'
-    //
-    // We could consider constant folding the expression
-    // to `__ended_by(0)` but this doesn't seem to be necessary.
-    {.start = 0x0, .end = 0x0}
-  };
-  consume_eb_arr(&arr);
-}
-
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_other_data_side_effect_from_eb 'void (struct eb_with_other_data *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb_with_other_data *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-void assign_via_ptr_other_data_side_effect_from_eb(struct eb_with_other_data* ptr,
-                                           char* __ended_by(new_end) new_start,
-                                           char* new_end) {
-  *ptr = (struct eb_with_other_data) {
+// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct eb'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-DeclRefExpr {{.+}} 'struct eb' lvalue Var {{.+}} 'new' 'struct eb'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+void assign_operator_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  struct eb new;
+  new = (struct eb) {
     .start = new_start,
-    .end = new_end,
-    // Side effect. Generates a warning but it is suppressed for this test
-    .other = get_int()
+    .end = new_end
   };
 }
 
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_other_data_side_effect_zero_ptr_from_eb 'void (struct eb_with_other_data *__single, char *__single)'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb_with_other_data *__single'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
-// CHECK-NEXT: |         `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
-// CHECK-NEXT: |           |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT: |           | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           | | |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT: |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | |         `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT: |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           |   `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-// CHECK-NEXT: |           `-OpaqueValueExpr {{.+}} 'char *__single'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
-void assign_via_ptr_other_data_side_effect_zero_ptr_from_eb(struct eb_with_other_data* ptr,
-                                                    char* new_end) {
-  *ptr = (struct eb_with_other_data) {
-    .start = 0x0,
-    .end = new_end, // Generates a warning but it's suppressed in this test
-    // Side effect. Generates a warning but it is suppressed for this test
-    .other = get_int()
-  };
-}
 
-// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_transparent_union_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
-// CHECK-NEXT: |       `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
-// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
-// CHECK-NEXT: |             `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT: |               |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |   `-DeclStmt {{.+}}
+// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct eb' cinit
+// CHECK-NEXT: |       `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |         |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |             `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |               |-InitListExpr {{.+}} 'struct eb'
 // CHECK-NEXT: |               | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
 // CHECK-NEXT: |               | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
 // CHECK-NEXT: |               | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
@@ -2334,15 +1384,14 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_eb(struct eb_with_other
 // CHECK-NEXT: |               | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: |               | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
 // CHECK-NEXT: |               | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |               | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT: |               | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT: |               | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |               |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |               |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |               |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
 // CHECK-NEXT: |               |-BinaryOperator {{.+}} 'int' '&&'
 // CHECK-NEXT: |               | |-BinaryOperator {{.+}} 'int' '&&'
 // CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'int' '<='
@@ -2410,6 +1459,1016 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_eb(struct eb_with_other
 // CHECK-NEXT: |                   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
 // CHECK-NEXT: |                     `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+void local_var_init_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  struct eb new = (struct eb) {
+    .start = new_start,
+    .end = new_end
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (struct eb)' Function {{.+}} 'consume_eb' 'void (struct eb)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+void call_arg_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  consume_eb((struct eb) {
+    .start = new_start,
+    .end = new_end
+  });
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} return_eb_from_eb 'struct eb (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ReturnStmt {{.+}}
+// CHECK-NEXT: |     `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+struct eb return_eb_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  return (struct eb) {
+    .start = new_start,
+    .end = new_end
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} construct_not_used_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CStyleCastExpr {{.+}} 'void' <ToVoid>
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue> part_of_explicit_cast
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+void construct_not_used_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  (void)(struct eb) {
+    .start = new_start,
+    .end = new_end
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nullptr_from_eb 'void (struct eb *__single, char *__single)'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+void assign_via_ptr_nullptr_from_eb(struct eb* ptr, char* new_end) {
+  *ptr = (struct eb) {
+    // Diagnostic emitted here but suppressed for this test case
+    .start = 0x0,
+    .end = new_end
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nested_from_eb 'void (struct nested_eb *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct nested_eb *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |             |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             | |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
+void assign_via_ptr_nested_from_eb(struct nested_eb* ptr,
+                           char* __ended_by(new_end) new_start,
+                           char* new_end) {
+  *ptr = (struct nested_eb) {
+    .nested = {.start = new_start, .end = new_end },
+    .other = 0x0
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_nested_v2_from_eb 'void (struct nested_eb *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct nested_eb *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_eb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_eb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_eb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_eb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_eb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_eb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_eb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_eb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'struct eb' <LValueToRValue>
+// CHECK-NEXT: |             | `-CompoundLiteralExpr {{.+}} 'struct eb' lvalue
+// CHECK-NEXT: |             |   `-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |     |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |             |     | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             |     | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             |     | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             |     | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |     |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |     |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |     |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
+void assign_via_ptr_nested_v2_from_eb(struct nested_eb* ptr,
+                              char* __ended_by(new_end) new_start,
+                              char* new_end) {
+  *ptr = (struct nested_eb) {
+    .nested = (struct eb){.start = new_start, .end = new_end },
+    .other = 0x0
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} array_of_struct_init_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   |-DeclStmt {{.+}}
+// CHECK-NEXT: |   | `-VarDecl {{.+}} used arr 'struct eb[2]' cinit
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct eb[2]'
+// CHECK-NEXT: |   |         |-BoundsCheckExpr {{.+}} 'struct eb' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |   |         | |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |   |         | | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |       |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | |       `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |         `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |         | | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |         | | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |         | | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |         | |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |   |         | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         | |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         | |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         | |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |   |         |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |   |         `-BoundsCheckExpr {{.+}} 'struct eb' '0 <= __builtin_get_pointer_upper_bound(0) && 0 <= 0'
+// CHECK-NEXT: |   |           |-InitListExpr {{.+}} 'struct eb'
+// CHECK-NEXT: |   |           | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | `-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
+// CHECK-NEXT: |   |           |   `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |     `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |   |           | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           | | |-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |           | | | `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |           | | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |   |           | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |           | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |   |           |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |   `-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |           |     `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |           |       `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           |-OpaqueValueExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single'
+// CHECK-NEXT: |   |           | `-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |           |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           `-OpaqueValueExpr {{.+}} 'char *'
+// CHECK-NEXT: |   |             `-ImplicitCastExpr {{.+}} 'char *' <NullToPointer>
+// CHECK-NEXT: |   |               `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct eb (*__single)[])' <FunctionToPointerDecay>
+// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct eb (*__single)[])' Function {{.+}} 'consume_eb_arr' 'void (struct eb (*__single)[])'
+// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct eb (*__single)[]' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb (*__bidi_indexable)[]' <BitCast>
+// CHECK-NEXT: |         `-UnaryOperator {{.+}} 'struct eb (*__bidi_indexable)[2]' prefix '&' cannot overflow
+// CHECK-NEXT: |           `-DeclRefExpr {{.+}} 'struct eb[2]' lvalue Var {{.+}} 'arr' 'struct eb[2]'
+void array_of_struct_init_from_eb(char* __ended_by(new_end) new_start, char* new_end) {
+  struct eb arr[] = (struct eb[]) {
+    {.start = new_start, .end = new_end},
+    // Note the type of `.start` and `.end`'s assignments here looks odd in the
+    // AST (child of
+    // BoundsCheckExpr that should be materialized) because the compound literal
+    // is used as the base. E.g.:
+    // 'char *__single /* __started_by((struct eb[2]){{.start = new_start, .end = new_end}, {.start = 0, .end = 0}}[1UL].start) */ ':'char *__single'
+    //
+    // We could consider constant folding the expression
+    // to `__ended_by(0)` but this doesn't seem to be necessary.
+    {.start = 0x0, .end = 0x0}
+  };
+  consume_eb_arr(&arr);
+}
+
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_other_data_side_effect_from_eb 'void (struct eb_with_other_data *__single, char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb_with_other_data *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+void assign_via_ptr_other_data_side_effect_from_eb(struct eb_with_other_data* ptr,
+                                           char* __ended_by(new_end) new_start,
+                                           char* new_end) {
+  *ptr = (struct eb_with_other_data) {
+    .start = new_start,
+    .end = new_end,
+    // Side effect. Generates a warning but it is suppressed for this test
+    .other = get_int()
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_other_data_side_effect_zero_ptr_from_eb 'void (struct eb_with_other_data *__single, char *__single)'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct eb_with_other_data *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct eb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct eb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct eb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct eb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |           `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(0) && 0 <= new_end'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |             |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |             | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             | | |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | | | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             | | |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |             | |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | |     `-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | |         `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |             |   |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             |   | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single __ended_by(end)':'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             |   `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+// CHECK-NEXT: |             `-OpaqueValueExpr {{.+}} 'char *__single'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single'
+void assign_via_ptr_other_data_side_effect_zero_ptr_from_eb(struct eb_with_other_data* ptr,
+                                                    char* new_end) {
+  *ptr = (struct eb_with_other_data) {
+    .start = 0x0,
+    .end = new_end, // Generates a warning but it's suppressed in this test
+    // Side effect. Generates a warning but it is suppressed for this test
+    .other = get_int()
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} call_arg_transparent_union_from_eb 'void (char *__single __ended_by(new_end), char *__single /* __started_by(new_start) */ )'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
+// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
+// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'struct eb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |             `-CompoundLiteralExpr {{.+}} 'struct eb_with_other_data' lvalue
+// CHECK-NEXT: |               `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT: |                 |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT: |                 | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |                 |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |                 | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT: |                 | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT: |                 |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT: |                 |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT: |                     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
 void call_arg_transparent_union_from_eb(char* __ended_by(new_end) new_start,
                                 char* new_end) {
   receive_transparent_union(
@@ -2425,98 +2484,100 @@ void call_arg_transparent_union_from_eb(char* __ended_by(new_end) new_start,
 // CHECK-NEXT:   |-ParmVarDecl {{.+}} used new_start 'char *__single __ended_by(new_end)':'char *__single'
 // CHECK-NEXT:   |-ParmVarDecl {{.+}} used new_end 'char *__single /* __started_by(new_start) */ ':'char *__single'
 // CHECK-NEXT:   `-CompoundStmt {{.+}}
-// CHECK-NEXT:     `-CallExpr {{.+}} 'void'
-// CHECK-NEXT:       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT:       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT:       `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
-// CHECK-NEXT:         `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
-// CHECK-NEXT:           `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
-// CHECK-NEXT:             `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
-// CHECK-NEXT:               |-InitListExpr {{.+}} 'struct eb_with_other_data'
-// CHECK-NEXT:               | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT:               |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT:               | |-BinaryOperator {{.+}} 'int' '&&'
-// CHECK-NEXT:               | | |-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | | | `-GetBoundExpr {{.+}} 'char *' upper
-// CHECK-NEXT:               | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:               | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               | `-BinaryOperator {{.+}} 'int' '<='
-// CHECK-NEXT:               |   |-GetBoundExpr {{.+}} 'char *' lower
-// CHECK-NEXT:               |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:               |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:               |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:               |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
-// CHECK-NEXT:               `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:                 `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT:                   |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:                   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
-// CHECK-NEXT:                   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
-// CHECK-NEXT:                   `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
-// CHECK-NEXT:                     `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:     `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT:       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT:       `-CallExpr {{.+}} 'void'
+// CHECK-NEXT:         |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT:         | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT:         `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
+// CHECK-NEXT:           `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
+// CHECK-NEXT:             `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'eb' 'struct eb_with_other_data'
+// CHECK-NEXT:               `-BoundsCheckExpr {{.+}} 'struct eb_with_other_data' 'new_end <= __builtin_get_pointer_upper_bound(new_start) && new_start <= new_end && __builtin_get_pointer_lower_bound(new_start) <= new_start'
+// CHECK-NEXT:                 |-InitListExpr {{.+}} 'struct eb_with_other_data'
+// CHECK-NEXT:                 | |-ImplicitCastExpr {{.+}} 'char *__single __ended_by(end)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(start) */ ':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT:                 |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT:                 | |-BinaryOperator {{.+}} 'int' '&&'
+// CHECK-NEXT:                 | | |-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | | | | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | | | |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | | | |     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | | | |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | | | |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | | | |     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | | | |       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | | | `-GetBoundExpr {{.+}} 'char *' upper
+// CHECK-NEXT:                 | | |   `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | | |     `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | | |       |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | | |       |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | | |       | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | | |       `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | | |         `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:                 | |   |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | |         |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 | |         `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 | |           `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 | `-BinaryOperator {{.+}} 'int' '<='
+// CHECK-NEXT:                 |   |-GetBoundExpr {{.+}} 'char *' lower
+// CHECK-NEXT:                 |   | `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 |   |   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 |   |     |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 |   |     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |   |     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 |   |     `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |   |       `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 |   `-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 |     `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 |       `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 |         |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 |         |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |         | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 |         `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |           `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 |-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 | `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                 |   |-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 |   |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |   | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                 |   `-ImplicitCastExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                 |     `-DeclRefExpr {{.+}} 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
+// CHECK-NEXT:                 `-OpaqueValueExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                   `-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT:                     |-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                     |-ImplicitCastExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                     | `-DeclRefExpr {{.+}} 'char *__single /* __started_by(new_start) */ ':'char *__single' lvalue ParmVar {{.+}} 'new_end' 'char *__single /* __started_by(new_start) */ ':'char *__single'
+// CHECK-NEXT:                     `-ImplicitCastExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' <LValueToRValue>
+// CHECK-NEXT:                       `-DeclRefExpr {{.+}} <<invalid sloc>> 'char *__single __ended_by(new_end)':'char *__single' lvalue ParmVar {{.+}} 'new_start' 'char *__single __ended_by(new_end)':'char *__single'
 void call_arg_transparent_union_untransparently_from_eb(
   char* __ended_by(new_end) new_start,
   char* new_end) {

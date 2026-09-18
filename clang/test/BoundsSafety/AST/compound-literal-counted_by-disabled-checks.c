@@ -73,18 +73,20 @@ void receive_transparent_union(union TransparentUnion);
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void assign_via_ptr(struct cb* ptr, int new_count,
                     char* __bidi_indexable new_ptr) {
   *ptr = (struct cb) {
@@ -99,16 +101,18 @@ void assign_via_ptr(struct cb* ptr, int new_count,
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct cb'
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-DeclRefExpr {{.+}} 'struct cb' lvalue Var {{.+}} 'new' 'struct cb'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-DeclRefExpr {{.+}} 'struct cb' lvalue Var {{.+}} 'new' 'struct cb'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void assign_operator(int new_count, char* __bidi_indexable new_ptr) {
   struct cb new;
   new = (struct cb) {
@@ -124,14 +128,16 @@ void assign_operator(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   `-DeclStmt {{.+}}
 // CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct cb' cinit
-// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |       `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |         |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |             `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
   struct cb new = (struct cb) {
     .count = new_count,
@@ -143,17 +149,19 @@ void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void call_arg(int new_count, char* __bidi_indexable new_ptr) {
   consume_cb((struct cb) {
     .count = new_count,
@@ -166,14 +174,16 @@ void call_arg(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   `-ReturnStmt {{.+}}
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |     `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 struct cb return_cb(int new_count, char* __bidi_indexable new_ptr) {
   return (struct cb) {
     .count = new_count,
@@ -185,15 +195,17 @@ struct cb return_cb(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue> part_of_explicit_cast
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CStyleCastExpr {{.+}} 'void' <ToVoid>
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue> part_of_explicit_cast
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void construct_not_used(int new_count, char* __bidi_indexable new_ptr) {
   (void)(struct cb) {
     .count = new_count,
@@ -205,17 +217,19 @@ void construct_not_used(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct cb *__single'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |               `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nullptr(struct cb* ptr, int new_count) {
   *ptr = (struct cb) {
     .count = new_count,
@@ -228,20 +242,22 @@ void assign_via_ptr_nullptr(struct cb* ptr, int new_count) {
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_cb'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested(struct nested_cb* ptr,
                            char* __bidi_indexable new_ptr,
                            int new_count) {
@@ -256,22 +272,25 @@ void assign_via_ptr_nested(struct nested_cb* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |           | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |           |   `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |             | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |             |   `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested_v2(struct nested_cb* ptr,
                               char* __bidi_indexable new_ptr,
                               int new_count) {
@@ -286,27 +305,30 @@ void assign_via_ptr_nested_v2(struct nested_cb* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_and_outer_cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_and_outer_cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_and_outer_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_and_outer_cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_and_outer_cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_and_outer_cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |           | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |           |   `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |           |-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_and_outer_cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_and_outer_cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_and_outer_cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_and_outer_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_and_outer_cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_and_outer_cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_and_outer_cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_and_outer_cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |             | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |             |   `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |             |-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
 void assign_via_ptr_nested_v3(struct nested_and_outer_cb* ptr,
                               char* __bidi_indexable new_ptr,
                               int new_count) {
@@ -325,18 +347,20 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_cb* ptr,
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used arr 'struct cb[2]' cinit
-// CHECK-NEXT: |   |   `-CompoundLiteralExpr {{.+}} 'struct cb[2]'
-// CHECK-NEXT: |   |     `-InitListExpr {{.+}} 'struct cb[2]'
-// CHECK-NEXT: |   |       |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |       | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |       | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |   |       | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |   |       |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |         |-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |         | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |         | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         |   `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |   |         |     `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |           |-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |             `-IntegerLiteral {{.+}} 'int' 0
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb (*__single)[])' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb (*__single)[])' Function {{.+}} 'consume_cb_arr' 'void (struct cb (*__single)[])'
@@ -366,21 +390,23 @@ void array_of_struct_init(char* __bidi_indexable new_ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |           |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |           `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |             `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
 void assign_via_ptr_other_data_side_effect(struct cb_with_other_data* ptr,
                                            int new_count,
                                            char* __bidi_indexable new_ptr) {
@@ -397,20 +423,22 @@ void assign_via_ptr_other_data_side_effect(struct cb_with_other_data* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
 void assign_via_ptr_other_data_side_effect_zero_ptr(struct cb_with_other_data* ptr,
                                            int new_count,
                                            char* __bidi_indexable new_ptr) {
@@ -430,20 +458,22 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct cb_with_other_data* p
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
-// CHECK-NEXT: |       `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
-// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |             `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |               `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
+// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
+// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |             `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |               `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 `-IntegerLiteral {{.+}} 'int' 0
 void call_arg_transparent_union(int new_count,
                                 char* __bidi_indexable new_ptr) {
   receive_transparent_union(
@@ -459,19 +489,21 @@ void call_arg_transparent_union(int new_count,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
-// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |             |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
+// CHECK-NEXT: |             `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |               `-IntegerLiteral {{.+}} 'int' 0
 void call_arg_transparent_union_untransparently(int new_count,
                                 char* __bidi_indexable new_ptr) {
   receive_transparent_union(
@@ -493,72 +525,74 @@ void call_arg_transparent_union_untransparently(int new_count,
 // CHECK-LABEL:|-FunctionDecl {{.+}} assign_via_ptr_from_ptr 'void (struct cb *__single)'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used ptr 'struct cb *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
-// CHECK-NEXT: |           |   `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
-// CHECK-NEXT: |               | | |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | | |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
-// CHECK-NEXT: |               | | | |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | | | |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
-// CHECK-NEXT: |               | | |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | | |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
-// CHECK-NEXT: |               | |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |     `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
-// CHECK-NEXT: |               |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |   `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
-// CHECK-NEXT: |               |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |               |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |               |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |                   `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
-// CHECK-NEXT: |                     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
-// CHECK-NEXT: |                       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |                         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
+// CHECK-NEXT: |             |   `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                 |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                 | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |   `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
+// CHECK-NEXT: |                 | | |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | | |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
+// CHECK-NEXT: |                 | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
+// CHECK-NEXT: |                 | | | |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | | | |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | | |     `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
+// CHECK-NEXT: |                 | | |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | | |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 | | `-<<<NULL>>>
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
+// CHECK-NEXT: |                 | |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
+// CHECK-NEXT: |                 |       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 |         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-MemberExpr {{.+}} 'int' lvalue ->count {{.+}}
+// CHECK-NEXT: |                 |     `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                 |       `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |         `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(count)':'char *__single'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                     `-MemberExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' lvalue ->buf {{.+}}
+// CHECK-NEXT: |                       `-OpaqueValueExpr {{.+}} 'struct cb *__single'
+// CHECK-NEXT: |                         `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |                           `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
 void assign_via_ptr_from_ptr(struct cb* ptr) {
   *ptr = (struct cb) {
     .count = ptr->count,
@@ -572,110 +606,12 @@ void assign_via_ptr_from_ptr(struct cb* ptr) {
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-void assign_via_ptr_from_cb(struct cb* ptr, int new_count,
-                            char* __counted_by(new_count) new_ptr) {
-  *ptr = (struct cb) {
-    .count = new_count,
-    .buf = new_ptr
-  };
-}
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator_from_cb 'void (int, char *__single __counted_by(new_count))'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
-// CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   |-DeclStmt {{.+}}
-// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct cb'
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb' '='
-// CHECK-NEXT: |     |-DeclRefExpr {{.+}} 'struct cb' lvalue Var {{.+}} 'new' 'struct cb'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-void assign_operator_from_cb(int new_count,
-                             char* __counted_by(new_count) new_ptr) {
-  struct cb new;
-  new = (struct cb) {
-    .count = new_count,
-    .buf = new_ptr
-  };
-}
-
-
-// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init_from_cb 'void (int, char *__single __counted_by(new_count))'
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
-// CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
-// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-DeclStmt {{.+}}
-// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct cb' cinit
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb *__single'
 // CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
 // CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
 // CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
@@ -709,6 +645,110 @@ void assign_operator_from_cb(int new_count,
 // CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'int'
 // CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
 // CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+void assign_via_ptr_from_cb(struct cb* ptr, int new_count,
+                            char* __counted_by(new_count) new_ptr) {
+  *ptr = (struct cb) {
+    .count = new_count,
+    .buf = new_ptr
+  };
+}
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} assign_operator_from_cb 'void (int, char *__single __counted_by(new_count))'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
+// CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   |-DeclStmt {{.+}}
+// CHECK-NEXT: |   | `-VarDecl {{.+}} used new 'struct cb'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb' '='
+// CHECK-NEXT: |       |-DeclRefExpr {{.+}} 'struct cb' lvalue Var {{.+}} 'new' 'struct cb'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                 |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                 | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 | | `-<<<NULL>>>
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+void assign_operator_from_cb(int new_count,
+                             char* __counted_by(new_count) new_ptr) {
+  struct cb new;
+  new = (struct cb) {
+    .count = new_count,
+    .buf = new_ptr
+  };
+}
+
+
+// CHECK-LABEL:|-FunctionDecl {{.+}} local_var_init_from_cb 'void (int, char *__single __counted_by(new_count))'
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
+// CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
+// CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: | `-CompoundStmt {{.+}}
+// CHECK-NEXT: |   `-DeclStmt {{.+}}
+// CHECK-NEXT: |     `-VarDecl {{.+}} new 'struct cb' cinit
+// CHECK-NEXT: |       `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |         |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |             `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                   |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                   | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                   | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                   | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                   | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                   | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                   | | `-<<<NULL>>>
+// CHECK-NEXT: |                   | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                   |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                   |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                   |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                   `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                     `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                       `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
 void local_var_init_from_cb(int new_count,
                             char* __counted_by(new_count) new_ptr) {
   struct cb new = (struct cb) {
@@ -722,42 +762,44 @@ void local_var_init_from_cb(int new_count,
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (struct cb)' Function {{.+}} 'consume_cb' 'void (struct cb)'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                 |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                 | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 | | `-<<<NULL>>>
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
 void call_arg_from_cb(int new_count,
                       char* __counted_by(new_count) new_ptr) {
   consume_cb((struct cb) {
@@ -772,39 +814,41 @@ void call_arg_from_cb(int new_count,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   `-ReturnStmt {{.+}}
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |     `-ExprWithCleanups {{.+}} 'struct cb'
+// CHECK-NEXT: |       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                 |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                 | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 | | `-<<<NULL>>>
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
 struct cb return_cb_from_cb(int new_count,
                             char* __counted_by(new_count) new_ptr) {
   return (struct cb) {
@@ -818,40 +862,42 @@ struct cb return_cb_from_cb(int new_count,
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CStyleCastExpr {{.+}} 'void' <ToVoid>
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue> part_of_explicit_cast
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |             `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |               |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |               | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |               | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |               | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               | | `-<<<NULL>>>
-// CHECK-NEXT: |               | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |               |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |               `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |                 `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |                   `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CStyleCastExpr {{.+}} 'void' <ToVoid>
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue> part_of_explicit_cast
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |               `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |                 |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |                 | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |                 | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |                 | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 | | `-<<<NULL>>>
+// CHECK-NEXT: |                 | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                 |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |                 `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |                   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
 void construct_not_used_from_cb(int new_count,
                                 char* __counted_by(new_count) new_ptr) {
   (void)(struct cb) {
@@ -866,45 +912,47 @@ void construct_not_used_from_cb(int new_count,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_cb'
-// CHECK-NEXT: |           |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |           |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |           |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |     | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |           |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |     | | `-<<<NULL>>>
-// CHECK-NEXT: |           |     | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |     |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |     |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |             |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |             |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |             |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |     | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |             |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |     | | `-<<<NULL>>>
+// CHECK-NEXT: |             |     | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |     |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |     |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested_from_cb(struct nested_cb* ptr,
                                    char* __counted_by(new_count) new_ptr,
                                    int new_count) {
@@ -920,47 +968,50 @@ void assign_via_ptr_nested_from_cb(struct nested_cb* ptr,
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct nested_cb' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct nested_cb'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
-// CHECK-NEXT: |           | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
-// CHECK-NEXT: |           |   `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |           |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |           |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |           |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |         | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |           |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |         | | `-<<<NULL>>>
-// CHECK-NEXT: |           |         | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |         |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |         |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |         `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct nested_cb' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct nested_cb' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct nested_cb *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct nested_cb *__single' lvalue ParmVar {{.+}} 'ptr' 'struct nested_cb *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct nested_cb' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct nested_cb' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct nested_cb'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'struct cb' <LValueToRValue>
+// CHECK-NEXT: |             | `-CompoundLiteralExpr {{.+}} 'struct cb' lvalue
+// CHECK-NEXT: |             |   `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |             |     |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |     | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |       `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |             |         |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |             |         | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |         | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |             |         | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |         | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |         | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |         | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |         | | `-<<<NULL>>>
+// CHECK-NEXT: |             |         | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |         |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |         |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |         |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |         |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |         `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |           `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |             `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-IntegerLiteral {{.+}} 'int' 0
 void assign_via_ptr_nested_v2_from_cb(struct nested_cb* ptr,
                                       char* __counted_by(new_count)new_ptr,
                                       int new_count) {
@@ -977,43 +1028,45 @@ void assign_via_ptr_nested_v2_from_cb(struct nested_cb* ptr,
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
 // CHECK-NEXT: |   |-DeclStmt {{.+}}
 // CHECK-NEXT: |   | `-VarDecl {{.+}} used arr 'struct cb[2]' cinit
-// CHECK-NEXT: |   |   `-CompoundLiteralExpr {{.+}} 'struct cb[2]'
-// CHECK-NEXT: |   |     `-InitListExpr {{.+}} 'struct cb[2]'
-// CHECK-NEXT: |   |       |-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |       | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |       | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |   |       | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |   |       |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |   |       |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |   |       |     | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |   |       |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |   |       |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |       |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |       |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |   |       |     | | `-<<<NULL>>>
-// CHECK-NEXT: |   |       |     | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |       |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |       |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |   |       |     |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |   |       |     |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |   |       |     `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |   |       |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |   |       |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct cb'
-// CHECK-NEXT: |   |         |-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |   |         `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |   |           `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |   `-ExprWithCleanups {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |   |     `-CompoundLiteralExpr {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |       `-InitListExpr {{.+}} 'struct cb[2]'
+// CHECK-NEXT: |   |         |-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |         | |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |         | | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   |         | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         |   `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |   |         |     |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |   |         |     | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |   |         |     | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |   |         |     | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |   |         |     | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |         |     | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |         |     | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   |         |     | | `-<<<NULL>>>
+// CHECK-NEXT: |   |         |     | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |         |     |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |         |     |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   |         |     |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |   |         |     |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |   |         |     `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |   |         |       `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |   |         |         `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |   |         `-InitListExpr {{.+}} 'struct cb'
+// CHECK-NEXT: |   |           |-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   |           `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |   |             `-IntegerLiteral {{.+}} 'int' 0
 // CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(struct cb (*__single)[])' <FunctionToPointerDecay>
 // CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (struct cb (*__single)[])' Function {{.+}} 'consume_cb_arr' 'void (struct cb (*__single)[])'
@@ -1036,46 +1089,48 @@ void array_of_struct_init_from_cb(char* __counted_by(new_count) new_ptr,
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           | `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
-// CHECK-NEXT: |           |   |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
-// CHECK-NEXT: |           |   | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
-// CHECK-NEXT: |           |   | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | | |-BinaryOperator {{.+}} 'char *' '+'
-// CHECK-NEXT: |           |   | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |           |   | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | | | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |   | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |   | | `-<<<NULL>>>
-// CHECK-NEXT: |           |   | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |   |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |   |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |   |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
-// CHECK-NEXT: |           |   |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
-// CHECK-NEXT: |           |   `-OpaqueValueExpr {{.+}} 'int'
-// CHECK-NEXT: |           |     `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           |       `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             | `-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Unbind>
+// CHECK-NEXT: |             |   |-MaterializeSequenceExpr {{.+}} 'char *__bidi_indexable' <Bind>
+// CHECK-NEXT: |             |   | |-BoundsSafetyPointerPromotionExpr {{.+}} 'char *__bidi_indexable'
+// CHECK-NEXT: |             |   | | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | | |-BinaryOperator {{.+}} 'char *' '+'
+// CHECK-NEXT: |             |   | | | |-ImplicitCastExpr {{.+}} 'char *' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |             |   | | | | `-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | | | |   `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | | | |     `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | | | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   | | |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |   | | |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |   | | `-<<<NULL>>>
+// CHECK-NEXT: |             |   | |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   | |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |   |   `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |   |     `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |   |-OpaqueValueExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   | `-ImplicitCastExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' <LValueToRValue>
+// CHECK-NEXT: |             |   |   `-DeclRefExpr {{.+}} 'char *__single __counted_by(new_count)':'char *__single' lvalue ParmVar {{.+}} 'new_ptr' 'char *__single __counted_by(new_count)':'char *__single'
+// CHECK-NEXT: |             |   `-OpaqueValueExpr {{.+}} 'int'
+// CHECK-NEXT: |             |     `-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             |       `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
 void assign_via_ptr_other_data_side_effect_from_cb(struct cb_with_other_data* ptr,
                                                    int new_count,
                                                    char* __counted_by(new_count) new_ptr) {
@@ -1093,20 +1148,22 @@ void assign_via_ptr_other_data_side_effect_from_cb(struct cb_with_other_data* pt
 // CHECK-NEXT: | | `-DependerDeclsAttr {{.+}} <<invalid sloc>> Implicit {{.+}} 0
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} new_ptr 'char *__single __counted_by(new_count)':'char *__single'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
-// CHECK-NEXT: |     |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: |     | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
-// CHECK-NEXT: |     |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
-// CHECK-NEXT: |     `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |         `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |           | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |           |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
-// CHECK-NEXT: |           | `-IntegerLiteral {{.+}} 'int' 0
-// CHECK-NEXT: |           `-CallExpr {{.+}} 'int'
-// CHECK-NEXT: |             `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
-// CHECK-NEXT: |               `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-BinaryOperator {{.+}} 'struct cb_with_other_data' '='
+// CHECK-NEXT: |       |-UnaryOperator {{.+}} 'struct cb_with_other_data' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: |       | `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data *__single' <LValueToRValue>
+// CHECK-NEXT: |       |   `-DeclRefExpr {{.+}} 'struct cb_with_other_data *__single' lvalue ParmVar {{.+}} 'ptr' 'struct cb_with_other_data *__single'
+// CHECK-NEXT: |       `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |         `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |           `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |             | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |             |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <NullToPointer>
+// CHECK-NEXT: |             | `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |             `-CallExpr {{.+}} 'int'
+// CHECK-NEXT: |               `-ImplicitCastExpr {{.+}} 'int (*__single)(void)' <FunctionToPointerDecay>
+// CHECK-NEXT: |                 `-DeclRefExpr {{.+}} 'int (void)' Function {{.+}} 'get_int' 'int (void)'
 void assign_via_ptr_other_data_side_effect_zero_ptr_from_cb(struct cb_with_other_data* ptr,
                                            int new_count,
                                            char* __counted_by(new_count) new_ptr) {
@@ -1126,20 +1183,22 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_cb(struct cb_with_other
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT: | |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT: | `-CompoundStmt {{.+}}
-// CHECK-NEXT: |   `-CallExpr {{.+}} 'void'
-// CHECK-NEXT: |     |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT: |     | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT: |     `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
-// CHECK-NEXT: |       `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
-// CHECK-NEXT: |         `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
-// CHECK-NEXT: |           `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
-// CHECK-NEXT: |             `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT: |               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT: |               |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT: |               | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT: |               |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT: |               `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT: |   `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT: |     |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT: |     `-CallExpr {{.+}} 'void'
+// CHECK-NEXT: |       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT: |       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT: |       `-CompoundLiteralExpr {{.+}} 'union TransparentUnion'
+// CHECK-NEXT: |         `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
+// CHECK-NEXT: |           `-ImplicitCastExpr {{.+}} 'struct cb_with_other_data' <LValueToRValue>
+// CHECK-NEXT: |             `-CompoundLiteralExpr {{.+}} 'struct cb_with_other_data' lvalue
+// CHECK-NEXT: |               `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT: |                 | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT: |                 |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT: |                 | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT: |                 |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT: |                 `-IntegerLiteral {{.+}} 'int' 0
 void call_arg_transparent_union_from_cb(int new_count,
                                         char* __bidi_indexable new_ptr) {
   receive_transparent_union(
@@ -1156,19 +1215,21 @@ void call_arg_transparent_union_from_cb(int new_count,
 // CHECK-NEXT:   |-ParmVarDecl {{.+}} used new_count 'int'
 // CHECK-NEXT:   |-ParmVarDecl {{.+}} used new_ptr 'char *__bidi_indexable'
 // CHECK-NEXT:   `-CompoundStmt {{.+}}
-// CHECK-NEXT:     `-CallExpr {{.+}} 'void'
-// CHECK-NEXT:       |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
-// CHECK-NEXT:       | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
-// CHECK-NEXT:       `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
-// CHECK-NEXT:         `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
-// CHECK-NEXT:           `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
-// CHECK-NEXT:             `-InitListExpr {{.+}} 'struct cb_with_other_data'
-// CHECK-NEXT:               |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
-// CHECK-NEXT:               | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
-// CHECK-NEXT:               |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
-// CHECK-NEXT:               | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
-// CHECK-NEXT:               |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
-// CHECK-NEXT:               `-IntegerLiteral {{.+}} 'int' 0
+// CHECK-NEXT:     `-ExprWithCleanups {{.+}} 'void'
+// CHECK-NEXT:       |-cleanup CompoundLiteralExpr {{.+}}
+// CHECK-NEXT:       `-CallExpr {{.+}} 'void'
+// CHECK-NEXT:         |-ImplicitCastExpr {{.+}} 'void (*__single)(union TransparentUnion)' <FunctionToPointerDecay>
+// CHECK-NEXT:         | `-DeclRefExpr {{.+}} 'void (union TransparentUnion)' Function {{.+}} 'receive_transparent_union' 'void (union TransparentUnion)'
+// CHECK-NEXT:         `-ImplicitCastExpr {{.+}} 'union TransparentUnion' <LValueToRValue>
+// CHECK-NEXT:           `-CompoundLiteralExpr {{.+}} 'union TransparentUnion' lvalue
+// CHECK-NEXT:             `-InitListExpr {{.+}} 'union TransparentUnion' field Field {{.+}} 'cb' 'struct cb_with_other_data'
+// CHECK-NEXT:               `-InitListExpr {{.+}} 'struct cb_with_other_data'
+// CHECK-NEXT:                 |-ImplicitCastExpr {{.+}} 'int' <LValueToRValue>
+// CHECK-NEXT:                 | `-DeclRefExpr {{.+}} 'int' lvalue ParmVar {{.+}} 'new_count' 'int'
+// CHECK-NEXT:                 |-ImplicitCastExpr {{.+}} 'char *__single __counted_by(count)':'char *__single' <BoundsSafetyPointerCast>
+// CHECK-NEXT:                 | `-ImplicitCastExpr {{.+}} 'char *__bidi_indexable' <LValueToRValue>
+// CHECK-NEXT:                 |   `-DeclRefExpr {{.+}} 'char *__bidi_indexable' lvalue ParmVar {{.+}} 'new_ptr' 'char *__bidi_indexable'
+// CHECK-NEXT:                 `-IntegerLiteral {{.+}} 'int' 0
 void call_arg_transparent_union_untransparently_from_cb(int new_count,
                                 char* __bidi_indexable new_ptr) {
   receive_transparent_union(
