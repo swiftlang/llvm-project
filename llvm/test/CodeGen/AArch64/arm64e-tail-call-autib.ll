@@ -39,9 +39,7 @@ define swifttailcc void @test_async_tail_call(ptr swiftasync %ctx) "ptrauth-retu
 ; CHECK-NEXT:    and x29, x29, #0xefffffffffffffff
 ; CHECK-NEXT:    add sp, sp, #32
 ; CHECK-NEXT:    add x16, sp, #16
-; CHECK-NEXT:    mov x17, x30
-; CHECK-NEXT:    autib1716
-; CHECK-NEXT:    mov x30, x17
+; CHECK-NEXT:    autib x30, x16
 ; CHECK-NEXT:    b _callee_async
   musttail call swifttailcc void @callee_async(ptr swiftasync %ctx, i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 7, i64 8, i64 9)
   ret void
