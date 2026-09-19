@@ -139,8 +139,14 @@ static void decoratePACWithCFI(MachineBasicBlock &MBB,
   CFIInstBuilder CFIBuilder(MBB, MBBI, MachineInstr::FrameSetup);
   const Triple &TT = MF.getTarget().getTargetTriple();
 
+  // Current system unwinders on Mach-O platforms do not support
+  // .cfi_set_ra_state, so we must default to disabling emission of it.
+  SetRAStateMode StateMode = CFILLVMSetRASignStateMode;
+  if (TT.isOSBinFormatMachO() && !CFILLVMSetRASignStateMode.getNumOccurrences())
+    StateMode = SetRAStateMode::Never;
+
   if (MFnI.branchProtectionPAuthLR()) {
-    switch (CFILLVMSetRASignStateMode) {
+    switch (StateMode) {
     case SetRAStateMode::Never:
       CFIBuilder.buildNegateRAStateWithPC();
       BuildPACMI();
@@ -155,7 +161,7 @@ static void decoratePACWithCFI(MachineBasicBlock &MBB,
     }
     }
   } else {
-    switch (CFILLVMSetRASignStateMode) {
+    switch (StateMode) {
     case SetRAStateMode::Never:
     case SetRAStateMode::PAuthLR:
       BuildPACMI();
@@ -176,16 +182,19 @@ static void emitAUTCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
   if (!EmitCFI)
     return;
 
-  if (MBB.getParent()->getTarget().getTargetTriple().isOSBinFormatMachO())
-    return;
-
   auto &MF = *MBB.getParent();
   auto &MFnI = *MF.getInfo<AArch64FunctionInfo>();
   CFIInstBuilder CFIBuilder(MBB, MBBI, MachineInstr::FrameDestroy);
   const Triple &TT = MF.getTarget().getTargetTriple();
 
+  // Current system unwinders on Mach-O platforms do not support
+  // .cfi_set_ra_state, so we must default to disabling emission of it.
+  SetRAStateMode StateMode = CFILLVMSetRASignStateMode;
+  if (TT.isOSBinFormatMachO() && !CFILLVMSetRASignStateMode.getNumOccurrences())
+    StateMode = SetRAStateMode::Never;
+
   if (MFnI.branchProtectionPAuthLR()) {
-    switch (CFILLVMSetRASignStateMode) {
+    switch (StateMode) {
     case SetRAStateMode::Never:
       // DW_CFA_AARCH64_negate_ra_state_with_pc is semantically broken for
       // functions where shrinkwrapping places signing/authenticating pairs on
@@ -227,7 +236,7 @@ static void emitAUTCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
       break;
     }
   } else if (!TT.isOSBinFormatMachO()) {
-    switch (CFILLVMSetRASignStateMode) {
+    switch (StateMode) {
     case SetRAStateMode::Never:
     case SetRAStateMode::PAuthLR:
       CFIBuilder.buildNegateRAState();
