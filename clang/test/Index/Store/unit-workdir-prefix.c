@@ -24,5 +24,5 @@ void foo(void) {
 // CHECK: target: x86_64-apple-macosx10.8
 // CHECK: is-debug: 1
 // CHECK: DEPEND START
-// CHECK: Record | user | {{.*}}Directory.surprise{{/|\\}}main.c | main.c-
 // CHECK: Record | system | {{.*}}sdk_other{{/|\\}}header.h | header.h-
+// CHECK: Record | user | {{.*}}Directory.surprise{{/|\\}}main.c | main.c-

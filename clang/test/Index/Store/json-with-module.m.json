@@ -3,8 +3,8 @@
     "/mcp/ModDep.pcm",
     "/mcp/ModTop.pcm",
     "/Inputs/module/ModDep.h",
-    "/Inputs/module/ModTop.h",
     "/Inputs/module/ModTopSub1.h",
+    "/Inputs/module/ModTop.h",
     "/Inputs/module/ModTopSub2.h",
     "/json.o",
     "/json-with-module.m",
@@ -27,6 +27,13 @@
       "roles": "Def,Ref,RelCont"
     },
     {
+      "kind": "function",
+      "lang": "C",
+      "usr": "c:@F@ModTopSub1_func",
+      "name": "ModTopSub1_func",
+      "roles": "Decl"
+    },
+    {
       "kind": "struct",
       "lang": "C",
       "usr": "c:@SA@ModTopStruct",
@@ -38,13 +45,6 @@
       "lang": "C",
       "usr": "c:@F@ModTop_func",
       "name": "ModTop_func",
-      "roles": "Decl"
-    },
-    {
-      "kind": "function",
-      "lang": "C",
-      "usr": "c:@F@ModTopSub1_func",
-      "name": "ModTopSub1_func",
       "roles": "Decl"
     }
   ],
@@ -76,6 +76,16 @@
       "occurrences": [
         {
           "symbol": 2,
+          "line": 1,
+          "col": 6,
+          "roles": "Decl"
+        }
+      ]
+    },
+    {
+      "occurrences": [
+        {
+          "symbol": 3,
           "line": 2,
           "col": 9,
           "roles": "Def"
@@ -87,18 +97,8 @@
           "roles": "Def"
         },
         {
-          "symbol": 3,
-          "line": 4,
-          "col": 6,
-          "roles": "Decl"
-        }
-      ]
-    },
-    {
-      "occurrences": [
-        {
           "symbol": 4,
-          "line": 1,
+          "line": 4,
           "col": 6,
           "roles": "Decl"
         }

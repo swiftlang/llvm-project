@@ -38,8 +38,8 @@
 // CHECK: main-path: {{$}}
 // CHECK: out-file: {{.*}}{{/|\\}}ModTop.pcm
 // CHECK: DEPEND START
-// CHECK: Record | user | ModTop | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTop.h | ModTop.h
 // CHECK: Record | user | ModTop.Sub1 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub1.h | ModTopSub1.h
+// CHECK: Record | user | ModTop | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTop.h | ModTop.h
 // CHECK: File | user | ModTop.Sub2 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub2.h{{$}}
 // CHECK: DEPEND END (3)
 

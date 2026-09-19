@@ -1,8 +1,8 @@
 {
   "files": [
     "/test1.o",
-    "/Inputs/test1.c",
     "/Inputs/head.h",
+    "/Inputs/test1.c",
     "/test2.o",
     "/Inputs/test2.c",
     "/test3.o",
@@ -46,16 +46,6 @@
       "occurrences": [
         {
           "symbol": 0,
-          "line": 3,
-          "col": 6,
-          "roles": "Def"
-        }
-      ]
-    },
-    {
-      "occurrences": [
-        {
-          "symbol": 0,
           "line": 2,
           "col": 13,
           "roles": "Decl"
@@ -65,6 +55,16 @@
           "line": 3,
           "col": 13,
           "roles": "Decl"
+        }
+      ]
+    },
+    {
+      "occurrences": [
+        {
+          "symbol": 0,
+          "line": 3,
+          "col": 6,
+          "roles": "Def"
         }
       ]
     },
@@ -128,12 +128,12 @@
       "out-file": 3,
       "sources": [
         {
-          "file": 4,
-          "records": [2]
+          "file": 1,
+          "records": [0]
         },
         {
-          "file": 2,
-          "records": [1]
+          "file": 4,
+          "records": [2]
         }
       ]
     },
