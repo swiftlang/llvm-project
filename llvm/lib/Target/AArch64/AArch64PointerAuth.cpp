@@ -496,7 +496,7 @@ void AArch64PointerAuthImpl::authenticateLR(
   // outside the red-zone.
   SmallVector<MachineInstr *, 2> SPMods;
   if (ArgumentStackToRestore > 0) {
-    for (MachineInstr &MI : reverse(make_range(MBB.begin(), MBBI))) {
+    for (MachineInstr &MI : make_range(MBBI.getReverse(), MBB.rend())) {
       if (!MI.getFlag(MachineInstr::FrameDestroy))
         break;
       if ((MI.getOpcode() == AArch64::ADDXri ||
