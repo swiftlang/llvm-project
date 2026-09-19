@@ -4,6 +4,9 @@
 // RUN: %expect-no-trap %t
 // RUN: %expect-trap --verify-prefix=lower-trap %s %t arg1
 // RUN: %expect-trap --verify-prefix=upper-trap %s %t arg1 arg2
+// FIXME: With soft-traps in optimized builds LLVM can detect that the lower bound
+// access leads to UB and emits a trap (rdar://183581715).
+// XFAIL: soft-traps && optimized
 #include <ptrcheck.h>
 #include <stdio.h>
 #include "soft_trap_runtime_impl.h"
