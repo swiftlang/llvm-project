@@ -257,26 +257,32 @@ define swifttailcc void @crash_tc(i1 %c, [8 x i64] %pad, i64 %x) "branch-protect
 ; COMPAT-NEXT:         add     sp, sp, #80
 ; COMPAT-NEXT:         ret
 
-; V83A-NEXT:           add     sp, sp, #80
 ; V83A-NEXT:           .cfi_def_cfa_offset -80
 ; V83A-NEXT:           .cfi_restore w30
 ; V83A-NEXT:           .cfi_restore w29
 ; V83A-NEXT:           adrp    x16, .Ltmp3
 ; V83A-NEXT:           add     x16, x16, :lo12:.Ltmp3
 ; V83A-NEXT:           hint    #39
-; V83A-NEXT:           retaa
+; V83A-NEXT:           autiasp
+; V83A-NEXT:           .cfi_set_ra_state 0, 0
+; V83A-NEXT:           add     sp, sp, #80
+; V83A-NEXT:           ret
 
-; V9A-NEXT:            add     sp, sp, #80
 ; V9A-NEXT:            .cfi_def_cfa_offset -80
 ; V9A-NEXT:            .cfi_restore w30
 ; V9A-NEXT:            .cfi_restore w29
-; V9A-NEXT:            retaasppc .Ltmp3
+; V9A-NEXT:            autiasppc .Ltmp3
+; V9A-NEXT:            .cfi_set_ra_state 0, 0
+; V9A-NEXT:            add     sp, sp, #80
+; V9A-NEXT:            ret
 
-; PAUTH-NEXT:          add     sp, sp, #80
 ; PAUTH-NEXT:          .cfi_def_cfa_offset -80
 ; PAUTH-NEXT:          .cfi_restore w30
 ; PAUTH-NEXT:          .cfi_restore w29
-; PAUTH-NEXT:          retaa
+; PAUTH-NEXT:          autiasp
+; PAUTH-NEXT:          .cfi_negate_ra_state
+; PAUTH-NEXT:          add     sp, sp, #80
+; PAUTH-NEXT:          ret
 
 ; CHECK-NEXT:  .LBB3_2:
 ; CHECK-NEXT:          .cfi_restore_state
