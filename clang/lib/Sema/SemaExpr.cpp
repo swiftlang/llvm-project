@@ -12795,11 +12795,14 @@ bool Sema::isCompatibleBoundsUnsafeAssignment(AssignConvertType ConvTy) const {
   case AssignConvertType::PointerToInt:
   case AssignConvertType::IntToPointer:
   case AssignConvertType::Incompatible:
+  case AssignConvertType::IncompatiblePointerDiscardsOverflowBehavior:
+  case AssignConvertType::IncompatibleOBTKinds:
   // Not errors
   case AssignConvertType::CompatibleSingleToExplicitIndexablePointer:
   case AssignConvertType::CompatiblePointerDiscardsQualifiers:
   case AssignConvertType::CompatibleVoidPtrToNonVoidPtr:
   case AssignConvertType::Compatible:
+  case AssignConvertType::CompatibleOBTDiscards:
     return false;
   }
   llvm_unreachable("Unhandled AssignConvertType");
