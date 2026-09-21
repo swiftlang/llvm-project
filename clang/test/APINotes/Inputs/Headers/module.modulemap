@@ -96,3 +96,7 @@ module RedeclAnnotation {
   header "RedeclAnnotation.h"
   export *
 }
+
+module SliceGroupsExact {
+  header "SliceGroupsExact.h"
+}
