@@ -284,9 +284,10 @@ private:
   // Replace G with an alias to F (deleting function G)
   void writeAlias(Function *F, Function *G);
 
-  bool eraseIfUnused(Function *G);
-  bool createAlias(Function *F, Function *G);
-  bool createThunk(Function *F, Function *G);
+  // If needed, replace G with an alias to F if possible, or a thunk to F if
+  // profitable. Returns false if neither is the case. If \p G is not needed
+  // (i.e. it is discardable and not used), \p G is removed directly.
+  bool writeThunkOrAliasIfNeeded(Function *F, Function *G);
 
   /// Replace function F with function G in the function tree.
   void replaceFunctionInTree(const FunctionNode &FN, Function *G);
@@ -830,52 +831,6 @@ static bool canCreateAliasFor(Function *F) {
   return true;
 }
 
-static bool hasNonLocalAlias(const Function *F) {
-  for (const GlobalAlias &GA : F->getParent()->aliases())
-    if (!GA.hasLocalLinkage() && GA.getAliaseeObject() == F)
-      return true;
-  return false;
-}
-
-/// COFF names a local alias target's fallback symbol after unrelated contents
-/// of the object, so two objects defining the alias disagree (LNK1227).
-static bool needsStableSymbolForAlias(const Function *F) {
-  return F->getParent()->getTargetTriple().isOSBinFormatCOFF();
-}
-
-/// Prefix of the name tryConvertToMergedFunction gives a shared body.
-static constexpr StringRef MergedFunctionPrefix = "__llvm_mergefunc$";
-
-/// Names \p F after its contents and puts it in a COMDAT, so every object
-/// merging this body agrees on it.
-static bool tryConvertToMergedFunction(Function *F) {
-  // The ODR path aliases both halves of a merge to the same body.
-  if (F->getName().starts_with(MergedFunctionPrefix))
-    return true;
-
-  // An externally visible name is fixed; the ODR path passes a nameless body.
-  if (F->hasName() && !F->hasLocalLinkage())
-    return false;
-
-  Module *M = F->getParent();
-  std::string Name =
-      (MergedFunctionPrefix +
-       Twine::utohexstr(StructuralHash(*F, /*DetailedHash=*/true)))
-          .str();
-  // A uniquing suffix would be numbered per object, so it cannot be used.
-  if (M->getNamedValue(Name))
-    return false;
-
-  F->setName(Name);
-  F->setLinkage(GlobalValue::LinkOnceODRLinkage);
-  F->setDLLStorageClass(GlobalValue::DefaultStorageClass);
-  Comdat *C = M->getOrInsertComdat(Name);
-  // Reject a hash collision at link time rather than keep either body.
-  C->setSelectionKind(Comdat::ExactMatch);
-  F->setComdat(C);
-  return true;
-}
-
 // Replace G with an alias to F (deleting function G)
 void MergeFunctions::writeAlias(Function *F, Function *G) {
   PointerType *PtrType = G->getType();
@@ -901,27 +856,23 @@ void MergeFunctions::writeAlias(Function *F, Function *G) {
   ++NumAliasesWritten;
 }
 
-bool MergeFunctions::eraseIfUnused(Function *G) {
-  if (!G->isDiscardableIfUnused() || !G->use_empty() || MergeFunctionsPDI)
-    return false;
-  G->eraseFromParent();
-  return true;
-}
-
-bool MergeFunctions::createAlias(Function *F, Function *G) {
-  if (!canCreateAliasFor(G))
-    return false;
-  if (needsStableSymbolForAlias(F) && !tryConvertToMergedFunction(F))
-    return false;
-  writeAlias(F, G);
-  return true;
-}
-
-bool MergeFunctions::createThunk(Function *F, Function *G) {
-  if (!canCreateThunkFor(F))
-    return false;
-  writeThunk(F, G);
-  return true;
+// If needed, replace G with an alias to F if possible, or a thunk to F if
+// profitable. Returns false if neither is the case. If \p G is not needed (i.e.
+// it is discardable and unused), \p G is removed directly.
+bool MergeFunctions::writeThunkOrAliasIfNeeded(Function *F, Function *G) {
+  if (G->isDiscardableIfUnused() && G->use_empty() && !MergeFunctionsPDI) {
+    G->eraseFromParent();
+    return true;
+  }
+  if (canCreateAliasFor(G)) {
+    writeAlias(F, G);
+    return true;
+  }
+  if (canCreateThunkFor(F)) {
+    writeThunk(F, G);
+    return true;
+  }
+  return false;
 }
 
 /// Returns true if \p F is either weak_odr or linkonce_odr.
@@ -950,9 +901,9 @@ void MergeFunctions::mergeTwoFunctions(Function *F, Function *G) {
     assert((!isODR(G) || isODR(F)) &&
            "if G is ODR, F must also be ODR due to ordering");
 
-    // Both replacements below must succeed, either because we can create
-    // aliases for G and NewF, or because a thunk for F is profitable. F here
-    // has the same signature as NewF below, so that's what
+    // Both writeThunkOrAliasIfNeeded() calls below must succeed, either because
+    // we can create aliases for G and NewF, or because a thunk for F is
+    // profitable. F here has the same signature as NewF below, so that's what
     // we check.
     if (!canCreateThunkFor(F) &&
         (!canCreateAliasFor(F) || !canCreateAliasFor(G)))
@@ -979,25 +930,21 @@ void MergeFunctions::mergeTwoFunctions(Function *F, Function *G) {
     if (isODR(F))
       replaceDirectCallers(NewF, F);
 
-    // We collect alignment before the calls below overwrite NewF and G's
-    // content.
+    // We collect alignment before writeThunkOrAliasIfNeeded that overwrites
+    // NewF and G's content.
     const MaybeAlign NewFAlign = NewF->getAlign();
     const MaybeAlign GAlign = G->getAlign();
 
-    if (!eraseIfUnused(G) && !createAlias(F, G))
-      createThunk(F, G);
+    writeThunkOrAliasIfNeeded(F, G);
     if (FEC)
       NewF->setEntryCount(*FEC);
-    if (!eraseIfUnused(NewF) && !createAlias(F, NewF))
-      createThunk(F, NewF);
-    // A COMDAT here is tryConvertToMergedFunction's; F's moved to NewF above.
-    if (!F->hasComdat())
-      F->setLinkage(GlobalValue::PrivateLinkage);
+    writeThunkOrAliasIfNeeded(F, NewF);
 
     if (NewFAlign || GAlign)
       F->setAlignment(std::max(NewFAlign.valueOrOne(), GAlign.valueOrOne()));
     else
       F->setAlignment(std::nullopt);
+    F->setLinkage(GlobalValue::PrivateLinkage);
     // The private shared implementation accumulates both symbols' entries
     // (FEC + GEC), while each ODR thunk retains its own per-symbol entry count.
     mergeEntryCountsInto(F, FEC, GEC);
@@ -1009,12 +956,8 @@ void MergeFunctions::mergeTwoFunctions(Function *F, Function *G) {
     if (!G->isInterposable() && !MergeFunctionsPDI) {
       // Functions referred to by llvm.used/llvm.compiler.used are special:
       // there are uses of the symbol name that are not visible to LLVM,
-      // usually from inline asm. An alias visible to other objects is about to
-      // name F, so keep G unless F can take a symbol they agree on.
-      const bool CanRetargetAlias = !needsStableSymbolForAlias(F) ||
-                                    !hasNonLocalAlias(G) ||
-                                    tryConvertToMergedFunction(F);
-      if (G->hasGlobalUnnamedAddr() && !Used.contains(G) && CanRetargetAlias) {
+      // usually from inline asm.
+      if (G->hasGlobalUnnamedAddr() && !Used.contains(G)) {
         // G might have been a key in our GlobalNumberState, and it's illegal
         // to replace a key in ValueMap<GlobalValue *> with a non-global.
         GlobalNumbers.erase(G);
@@ -1038,7 +981,7 @@ void MergeFunctions::mergeTwoFunctions(Function *F, Function *G) {
       return;
     }
 
-    if (createAlias(F, G) || createThunk(F, G)) {
+    if (writeThunkOrAliasIfNeeded(F, G)) {
       mergeEntryCountsInto(F, FEC, GEC);
       ++NumFunctionsMerged;
     }
