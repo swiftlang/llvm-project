@@ -147,7 +147,7 @@ OperatingSystemSwiftTasks::OperatingSystemSwiftTasks(
     lldb_private::Process &process,
     const SwiftLanguageRuntime::ConcurrencyInfo &concurrency_info)
     : OperatingSystem(&process),
-      m_task_finder(GetTaskFinder(concurrency_info)) {
+      m_task_finder(GetTaskFinder(process, concurrency_info)) {
   LLDB_LOG(
       GetLog(LLDBLog::OS),
       "OperatingSystemSwiftTasks: concurrency runtime using storage kind {0}",

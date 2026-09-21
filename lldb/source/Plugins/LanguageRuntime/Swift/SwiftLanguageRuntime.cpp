@@ -4047,6 +4047,52 @@ CxxThreadLocalTaskFinder::ComputeTaskAddrLocation(Thread &real_thread) {
   return location;
 }
 
+/// Returns the address of the global variable ActiveTask::Value
+std::optional<addr_t> FindTaskGVLoadAddr(Process &process,
+                                         ModuleSP concurrency_module) {
+  if (!concurrency_module)
+    return {};
+
+  const Symbol *symbol = concurrency_module->FindFirstSymbolWithNameAndType(
+      ConstString(g_cxx_thread_local_task_symbol));
+  if (!symbol) {
+    LLDB_LOG(GetLog(LLDBLog::OS),
+             "CxxThreadLocalTaskFinder: could not find current-task symbol {0}",
+             g_cxx_thread_local_task_symbol);
+    return {};
+  }
+
+  return symbol->GetLoadAddress(&process.GetTarget());
+}
+
+struct GlobalVarTaskFinder : CachingTaskFinder {
+  GlobalVarTaskFinder(ModuleSP concurrency_module, Process &process)
+      : task_gv_load_addr(FindTaskGVLoadAddr(process, concurrency_module)
+                              .value_or(LLDB_INVALID_ADDRESS)) {
+    LLDB_LOG(
+        GetLog(LLDBLog::OS),
+        "GlobalVarTaskFinder: current task global variable address = {0:x}",
+        task_gv_load_addr);
+  }
+
+  llvm::SmallVector<std::optional<lldb::addr_t>>
+  GetTaskAddrForThread(llvm::ArrayRef<Thread *> threads) override {
+    // Multiple threads don't make sense in this storage kind.
+    if (threads.size() > 1)
+      return llvm::SmallVector<std::optional<addr_t>>(threads.size(),
+                                                      std::nullopt);
+    return CachingTaskFinder::GetTaskAddrForThread(threads);
+  }
+
+  llvm::Expected<lldb::addr_t>
+  ComputeTaskAddrLocation(Thread &real_thread) override {
+    return task_gv_load_addr;
+  }
+
+private:
+  addr_t task_gv_load_addr;
+};
+
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
 ///   * information contained within records
@@ -4285,7 +4331,8 @@ llvm::Expected<uint64_t> FindPrologueSize(Process &process,
 using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
 
 std::unique_ptr<TaskFinder>
-GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
+GetTaskFinder(Process &process,
+              const SwiftLanguageRuntime::ConcurrencyInfo &info) {
   if (!info.task_storage_kind)
     return std::make_unique<NoTaskFinder>();
   switch (*info.task_storage_kind) {
@@ -4293,8 +4340,10 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
     return std::make_unique<PthreadReservedKeyTaskFinder>();
   case CurrentTaskStorageKind::cxx_thread_local:
     return std::make_unique<CxxThreadLocalTaskFinder>(info.concurrency_module);
-  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::global:
+    return std::make_unique<GlobalVarTaskFinder>(info.concurrency_module,
+                                                 process);
+  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::last:
     break;
   }
@@ -4302,6 +4351,7 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
 }
 
 std::unique_ptr<TaskFinder> GetTaskFinder(Process &process) {
-  return GetTaskFinder(SwiftLanguageRuntime::FindConcurrencyInfo(process));
+  return GetTaskFinder(process,
+                       SwiftLanguageRuntime::FindConcurrencyInfo(process));
 }
 } // namespace lldb_private
