@@ -4053,6 +4053,54 @@ CxxThreadLocalTaskFinder::ComputeTaskAddrLocation(Thread &real_thread) {
   return location;
 }
 
+/// A TaskFinder for the case where there is a single, unchanging location for
+/// the currently executing task pointer.
+struct SingleLocationTaskFinder : CachingTaskFinder {
+  explicit SingleLocationTaskFinder(addr_t task_ptr_location)
+      : task_ptr_location(task_ptr_location) {
+    LLDB_LOG(GetLog(LLDBLog::OS),
+             "SingleLocationTaskFinder: task_loc_addr = {0:x}",
+             task_ptr_location);
+  }
+
+  llvm::SmallVector<std::optional<lldb::addr_t>>
+  GetTaskAddrForThread(llvm::ArrayRef<Thread *> threads) override {
+    // Multiple threads don't make sense in this storage kind.
+    if (threads.size() > 1)
+      return llvm::SmallVector<std::optional<addr_t>>(threads.size(),
+                                                      std::nullopt);
+    return CachingTaskFinder::GetTaskAddrForThread(threads);
+  }
+
+  llvm::Expected<lldb::addr_t> ComputeTaskAddrLocation(Thread &) override {
+    if (task_ptr_location == LLDB_INVALID_ADDRESS)
+      return llvm::createStringError(
+          "could not locate the current-task pointer");
+    return task_ptr_location;
+  }
+
+private:
+  addr_t task_ptr_location;
+};
+
+struct GlobalVarTaskFinder : SingleLocationTaskFinder {
+  GlobalVarTaskFinder(ModuleSP concurrency_module, Process &process)
+      : SingleLocationTaskFinder(
+            GetGlobalVarLoadAddr(concurrency_module, process)) {}
+
+private:
+  static addr_t GetGlobalVarLoadAddr(ModuleSP concurrency_module,
+                                     Process &process) {
+    llvm::Expected<Symbol> task_sym =
+        FindCurrentTaskSymbol(concurrency_module.get());
+    if (task_sym)
+      return task_sym->GetLoadAddress(&process.GetTarget());
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), task_sym.takeError(),
+                   "GlobalVarTaskFinder: {0}");
+    return LLDB_INVALID_ADDRESS;
+  }
+};
+
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
 ///   * information contained within records
@@ -4291,7 +4339,8 @@ llvm::Expected<uint64_t> FindPrologueSize(Process &process,
 using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
 
 std::unique_ptr<TaskFinder>
-GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
+GetTaskFinder(Process &process,
+              const SwiftLanguageRuntime::ConcurrencyInfo &info) {
   if (!info.task_storage_kind)
     return std::make_unique<NoTaskFinder>();
   switch (*info.task_storage_kind) {
@@ -4299,8 +4348,10 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
     return std::make_unique<PthreadReservedKeyTaskFinder>();
   case CurrentTaskStorageKind::cxx_thread_local:
     return std::make_unique<CxxThreadLocalTaskFinder>(info.concurrency_module);
-  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::global:
+    return std::make_unique<GlobalVarTaskFinder>(info.concurrency_module,
+                                                 process);
+  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::last:
     break;
   }
@@ -4308,6 +4359,7 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
 }
 
 std::unique_ptr<TaskFinder> GetTaskFinder(Process &process) {
-  return GetTaskFinder(SwiftLanguageRuntime::FindConcurrencyInfo(process));
+  return GetTaskFinder(process,
+                       SwiftLanguageRuntime::FindConcurrencyInfo(process));
 }
 } // namespace lldb_private
