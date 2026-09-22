@@ -394,6 +394,8 @@ class ConstraintInfo {
   struct State &State;
 
 public:
+  struct State &getState() const { return State; }
+
   ConstraintInfo(struct State &State, ArrayRef<Value *> FunctionArgs)
       : UnsignedCS(FunctionArgs), SignedCS(FunctionArgs), State(State) {
     auto &Value2Index = getValue2Index(false);
@@ -2586,6 +2588,26 @@ static void generateReproducer(Instruction *Cond, bool IsSigned, Module *M,
   assert(!verifyFunction(*F, &dbgs()));
 }
 
+/// If \p V is a variable in the system and constraint \p C does not contain \p
+/// V, we managed to decompose \p V at this point, but likely not earlier when
+/// the fact involving \p V was added. In that case, return a new row for
+/// V <= decompose(V) to link the variable with the decomposition result.
+static RowTy getDecompositionLinkRow(Value *V, const ConstraintTy &C,
+                                     const ConstraintInfo &Info) {
+  const auto &Value2Index = Info.getValue2Index(C.IsSigned);
+  auto It = Value2Index.find(V);
+  if (It == Value2Index.end() ||
+      any_of(C.Coefficients,
+             [Id = It->second](const Entry &E) { return E.Id == Id; }))
+    return {};
+
+  SmallVector<Value *> NewVariables;
+  RowTy Row = getRowForLessEqual(
+      Decomposition(V), decompose(V, Info, C.IsSigned, Info.getState()),
+      Value2Index, NewVariables);
+  return NewVariables.empty() ? Row : RowTy();
+}
+
 static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
                                           Value *B, Instruction *CheckInst,
                                           ConstraintInfo &Info) {
@@ -2615,6 +2637,33 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
     return std::nullopt;
   };
 
+  // Retry the query after adding additional facts for A == decompose(A) and B
+  // == decompose(B), if needed.
+  auto TryWithLinkedDecomposition =
+      [&](const ConstraintTy &C) -> std::optional<bool> {
+    if (C.empty())
+      return std::nullopt;
+
+    auto &CS = Info.getCS(C.IsSigned);
+    unsigned NumVars = Info.getValue2Index(C.IsSigned).size();
+    unsigned NumPushed = 0;
+    for (Value *V : {A, B}) {
+      RowTy Row = getDecompositionLinkRow(V, C, Info);
+      RowTy Negated = ConstraintSystem::negateOrEqual(Row);
+      if (Row.empty() || Negated.empty())
+        continue;
+      NumPushed += CS.addRow(Row, NumVars);
+      NumPushed += CS.addRow(Negated, NumVars);
+    }
+    if (NumPushed == 0)
+      return std::nullopt;
+
+    std::optional<bool> Res = TryWithConstraint(C);
+    while (NumPushed--)
+      CS.popLastConstraint();
+    return Res;
+  };
+
   // If the constraint has a pre-condition, skip the constraint if it does not
   // hold. Try to decompose the operands first; if that does not yield a usable
   // constraint, retry without decomposition.
@@ -2622,6 +2671,8 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
   if (R.empty())
     R = Info.getConstraintForSolving(Pred, A, B, /*ShouldDecompose=*/false);
   if (auto ImpliedCondition = TryWithConstraint(R))
+    return ImpliedCondition;
+  if (auto ImpliedCondition = TryWithLinkedDecomposition(R))
     return ImpliedCondition;
 
   // For non-negative operands unsigned queries can also be checked against the
@@ -2645,9 +2696,12 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
       auto SR = Info.getConstraint(Pred, A, B, NewVariables,
                                    /*ShouldDecompose=*/true,
                                    /*ForceSignedSystem=*/true);
-      if (NewVariables.empty())
+      if (NewVariables.empty()) {
         if (auto ImpliedCondition = TryWithConstraint(SR))
           return ImpliedCondition;
+        if (auto ImpliedCondition = TryWithLinkedDecomposition(SR))
+          return ImpliedCondition;
+      }
     }
   }
 

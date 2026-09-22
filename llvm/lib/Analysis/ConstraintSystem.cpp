@@ -220,6 +220,8 @@ bool ConstraintSystem::mayHaveSolution() {
 std::pair<ConstraintSystem, ConstraintSystem::RowTy>
 ConstraintSystem::getSubSystem(ArrayRef<Entry> R,
                                SmallVectorImpl<unsigned> *SubToOld) const {
+  assert((R.empty() || R.back().Id <= NumVariables) &&
+         "query must only use variables of the system");
   // Only constraints that share a variable (transitively) with a query R can
   // affect whether system + !R has a solution.
   //
