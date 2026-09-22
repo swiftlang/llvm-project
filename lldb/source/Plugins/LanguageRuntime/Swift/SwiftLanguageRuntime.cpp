@@ -342,13 +342,14 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
-static std::optional<CurrentTaskStorageKind>
-FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
-  SymbolContextList symbols;
+/// The load address of the global variable `name`, looked up in every image
+/// loaded in the process.
+static std::optional<addr_t> FindGlobalVariableAddress(Process &process,
+                                                       StringRef name) {
   Target &target = process.GetTarget();
-  target.GetImages().FindSymbolsWithNameAndType(
-      ConstString("_swift_concurrency_debug_current_task_storage_kind"),
-      eSymbolTypeAny, symbols);
+  SymbolContextList symbols;
+  target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
+                                                eSymbolTypeAny, symbols);
 
   SymbolContext context;
   for (size_t index = 0; index < symbols.GetSize(); ++index) {
@@ -357,23 +358,29 @@ FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
       continue;
 
     addr_t symbol_addr = context.symbol->GetLoadAddress(&target);
-    if (symbol_addr == LLDB_INVALID_ADDRESS)
-      continue;
-
-    Status error;
-    uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
-        symbol_addr, /*width=*/4, /*fail_value=*/0, error);
-    if (error.Fail() ||
-        storage_kind_raw > std::numeric_limits<uint8_t>::max())
-      return std::nullopt;
-
-    uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
-    if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
-      return std::nullopt;
-    return DeriveStorageKind(concurrency_version, concrete_storage_kind);
+    if (symbol_addr != LLDB_INVALID_ADDRESS)
+      return symbol_addr;
   }
-
   return std::nullopt;
+}
+
+static std::optional<CurrentTaskStorageKind>
+FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
+  std::optional<addr_t> kind_addr = FindGlobalVariableAddress(
+      process, "_swift_concurrency_debug_current_task_storage_kind");
+  if (!kind_addr)
+    return std::nullopt;
+
+  Status error;
+  uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
+      *kind_addr, /*width=*/4, /*fail_value=*/0, error);
+  if (error.Fail() || storage_kind_raw > std::numeric_limits<uint8_t>::max())
+    return std::nullopt;
+
+  uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
+  if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
+    return std::nullopt;
+  return DeriveStorageKind(concurrency_version, concrete_storage_kind);
 }
 
 SwiftLanguageRuntime::ConcurrencyInfo
