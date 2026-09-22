@@ -68,7 +68,7 @@ public:
   llvm::VersionTuple
   GetProducerVersion(CompileUnit &comp_unit) override;
   lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) override;
-  XcodeSDK ParseXcodeSDK(CompileUnit &comp_unit) override;
+  XcodeSDKAndSysroot ParseXcodeSDK(CompileUnit &comp_unit) override;
   llvm::SmallSet<lldb::LanguageType, 4>
   ParseAllLanguages(CompileUnit &comp_unit) override;
   size_t ParseFunctions(CompileUnit &comp_unit) override;
