@@ -5,8 +5,9 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftCTypeIvar(TestBase):
-    @skipEmbeddedSwiftOnWindows
+    @requireNotEmbeddedSwift
     @swiftTest
+    @requireSwiftObjCInterop
     @skipIf(setting=("symbols.use-swift-clangimporter", "false"))
     def test(self):
         """Test that the extra inhabitants are correctly computed for various
