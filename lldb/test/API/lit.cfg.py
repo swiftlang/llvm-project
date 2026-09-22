@@ -453,6 +453,14 @@ if "FREEBSD_LEGACY_PLUGIN" in os.environ:
 if "XDG_CACHE_HOME" in os.environ:
     config.environment["XDG_CACHE_HOME"] = os.environ["XDG_CACHE_HOME"]
 
+# Propagate proxy settings so network access from the test build (the
+# Gatekeeper ticket lookup in codesign-and-check.sh) works on hosts without
+# direct egress.
+for v in ["http_proxy", "https_proxy", "no_proxy", "all_proxy"]:
+    for name in [v, v.upper()]:
+        if name in os.environ:
+            config.environment[name] = os.environ[name]
+
 # Transfer some environment variables into the tests on Windows build host.
 if platform.system() == "Windows":
     for v in ["SystemDrive"]:
