@@ -4726,6 +4726,15 @@ class SBCompileUnit(object):
         r"""GetLanguage(SBCompileUnit self) -> lldb::LanguageType"""
         return _lldb.SBCompileUnit_GetLanguage(self)
 
+    def GetIsOptimized(self):
+        r"""
+        GetIsOptimized(SBCompileUnit self) -> bool
+
+            Returns true if this compile unit was compiled with optimization,
+            false if unoptimized or unknown.
+        """
+        return _lldb.SBCompileUnit_GetIsOptimized(self)
+
     def __eq__(self, rhs):
         r"""__eq__(SBCompileUnit self, SBCompileUnit rhs) -> bool"""
         return _lldb.SBCompileUnit___eq__(self, rhs)

@@ -21973,6 +21973,34 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_SBCompileUnit_GetIsOptimized(PyObject *self, PyObject *args) {
+  PyObject *resultobj = 0;
+  lldb::SBCompileUnit *arg1 = 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  PyObject *swig_obj[1] ;
+  bool result;
+  
+  (void)self;
+  if (!args) SWIG_fail;
+  swig_obj[0] = args;
+  res1 = SWIG_ConvertPtr(swig_obj[0], &argp1,SWIGTYPE_p_lldb__SBCompileUnit, 0 |  0 );
+  if (!SWIG_IsOK(res1)) {
+    SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "SBCompileUnit_GetIsOptimized" "', argument " "1"" of type '" "lldb::SBCompileUnit *""'"); 
+  }
+  arg1 = reinterpret_cast< lldb::SBCompileUnit * >(argp1);
+  {
+    SWIG_PYTHON_THREAD_BEGIN_ALLOW;
+    result = (bool)(arg1)->GetIsOptimized();
+    SWIG_PYTHON_THREAD_END_ALLOW;
+  }
+  resultobj = SWIG_From_bool(static_cast< bool >(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_SBCompileUnit___eq__(PyObject *self, PyObject *args) {
   PyObject *resultobj = 0;
   lldb::SBCompileUnit *arg1 = 0 ;
@@ -100371,6 +100399,12 @@ static PyMethodDef SwigMethods[] = {
 		"        A list of types in this compile unit that match type_mask\n"
 		""},
 	 { "SBCompileUnit_GetLanguage", _wrap_SBCompileUnit_GetLanguage, METH_O, "SBCompileUnit_GetLanguage(SBCompileUnit self) -> lldb::LanguageType"},
+	 { "SBCompileUnit_GetIsOptimized", _wrap_SBCompileUnit_GetIsOptimized, METH_O, "\n"
+		"SBCompileUnit_GetIsOptimized(SBCompileUnit self) -> bool\n"
+		"\n"
+		"    Returns true if this compile unit was compiled with optimization,\n"
+		"    false if unoptimized or unknown.\n"
+		""},
 	 { "SBCompileUnit___eq__", _wrap_SBCompileUnit___eq__, METH_VARARGS, "SBCompileUnit___eq__(SBCompileUnit self, SBCompileUnit rhs) -> bool"},
 	 { "SBCompileUnit___ne__", _wrap_SBCompileUnit___ne__, METH_VARARGS, "SBCompileUnit___ne__(SBCompileUnit self, SBCompileUnit rhs) -> bool"},
 	 { "SBCompileUnit_GetDescription", _wrap_SBCompileUnit_GetDescription, METH_VARARGS, "SBCompileUnit_GetDescription(SBCompileUnit self, SBStream description) -> bool"},
