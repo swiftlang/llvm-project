@@ -36,6 +36,10 @@ inferred a = 0;
 // CHECK-NEXT:       "command-line": [
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
+// CHECK-NEXT:       "directory-deps": [
+// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Frameworks",
+// CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Headers"
+// CHECK-NEXT:       ],
 // CHECK-NEXT:       "file-deps": [
 // CHECK-NEXT:         "[[PREFIX]]/frameworks/module.modulemap",
 // CHECK-NEXT:         "[[PREFIX]]/frameworks/Inferred.framework/Headers/Inferred.h",

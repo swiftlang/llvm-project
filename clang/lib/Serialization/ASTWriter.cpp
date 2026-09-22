@@ -909,6 +909,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(MODULE_NAME);
   RECORD(MODULE_DIRECTORY);
   RECORD(MODULE_MAP_FILE);
+  RECORD(MODULE_DIRECTORY_DEPENDENCIES);
   RECORD(IMPORT);
   RECORD(ORIGINAL_FILE);
   RECORD(ORIGINAL_FILE_ID);
@@ -1603,6 +1604,15 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, StringRef isysroot) {
     unsigned AbbrevCode = Stream.EmitAbbrev(std::move(Abbrev));
     RecordData::value_type Record[] = {CAS_INCLUDE_TREE_ID};
     Stream.EmitRecordWithBlob(AbbrevCode, Record, *ID);
+  }
+
+  if (WritingModule && !WritingModule->getDirectoryDependencies().empty()) {
+    Record.clear();
+    ArrayRef<std::string> Dirs = WritingModule->getDirectoryDependencies();
+    Record.push_back(Dirs.size());
+    for (StringRef Dir : Dirs)
+      AddPath(Dir, Record);
+    Stream.EmitRecord(MODULE_DIRECTORY_DEPENDENCIES, Record);
   }
 
   // Imports

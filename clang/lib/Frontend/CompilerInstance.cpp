@@ -1628,11 +1628,14 @@ std::unique_ptr<CompilerInstance> CompilerInstance::cloneForModuleCompile(
     bool IsSystem = isSystem(SLoc.getFile().getFileCharacteristic());
 
     // Use the module map where this module resides.
-    return cloneForModuleCompileImpl(
+    auto Instance = cloneForModuleCompileImpl(
         ImportLoc, ModuleName,
         FrontendInputFile(ModuleMapFilePath, IK, IsSystem),
         ModMap.getModuleMapFileForUniquing(Module)->getName(), ModuleFileName,
         std::move(ThreadSafeConfig));
+    Instance->setInheritedDirectoryDependencies(
+        Module->getDirectoryDependencies());
+    return Instance;
   }
 
   // FIXME: We only need to fake up an input file here as a way of
@@ -1651,6 +1654,12 @@ std::unique_ptr<CompilerInstance> CompilerInstance::cloneForModuleCompile(
       FrontendInputFile(FakeModuleMapFile, IK, +Module->IsSystem),
       ModMap.getModuleMapFileForUniquing(Module)->getName(), ModuleFileName,
       std::move(ThreadSafeConfig));
+  // This instance builds from the module map text printed above rather than by
+  // repeating the inference, so directories the inference enumerated (a
+  // framework's Frameworks subdirectory) are only known here. Hand them over so
+  // they reach the module's AST file.
+  Instance->setInheritedDirectoryDependencies(
+      Module->getDirectoryDependencies());
 
   std::unique_ptr<llvm::MemoryBuffer> ModuleMapBuffer =
       llvm::MemoryBuffer::getMemBufferCopy(InferredModuleMapContent);
@@ -1730,6 +1739,13 @@ static bool compileModuleAndReadASTImpl(CompilerInstance &ImportingInstance,
           .ModulesValidateOncePerBuildSession) {
     ImportingInstance.getModuleCache().updateModuleTimestamp(ModuleFileName);
   }
+
+  // This module was just built, so it reflects the current contents of every
+  // directory it enumerated. Mark it before the read below, which is passed
+  // OutOfDate=nullptr and so gets no ARR_OutOfDate: failing the
+  // directory-dependency check again there would be a hard error rather than
+  // another rebuild.
+  ImportingInstance.getModuleCache().markDirectoriesValidated(ModuleFileName);
 
   return readASTAfterCompileModule(ImportingInstance, ImportLoc, ModuleNameLoc,
                                    Module, ModuleFileName,
