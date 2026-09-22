@@ -561,7 +561,8 @@ void AMDGPUSwLowerLDS::replaceKernelLDSAccesses(Function *Func) {
                             ConstantInt::get(Int32Ty, Indices[1]),
                             ConstantInt::get(Int32Ty, Indices[2])};
       Constant *GEP = ConstantExpr::getGetElementPtr(
-          SwLDSMetadataStructType, SwLDSMetadata, GEPIdx, true);
+          Func->getDataLayout(), SwLDSMetadataStructType, SwLDSMetadata, GEPIdx,
+          GEPNoWrapFlags::inBounds());
       Value *Offset = IRB.CreateLoad(Int32Ty, GEP);
       Value *BasePlusOffset =
           IRB.CreateInBoundsGEP(IRB.getInt8Ty(), SwLDS, {Offset});
@@ -1037,8 +1038,9 @@ Constant *AMDGPUSwLowerLDS::getAddressesOfVariablesInKernel(
     Constant *GEPIdx[] = {ConstantInt::get(Int32Ty, Indices[0]),
                           ConstantInt::get(Int32Ty, Indices[1]),
                           ConstantInt::get(Int32Ty, Indices[2])};
-    Constant *GEP = ConstantExpr::getGetElementPtr(SwLDSMetadataStructType,
-                                                   SwLDSMetadata, GEPIdx, true);
+    Constant *GEP = ConstantExpr::getGetElementPtr(
+        Func->getDataLayout(), SwLDSMetadataStructType, SwLDSMetadata, GEPIdx,
+        GEPNoWrapFlags::inBounds());
     Elements.push_back(GEP);
   }
   return ConstantArray::get(KernelOffsetsType, Elements);
