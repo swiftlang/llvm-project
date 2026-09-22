@@ -157,7 +157,29 @@ bool ThreadPlanStepOverRange::ShouldStop(Event *event_ptr) {
   LLDB_LOGF(log, "ThreadPlanStepOverRange compare frame result: %d.",
             frame_order);
 
+  bool older_but_equivalent = false;
+  bool descended_into_callee = false;
   if (frame_order == eFrameCompareOlder) {
+    StackFrameSP cur_frame_sp = thread.GetStackFrameAtIndex(0);
+    if (cur_frame_sp && IsEquivalentContext(cur_frame_sp->GetSymbolContext(
+                            eSymbolContextEverything))) {
+      older_but_equivalent = true;
+    } else {
+      for (uint32_t i = 1;; ++i) {
+        StackFrameSP older_frame_sp = thread.GetStackFrameAtIndex(i);
+        if (!older_frame_sp)
+          break;
+        if (IsEquivalentContext(
+                older_frame_sp->GetSymbolContext(eSymbolContextEverything))) {
+          descended_into_callee = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (frame_order == eFrameCompareOlder && !older_but_equivalent &&
+      !descended_into_callee) {
     // If we're in an older frame then we should stop.
     //
     // A caveat to this is if we think the frame is older but we're actually in
@@ -173,7 +195,8 @@ bool ThreadPlanStepOverRange::ShouldStop(Event *event_ptr) {
     if (new_plan_sp && log)
       LLDB_LOGF(log,
                 "Thought I stepped out, but in fact arrived at a trampoline.");
-  } else if (frame_order == eFrameCompareYounger) {
+  } else if (frame_order == eFrameCompareYounger ||
+             (frame_order == eFrameCompareOlder && descended_into_callee)) {
     // Make sure we really are in a new frame.  Do that by unwinding and seeing
     // if the start function really is our start function...
     for (uint32_t i = 1;; ++i) {
