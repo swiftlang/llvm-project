@@ -75,6 +75,7 @@ class Target;
 struct TestingProperties : public Properties {
   TestingProperties();
   bool GetInjectVarLocListError() const;
+  bool GetSwiftDisablePluginSandbox() const;
   static TestingProperties &GetGlobalTestingProperties();
 
   /// Overwrites the testing.safe-auto-load-paths settings.

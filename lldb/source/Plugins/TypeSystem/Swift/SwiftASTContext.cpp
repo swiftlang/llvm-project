@@ -4428,8 +4428,15 @@ ThreadSafeASTContext SwiftASTContext::GetASTContext() {
   }
 
   // Set up the plugin loader.
+  bool disable_plugin_sandbox = false;
+#ifndef NDEBUG
+  disable_plugin_sandbox =
+      TestingProperties::GetGlobalTestingProperties()
+          .GetSwiftDisablePluginSandbox();
+#endif
   m_ast_context_up->setPluginLoader(std::make_unique<swift::PluginLoader>(
-      *m_ast_context_up, m_dependency_tracker.get()));
+      *m_ast_context_up, m_dependency_tracker.get(), std::nullopt,
+      disable_plugin_sandbox));
 
   // Set up the required state for the evaluator in the TypeChecker.
   registerIDERequestFunctions(m_ast_context_up->evaluator);

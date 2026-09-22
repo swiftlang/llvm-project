@@ -2405,6 +2405,14 @@ class TestBase(Base, metaclass=LLDBTestCaseFactory):
         for s in self.setUpCommands():
             self.runCmd(s)
 
+        # Macro plugin servers run in their own sandbox, which can't be
+        # created when the testsuite itself is sandboxed. The setting only
+        # exists in asserts builds, so don't require it to succeed.
+        if os.environ.get("LLDB_TEST_DISABLE_SWIFT_PLUGIN_SANDBOX"):
+            self.dbg.HandleCommand(
+                "settings set testing.swift-disable-plugin-sandbox true"
+            )
+
         # We want our debugger to be synchronous.
         self.dbg.SetAsync(False)
 
