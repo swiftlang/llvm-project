@@ -342,11 +342,10 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
-/// The load address of the global variable `name`, looked up in every image
-/// loaded in the process.
-static std::optional<addr_t> FindGlobalVariableAddress(Process &process,
-                                                       StringRef name) {
-  Target &target = process.GetTarget();
+/// The load address of the symbol `name`, looked up in every image loaded in
+/// the target.
+static std::optional<addr_t> FindSymbolLoadAddress(Target &target,
+                                                   StringRef name) {
   SymbolContextList symbols;
   target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
                                                 eSymbolTypeAny, symbols);
@@ -362,6 +361,31 @@ static std::optional<addr_t> FindGlobalVariableAddress(Process &process,
       return symbol_addr;
   }
   return std::nullopt;
+}
+
+static std::optional<addr_t> FindGlobalVariableAddress(Process &process,
+                                                       StringRef name) {
+  Target &target = process.GetTarget();
+  if (std::optional<addr_t> addr = FindSymbolLoadAddress(target, name))
+    return addr;
+
+  // FIXME(wasm): Swift can't place globals in a specific address space, so the
+  // global itself won't be in the symbol table. However, wasm-ld places the GOT
+  // pointer for that symbol in addrspace(1); try to find it with the prefix
+  // "GOT.data.internal.".
+  if (!target.GetArchitecture().GetTriple().isWasm())
+    return std::nullopt;
+  std::optional<addr_t> got_addr = FindSymbolLoadAddress(
+      target, (llvm::Twine("GOT.data.internal.") + name).str());
+  if (!got_addr)
+    return std::nullopt;
+
+  Status error;
+  addr_t addr = process.ReadUnsignedIntegerFromMemory(
+      *got_addr, process.GetAddressByteSize(), LLDB_INVALID_ADDRESS, error);
+  if (error.Fail() || addr == 0 || addr == LLDB_INVALID_ADDRESS)
+    return std::nullopt;
+  return addr;
 }
 
 static std::optional<CurrentTaskStorageKind>
@@ -4100,6 +4124,50 @@ private:
   addr_t task_gv_load_addr;
 };
 
+/// Returns the address of the slot of the global array holding the current
+/// task.
+static std::optional<addr_t> FindTaskTLSSlotAddr(Process &process) {
+  // From swift/Threading/TLSKeys.h.
+  constexpr uint64_t g_concurrency_task_tls_key = 3;
+
+  if (std::optional<addr_t> addr = FindGlobalVariableAddress(
+          process, "_swift_concurrency_debug_global_tls_array"))
+    return *addr + g_concurrency_task_tls_key * process.GetAddressByteSize();
+
+  LLDB_LOG(GetLog(LLDBLog::OS),
+           "GlobalTLSArrayTaskFinder: could not find TLS array symbol");
+  return {};
+}
+
+/// Finds tasks on runtimes whose platform library backs the whole of
+/// thread-local storage with one global array of slots.
+struct GlobalTLSArrayTaskFinder : CachingTaskFinder {
+  GlobalTLSArrayTaskFinder(Process &process)
+      : task_slot_addr(
+            FindTaskTLSSlotAddr(process).value_or(LLDB_INVALID_ADDRESS)) {
+    LLDB_LOG(GetLog(LLDBLog::OS),
+             "GlobalTLSArrayTaskFinder: current task slot address = {0:x}",
+             task_slot_addr);
+  }
+
+  llvm::SmallVector<std::optional<lldb::addr_t>>
+  GetTaskAddrForThread(llvm::ArrayRef<Thread *> threads) override {
+    // Multiple threads don't make sense in this storage kind.
+    if (threads.size() > 1)
+      return llvm::SmallVector<std::optional<addr_t>>(threads.size(),
+                                                      std::nullopt);
+    return CachingTaskFinder::GetTaskAddrForThread(threads);
+  }
+
+  llvm::Expected<lldb::addr_t>
+  ComputeTaskAddrLocation(Thread &real_thread) override {
+    return task_slot_addr;
+  }
+
+private:
+  addr_t task_slot_addr;
+};
+
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
 ///   * information contained within records
@@ -4350,6 +4418,8 @@ GetTaskFinder(Process &process,
   case CurrentTaskStorageKind::global:
     return std::make_unique<GlobalVarTaskFinder>(info.concurrency_module,
                                                  process);
+  case CurrentTaskStorageKind::global_tls_array:
+    return std::make_unique<GlobalTLSArrayTaskFinder>(process);
   case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::last:
     break;
