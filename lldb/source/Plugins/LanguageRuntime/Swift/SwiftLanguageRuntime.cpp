@@ -4108,6 +4108,30 @@ private:
   }
 };
 
+/// Returns the address of the slot of the global array holding the current
+/// task.
+static std::optional<addr_t> FindTaskTLSSlotAddr(Process &process) {
+  // See SWIFT_CONCURRENCY_CURRENT_TASK_STORAGE_KIND_GLOBAL_TLS_ARRAY in
+  // swift/Runtime/ConcurrencyDebug.h.
+  constexpr uint64_t concurrency_task_tls_key = 3;
+
+  if (std::optional<addr_t> addr = FindSymbolLoadAddress(
+          process.GetTarget(), "_swift_concurrency_debug_global_tls_array"))
+    return *addr + concurrency_task_tls_key * process.GetAddressByteSize();
+
+  LLDB_LOG(GetLog(LLDBLog::OS),
+           "GlobalTLSArrayTaskFinder: could not find TLS array symbol");
+  return {};
+}
+
+/// Finds tasks on runtimes whose platform library backs the whole of
+/// thread-local storage with one global array of slots.
+struct GlobalTLSArrayTaskFinder : SingleLocationTaskFinder {
+  GlobalTLSArrayTaskFinder(Process &process)
+      : SingleLocationTaskFinder(
+            FindTaskTLSSlotAddr(process).value_or(LLDB_INVALID_ADDRESS)) {}
+};
+
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
 ///   * information contained within records
@@ -4358,6 +4382,8 @@ GetTaskFinder(Process &process,
   case CurrentTaskStorageKind::global:
     return std::make_unique<GlobalVarTaskFinder>(info.concurrency_module,
                                                  process);
+  case CurrentTaskStorageKind::global_tls_array:
+    return std::make_unique<GlobalTLSArrayTaskFinder>(process);
   case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::last:
     break;

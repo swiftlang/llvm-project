@@ -17,7 +17,7 @@ class TestCase(lldbtest.TestBase):
         line_entry = frame.GetLineEntry()
         self.assertEqual(linenum, line_entry.GetLine())
 
-    @skipEmbeddedSwift # only fails on CI
+    @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(oslist=["windows"])
     def test(self):
@@ -29,6 +29,9 @@ class TestCase(lldbtest.TestBase):
             self, "BREAK HERE", source_file
         )
         bkpt.SetEnabled(False) # avoid hitting multiple locations in async breakpoints
+
+        task_name = thread.GetName()
+        self.assertRegex(task_name, r"^Task \d+$")
 
         line_offset = 4 # Line where print(x) is.
         expected_line_nums = [0]  # print(x)
@@ -42,8 +45,9 @@ class TestCase(lldbtest.TestBase):
             self.assertStopReason(stop_reason, lldb.eStopReasonPlanComplete)
             self.check_is_in_line(thread, expected_line_num + line_offset)
             self.check_x_is_available(thread.frames[0])
+            self.assertEqual(thread.GetName(), task_name)
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwiftOnLinux
     @skipIfOutOfTreeDebugserver
     @swiftTest
     @skipIf(oslist=["windows", "linux"])
