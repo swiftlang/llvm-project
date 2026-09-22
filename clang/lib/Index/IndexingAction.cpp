@@ -884,12 +884,20 @@ static void writeUnitData(const CompilerInstance &CI,
     }
   });
 
+  // Sort by FileID so records are emitted in a deterministic order.
+  using RecordIterator = decltype(Recorder.record_begin());
+  SmallVector<std::pair<FileID, RecordIterator>> Records;
+  for (RecordIterator It = Recorder.record_begin(), End = Recorder.record_end();
+       It != End; ++It)
+    Records.emplace_back(It->first, It);
+  llvm::stable_sort(Records, [](const auto &LHS, const auto &RHS) {
+    return LHS.first < RHS.first;
+  });
+
   ClangIndexRecordWriter RecordWriter(
       CI.getASTContext(), CI.getFrontendOpts().IndexStoreCompress, RecordOpts);
-  for (auto I = Recorder.record_begin(), E = Recorder.record_end(); I != E;
-       ++I) {
-    FileID FID = I->first;
-    const FileIndexRecord &Rec = *I->second;
+  for (auto &[FID, Record] : Records) {
+    const FileIndexRecord &Rec = *Record->second;
     OptionalFileEntryRef FE = SM.getFileEntryRefForID(FID);
     std::string RecordFile;
     std::string Error;
