@@ -4002,21 +4002,28 @@ private:
   std::optional<lldb::addr_t> m_tls_file_addr;
 };
 
-// The exported current-task thread-local in the Swift concurrency runtime.
-static constexpr llvm::StringLiteral g_cxx_thread_local_task_symbol =
-    "_swift_concurrency_currentTask";
+/// Returns the exported current-task variable in the Swift concurrency runtime.
+static llvm::Expected<Symbol>
+FindCurrentTaskSymbol(Module *concurrency_module) {
+  if (!concurrency_module)
+    return llvm::createStringError(
+        "FindCurrentTaskSymbol given a null concurrency_module");
+  constexpr llvm::StringLiteral symbol_name = "_swift_concurrency_currentTask";
+  const Symbol *symbol = concurrency_module->FindFirstSymbolWithNameAndType(
+      ConstString(symbol_name));
+  if (!symbol)
+    return llvm::createStringErrorV(
+        "TaskFinder: could not find current-task symbol {0}", symbol_name);
+  return *symbol;
+}
 
 CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
     : m_concurrency_module(std::move(concurrency_module)) {
-  if (!m_concurrency_module)
-    return;
-
-  const Symbol *symbol = m_concurrency_module->FindFirstSymbolWithNameAndType(
-      ConstString(g_cxx_thread_local_task_symbol));
+  llvm::Expected<Symbol> symbol =
+      FindCurrentTaskSymbol(m_concurrency_module.get());
   if (!symbol) {
-    LLDB_LOG(GetLog(LLDBLog::OS),
-             "CxxThreadLocalTaskFinder: could not find current-task symbol {0}",
-             g_cxx_thread_local_task_symbol);
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), symbol.takeError(),
+                   "CxxThreadLocalTaskFinder: {0}");
     return;
   }
 
@@ -4025,7 +4032,7 @@ CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
   if (!section || !section->IsThreadSpecific()) {
     LLDB_LOG(GetLog(LLDBLog::OS),
              "CxxThreadLocalTaskFinder: symbol {0} is not thread-local",
-             g_cxx_thread_local_task_symbol);
+             symbol->GetName());
     return;
   }
 
