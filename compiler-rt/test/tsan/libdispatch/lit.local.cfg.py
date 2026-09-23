@@ -14,5 +14,6 @@ if "libdispatch" in root.available_features:
 else:
     config.unsupported = True
 
-if config.target_os == "Darwin":
-    config.environment["TSAN_OPTIONS"] += ":ignore_noninstrumented_modules=1"
+# swiftlang-only: We need this flag on all platforms, not just Darwin
+# (upstream has Darwin check here).
+config.environment["TSAN_OPTIONS"] += ":ignore_noninstrumented_modules=1"

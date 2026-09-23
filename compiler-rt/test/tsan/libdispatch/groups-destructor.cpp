@@ -2,6 +2,7 @@
 // RUN: %run %t 2>&1 | FileCheck %s --implicit-check-not='ThreadSanitizer'
 
 #include <dispatch/dispatch.h>
+#include <cstdlib>
 
 #include <atomic>
 #include <cstdio>
