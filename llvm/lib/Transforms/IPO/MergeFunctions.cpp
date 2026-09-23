@@ -114,6 +114,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
@@ -887,15 +888,16 @@ bool MergeFunctions::writeThunkOrAliasIfNeeded(Function *F, Function *G) {
     G->eraseFromParent();
     return true;
   }
-  if (canCreateAliasFor(G)) {
+  if (ShouldAlias) {
     writeAlias(F, G);
     return true;
   }
-  if (canCreateThunkFor(F)) {
+  if (ShouldThunk) {
     writeThunk(F, G);
     return true;
   }
-  return false;
+
+  llvm_unreachable("Erase, alias or thunk must apply");
 }
 
 /// Returns true if \p F is either weak_odr or linkonce_odr.
