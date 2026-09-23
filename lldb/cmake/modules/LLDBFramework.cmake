@@ -102,6 +102,24 @@ if(NOT APPLE_EMBEDDED)
     # compiler resources. When part of a toolchain, LLDB knows where to find
     # those. For at-desk builds, it copies over the resources from the Swift
     # build directory into LLDB.framework.
+    #
+    # These are POST_BUILD commands on liblldb, which carries no dependency on
+    # whatever produces the directories being copied. In a standalone build that
+    # is fine: swift was built by an earlier, separate cmake invocation, so
+    # ${SWIFT_BINARY_DIR}/lib/swift is already populated. When swift is an
+    # external project of this same build (LLVM_EXTERNAL_PROJECTS=swift) both
+    # live in one ninja graph and liblldb can finish linking first, leaving the
+    # copy to fail with "Error copying directory from .../lib/swift/apinotes/".
+    # Order liblldb after the swift targets that populate the resource dir:
+    # `stdlib` produces lib/swift/<platform> and the shims, `sdk-overlay` the
+    # overlays, `CxxStdlib-apinotes` the apinotes. The TARGET guards keep this a
+    # no-op for a standalone LLDB build, where those targets are not part of the
+    # graph.
+    foreach(swift_resource_target stdlib sdk-overlay CxxStdlib-apinotes)
+      if(TARGET ${swift_resource_target})
+        add_dependencies(liblldb ${swift_resource_target})
+      endif()
+    endforeach()
     set(RESOURCE_DIRS
       FrameworkABIBaseline
       apinotes
