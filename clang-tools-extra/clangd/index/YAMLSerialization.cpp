@@ -292,6 +292,7 @@ template <> struct ScalarEnumerationTraits<SymbolKind> {
     DEFINE_ENUM(ConversionFunction);
     DEFINE_ENUM(Parameter);
     DEFINE_ENUM(Using);
+    DEFINE_ENUM(CommentTag);
     DEFINE_ENUM(TemplateTypeParm);
     DEFINE_ENUM(TemplateTemplateParm);
     DEFINE_ENUM(NonTypeTemplateParm);
