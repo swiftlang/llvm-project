@@ -28,16 +28,12 @@ class SBBreakpointCallbackCase(TestBase):
         self.generateSource("test_concurrent_unwind.cpp")
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @skipIfHostIncompatibleWithTarget
     def test_python_stop_hook(self):
         """Test that you can run a python command in a stop-hook when stdin is File based."""
         self.build_and_test("driver.cpp test_stop-hook.cpp", "test_python_stop_hook")
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @skipIfHostIncompatibleWithTarget
     def test_breakpoint_callback(self):
         """Test the that SBBreakpoint callback is invoked when a breakpoint is hit."""
@@ -46,8 +42,7 @@ class SBBreakpointCallbackCase(TestBase):
         )
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
+    @skipIfWindows  # https://github.com/llvm/llvm-project/issues/224303
     @skipIfHostIncompatibleWithTarget
     def test_breakpoint_location_callback(self):
         """Test the that SBBreakpointLocation callback is invoked when a breakpoint is hit."""
@@ -57,8 +52,6 @@ class SBBreakpointCallbackCase(TestBase):
         )
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @expectedFlakeyFreeBSD
     @skipIfHostIncompatibleWithTarget
     def test_sb_api_listener_event_description(self):
@@ -69,8 +62,6 @@ class SBBreakpointCallbackCase(TestBase):
         )
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @expectedFlakeyFreeBSD
     @skipIfHostIncompatibleWithTarget
     def test_sb_api_listener_event_process_state(self):
@@ -83,8 +74,6 @@ class SBBreakpointCallbackCase(TestBase):
         )
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @expectedFlakeyFreeBSD
     @skipIf(oslist=["linux"])  # flakey
     @skipIfHostIncompatibleWithTarget
@@ -96,8 +85,6 @@ class SBBreakpointCallbackCase(TestBase):
         )
 
     @skipIfRemote
-    # clang-cl does not support throw or catch (llvm.org/pr24538)
-    @skipIfWindows
     @skipIfHostIncompatibleWithTarget
     def test_concurrent_unwind(self):
         """Test that you can run a python command in a stop-hook when stdin is File based."""
