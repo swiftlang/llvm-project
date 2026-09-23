@@ -27,8 +27,17 @@ class TestSwiftRemoteASTImport(TestBase):
         doesn't import any modules into a module SwiftASTContext that
         weren't imported by that module in the source code.
 
+        FIXME: This does not currently hold. ASTBuilder::findDeclContext()
+        calls ASTContext::getModuleByName(), which imports any missing
+        module by name, even into a per-module SwiftASTContext. The
+        main module's bridging header does not compile in Library's
+        context, so once this is fixed, the test should also check that
+        no "undeclared identifier 'SYNTAX_ERROR'" error is reported.
         """
         self.build()
+        # Validation issues RemoteAST queries a user would not see, and
+        # those currently import the main module into Library's context.
+        self.runCmd("settings set symbols.swift-validate-typesystem false")
 
         lldbutil.run_to_source_breakpoint(self, "break here",
                                           lldb.SBFileSpec('Library.swift'),
@@ -37,4 +46,4 @@ class TestSwiftRemoteASTImport(TestBase):
         self.expect("expr -d no-dynamic-values -- input",
                     substrs=['(Library.LibraryProtocol) $R0'])
         self.expect("expr -d run-target -- input",
-                    substrs=['(a.FromMainModule) $R1'])
+                    substrs=['(a.FromMainModule) $R1', 'i = 1'])
