@@ -1,6 +1,6 @@
 // XFAIL: *
 //
-// RUN: %clangxx_host -gdwarf -o %t %s
+// RUN: %linkxx -gdwarf -o %t %s
 // RUN: %lldb %t \
 // RUN:   -o "expr alignof(base)" \
 // RUN:   -o "expr alignof(packed_base)" \

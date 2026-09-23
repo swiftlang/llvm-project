@@ -3,7 +3,7 @@
 // Tests the language fall back diagnostic for when we fall back to
 // Objective-C++ when stopped in frames with no debug-info.
 //
-// RUN: %clangxx_host %s -o %t.out
+// RUN: %linkxx %s -o %t.out
 //
 // RUN: %lldb %t.out \
 // RUN:    -o "b main" \

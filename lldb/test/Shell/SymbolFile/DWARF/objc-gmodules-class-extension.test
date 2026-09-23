@@ -6,7 +6,7 @@
 #
 # RUN: split-file %s %t
 # RUN: %clangxx_host %t/lib.m  -c -g -gmodules -fmodules -o %t/lib.o
-# RUN: %clangxx_host %t/main.m -g -gmodules -fmodules %t/lib.o -o %t/a.out -framework Foundation
+# RUN: %linkxx %t/main.m -g -gmodules -fmodules %t/lib.o -o %t/a.out -framework Foundation
 #
 # RUN: %lldb %t/a.out -o "breakpoint set -f lib.m -l 6" -o exit | FileCheck %s
 

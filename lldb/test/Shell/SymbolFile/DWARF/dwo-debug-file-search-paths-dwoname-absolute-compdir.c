@@ -10,7 +10,7 @@
 // RUN: cd %t.compdir/a/b/
 /// The produced DWO is named c/d/main-main.dwo, with a non-relative
 /// DW_AT_comp_dir of <pathtobuild>/a/b
-// RUN: %clang_host -g -gsplit-dwarf c/d/main.c -o c/d/main
+// RUN: %link -g -gsplit-dwarf c/d/main.c -o c/d/main
 // RUN: cd ../../..
 /// Move the program.
 // RUN: mv %t.compdir/a/b/c/d/main %t.compdir/a/

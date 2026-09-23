@@ -1,7 +1,7 @@
 # Debug registers are currently printed only on FreeBSD.
 # REQUIRES: system-freebsd
 # REQUIRES: native && (target-x86 || target-x86_64) && dbregs-set
-# RUN: %clangxx_host -g %p/Inputs/x86-db-read.cpp -o %t
+# RUN: %linkxx -g %p/Inputs/x86-db-read.cpp -o %t
 # RUN: %lldb -b -s %s %t | FileCheck %s
 process launch
 # CHECK: Process {{[0-9]+}} stopped

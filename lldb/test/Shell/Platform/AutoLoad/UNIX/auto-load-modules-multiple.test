@@ -4,8 +4,8 @@
 # auto-loaded.
 
 # RUN: split-file %s %t
-# RUN: %clang_host -shared %t/lib.c -o %t/libFoo.dylib
-# RUN: %clang_host %t/main.c -o %t/TestModule.out %t/libFoo.dylib
+# RUN: %link -shared %t/lib.c -o %t/libFoo.dylib
+# RUN: %link %t/main.c -o %t/TestModule.out %t/libFoo.dylib
 # RUN: mkdir -p %t/safe-path/TestModule
 # RUN: mkdir -p %t/safe-path/libFoo
 

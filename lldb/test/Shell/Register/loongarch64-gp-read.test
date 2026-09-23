@@ -1,5 +1,5 @@
 # REQUIRES: native && target-loongarch64
-# RUN: %clangxx_host %p/Inputs/loongarch64-gp-read.cpp -o %t
+# RUN: %linkxx %p/Inputs/loongarch64-gp-read.cpp -o %t
 # RUN: %lldb -b -s %s %t | FileCheck %s
 process launch
 

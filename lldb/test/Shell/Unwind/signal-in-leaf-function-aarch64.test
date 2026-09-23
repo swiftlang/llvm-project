@@ -6,7 +6,7 @@
 # XFAIL: system-darwin
 
 
-# RUN: %clang_host %S/Inputs/signal-in-leaf-function-aarch64.c -o %t
+# RUN: %link %S/Inputs/signal-in-leaf-function-aarch64.c -o %t
 # RUN: %lldb -s %s -o exit %t | FileCheck %s
 
 # Convert EXC_BAD_INSTRUCTION to SIGILL on darwin

@@ -1,4 +1,4 @@
-# RUN: %clang_host -g %S/Inputs/main.c -o %t
+# RUN: %link -g %S/Inputs/main.c -o %t
 # RUN: %lldb %t -s %s -o exit | FileCheck %s
 
 b main

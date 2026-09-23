@@ -1,4 +1,4 @@
-# RUN: %clang_host -g %S/Inputs/main.c -o %t
+# RUN: %link -g %S/Inputs/main.c -o %t
 
 # The file main.c is does not show up in search on Windows.
 # UNSUPPORTED: system-windows

@@ -3,7 +3,7 @@
 # it is covered by TestRegisters.py::fp_special_purpose_register_read.
 # XFAIL: system-darwin
 # REQUIRES: native && (target-x86 || target-x86_64)
-# RUN: %clangxx_host %p/Inputs/x86-fp-write.cpp -o %t
+# RUN: %linkxx %p/Inputs/x86-fp-write.cpp -o %t
 # RUN: %lldb -b -s %s %t | FileCheck %s
 process launch
 

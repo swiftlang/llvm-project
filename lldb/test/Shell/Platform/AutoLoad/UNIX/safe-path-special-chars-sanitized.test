@@ -4,7 +4,7 @@
 # sanitized and the sanitized <module-name>.py is loaded.
 
 # RUN: split-file %s %t
-# RUN: %clang_host %t/main.c -o "%t/Test- Module.1.out"
+# RUN: %link %t/main.c -o "%t/Test- Module.1.out"
 # RUN: mkdir -p "%t/safe-path/Test- Module.1"
 
 # RUN: cp %t/script.py "%t/safe-path/Test- Module.1/Test__Module_1.py"

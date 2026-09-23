@@ -2,7 +2,7 @@
 
 # RUN: mkdir -p %t
 # RUN: cd %t
-# RUN: echo "int main() { return 0; }" | %clang_host -x c - -o a.out
+# RUN: echo "int main() { return 0; }" | %link -x c - -o a.out
 # RUN: cat %s | %lldb 2>&1 | FileCheck %s
 script -l lua --
 target = lldb.debugger:CreateTarget("a.out")

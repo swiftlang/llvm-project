@@ -1,4 +1,4 @@
-# RUN: %clang_host -g %S/Inputs/test.c -o %t.out
+# RUN: %link -g %S/Inputs/test.c -o %t.out
 
 # RUN: cp %S/Inputs/no_threadState.ips %t.crash
 # RUN: %python %S/patch-crashlog.py --binary %t.out --crashlog %t.crash --offsets '{"main":20, "bar":9, "foo":16}' --json
