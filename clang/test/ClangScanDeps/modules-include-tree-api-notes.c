@@ -3,6 +3,7 @@
 // RUN: rm -rf %t
 // RUN: split-file %s %t
 // RUN: sed "s|DIR|%/t|g" %t/cdb.json.template > %t/cdb.json
+// RUN: sed "s|DIR|%/t|g" %t/vfs.yaml.template > %t/vfs.yaml
 
 // RUN: clang-scan-deps -compilation-database %t/cdb.json \
 // RUN:   -cas-path %t/cas -module-files-dir %t/outputs \
@@ -29,11 +30,12 @@
 // WITH-APINOTES-NEXT:   - Name: top
 // WITH-APINOTES-NEXT:     Availability: none
 // WITH-APINOTES-NEXT:     AvailabilityMsg: "don't use this"
-// WITH-APINOTES: Top.apinotes
+// WITH-APINOTES-NOT: external{{[/\\]}}Top.apinotes
+// WITH-APINOTES: {{[/\\]}}Top.apinotes
 // WITHOUT-APINOTES-NOT: APINotes:
 
 // Ensure subsequent builds use the API notes captured in CAS.
-// RUN: rm %t/Top.apinotes
+// RUN: rm %t/external/Top.apinotes
 
 // Build the include-tree commands
 // RUN: %clang @%t/Top.rsp 2>&1 | FileCheck %s -check-prefix=CACHE_MISS
@@ -62,10 +64,28 @@
 [{
   "file": "DIR/tu.m",
   "directory": "DIR",
-  "command": "clang -fsyntax-only DIR/tu.m -I DIR -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache -fapinotes-modules -iapinotes-modules DIR"
+  "command": "clang -fsyntax-only DIR/tu.m -I DIR -ivfsoverlay DIR/vfs.yaml -fmodules -fimplicit-modules -fimplicit-module-maps -fmodules-cache-path=DIR/module-cache -Rcompile-job-cache -fapinotes-modules -iapinotes-modules DIR"
 }]
 
-//--- module.modulemap
+//--- vfs.yaml.template
+{
+  "version": 0,
+  "use-external-names": true,
+  "roots": [
+    {
+      "name": "DIR/module.modulemap",
+      "type": "file",
+      "external-contents": "DIR/external/module.modulemap"
+    },
+    {
+      "name": "DIR/Top.apinotes",
+      "type": "file",
+      "external-contents": "DIR/external/Top.apinotes"
+    }
+  ]
+}
+
+//--- external/module.modulemap
 module Top { header "Top.h" export *}
 module Left { header "Left.h" export *}
 
@@ -89,7 +109,7 @@ void tu(void) {
 }
 // expected-note@Top.h:5{{'top' has been explicitly marked unavailable here}}
 
-//--- Top.apinotes
+//--- external/Top.apinotes
 Name: Top
 Functions:
   - Name: top
