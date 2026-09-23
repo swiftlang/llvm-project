@@ -3142,8 +3142,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       CGF.EmitWideToRawPtr(E) : Visit(E);
     /*TO_UPSTREAM(BoundsSafety) OFF*/
 
-    PtrExpr =
-      CGF.authPointerToPointerCast(Visit(E), E->getType(), DestTy);
+    PtrExpr = CGF.authPointerToPointerCast(PtrExpr, E->getType(), DestTy);
     return Builder.CreatePtrToInt(PtrExpr, ConvertType(DestTy));
   }
   case CK_ToVoid: {
