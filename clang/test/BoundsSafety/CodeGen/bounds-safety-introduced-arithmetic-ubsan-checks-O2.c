@@ -69,7 +69,7 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // UBSAN-NEXT:  [[ENTRY:.*:]]
 // UBSAN-NEXT:    [[TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[BUF]], align 8
 // UBSAN-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[TMP_SROA_0_0_COPYLOAD]], i64 [[OFFSET]]
-// UBSAN-NEXT:    [[TMP0:%.*]] = ptrtoint ptr [[TMP_SROA_0_0_COPYLOAD]] to i64, {{!nosanitize ![0-9]+}}
+// UBSAN-NEXT:    [[TMP0:%.*]] = ptrtoaddr ptr [[TMP_SROA_0_0_COPYLOAD]] to i64, {{!nosanitize ![0-9]+}}
 // UBSAN-NEXT:    [[TMP1:%.*]] = add i64 [[OFFSET]], [[TMP0]], {{!nosanitize ![0-9]+}}
 // UBSAN-NEXT:    [[TMP2:%.*]] = icmp ne ptr [[TMP_SROA_0_0_COPYLOAD]], null, {{!nosanitize ![0-9]+}}
 // UBSAN-NEXT:    [[TMP3:%.*]] = icmp eq i64 [[TMP1]], 0
