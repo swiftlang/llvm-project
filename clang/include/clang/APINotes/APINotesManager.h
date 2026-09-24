@@ -13,6 +13,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -23,6 +24,7 @@
 
 namespace clang {
 
+class DarwinSDKInfo;
 class DirectoryEntry;
 class FileEntry;
 class LangOptions;
@@ -48,6 +50,11 @@ class APINotesManager {
   using ReaderEntry = llvm::PointerUnion<DirectoryEntryRef, APINotesReader *>;
 
   SourceManager &SM;
+
+  /// Resolves the SDK being compiled against when an API notes file declares
+  /// 'ValidSDKs'. Unset, or returning null, means there is no SDK to compare
+  /// against, in which case no file is skipped.
+  llvm::unique_function<const DarwinSDKInfo *()> SDKInfoProvider;
 
   /// Whether to implicitly search for API notes files based on the
   /// source file from which an entity was declared.
@@ -144,6 +151,12 @@ public:
     this->SwiftVersion = Version;
   }
 
+  /// Set the callback used to resolve the SDK being compiled against, for API
+  /// notes files that declare 'ValidSDKs'.
+  void setSDKInfoProvider(llvm::unique_function<const DarwinSDKInfo *()> P) {
+    SDKInfoProvider = std::move(P);
+  }
+
   /// Load the API notes for the current module.
   ///
   /// \param M The current module.
@@ -159,15 +172,9 @@ public:
   /// compiled.
   ///
   /// \param M The current module.
-  /// \param LookInModule Whether to look inside the directory of the current
-  /// module.
-  /// \param SearchPaths The paths in which we should search for API
-  /// notes for the current module.
   ///
   /// \returns a vector of FileEntry where APINotes files are.
-  llvm::SmallVector<FileEntryRef, 2>
-  getCurrentModuleAPINotes(Module *M, bool LookInModule,
-                           ArrayRef<std::string> SearchPaths);
+  llvm::SmallVector<FileEntryRef, 2> getCurrentModuleAPINotes(Module *M);
 
   /// Load Compiled API notes for current module.
   ///

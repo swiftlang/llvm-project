@@ -1150,7 +1150,7 @@ public:
 
   DarwinSDKInfo *getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
                                                          StringRef Platform);
-  DarwinSDKInfo *getDarwinSDKInfoForAvailabilityChecking();
+  DarwinSDKInfo *getDarwinSDKInfo();
 
   /// Registers an external source. If an external source already exists,
   ///  creates a multiplex external source and appends to it.
