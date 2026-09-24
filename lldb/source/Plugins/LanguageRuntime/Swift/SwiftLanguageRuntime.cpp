@@ -3907,9 +3907,8 @@ std::optional<addr_t> CachingTaskFinder::RetryRead(Thread &thread,
   if (!m_tid_to_task_addr_location.erase(tid))
     return std::nullopt;
 
-  LLDB_LOG(GetLog(LLDBLog::OS),
-           "PthreadReservedKeyTaskFinder: evicted task location "
-           "address due to invalid memory read");
+  LLDB_LOG(GetLog(LLDBLog::OS), "CachingTaskFinder: evicted task location "
+                                "address due to invalid memory read");
 
   // The cached address could not be loaded. "This should never happen", but
   // recompute the address and try again for completeness.
