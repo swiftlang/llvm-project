@@ -19,8 +19,8 @@ int * __ptrauth(1,1,871) g3 = 0;
 int * __ptrauth(1,1,1902) g4 = (int*) 1230;
 
 // CHECK: [[PTRAUTH_GA0:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr @ga to i64), i64 712 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_GA1:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @ga, i32 0, i32 1) to i64), i64 712 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_GA2:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @ga, i32 0, i32 2) to i64), i64 712 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_GA1:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @ga, i64 8) to i64), i64 712 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_GA2:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @ga, i64 16) to i64), i64 712 }, section "llvm.ptrauth"
 // CHECK: @ga = global [3 x ptr] [ptr [[PTRAUTH_GA0]], ptr [[PTRAUTH_GA1]], ptr [[PTRAUTH_GA2]]]
 int * __ptrauth(1,1,712) ga[3] = { &external_int, &external_int, &external_int };
 
@@ -41,8 +41,8 @@ struct B {
   int * __ptrauth(1,1,163) f2;
 };
 // CHECK: [[PTRAUTH_GS0:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr @gs2 to i64), i64 1276 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_GS1:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (%struct.B, ptr @gs2, i32 0, i32 1) to i64), i64 23674 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_GS2:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (%struct.B, ptr @gs2, i32 0, i32 2) to i64), i64 163 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_GS1:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @gs2, i64 8) to i64), i64 23674 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_GS2:@external_int.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_int, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @gs2, i64 16) to i64), i64 163 }, section "llvm.ptrauth"
 // CHECK: @gs2 = global %struct.B { ptr [[PTRAUTH_GS0]], ptr [[PTRAUTH_GS1]], ptr [[PTRAUTH_GS2]] }
 struct B gs2 = { &external_int, &external_int, &external_int };
 
@@ -59,8 +59,8 @@ fpt __ptrauth(1,0,56) f1 = &external_function;
 fpt __ptrauth(1,1,1272) f2 = &external_function;
 
 // CHECK: [[PTRAUTH_FA0:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr @fa to i64), i64 712 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_FA1:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @fa, i32 0, i32 1) to i64), i64 712 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_FA2:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds ([3 x ptr], ptr @fa, i32 0, i32 2) to i64), i64 712 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_FA1:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @fa, i64 8) to i64), i64 712 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_FA2:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @fa, i64 16) to i64), i64 712 }, section "llvm.ptrauth"
 // CHECK: @fa = global [3 x ptr] [ptr [[PTRAUTH_FA0]], ptr [[PTRAUTH_FA1]], ptr [[PTRAUTH_FA2]]]
 fpt __ptrauth(1,1,712) fa[3] = { &external_function, &external_function, &external_function };
 
@@ -81,7 +81,7 @@ struct D {
   fpt __ptrauth(1,1,163) f2;
 };
 // CHECK: [[PTRAUTH_FS0:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr @fs2 to i64), i64 1276 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_FS1:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (%struct.D, ptr @fs2, i32 0, i32 1) to i64), i64 23674 }, section "llvm.ptrauth"
-// CHECK: [[PTRAUTH_FS2:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (%struct.D, ptr @fs2, i32 0, i32 2) to i64), i64 163 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_FS1:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @fs2, i64 8) to i64), i64 23674 }, section "llvm.ptrauth"
+// CHECK: [[PTRAUTH_FS2:@external_function.ptrauth.*]] = private constant { ptr, i32, i64, i64 } { ptr @external_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @fs2, i64 16) to i64), i64 163 }, section "llvm.ptrauth"
 // CHECK: @fs2 = global %struct.D { ptr [[PTRAUTH_FS0]], ptr [[PTRAUTH_FS1]], ptr [[PTRAUTH_FS2]] }
 struct D fs2 = { &external_function, &external_function, &external_function };
