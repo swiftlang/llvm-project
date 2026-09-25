@@ -25,6 +25,12 @@ function(lldb_tablegen)
     list(APPEND LTG_UNPARSED_ARGUMENTS -DLLDB_SANITIZED)
   endif()
 
+  # Let .td files guard assertion-only definitions with #ifndef NDEBUG, the
+  # same way the C++ that consumes them does.
+  if (NOT LLVM_ENABLE_ASSERTIONS)
+    list(APPEND LTG_UNPARSED_ARGUMENTS -DNDEBUG)
+  endif()
+
   tablegen(LLDB ${LTG_UNPARSED_ARGUMENTS})
 
   if(LTG_TARGET)

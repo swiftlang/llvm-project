@@ -137,6 +137,13 @@ let Definition = "testing", Path = "testing" in {
                           DefaultStringValue<"">,
                           Desc<"List of paths that LLDB will automatically "
                                "load scripting resources from.">;
+  def SwiftDisablePluginSandbox
+      : Property<"swift-disable-plugin-sandbox", "Boolean">,
+        Global,
+        DefaultFalse,
+        Desc<"Used for testing LLDB only. Don't sandbox Swift macro plugin "
+             "servers, which is necessary when LLDB itself runs inside a "
+             "sandbox.">;
 }
 #endif
 

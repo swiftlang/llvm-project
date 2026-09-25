@@ -266,6 +266,12 @@ bool TestingProperties::GetInjectVarLocListError() const {
       idx, g_testing_properties[idx].default_uint_value != 0);
 }
 
+bool TestingProperties::GetSwiftDisablePluginSandbox() const {
+  const uint32_t idx = ePropertySwiftDisablePluginSandbox;
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_testing_properties[idx].default_uint_value != 0);
+}
+
 TestingProperties &TestingProperties::GetGlobalTestingProperties() {
   static TestingProperties g_testing_properties;
   return g_testing_properties;
