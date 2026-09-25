@@ -427,7 +427,17 @@ Error HTTPClient::perform(const HTTPRequest &Request,
 
   // Read response body
   DWORD BytesAvailable = 0;
-  while (WinHttpQueryDataAvailable(Session->RequestHandle, &BytesAvailable)) {
+  while (true) {
+    // A failure here is not the end of the body: it is how a timeout waiting
+    // for the next chunk reports itself, and treating it as success leaves the
+    // caller believing it downloaded a complete, empty file.
+    if (!WinHttpQueryDataAvailable(Session->RequestHandle, &BytesAvailable)) {
+      bool TimedOut = GetLastError() == ERROR_WINHTTP_TIMEOUT;
+      return createStringError(errc::io_error,
+                               TimedOut ? "Timeout was reached"
+                                        : "Failed to read HTTP response");
+    }
+
     if (BytesAvailable == 0)
       break;
 
