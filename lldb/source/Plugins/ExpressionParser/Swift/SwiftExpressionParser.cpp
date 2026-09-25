@@ -851,8 +851,6 @@ SwiftExpressionParser::GetASTContext(DiagnosticManager &diagnostic_manager) {
     m_swift_ast_ctx.GetLanguageOptions().EnableDollarIdentifiers = true;
     m_swift_ast_ctx.GetLanguageOptions().EnableAccessControl =
         (repl || playground);
-    LLDB_LOG(lldb_private::GetSwiftHealthLog(), "Language option EnableAccessControl = {0}",
-             m_swift_ast_ctx.GetLanguageOptions().EnableAccessControl);
 
     m_swift_ast_ctx.GetLanguageOptions().EnableTargetOSChecking = false;
 
@@ -869,12 +867,8 @@ SwiftExpressionParser::GetASTContext(DiagnosticManager &diagnostic_manager) {
     };
     if (should_disable_objc_runtime())
       m_swift_ast_ctx.GetLanguageOptions().EnableObjCInterop = false;
-    LLDB_LOG(lldb_private::GetSwiftHealthLog(), "Language option EnableObjCInterop = {0}",
-             m_swift_ast_ctx.GetLanguageOptions().EnableObjCInterop);
 
     m_swift_ast_ctx.GetLanguageOptions().Playground = repl || playground;
-    LLDB_LOG(lldb_private::GetSwiftHealthLog(), "Language option Playground = {0}",
-             m_swift_ast_ctx.GetLanguageOptions().Playground);
 
     m_swift_ast_ctx.GetIRGenOptions().Playground = repl || playground;
 
@@ -883,9 +877,15 @@ SwiftExpressionParser::GetASTContext(DiagnosticManager &diagnostic_manager) {
     // might throw.
     if (repl || !playground)
       m_swift_ast_ctx.GetLanguageOptions().EnableThrowWithoutTry = true;
-    LLDB_LOG(lldb_private::GetSwiftHealthLog(), "Language option EnableThrowWithoutTry = {0}",
+    LLDB_LOG(lldb_private::GetSwiftHealthLog(),
+             "{0}: Language options: EnableAccessControl = {1}, "
+             "EnableObjCInterop = {2}, Playground = {3}, "
+             "EnableThrowWithoutTry = {4}",
+             m_swift_ast_ctx.GetDescription(),
+             m_swift_ast_ctx.GetLanguageOptions().EnableAccessControl,
+             m_swift_ast_ctx.GetLanguageOptions().EnableObjCInterop,
+             m_swift_ast_ctx.GetLanguageOptions().Playground,
              m_swift_ast_ctx.GetLanguageOptions().EnableThrowWithoutTry);
-
 
     m_swift_ast_ctx.GetIRGenOptions().OutputKind =
         swift::IRGenOutputKind::Module;
@@ -1461,6 +1461,11 @@ SwiftExpressionParser::ParseAndImport(
       return make_error<ModuleImportError>(msg);
     return expr_diagnostics.GetAsExpressionError(lldb::eExpressionParseError);
   }
+
+  // A stdlib that failed to load earlier produces no diagnostics here, but
+  // type checking can't proceed without it.
+  if (llvm::Error error = m_swift_ast_ctx.CheckStdlib())
+    return make_error<ModuleImportError>(llvm::toString(std::move(error)));
 
   std::unique_ptr<SwiftASTManipulator> code_manipulator;
   if (repl || !playground) {
