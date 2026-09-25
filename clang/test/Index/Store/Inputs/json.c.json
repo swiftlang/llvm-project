@@ -39,6 +39,14 @@
       "name": "Sub",
       "roles": "Def",
       "rel-roles": "RelBase,RelCont"
+    },
+    {
+      "kind": "function",
+      "lang": "C",
+      "usr": "c:@F@operator\"\"_c#*1C#l#",
+      "name": "operator\"\"_c",
+      "codegen": "__Zli2_cPKcm",
+      "roles": "Def"
     }
   ],
   "records": [
@@ -104,6 +112,12 @@
             }
           ]
 
+        },
+        {
+          "symbol": 4,
+          "line": 4,
+          "col": 7,
+          "roles": "Def"
         }
       ]
     }
