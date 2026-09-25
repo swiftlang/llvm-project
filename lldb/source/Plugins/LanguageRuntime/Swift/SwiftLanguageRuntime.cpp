@@ -280,6 +280,12 @@ SwiftLanguageRuntime::FindAsyncTaskNameOffset(Process &process) {
       process, "_swift_concurrency_debug_asyncTaskNameOffset");
 }
 
+llvm::Expected<lldb::offset_t>
+SwiftLanguageRuntime::FindAsyncTaskSize(Process &process) {
+  return ReadConcurrencyDebugWord(process,
+                                  "_swift_concurrency_debug_asyncTaskSize");
+}
+
 std::optional<uint32_t>
 SwiftLanguageRuntime::FindConcurrencyDebugVersion(Process &process) {
   ModuleSP concurrency_module = FindConcurrencyModule(process);
@@ -4276,10 +4282,14 @@ llvm::Expected<JobFlags> GetAsyncJobFlags(Process &process,
   return JobFlags{static_cast<uint32_t>(bits)};
 }
 
-lldb::offset_t GetChildFragmentOffset(Process &process, JobFlags flags) {
-  offset_t offset = AsyncTaskSize;
+llvm::Expected<lldb::offset_t> GetChildFragmentOffset(Process &process,
+                                                      JobFlags flags) {
+  llvm::Expected<offset_t> offset =
+      SwiftLanguageRuntime::FindAsyncTaskSize(process);
+  if (!offset)
+    return offset.takeError();
   if (flags.hasInitialTaskName())
-    offset += NameFragmentSize(process);
+    *offset += NameFragmentSize(process);
   return offset;
 }
 
