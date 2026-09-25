@@ -247,35 +247,37 @@ FindConcurrencyVersionWord(Process &process, Module &concurrency_module) {
   return version_word;
 }
 
-llvm::Expected<lldb::offset_t>
-SwiftLanguageRuntime::FindAsyncTaskNameOffset(Process &process) {
-  ModuleSP concurrency_module = FindConcurrencyModule(process);
+/// Reads the pointer-sized value of the concurrency debug variable `name`.
+static llvm::Expected<uint64_t> ReadConcurrencyDebugWord(Process &process,
+                                                         StringRef name) {
+  ModuleSP concurrency_module =
+      SwiftLanguageRuntime::FindConcurrencyModule(process);
   if (!concurrency_module)
     return llvm::createStringError("could not load _Concurrency module");
 
-  const Symbol *offset_symbol =
-      concurrency_module->FindFirstSymbolWithNameAndType(
-          ConstString("_swift_concurrency_debug_asyncTaskNameOffset"));
-  if (!offset_symbol)
-    return llvm::createStringError(
-        "_swift_concurrency_debug_asyncTaskNameOffset symbol not found");
+  const Symbol *symbol =
+      concurrency_module->FindFirstSymbolWithNameAndType(ConstString(name));
+  if (!symbol)
+    return llvm::createStringErrorV("{0} symbol not found", name);
 
-  addr_t offset_symbol_addr =
-      offset_symbol->GetLoadAddress(&process.GetTarget());
-  if (offset_symbol_addr == LLDB_INVALID_ADDRESS)
-    return llvm::createStringError(
-        "_swift_concurrency_debug_asyncTaskNameOffset has no load address");
+  addr_t symbol_addr = symbol->GetLoadAddress(&process.GetTarget());
+  if (symbol_addr == LLDB_INVALID_ADDRESS)
+    return llvm::createStringErrorV("{0} has no load address", name);
 
   Status status;
-  uint64_t name_fragment_offset = process.ReadUnsignedIntegerFromMemory(
-      offset_symbol_addr, process.GetAddressByteSize(), /*fail_value=*/0,
-      status);
+  uint64_t value = process.ReadUnsignedIntegerFromMemory(
+      symbol_addr, process.GetAddressByteSize(), /*fail_value=*/0, status);
   if (!status.Success())
     return status.takeError();
-  if (name_fragment_offset == 0)
-    return llvm::createStringError(
-        "_swift_concurrency_debug_asyncTaskNameOffset is 0");
-  return name_fragment_offset;
+  if (value == 0)
+    return llvm::createStringErrorV("{0} is 0", name);
+  return value;
+}
+
+llvm::Expected<lldb::offset_t>
+SwiftLanguageRuntime::FindAsyncTaskNameOffset(Process &process) {
+  return ReadConcurrencyDebugWord(
+      process, "_swift_concurrency_debug_asyncTaskNameOffset");
 }
 
 std::optional<uint32_t>
