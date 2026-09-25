@@ -3015,11 +3015,19 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
   if (!cu_imports.size())
     return false;
   const SourceModule &module = cu_imports.front();
+  // An empty path can't be loaded; return before the lookups below log a
+  // failure for it.
+  if (module.search_path.IsEmpty())
+    return false;
+  StringRef module_name;
+  if (module.path.size())
+    module_name = module.path.front();
   std::unique_ptr<llvm::MemoryBuffer> buffer;
   std::optional<std::string> moduleCacheKey;
   // If a dSYM aggregates multiple CAS, pick the one that actually
   // resolves this module's CASID — not just the first-instantiated
   // entry ConfigureDefaultCASStorage picked.
+  std::string cas_error;
   if (auto matched = ModuleList::GetCASForID(
           sc.module_sp, module.search_path.GetStringRef())) {
     InitializeCASOptions(*matched);
@@ -3027,19 +3035,31 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
                "Re-bound CAS to match main module CASID: %s",
                matched->configuration.CASPath.c_str());
   } else {
-    consumeError(matched.takeError());
+    // Only reported if the main module can't be loaded some other way.
+    cas_error = llvm::toString(matched.takeError());
   }
+  // Without the main module there is no explicit module map, so a failure
+  // here changes how every later import is resolved; report it in the health
+  // log.
   if (auto E = GetModuleContentsFromCAS(module.search_path).moveInto(buffer)) {
-    LLDB_LOG_ERROR(GetLog(LLDBLog::Types), std::move(E),
-                   "Could not open {1}: {0}", module.search_path);
+    std::string msg = llvm::toString(std::move(E));
+    HEALTH_LOG_PRINTF("Could not load main module \"%s\" (%s) from CAS "
+                      "\"%s\": %s",
+                      module_name.str().c_str(),
+                      module.search_path.AsCString(""),
+                      GetCASOptions().Config.CASPath.c_str(), msg.c_str());
     return false;
-  } 
+  }
   if (!buffer) {
     if (auto E = llvm::errorOrToExpected(llvm::MemoryBuffer::getFile(
                                              module.search_path.GetStringRef()))
                      .moveInto(buffer)) {
-      LLDB_LOG_ERROR(GetLog(LLDBLog::Types), std::move(E),
-                     "Could not open {1}: {0}", module.search_path);
+      std::string msg = llvm::toString(std::move(E));
+      if (!cas_error.empty())
+        msg += " (CAS lookup: " + cas_error + ")";
+      HEALTH_LOG_PRINTF("Could not load main module \"%s\" from \"%s\": %s",
+                        module_name.str().c_str(),
+                        module.search_path.AsCString(""), msg.c_str());
       return false;
     }
   } else {
@@ -3047,8 +3067,9 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
     SetupFileSystemFromCacheKey(*moduleCacheKey);
   }
   if (!buffer) {
-    LOG_PRINTF(GetLog(LLDBLog::Types), "Failed to load module: %s",
-               module.search_path.GetString().c_str());
+    HEALTH_LOG_PRINTF("Failed to load main module \"%s\" from \"%s\"",
+                      module_name.str().c_str(),
+                      module.search_path.AsCString(""));
     return false;
   }
   LOG_PRINTF(GetLog(LLDBLog::Types), "Discovered main module %s",
@@ -3060,9 +3081,6 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
   bool found_swift_modules = false;
   bool got_serialized_options = false;
   llvm::raw_string_ostream errs(error);
-  StringRef module_name;
-  if (module.path.size())
-    module_name = module.path.front();
   swift::CompilerInvocation fresh_invocation;
   m_main_swift_module = module.search_path;
   m_main_swift_module_map = std::make_unique<swift::ExplicitSwiftModuleMap>();
@@ -3089,6 +3107,9 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
       /*search_paths_only=*/false, m_explicit_swift_module_map.get(),
       m_explicit_clang_module_map.get());
   if (found_errors || !error.empty()) {
+    HEALTH_LOG_PRINTF(
+        "Could not read compiler flags from main module \"%s\": %s",
+        module_name.str().c_str(), errs.str().c_str());
     AddDiagnostic(eSeverityError, errs.str());
     return false;
   }
@@ -3279,8 +3300,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
 
   LOG_PRINTF(GetLog(LLDBLog::Types), "(Target)");
   auto logError = [&](const char *message) {
-    LOG_PRINTF(GetLog(LLDBLog::Types), "Failed to create scratch context - %s",
-               message);
+    HEALTH_LOG_PRINTF("Failed to create scratch context - %s", message);
     if (target_sp)
       if (StreamSP errs_sp = target_sp->GetDebugger().GetAsyncErrorStream())
         errs_sp->Printf("Cannot create Swift scratch context (%s)", message);
@@ -3768,6 +3788,13 @@ Status SwiftASTContext::GetAllDiagnostics() const {
         ->Clear();
   }
   return error;
+}
+
+void SwiftASTContext::RaiseFatalError(std::string msg) const {
+  // LogFatalErrors() only runs once a later operation checks for fatal errors,
+  // so log when the error is raised.
+  HEALTH_LOG_PRINTF("Raising fatal error: %s", msg.c_str());
+  m_fatal_errors = Status(std::move(msg));
 }
 
 void SwiftASTContext::LogFatalErrors() const {
@@ -4614,8 +4641,8 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
     DiagnosticManager diagnostic_manager;
     import_diags->PrintDiagnostics(diagnostic_manager);
     std::string diagnostic = diagnostic_manager.GetString();
-    LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") -- %s",
-               module.path.front().GetCString(), diagnostic.c_str());
+    HEALTH_LOG_PRINTF("(\"%s\") -- failed to import: %s", module_name.c_str(),
+                      diagnostic.c_str());
 
     // Poison this context if it was the stdlib. Continuing will not
     // work and risks crashes.
@@ -4628,7 +4655,8 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
   }
 
   if (!module_decl) {
-    LOG_PRINTF(GetLog(LLDBLog::Types), "failed with no error");
+    HEALTH_LOG_PRINTF("(\"%s\") -- failed to import with no error",
+                      module_name.c_str());
     return llvm::createStringError(llvm::formatv(
         "failed to get module \"{0}\" from AST context", module_name));
   }
@@ -6136,10 +6164,7 @@ void SwiftASTContextForExpressions::ModulesDidLoad(ModuleList &module_list) {
       // Instead poison the SwiftASTContext so it gets recreated.
       RaiseFatalError(
           "New Swift image added: " + module_sp->GetFileSpec().GetPath() +
-          "ClangImporter needs to be reinitialized.");
-      HEALTH_LOG_PRINTF(
-          "New Swift image added: %s. ClangImporter needs to be reinitialized.",
-          module_sp->GetFileSpec().GetPath().c_str());
+          ". ClangImporter needs to be reinitialized.");
     }
 
     // Scan the dylib for .swiftast sections.
@@ -6162,9 +6187,16 @@ void SwiftASTContext::LogConfiguration(bool repl, bool playground) {
     HEALTH_LOG_PRINTF("  (no AST context)");
     return;
   }
+  // An expression context using explicit modules is expected to have a main
+  // module and a module map. Say so explicitly when they are missing instead
+  // of leaving out the lines.
+  bool is_explicit_expr_ctx =
+      llvm::isa<SwiftASTContextForExpressions>(this) && HasExplicitModules();
   if (m_main_swift_module)
     HEALTH_LOG_PRINTF("  Main module                      : %s",
                       m_main_swift_module.AsCString(""));
+  else if (is_explicit_expr_ctx)
+    HEALTH_LOG_PRINTF("  Main module                      : (none)");
   if (repl)
     HEALTH_LOG_PRINTF("  REPL                             : true");
   if (playground)
@@ -6230,6 +6262,9 @@ void SwiftASTContext::LogConfiguration(bool repl, bool playground) {
                       expr_ctx->m_downgraded_to_implicit_modules
                           ? " (downgraded due to missing files)"
                           : "");
+  if (HasCAS())
+    HEALTH_LOG_PRINTF("  CAS                              : %s",
+                      GetCASOptions().Config.CASPath.c_str());
   const auto *esmm = ast_context->getExplicitSwiftModuleMap();
   const auto *ecmm = ast_context->getExplicitClangModuleMap();
   if (esmm && ecmm) {
@@ -6240,13 +6275,35 @@ void SwiftASTContext::LogConfiguration(bool repl, bool playground) {
       HEALTH_LOG_PRINTF("    %s\t\t: %s", entry.getKey().str().c_str(),
                         entry.getValue().modulePath.c_str());
     // The loader already added all Clang entries to the ExtraArgs below.
+  } else if (is_explicit_expr_ctx) {
+    HEALTH_LOG_PRINTF("  Explicit module map entries      : (none)");
   }
 
   HEALTH_LOG_PRINTF(
       "  Extra clang arguments            : (%llu items)",
       (unsigned long long)clang_importer_options.ExtraArgs.size());
-  for (std::string &extra_arg : clang_importer_options.ExtraArgs)
-    HEALTH_LOG_PRINTF("    %s", extra_arg.c_str());
+  for (const std::string &extra_arg : clang_importer_options.ExtraArgs)
+    LOG_PRINTF(GetLog(LLDBLog::Types), "    %s", extra_arg.c_str());
+  // With explicit modules there is one -fmodule-file per Clang module. In the
+  // health log, pack the arguments into a few long lines, so they don't push
+  // everything else out of its ring buffer and out of the log excerpt in crash
+  // reports. The line length is capped to avoid single huge log messages.
+  constexpr size_t max_line_length = 768;
+  std::string line;
+  for (const std::string &extra_arg : clang_importer_options.ExtraArgs) {
+    if (!line.empty() && line.size() + extra_arg.size() >= max_line_length) {
+      LOG_PRINTF(lldb_private::GetSwiftHealthLog(), "    %s", line.c_str());
+      line.clear();
+    }
+    if (!line.empty())
+      line += ' ';
+    if (llvm::StringRef(extra_arg).contains(' '))
+      line += '"' + extra_arg + '"';
+    else
+      line += extra_arg;
+  }
+  if (!line.empty())
+    LOG_PRINTF(lldb_private::GetSwiftHealthLog(), "    %s", line.c_str());
 
   HEALTH_LOG_PRINTF("  Plugin search options            : (%llu items)",
                     (unsigned long long)ast_context->SearchPathOpts
@@ -10115,12 +10172,36 @@ void SwiftASTContext::ConfigureBridgingHeader(const SymbolContext &sc) {
   }
 }
 
+void SwiftASTContext::LogStdlibState() {
+  // Don't create an ASTContext just for logging.
+  if (!m_ast_context_up)
+    return;
+  ThreadSafeASTContext ast = GetASTContext();
+  if (!ast)
+    return;
+  swift::ModuleDecl *stdlib = ast->getStdlibModule(/*loadIfAbsent=*/false);
+  if (!stdlib) {
+    HEALTH_LOG_PRINTF("Swift stdlib: not loaded");
+    return;
+  }
+  StreamString ss;
+  for (const swift::FileUnit *file_unit : stdlib->getFiles())
+    DescribeFileUnit(ss, file_unit);
+  const char *state = "loaded";
+  if (stdlib->failedToLoad())
+    state = "failed to load";
+  else if (IsDWARFImported(*stdlib))
+    state = "imported from DWARF (unusable)";
+  HEALTH_LOG_PRINTF("Swift stdlib: %s {%s}", state, ss.GetData());
+}
+
 llvm::Error SwiftASTContext::GetCompileUnitImportsImpl(
     const SymbolContext &sc, lldb::ProcessSP process_sp,
     llvm::SmallVectorImpl<swift::AttributedImport<swift::ImportedModule>>
         *modules) {
   CompileUnit *compile_unit = sc.comp_unit;
-  if (compile_unit && compile_unit->GetModule())
+  bool first_import = false;
+  if (compile_unit && compile_unit->GetModule()) {
     // Check the cache if this compile unit's imports were previously
     // requested.  If the caller didn't request the list of imported
     // modules then there is nothing left to do for subsequent
@@ -10129,10 +10210,18 @@ llvm::Error SwiftASTContext::GetCompileUnitImportsImpl(
     // unconditionally return true does not matter because the only
     // way to get here is through void PerformCompileUnitImports(),
     // which discards the return value.
-    if (!m_cu_imports.insert(GetCUSignature(*compile_unit)).second)
-      // List of imports isn't requested and we already processed this CU?
-      if (!modules)
-        return llvm::Error::success();
+    first_import = m_cu_imports.insert(GetCUSignature(*compile_unit)).second;
+    // List of imports isn't requested and we already processed this CU?
+    if (!first_import && !modules)
+      return llvm::Error::success();
+  }
+
+  // Log the stdlib once per CU, on the error paths too: a failed import can
+  // leave behind an unusable stdlib that only causes trouble much later.
+  auto log_stdlib = llvm::scope_exit([&] {
+    if (first_import)
+      LogStdlibState();
+  });
 
   bool loaded_stdlib = false;
   if (compile_unit && compile_unit->GetLanguage() == lldb::eLanguageTypeSwift) {
@@ -10206,8 +10295,14 @@ llvm::Error SwiftASTContext::GetCompileUnitImportsImpl(
 
       auto loaded_module = LoadOneModule(module, *this, process_sp,
                                          /*import_dylibs=*/false);
-      if (!loaded_module)
+      if (!loaded_module) {
+        std::string module_name = llvm::join(module.path, ".");
+        std::string cu_path = compile_unit->GetPrimaryFile().GetPath();
+        HEALTH_LOG_PRINTF(
+            "Failed to import \"%s\" for %s, skipping the remaining imports",
+            module_name.c_str(), cu_path.c_str());
         return loaded_module.takeError();
+      }
 
       if (module.path.size() &&
           module.path.front().GetStringRef() == swift::STDLIB_NAME)

@@ -519,7 +519,7 @@ public:
   bool HasClangImporterErrors() const;
 
   void AddDiagnostic(lldb::Severity severity, llvm::StringRef message);
-  void RaiseFatalError(std::string msg) const { m_fatal_errors = Status(msg); }
+  void RaiseFatalError(std::string msg) const;
   static bool HasFatalErrors(swift::ASTContext *ast_context);
   bool HasFatalErrors() const {
     return m_logged_fatal_error || m_fatal_errors.Fail() ||
@@ -936,6 +936,10 @@ protected:
       const SymbolContext &sc, lldb::ProcessSP process_sp,
       llvm::SmallVectorImpl<swift::AttributedImport<swift::ImportedModule>>
           *modules);
+
+  /// Write the state of the stdlib and the files it was loaded from to the
+  /// health log.
+  void LogStdlibState();
 
   /// This map uses the string value of ConstStrings as the key, and the
   /// TypeBase
