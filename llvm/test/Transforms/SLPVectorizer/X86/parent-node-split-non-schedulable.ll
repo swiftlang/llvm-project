@@ -26,11 +26,11 @@ define i32 @main(ptr %c, i32 %0, i1 %tobool4.not, i16 %1) {
 ; CHECK-NEXT:    [[TMP10:%.*]] = load i32, ptr [[C]], align 4
 ; CHECK-NEXT:    [[TMP8:%.*]] = extractelement <2 x i32> [[TMP3]], i64 1
 ; CHECK-NEXT:    [[AND:%.*]] = and i32 [[TMP8]], 1
-; CHECK-NEXT:    [[AND25:%.*]] = and i32 [[TMP0]], 1
 ; CHECK-NEXT:    [[NOT:%.*]] = xor i32 [[AND]], 1
 ; CHECK-NEXT:    [[TMP9:%.*]] = extractelement <2 x i32> [[TMP3]], i64 0
 ; CHECK-NEXT:    [[AND17:%.*]] = and i32 [[TMP9]], 1
 ; CHECK-NEXT:    [[DIV20:%.*]] = sdiv i32 [[AND17]], [[TMP0]]
+; CHECK-NEXT:    [[AND25:%.*]] = and i32 [[TMP0]], 1
 ; CHECK-NEXT:    [[TMP12:%.*]] = insertelement <4 x i32> [[TMP6]], i32 [[AND17]], i64 1
 ; CHECK-NEXT:    [[TMP11:%.*]] = insertelement <4 x i32> [[TMP12]], i32 [[TMP10]], i64 2
 ; CHECK-NEXT:    [[TMP14:%.*]] = insertelement <4 x i32> [[TMP11]], i32 [[AND25]], i64 3
