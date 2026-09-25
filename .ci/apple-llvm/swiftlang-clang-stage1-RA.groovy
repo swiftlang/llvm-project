@@ -10,7 +10,7 @@ library identifier: "zorg-shared-lib@${branchName}",
 clangPipeline(
     jobName: env.JOB_NAME,
     zorgBranch: branchName,
-    defaultLabel: 'macos-arm64',
+    defaultLabel: 'macos-arm64-xcode-27',
     buildConfig: [
         stage: 1,
         build_type: 'cmake',
