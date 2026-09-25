@@ -68,8 +68,6 @@ const cl::desc SelectedRangeOptionDescription(
     "The selected source range in which the refactoring should be "
     "initiated (<file>:<line>:<column>-<line>:<column>)");
 
-static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
-
 namespace rename {
 static cl::list<std::string> AtLocation("at", AtOptionDescription, cl::Required,
                                         cl::cat(ClangRefactorTestOptions),
