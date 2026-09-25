@@ -1462,6 +1462,11 @@ SwiftExpressionParser::ParseAndImport(
     return expr_diagnostics.GetAsExpressionError(lldb::eExpressionParseError);
   }
 
+  // A stdlib that failed to load earlier produces no diagnostics here, but
+  // type checking can't proceed without it.
+  if (llvm::Error error = m_swift_ast_ctx.CheckStdlib())
+    return make_error<ModuleImportError>(llvm::toString(std::move(error)));
+
   std::unique_ptr<SwiftASTManipulator> code_manipulator;
   if (repl || !playground) {
     code_manipulator = std::make_unique<SwiftASTManipulator>(

@@ -2431,6 +2431,15 @@ static bool IsDWARFImported(const swift::ModuleDecl &module) {
   });
 }
 
+/// Return why \p stdlib can't be used, or nullptr if it can.
+static const char *GetStdlibProblem(const swift::ModuleDecl &stdlib) {
+  if (stdlib.failedToLoad())
+    return "failed to load";
+  if (IsDWARFImported(stdlib))
+    return "could not be imported";
+  return nullptr;
+}
+
 /// Detect whether this is a proper Swift module.
 static bool IsSerializedAST(const swift::ModuleDecl &module) {
   return llvm::any_of(module.getFiles(), [](const swift::FileUnit *file_unit) {
@@ -4644,10 +4653,16 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
     HEALTH_LOG_PRINTF("(\"%s\") -- failed to import: %s", module_name.c_str(),
                       diagnostic.c_str());
 
-    // Poison this context if it was the stdlib. Continuing will not
-    // work and risks crashes.
+    // Poison this context if the stdlib is unusable, including when it failed
+    // to load as a dependency of this module. Continuing will not work and
+    // risks crashes.
     if (module_name == swift::STDLIB_NAME)
       RaiseFatalError(diagnostic);
+    else if (llvm::Error error = CheckStdlib())
+      RaiseFatalError(llvm::formatv("{0} while importing \"{1}\":\n{2}",
+                                    llvm::toString(std::move(error)),
+                                    module_name, diagnostic)
+                          .str());
 
     return llvm::createStringError(
         llvm::formatv("failed to get module \"{0}\" from AST context:\n{1}",
@@ -4682,6 +4697,19 @@ SwiftASTContext::ImportStdlib() {
   SourceModule module_info;
   module_info.path.emplace_back(swift::STDLIB_NAME);
   return GetModule(module_info);
+}
+
+llvm::Error SwiftASTContext::CheckStdlib() const {
+  ThreadSafeASTContext ast = GetASTContext();
+  if (!ast)
+    return llvm::createStringError("invalid swift::ASTContext");
+  swift::ModuleDecl *stdlib = ast->getStdlibModule(/*loadIfAbsent=*/false);
+  if (!stdlib)
+    return llvm::Error::success();
+  if (const char *problem = GetStdlibProblem(*stdlib))
+    return llvm::createStringError(
+        llvm::formatv("the Swift standard library {0}", problem));
+  return llvm::Error::success();
 }
 
 llvm::Expected<swift::ModuleDecl &>
@@ -10187,12 +10215,9 @@ void SwiftASTContext::LogStdlibState() {
   StreamString ss;
   for (const swift::FileUnit *file_unit : stdlib->getFiles())
     DescribeFileUnit(ss, file_unit);
-  const char *state = "loaded";
-  if (stdlib->failedToLoad())
-    state = "failed to load";
-  else if (IsDWARFImported(*stdlib))
-    state = "imported from DWARF (unusable)";
-  HEALTH_LOG_PRINTF("Swift stdlib: %s {%s}", state, ss.GetData());
+  const char *problem = GetStdlibProblem(*stdlib);
+  HEALTH_LOG_PRINTF("Swift stdlib: %s {%s}", problem ? problem : "loaded",
+                    ss.GetData());
 }
 
 llvm::Error SwiftASTContext::GetCompileUnitImportsImpl(

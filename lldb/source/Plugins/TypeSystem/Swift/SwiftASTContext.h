@@ -369,6 +369,11 @@ public:
   llvm::Expected<swift::ModuleDecl &> GetModule(const FileSpec &module_spec);
   llvm::Expected<swift::ModuleDecl &> ImportStdlib();
 
+  /// Return an error if the stdlib has been loaded but is unusable. The type
+  /// checker relies on declarations from the stdlib and may crash without
+  /// them.
+  llvm::Error CheckStdlib() const;
+
   void CacheModule(std::string module_name, swift::ModuleDecl *module);
 
   /// Call this after the search paths are set up, it will find the module given
