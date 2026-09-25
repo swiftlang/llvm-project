@@ -1661,29 +1661,24 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
   // runtime needs swift-corelibs-libdispatch and BlocksRuntime from the Swift
   // resource dir. Skip silently when those files aren't shipped (upstream llvm
   // builds, which do not use COMPILER_RT_INTERCEPT_LIBDISPATCH).
-  if (TC.getTriple().isOSLinux() && !TC.getTriple().isAndroid() &&
-      TC.getSanitizerArgs(Args).needsTsanRt()) {
-    bool IsStatic = Args.hasArg(options::OPT_static) ||
-                    Args.hasArg(options::OPT_static_pie);
-    StringRef SwiftDirName = IsStatic ? "swift_static" : "swift";
-    StringRef LibExt = IsStatic ? ".a" : ".so";
-
+  if (!TC.getTriple().isOSDarwin() && TC.getSanitizerArgs(Args).needsTsanRt()) {
     SmallString<128> SwiftLibDir(TC.getDriver().ResourceDir);
-    llvm::sys::path::append(SwiftLibDir, "..", "..", SwiftDirName,
+    // TSAN does not support -static, so we always use the shared objects
+    // from `swift` rather than the ones from `swift-static`
+
+    llvm::sys::path::append(SwiftLibDir, "..", "..", "swift",
                             TC.getOSLibName());
 
     SmallString<128> BlocksRuntime(SwiftLibDir);
-    llvm::sys::path::append(BlocksRuntime, Twine("libBlocksRuntime") + LibExt);
+    llvm::sys::path::append(BlocksRuntime, "libBlocksRuntime.so");
     SmallString<128> Dispatch(SwiftLibDir);
-    llvm::sys::path::append(Dispatch, Twine("libdispatch") + LibExt);
+    llvm::sys::path::append(Dispatch, "libdispatch.so");
 
     if (TC.getVFS().exists(BlocksRuntime) && TC.getVFS().exists(Dispatch)) {
       CmdArgs.push_back(Args.MakeArgString(BlocksRuntime));
       CmdArgs.push_back(Args.MakeArgString(Dispatch));
-      if (!IsStatic) {
-        CmdArgs.push_back("-rpath");
-        CmdArgs.push_back(Args.MakeArgString(SwiftLibDir));
-      }
+      CmdArgs.push_back("-rpath");
+      CmdArgs.push_back(Args.MakeArgString(SwiftLibDir));
     }
   }
 }
