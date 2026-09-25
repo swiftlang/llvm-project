@@ -21,6 +21,7 @@
 #include <availability_domain.h>
 
 #define AVAIL 0
+#define UNAVAIL 1
 
 #ifdef USE_DOMAIN
 // DOMAIN: @g3 = extern_weak global i32, align 4
@@ -43,6 +44,15 @@ __attribute__((availability(domain:feature2, AVAIL))) int g2;
 
 struct __attribute__((availability(domain:feature1, AVAIL))) S0 {
   int d0;
+};
+
+// E0_B and E0_C can never be instantiated at runtime, so a switch on enum E0
+// never takes their values.
+enum E0 {
+  E0_A,
+  E0_B __attribute__((availability(domain:feature1, UNAVAIL))),
+  E0_C __attribute__((availability(domain:feature2, AVAIL))),
+  E0_D,
 };
 
 // CHECK-LABEL: define void @test0()
@@ -133,5 +143,95 @@ L2:
     func2();
   }
 }
+
+// The switch has no destination for E0_B or E0_C, so the blocks that hold their
+// statements have no predecessors.
+// CHECK-LABEL: define void @test6(
+// CHECK: switch i32 %{{.*}}, label %[[EPILOG:.*]] [
+// CHECK-NEXT: i32 0, label %[[BB_A:.*]]
+// CHECK-NEXT: i32 3, label %{{.*}}
+// CHECK-NEXT: ]
+//
+// CHECK: [[BB_A]]:
+// CHECK-NEXT: call i32 @func2()
+// CHECK-NEXT: br label %[[EPILOG]]
+
+void test6(enum E0 e) {
+  switch (e) {
+  case E0_A:
+    func2();
+    break;
+  case E0_B:
+    func2();
+    break;
+  case E0_C:
+    func2();
+    break;
+  case E0_D:
+    func2();
+    break;
+  }
+}
+
+// E0_A still falls through into the statements of E0_B, and E0_D still shares a
+// block with E0_C, so dropping the two values doesn't drop either block.
+// CHECK-LABEL: define void @test7(
+// CHECK: switch i32 %{{.*}}, label %[[EPILOG:.*]] [
+// CHECK-NEXT: i32 0, label %[[BB_A:.*]]
+// CHECK-NEXT: i32 3, label %[[BB_CD:.*]]
+// CHECK-NEXT: ]
+//
+// CHECK: [[BB_A]]:
+// CHECK-NEXT: call i32 @func2()
+// CHECK-NEXT: br label %[[BB_B:.*]]
+//
+// CHECK: [[BB_B]]:
+// CHECK-NEXT: call i32 @func2()
+// CHECK-NEXT: br label %[[EPILOG]]
+//
+// CHECK: [[BB_CD]]:
+// CHECK-NEXT: call i32 @func2()
+// CHECK-NEXT: br label %[[EPILOG]]
+
+void test7(enum E0 e) {
+  switch (e) {
+  case E0_A:
+    func2();
+  case E0_B:
+    func2();
+    break;
+  case E0_C:
+  case E0_D:
+    func2();
+    break;
+  }
+}
+
+#ifdef USE_DOMAIN
+
+// E1_A is guarded by a dynamic domain, so it can be instantiated at runtime and
+// keeps its destination in the switch. E1_B can't, so it loses its destination.
+enum E1 {
+  E1_A __attribute__((availability(domain:feature3, AVAIL))),
+  E1_B __attribute__((availability(domain:feature2, AVAIL))),
+};
+
+// DOMAIN-LABEL: define void @test8(
+// DOMAIN: switch i32 %{{.*}}, label %{{.*}} [
+// DOMAIN-NEXT: i32 0, label %{{.*}}
+// DOMAIN-NEXT: ]
+
+void test8(enum E1 e) {
+  switch (e) {
+  case E1_A:
+    func2();
+    break;
+  case E1_B:
+    func2();
+    break;
+  }
+}
+
+#endif
 
 #endif /* HEADER */
