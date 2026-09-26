@@ -386,8 +386,9 @@ public:
 private:
   using DirectoryEntry = FileSystemCache::DirectoryEntry;
 
-  Expected<DirectoryEntry *> requestDirectoryEntry(DirectoryEntry &Parent,
-                                                   StringRef Name) override {
+  Expected<DirectoryEntry *>
+  requestDirectoryEntry(DirectoryEntry &Parent, StringRef Name,
+                        bool FollowSymlinks) override {
     if (Parent.asDirectory().isComplete())
       return errorCodeToError(
           std::make_error_code(std::errc::no_such_file_or_directory));
