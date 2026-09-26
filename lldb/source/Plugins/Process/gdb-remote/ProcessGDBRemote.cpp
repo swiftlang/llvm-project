@@ -2914,6 +2914,7 @@ llvm::Error ProcessGDBRemote::ParseMultiMemReadPacket(
         response_str);
 
   // Sizes are separated by a `,`.
+  unsigned num_sizes = 0;
   for (llvm::StringRef size_str : llvm::split(sizes_str, ',')) {
     uint64_t read_size;
     if (size_str.getAsInteger(16, read_size))
@@ -2925,17 +2926,27 @@ llvm::Error ProcessGDBRemote::ParseMultiMemReadPacket(
                                       "enough data, requested sizes: {0}",
                                       sizes_str);
 
+    if (read_size > buffer.size())
+      return llvm::createStringErrorV(
+          "MultiMemRead response size {0} exceeds remaining buffer {1}",
+          read_size, buffer.size());
+
     llvm::StringRef region_to_read = memory_data.take_front(read_size);
     memory_data = memory_data.drop_front(read_size);
 
-    assert(buffer.size() >= read_size);
     llvm::MutableArrayRef<uint8_t> region_to_write =
         buffer.take_front(read_size);
     buffer = buffer.drop_front(read_size);
 
     memcpy(region_to_write.data(), region_to_read.data(), read_size);
     memory_regions.push_back(region_to_write);
+    ++num_sizes;
   }
+
+  if (num_sizes != expected_num_ranges)
+    return llvm::createStringErrorV(
+        "MultiMemRead response had {0} sizes, expected {1}", num_sizes,
+        expected_num_ranges);
 
   return llvm::Error::success();
 }
