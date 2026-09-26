@@ -161,7 +161,12 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
             launch the inferior with the correct environment variables using an object.
         """
         program = self.getBuildArtifact("a.out")
-        self.build_and_launch(program, console="integratedTerminal", env={"FOO": "BAR"})
+        self.build_and_launch(
+            program,
+            console="integratedTerminal",
+            env={"FOO": "BAR"},
+            initCommands=["plugin disable operating-system.swift"],  # rdar://183535755
+        )
 
         self.assertEqual(
             len(self.dap_server.reverse_requests),
