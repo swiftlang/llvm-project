@@ -26,9 +26,6 @@ Error CASConfiguration::getResolvedCASPath(
 
 Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 CASConfiguration::createDatabases() const {
-  if (!PluginPath.empty())
-    return createPluginCASDatabases(PluginPath, CASPath, PluginOptions);
-
   if (CASPath.empty()) {
     return std::pair(createInMemoryCAS(), createInMemoryActionCache());
   }
@@ -36,6 +33,9 @@ CASConfiguration::createDatabases() const {
   SmallString<128> PathBuf;
   if (auto E = getResolvedCASPath(PathBuf))
     return std::move(E);
+
+  if (!PluginPath.empty())
+    return createPluginCASDatabases(PluginPath, PathBuf, PluginOptions);
 
   std::pair<std::unique_ptr<ObjectStore>, std::unique_ptr<ActionCache>> DBs;
   return createOnDiskUnifiedCASDatabases(PathBuf);
