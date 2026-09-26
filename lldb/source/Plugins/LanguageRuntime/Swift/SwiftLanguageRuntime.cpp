@@ -470,8 +470,18 @@ ThreadSafeReflectionContext SwiftLanguageRuntime::GetReflectionContext() {
 void SwiftLanguageRuntime::ProcessModulesToAdd() {
   // A snapshot of the modules to be processed. This is necessary because
   // AddModuleToReflectionContext may recursively call into this function again.
+  std::vector<lldb::ModuleWP> deferred;
+  {
+    std::lock_guard<std::mutex> guard(m_modules_to_add_mutex);
+    deferred.swap(m_modules_to_add);
+  }
+
+  // Modules the target has dropped in the meantime have expired, and are of no
+  // interest to the reflection context.
   ModuleList modules_to_add_snapshot;
-  modules_to_add_snapshot.Swap(m_modules_to_add);
+  for (const lldb::ModuleWP &module_wp : deferred)
+    if (ModuleSP module_sp = module_wp.lock())
+      modules_to_add_snapshot.Append(module_sp);
 
   if (modules_to_add_snapshot.IsEmpty())
     return;
@@ -630,14 +640,27 @@ SwiftLanguageRuntime::CreateInstance(Process *process,
 SwiftLanguageRuntime::SwiftLanguageRuntime(Process &process)
     : LanguageRuntime(&process) {
   Target &target = m_process->GetTarget();
-  m_modules_to_add.Append(target.GetImages());
+  DeferModules(target.GetImages());
   RegisterSwiftFrameRecognizers(GetProcess());
+}
+
+void SwiftLanguageRuntime::DeferModules(const ModuleList &modules) {
+  std::lock_guard<std::mutex> guard(m_modules_to_add_mutex);
+  modules.ForEach([&](const ModuleSP &module_sp) -> IterationAction {
+    if (!module_sp)
+      return IterationAction::Continue;
+    for (const lldb::ModuleWP &deferred : m_modules_to_add)
+      if (deferred.lock() == module_sp)
+        return IterationAction::Continue;
+    m_modules_to_add.push_back(module_sp);
+    return IterationAction::Continue;
+  });
 }
 
 void SwiftLanguageRuntime::ModulesDidLoad(const ModuleList &module_list) {
   // The modules will be lazily processed on the next call to
   // GetReflectionContext.
-  m_modules_to_add.AppendIfNeeded(module_list);
+  DeferModules(module_list);
   // This could be done more efficiently with a better reflection API.
   m_conformances.clear();
 }
