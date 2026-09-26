@@ -91,6 +91,10 @@ func f() {
     let h = ClassPair(t: Prop(), u: Prop2())
     let i = (A(), F(), Prop())
     let complex = Pair(t: E.t(Pair(t: Prop2(), u: C.D())), u: E.t(Prop()))
+    // The stack zero-init for `complex` is attributed to the next line
+    // instead of the declaration above, so "break here" resolves into the
+    // prologue, before `complex` is initialized. rdar://184762794
+    print("prologue")
     print("break here")
 }
 
