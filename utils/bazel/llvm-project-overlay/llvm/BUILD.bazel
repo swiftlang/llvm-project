@@ -7282,6 +7282,15 @@ cc_binary(
     ],
 )
 
+gentbl_cc_library(
+    name = "Yaml2ObjOptsTableGen",
+    strip_include_prefix = "tools/yaml2obj",
+    tbl_outs = {"tools/yaml2obj/Opts.inc": ["-gen-opt-parser-defs"]},
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/yaml2obj/Opts.td",
+    deps = [":OptParserTdFiles"],
+)
+
 cc_binary(
     name = "yaml2obj",
     testonly = True,
@@ -7296,7 +7305,9 @@ cc_binary(
         ":MC",
         ":Object",
         ":ObjectYAML",
+        ":Option",
         ":Support",
+        ":Yaml2ObjOptsTableGen",
     ],
 )
 
