@@ -965,6 +965,10 @@ private:
   // ModulesDidLoad() callback appends to m_modules_to_add.
   void ProcessModulesToAdd();
 
+  /// Remember \p modules so they are added to the reflection context the next
+  /// time it is needed. Modules already deferred are not added twice.
+  void DeferModules(const ModuleList &modules);
+
   /// Lazily initialize and return \p m_SwiftNativeNSErrorISA.
   std::optional<lldb::addr_t> GetSwiftNativeNSErrorISA();
 
@@ -996,8 +1000,12 @@ private:
   SwiftMetadataCache m_swift_metadata_cache;
 
   /// Record modules added through ModulesDidLoad, which are to be
-  /// added to the reflection context once it's being initialized.
-  ModuleList m_modules_to_add;
+  /// added to the reflection context once it's being initialized. The
+  /// references are weak: a module the target has since dropped must not be
+  /// kept alive here, because a live Module keeps its object file mapped,
+  /// which on Windows locks the file on disk.
+  std::mutex m_modules_to_add_mutex;
+  std::vector<lldb::ModuleWP> m_modules_to_add;
 
   /// Increased every time SymbolsDidLoad is called.
   unsigned m_generation = 0;
