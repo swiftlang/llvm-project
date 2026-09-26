@@ -4464,6 +4464,7 @@ static bool AdjustFunctionParmAndArgTypesForDeduction(
     } else if (ArgType->isFunctionType()) {
       ArgType = S.Context.getPointerType(ArgType,
                                          BoundsSafetyPointerAttributes::single());
+      ArgType = S.Context.getAttributedType(attr::PtrSingle, ArgType, ArgType);
     } else {
       ArgType = ArgType.getUnqualifiedType();
     }
