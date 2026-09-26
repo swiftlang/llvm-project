@@ -571,6 +571,7 @@ void NativeProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
   }
 
   // The very first one shall always be the main thread.
+  std::lock_guard<std::recursive_mutex> guard(m_threads_mutex);
   assert(m_threads.empty());
   m_threads.push_back(std::make_unique<NativeThreadWindows>(
       *this, m_session_data->m_debugger->GetMainThread()));
@@ -796,6 +797,9 @@ void NativeProcessWindows::OnCreateThread(const HostThread &new_thread) {
     thread->SetStopReason(stop_info, "");
   }
 
+  // Threads() hands out references into m_threads under this lock, so a
+  // push_back that reallocates the vector has to take it too.
+  std::lock_guard<std::recursive_mutex> guard(m_threads_mutex);
   m_threads.push_back(std::move(thread));
 }
 
