@@ -6,7 +6,7 @@
 ## architecture correctly instead of producing an error.
 
 # RUN: mkdir -p "%t.dir"
-# RUN: %clang_host -g0 -O0 %S/Inputs/main.c -o %t.dir/testmain.exe
+# RUN: %link -g0 -O0 %S/Inputs/main.c -o %t.dir/testmain.exe
 
 ## Test with full path to exe
 # RUN: %lldb %t.dir/testmain.exe -b | FileCheck %s

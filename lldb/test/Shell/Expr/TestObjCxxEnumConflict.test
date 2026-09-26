@@ -14,7 +14,7 @@
 # and the expression fails to run due to ambiguity in name lookup.
 
 # RUN: split-file %s %t
-# RUN: %clang_host -g %t/main.m -fmodules -fcxx-modules -o %t.out
+# RUN: %link -g %t/main.m -fmodules -fcxx-modules -o %t.out
 # RUN: %lldb -x -b -s %t/commands.input %t.out -o exit 2>&1 \
 # RUN:       | FileCheck %s
 

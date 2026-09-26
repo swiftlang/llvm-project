@@ -3,7 +3,7 @@
 # llvm.org/pr91610, rdar://128031075
 # XFAIL: system-darwin
 
-# RUN: %clang_host %S/Inputs/unaligned-pc-sigbus.c -o %t
+# RUN: %link %S/Inputs/unaligned-pc-sigbus.c -o %t
 # RUN: %lldb -s %s -o exit %t | FileCheck %s
 
 # Convert EXC_BAD_ACCESS into SIGBUS on darwin.

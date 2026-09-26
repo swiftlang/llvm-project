@@ -2,7 +2,7 @@
 # and that new threads are monitored correctly even though we can't copy dbregs.
 
 # REQUIRES: system-netbsd && (target-x86 || target-x86_64) && !dbregs-set
-# RUN: %clang_host %p/Inputs/thread-dbreg.c -pthread -g -o %t.out
+# RUN: %link %p/Inputs/thread-dbreg.c -pthread -g -o %t.out
 # RUN: %lldb -b -o 'settings set interpreter.stop-command-source-on-error false' -s %s %t.out 2>&1 | FileCheck %s
 
 settings show interpreter.stop-command-source-on-error

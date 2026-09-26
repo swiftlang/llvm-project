@@ -1,6 +1,6 @@
 # REQUIRES: target-x86
 
-# RUN: %clang_host -g -O0 %S/Inputs/main.c -o %t.out
+# RUN: %link -g -O0 %S/Inputs/main.c -o %t.out
 # RUN: %lldb -b -o "breakpoint set --name main" \
 # RUN:        -o run \
 # RUN:        -o "register read rip r10d rflags" \

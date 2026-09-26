@@ -15,7 +15,7 @@
 # RUN:             -fmodule-map-file=%t/module.modulemap \
 # RUN:             -fmodules-cache-path=%t/ModuleCache -o %t/module.o
 #
-# RUN: %clang_host %t/*.o -framework Foundation -o %t.out
+# RUN: %link %t/*.o -framework Foundation -o %t.out
 #
 # RUN: rm -r %t/ModuleCache
 #

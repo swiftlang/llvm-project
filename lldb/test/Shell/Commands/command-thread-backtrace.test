@@ -1,4 +1,4 @@
-# RUN: %clang_host -g %S/Inputs/main.c -o %t
+# RUN: %link -g %S/Inputs/main.c -o %t
 
 # RUN: not %lldb %t -b -o 'b foo' -o 'r' -o 'thread backtrace --count -1' 2>&1 | FileCheck %s --check-prefix COUNT
 # COUNT: error: invalid integer value for option 'c': -1

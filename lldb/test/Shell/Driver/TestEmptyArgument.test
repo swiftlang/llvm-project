@@ -1,4 +1,4 @@
-# RUN: %clang_host %S/Inputs/dumpargs.c -o %t.out
+# RUN: %link %S/Inputs/dumpargs.c -o %t.out
 # RUN: %lldb -b -o "r" %t.out -- "one" "two" "" "three" | FileCheck %s
 
 # CHECK: argv[1] = "one"

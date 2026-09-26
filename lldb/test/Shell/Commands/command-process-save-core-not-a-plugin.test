@@ -1,7 +1,7 @@
 # This checks that lldb returns an error if process save-core is called
 # with a plugin that does not exist.
 
-# RUN: %clang_host -g %S/Inputs/main.c -o %t
+# RUN: %link -g %S/Inputs/main.c -o %t
 # RUN: %lldb %t -o "settings set interpreter.stop-command-source-on-error false" -s %s -o exit 2>&1 | FileCheck %s
 
 b main

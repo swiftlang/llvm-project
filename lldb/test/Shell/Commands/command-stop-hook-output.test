@@ -1,5 +1,5 @@
 # REQUIRES: python
-# RUN: %clang_host -g %S/Inputs/main.c -o %t
+# RUN: %link -g %S/Inputs/main.c -o %t
 # RUN: %lldb %t -O 'command script import %S/Inputs/stop_hook.py' -s %s -o exit | FileCheck %s
 
 b main

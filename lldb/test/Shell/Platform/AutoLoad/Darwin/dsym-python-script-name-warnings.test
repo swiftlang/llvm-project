@@ -7,7 +7,7 @@
 ## Module name contains reserved characters but no script with a corrected
 ## name exists.
 
-# RUN: %clang_host -g %t/main.c -o "%t/Test-Module.out"
+# RUN: %link -g %t/main.c -o "%t/Test-Module.out"
 # RUN: mkdir -p "%t/Test-Module.out.dSYM/Contents/Resources/Python"
 # RUN: touch "%t/Test-Module.out.dSYM/Contents/Resources/Python/Test-Module.py"
 # RUN: %lldb -b \
@@ -20,7 +20,7 @@
 ## Module name contains reserved characters but a script with a corrected
 ## name does exists.
 
-# RUN: %clang_host -g %t/main.c -o "%t/Test-Module2.out"
+# RUN: %link -g %t/main.c -o "%t/Test-Module2.out"
 # RUN: mkdir -p "%t/Test-Module2.out.dSYM/Contents/Resources/Python"
 # RUN: touch "%t/Test-Module2.out.dSYM/Contents/Resources/Python/Test_Module2.py"
 # RUN: touch "%t/Test-Module2.out.dSYM/Contents/Resources/Python/Test-Module2.py"

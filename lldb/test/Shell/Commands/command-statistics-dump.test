@@ -7,7 +7,7 @@
 # a new source of symbol loading unexpectedly.
 
 # Build a simple test executable.
-# RUN: %clang_host -g %S/Inputs/main.c -o %t-main.exe
+# RUN: %link -g %S/Inputs/main.c -o %t-main.exe
 
 # When we enable symbol preload and dump stats there should be a non-zero
 # time for parsing symbol tables for the main module.

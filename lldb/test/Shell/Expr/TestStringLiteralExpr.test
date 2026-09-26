@@ -1,5 +1,5 @@
 # UNSUPPORTED: system-windows
-# RUN: echo "int main() { return 0; }" | %clang_host -x c -o %t -
+# RUN: echo "int main() { return 0; }" | %link -x c -o %t -
 # RUN: %lldb -s %s %t | FileCheck %s
 
 # Make sure that lldb doesn't crash when evaluating expressions with string literals

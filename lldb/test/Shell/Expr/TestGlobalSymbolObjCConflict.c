@@ -9,7 +9,7 @@
 // in this.
 
 // RUN: %clang_host -c -g -fno-common %s -o %t.o
-// RUN: %clang_host %t.o -o %t.out
+// RUN: %link %t.o -o %t.out
 // RUN: %lldb -b -x %t.out \
 // RUN:       -o "b 29" \
 // RUN:       -o "run" \

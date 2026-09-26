@@ -9,7 +9,7 @@
 // RUN: cp %s %t.compdir/a/b/c/d/main.c
 // RUN: cd %t.compdir/a/b/
 /// The produced DWO is named c/d/main-main.dwo, with a DW_AT_comp_dir of a/b.
-// RUN: %clang_host -g -gsplit-dwarf -fdebug-prefix-map=%t.compdir=. c/d/main.c -o c/d/main
+// RUN: %link -g -gsplit-dwarf -fdebug-prefix-map=%t.compdir=. c/d/main.c -o c/d/main
 // RUN: cd ../../..
 /// Move only the program, leaving the DWO file in place.
 // RUN: mv %t.compdir/a/b/c/d/main %t.compdir/a/

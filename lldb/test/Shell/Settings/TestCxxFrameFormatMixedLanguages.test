@@ -6,7 +6,7 @@
 # RUN: split-file %s %t
 # RUN: %clang_host -x c -c -g %t/lib.c -o %t.clib.o
 # RUN: %clangxx_host -c -g %t/lib.cpp -o %t.cxxlib.o
-# RUN: %clang_host %t/main.m %t.cxxlib.o %t.clib.o -o %t.out
+# RUN: %link %t/main.m %t.cxxlib.o %t.clib.o -o %t.out
 # RUN: %lldb -x -b -s %t/commands.input %t.out -o exit 2>&1 | FileCheck %s
 
 #--- lib.c

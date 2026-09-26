@@ -4,7 +4,7 @@
 # module directory doesn't match <module-name>.py.
 
 # RUN: split-file %s %t
-# RUN: %clang_host %t/main.c -o %t/TestModule.out
+# RUN: %link %t/main.c -o %t/TestModule.out
 # RUN: mkdir -p %t/safe-path/TestModule
 
 # RUN: cp %t/script.py %t/safe-path/TestModule/other.py
