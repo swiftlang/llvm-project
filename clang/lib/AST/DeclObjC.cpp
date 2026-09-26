@@ -628,7 +628,10 @@ void ObjCInterfaceDecl::startDuplicateDefinitionForComparison() {
 
 void ObjCInterfaceDecl::mergeDuplicateDefinitionWithCommon(
     const ObjCInterfaceDecl *Definition) {
+  assert(isThisDeclarationADefinition() &&
+         "Should demote definitions only, not forward declarations");
   Data = Definition->Data;
+  IsThisDeclarationADemotedDefinition = true;
 }
 
 ObjCIvarDecl *ObjCInterfaceDecl::lookupInstanceVariable(IdentifierInfo *ID,
@@ -1558,7 +1561,7 @@ ObjCInterfaceDecl::ObjCInterfaceDecl(
     const IdentifierInfo *Id, ObjCTypeParamList *typeParamList,
     SourceLocation CLoc, ObjCInterfaceDecl *PrevDecl, bool IsInternal)
     : ObjCContainerDecl(ObjCInterface, DC, Id, CLoc, AtLoc),
-      redeclarable_base(C) {
+      redeclarable_base(C), IsThisDeclarationADemotedDefinition(false) {
   setPreviousDecl(PrevDecl);
 
   // Copy the 'data' pointer over.
@@ -1925,7 +1928,7 @@ ObjCProtocolDecl::ObjCProtocolDecl(ASTContext &C, DeclContext *DC,
                                    SourceLocation atStartLoc,
                                    ObjCProtocolDecl *PrevDecl)
     : ObjCContainerDecl(ObjCProtocol, DC, Id, nameLoc, atStartLoc),
-      redeclarable_base(C) {
+      redeclarable_base(C), IsThisDeclarationADemotedDefinition(false) {
   setPreviousDecl(PrevDecl);
   if (PrevDecl)
     Data = PrevDecl->Data;
@@ -2029,7 +2032,10 @@ void ObjCProtocolDecl::startDuplicateDefinitionForComparison() {
 
 void ObjCProtocolDecl::mergeDuplicateDefinitionWithCommon(
     const ObjCProtocolDecl *Definition) {
+  assert(isThisDeclarationADefinition() &&
+         "Should demote definitions only, not forward declarations");
   Data = Definition->Data;
+  IsThisDeclarationADemotedDefinition = true;
 }
 
 void ObjCProtocolDecl::collectPropertiesToImplement(PropertyMap &PM) const {
