@@ -3252,7 +3252,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     // This is a scratch AST context, mark it as such.
     swift_ast_sp->m_is_scratch_context = true;
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
-    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
+    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu, module_sp.get());
     if (ShouldEnableEmbeddedSwift(cu))
       lang_opts.enableFeature(swift::Feature::Embedded);
   } else {
