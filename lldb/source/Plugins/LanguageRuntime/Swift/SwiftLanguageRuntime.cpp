@@ -342,13 +342,13 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
-static std::optional<CurrentTaskStorageKind>
-FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
+/// The load address of the symbol `name`, looked up in every image loaded in
+/// the target.
+static std::optional<addr_t> FindSymbolLoadAddress(Target &target,
+                                                   StringRef name) {
   SymbolContextList symbols;
-  Target &target = process.GetTarget();
-  target.GetImages().FindSymbolsWithNameAndType(
-      ConstString("_swift_concurrency_debug_current_task_storage_kind"),
-      eSymbolTypeAny, symbols);
+  target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
+                                                eSymbolTypeAny, symbols);
 
   SymbolContext context;
   for (size_t index = 0; index < symbols.GetSize(); ++index) {
@@ -357,23 +357,30 @@ FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
       continue;
 
     addr_t symbol_addr = context.symbol->GetLoadAddress(&target);
-    if (symbol_addr == LLDB_INVALID_ADDRESS)
-      continue;
-
-    Status error;
-    uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
-        symbol_addr, /*width=*/4, /*fail_value=*/0, error);
-    if (error.Fail() ||
-        storage_kind_raw > std::numeric_limits<uint8_t>::max())
-      return std::nullopt;
-
-    uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
-    if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
-      return std::nullopt;
-    return DeriveStorageKind(concurrency_version, concrete_storage_kind);
+    if (symbol_addr != LLDB_INVALID_ADDRESS)
+      return symbol_addr;
   }
-
   return std::nullopt;
+}
+
+static std::optional<CurrentTaskStorageKind>
+FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
+  std::optional<addr_t> kind_addr = FindSymbolLoadAddress(
+      process.GetTarget(),
+      "_swift_concurrency_debug_current_task_storage_kind");
+  if (!kind_addr)
+    return std::nullopt;
+
+  Status error;
+  uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
+      *kind_addr, /*width=*/4, /*fail_value=*/0, error);
+  if (error.Fail() || storage_kind_raw > std::numeric_limits<uint8_t>::max())
+    return std::nullopt;
+
+  uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
+  if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
+    return std::nullopt;
+  return DeriveStorageKind(concurrency_version, concrete_storage_kind);
 }
 
 SwiftLanguageRuntime::ConcurrencyInfo
@@ -3907,9 +3914,8 @@ std::optional<addr_t> CachingTaskFinder::RetryRead(Thread &thread,
   if (!m_tid_to_task_addr_location.erase(tid))
     return std::nullopt;
 
-  LLDB_LOG(GetLog(LLDBLog::OS),
-           "PthreadReservedKeyTaskFinder: evicted task location "
-           "address due to invalid memory read");
+  LLDB_LOG(GetLog(LLDBLog::OS), "CachingTaskFinder: evicted task location "
+                                "address due to invalid memory read");
 
   // The cached address could not be loaded. "This should never happen", but
   // recompute the address and try again for completeness.
@@ -4003,21 +4009,28 @@ private:
   std::optional<lldb::addr_t> m_tls_file_addr;
 };
 
-// The exported current-task thread-local in the Swift concurrency runtime.
-static constexpr llvm::StringLiteral g_cxx_thread_local_task_symbol =
-    "_swift_concurrency_currentTask";
+/// Returns the exported current-task variable in the Swift concurrency runtime.
+static llvm::Expected<Symbol>
+FindCurrentTaskSymbol(Module *concurrency_module) {
+  if (!concurrency_module)
+    return llvm::createStringError(
+        "FindCurrentTaskSymbol given a null concurrency_module");
+  constexpr llvm::StringLiteral symbol_name = "_swift_concurrency_currentTask";
+  const Symbol *symbol = concurrency_module->FindFirstSymbolWithNameAndType(
+      ConstString(symbol_name));
+  if (!symbol)
+    return llvm::createStringErrorV(
+        "TaskFinder: could not find current-task symbol {0}", symbol_name);
+  return *symbol;
+}
 
 CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
     : m_concurrency_module(std::move(concurrency_module)) {
-  if (!m_concurrency_module)
-    return;
-
-  const Symbol *symbol = m_concurrency_module->FindFirstSymbolWithNameAndType(
-      ConstString(g_cxx_thread_local_task_symbol));
+  llvm::Expected<Symbol> symbol =
+      FindCurrentTaskSymbol(m_concurrency_module.get());
   if (!symbol) {
-    LLDB_LOG(GetLog(LLDBLog::OS),
-             "CxxThreadLocalTaskFinder: could not find current-task symbol {0}",
-             g_cxx_thread_local_task_symbol);
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), symbol.takeError(),
+                   "CxxThreadLocalTaskFinder: {0}");
     return;
   }
 
@@ -4026,7 +4039,7 @@ CxxThreadLocalTaskFinder::CxxThreadLocalTaskFinder(ModuleSP concurrency_module)
   if (!section || !section->IsThreadSpecific()) {
     LLDB_LOG(GetLog(LLDBLog::OS),
              "CxxThreadLocalTaskFinder: symbol {0} is not thread-local",
-             g_cxx_thread_local_task_symbol);
+             symbol->GetName());
     return;
   }
 
@@ -4046,6 +4059,78 @@ CxxThreadLocalTaskFinder::ComputeTaskAddrLocation(Thread &real_thread) {
         "could not resolve thread-local storage for the current task");
   return location;
 }
+
+/// A TaskFinder for the case where there is a single, unchanging location for
+/// the currently executing task pointer.
+struct SingleLocationTaskFinder : CachingTaskFinder {
+  explicit SingleLocationTaskFinder(addr_t task_ptr_location)
+      : task_ptr_location(task_ptr_location) {
+    LLDB_LOG(GetLog(LLDBLog::OS),
+             "SingleLocationTaskFinder: task_loc_addr = {0:x}",
+             task_ptr_location);
+  }
+
+  llvm::SmallVector<std::optional<lldb::addr_t>>
+  GetTaskAddrForThread(llvm::ArrayRef<Thread *> threads) override {
+    // Multiple threads don't make sense in this storage kind.
+    if (threads.size() > 1)
+      return llvm::SmallVector<std::optional<addr_t>>(threads.size(),
+                                                      std::nullopt);
+    return CachingTaskFinder::GetTaskAddrForThread(threads);
+  }
+
+  llvm::Expected<lldb::addr_t> ComputeTaskAddrLocation(Thread &) override {
+    if (task_ptr_location == LLDB_INVALID_ADDRESS)
+      return llvm::createStringError(
+          "could not locate the current-task pointer");
+    return task_ptr_location;
+  }
+
+private:
+  addr_t task_ptr_location;
+};
+
+struct GlobalVarTaskFinder : SingleLocationTaskFinder {
+  GlobalVarTaskFinder(ModuleSP concurrency_module, Process &process)
+      : SingleLocationTaskFinder(
+            GetGlobalVarLoadAddr(concurrency_module, process)) {}
+
+private:
+  static addr_t GetGlobalVarLoadAddr(ModuleSP concurrency_module,
+                                     Process &process) {
+    llvm::Expected<Symbol> task_sym =
+        FindCurrentTaskSymbol(concurrency_module.get());
+    if (task_sym)
+      return task_sym->GetLoadAddress(&process.GetTarget());
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), task_sym.takeError(),
+                   "GlobalVarTaskFinder: {0}");
+    return LLDB_INVALID_ADDRESS;
+  }
+};
+
+/// Returns the address of the slot of the global array holding the current
+/// task.
+static std::optional<addr_t> FindTaskTLSSlotAddr(Process &process) {
+  // See SWIFT_CONCURRENCY_CURRENT_TASK_STORAGE_KIND_GLOBAL_TLS_ARRAY in
+  // swift/Runtime/ConcurrencyDebug.h.
+  constexpr uint64_t concurrency_task_tls_key = 3;
+
+  if (std::optional<addr_t> addr = FindSymbolLoadAddress(
+          process.GetTarget(), "_swift_concurrency_debug_global_tls_array"))
+    return *addr + concurrency_task_tls_key * process.GetAddressByteSize();
+
+  LLDB_LOG(GetLog(LLDBLog::OS),
+           "GlobalTLSArrayTaskFinder: could not find TLS array symbol");
+  return {};
+}
+
+/// Finds tasks on runtimes whose platform library backs the whole of
+/// thread-local storage with one global array of slots.
+struct GlobalTLSArrayTaskFinder : SingleLocationTaskFinder {
+  GlobalTLSArrayTaskFinder(Process &process)
+      : SingleLocationTaskFinder(
+            FindTaskTLSSlotAddr(process).value_or(LLDB_INVALID_ADDRESS)) {}
+};
 
 /// Lightweight wrapper around TaskStatusRecord pointers, providing:
 ///   * traversal over the embedded linnked list of status records
@@ -4285,7 +4370,8 @@ llvm::Expected<uint64_t> FindPrologueSize(Process &process,
 using CurrentTaskStorageKind = SwiftLanguageRuntime::CurrentTaskStorageKind;
 
 std::unique_ptr<TaskFinder>
-GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
+GetTaskFinder(Process &process,
+              const SwiftLanguageRuntime::ConcurrencyInfo &info) {
   if (!info.task_storage_kind)
     return std::make_unique<NoTaskFinder>();
   switch (*info.task_storage_kind) {
@@ -4293,8 +4379,12 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
     return std::make_unique<PthreadReservedKeyTaskFinder>();
   case CurrentTaskStorageKind::cxx_thread_local:
     return std::make_unique<CxxThreadLocalTaskFinder>(info.concurrency_module);
-  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::global:
+    return std::make_unique<GlobalVarTaskFinder>(info.concurrency_module,
+                                                 process);
+  case CurrentTaskStorageKind::global_tls_array:
+    return std::make_unique<GlobalTLSArrayTaskFinder>(process);
+  case CurrentTaskStorageKind::pthread_allocated_key:
   case CurrentTaskStorageKind::last:
     break;
   }
@@ -4302,6 +4392,7 @@ GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &info) {
 }
 
 std::unique_ptr<TaskFinder> GetTaskFinder(Process &process) {
-  return GetTaskFinder(SwiftLanguageRuntime::FindConcurrencyInfo(process));
+  return GetTaskFinder(process,
+                       SwiftLanguageRuntime::FindConcurrencyInfo(process));
 }
 } // namespace lldb_private

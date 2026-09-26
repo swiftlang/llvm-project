@@ -148,7 +148,8 @@ public:
     global = 2,
     pthread_reserved_key = 3,
     pthread_allocated_key = 4,
-    last = 5,
+    global_tls_array = 5,
+    last = 6,
   };
   struct ConcurrencyInfo {
     std::optional<uint32_t> version;
@@ -1062,7 +1063,7 @@ struct TaskFinder {
 /// Returns a TaskFinder for `info`. The pointer is guaranteed to be non-null,
 /// but may be a NoTaskFinder if the storage kind is unsupported or absent.
 std::unique_ptr<TaskFinder>
-GetTaskFinder(const SwiftLanguageRuntime::ConcurrencyInfo &);
+GetTaskFinder(Process &process, const SwiftLanguageRuntime::ConcurrencyInfo &);
 
 /// Inspects the concurrency library in the process, if any, to construct a
 /// TaskFinder. The pointer is guaranteed to be non-null, but the returned
