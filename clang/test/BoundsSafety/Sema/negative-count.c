@@ -69,6 +69,7 @@ void ret_values() {
     int len = -1;
     nullable_ret(-1);
     nullable_ret(len);
+    // expected-error@+1{{negative count value of -1 for 'int *__single __counted_by(len)' (aka 'int *__single')}}
     nonnullable_ret(-1);
     nonnullable_ret(len);
     len = 0;
