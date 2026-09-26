@@ -26,6 +26,31 @@
 
 #if _CXX_INTEROP_HAS_ATTRIBUTE(swift_attr)
 
+/// Specifies that Swift imports a C++ function as throwing.
+///
+/// Swift catches C++ exceptions escaping the annotated call and translates them
+/// into Swift errors. Callers must use `try`, just as for a throwing Swift
+/// function. The annotation does not change the function's C++ calling
+/// convention or its exception specification.
+///
+/// For example:
+/// ```c++
+/// int readValue() SWIFT_THROWS;
+/// ```
+///
+/// This annotation requires experimental C++ exception bridging support in the
+/// Swift compiler. Unsupported declarations and configurations are diagnosed
+/// by Swift. Older Swift compilers import the declaration as unavailable.
+#if defined(__swift__) && !defined(__swift_cxx_throws__)
+#define SWIFT_THROWS                                                           \
+  __attribute__((availability(                                                 \
+      swift, unavailable,                                                      \
+      message =                                                                \
+          "SWIFT_THROWS requires Swift C++ exception bridging support")))
+#else
+#define SWIFT_THROWS __attribute__((swift_attr("import_throws")))
+#endif
+
 /// Specifies that a C++ class or struct owns and controls the lifetime of all
 /// of the objects it references.
 ///
@@ -794,6 +819,7 @@
 #else  // #if _CXX_INTEROP_HAS_ATTRIBUTE(swift_attr)
 
 // Empty defines for compilers that don't support `attribute(swift_attr)`.
+#define SWIFT_THROWS
 #define SWIFT_SELF_CONTAINED
 #define SWIFT_RETURNS_INDEPENDENT_VALUE
 #define SWIFT_SHARED_REFERENCE(_retain, _release)
