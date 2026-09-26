@@ -1149,7 +1149,7 @@ bool ConstraintInfo::isKnownNonNegative(Value *V) {
 bool ConstraintInfo::isKnownPositive(Value *V) {
   if (auto *CI = dyn_cast<ConstantInt>(V))
     return CI->getValue().isStrictlyPositive();
-  return ::isKnownPositive(V, DL) ||
+  return ::isKnownPositive(V, State.DL) ||
          doesHold(CmpInst::ICMP_SGT, V, ConstantInt::get(V->getType(), 0));
 }
 
