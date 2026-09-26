@@ -532,15 +532,6 @@ template <> struct DenseMapInfo<AttributeSet, void> {
   }
 
   static bool isEqual(AttributeSet LHS, AttributeSet RHS) { return LHS == RHS; }
-
-  static inline AttributeSet getEmptyKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
-  static inline AttributeSet getTombstoneKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
 };
 
 //===----------------------------------------------------------------------===//

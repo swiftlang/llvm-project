@@ -14,8 +14,6 @@
 #ifndef LLVM_ADT_DENSEMAPINFO_H
 #define LLVM_ADT_DENSEMAPINFO_H
 
-#include <cstdlib>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -63,15 +61,6 @@ template <typename T> struct DenseMapInfo<T *> {
   }
 
   static bool isEqual(const T *LHS, const T *RHS) { return LHS == RHS; }
-
-  static inline T *getEmptyKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
-  static inline T *getTombstoneKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
 };
 
 // Provide DenseMapInfo for all integral types.
@@ -86,15 +75,6 @@ struct DenseMapInfo<T, std::enable_if_t<std::is_integral_v<T>>> {
   }
 
   static bool isEqual(const T &LHS, const T &RHS) { return LHS == RHS; }
-
-  static inline T getEmptyKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
-  static inline T getTombstoneKey() {
-    assert(false && "Obsoleted");
-    abort();
-  }
 };
 
 // Provide DenseMapInfo for all pairs whose members have info.
