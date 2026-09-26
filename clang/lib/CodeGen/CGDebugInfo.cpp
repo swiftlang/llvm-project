@@ -4453,6 +4453,7 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
   case Type::DynamicRangePointer:
     return CreateType(cast<DynamicRangePointerType>(Ty), Unit);
   /* TO_UPSTREAM(BoundsSafety) OFF */
+  case Type::LateParsedAttr:
   case Type::Auto:
   case Type::Attributed:
   case Type::BTFTagAttributed:

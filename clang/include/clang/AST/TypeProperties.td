@@ -84,6 +84,12 @@ let Class = ValueTerminatedType in {
 }
 // TO_UPSTREAM(BoundsSafety) OFF
 
+let Class = LateParsedAttrType in {
+  // Note: LateParsedAttrType is a transient placeholder type that should
+  // normally be replaced before serialization. So this won't be serialized.
+  def : Creator<[{ (void)ctx; llvm_unreachable("unreachable for serialization"); }]>;
+}
+
 let Class = AdjustedType in {
   def : Property<"originalType", QualType> {
     let Read = [{ node->getOriginalType() }];

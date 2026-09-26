@@ -2487,6 +2487,7 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::DynamicRangePointer:
   case Type::ValueTerminated:
   /* TO_UPSTREAM(BoundsSafety) OFF */
+  case Type::LateParsedAttr:
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstBuiltinTemplatePack:

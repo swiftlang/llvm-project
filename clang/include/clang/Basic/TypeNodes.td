@@ -109,6 +109,7 @@ def CountAttributedType : TypeNode<BoundsAttributedType>, NeverCanonical;
 def DynamicRangePointerType : TypeNode<BoundsAttributedType>, NeverCanonical;
 def ValueTerminatedType : TypeNode<Type>, NeverCanonical;
 // TO_UPSTREAM(BoundsSafety) OFF
+def LateParsedAttrType : TypeNode<Type>, NeverCanonical;
 def PipeType : TypeNode<Type>;
 def AtomicType : TypeNode<Type>;
 def BitIntType : TypeNode<Type>;
