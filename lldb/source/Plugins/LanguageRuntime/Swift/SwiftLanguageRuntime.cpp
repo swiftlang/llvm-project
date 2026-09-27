@@ -4303,7 +4303,7 @@ llvm::Expected<lldb::offset_t> GetChildFragmentOffset(Process &process,
 
 /// Reads the task name out of the tail-allocated `AsyncTask::NameFragment` if
 /// available. Implementation for Concurrency Debug Version 2+
-llvm::Expected<std::optional<std::string>>
+static llvm::Expected<std::optional<std::string>>
 GetTaskNameFromFragment(Process &process, lldb::addr_t task_addr) {
   auto offset_or_err = SwiftLanguageRuntime::FindAsyncTaskNameOffset(process);
   if (!offset_or_err)
@@ -4350,7 +4350,7 @@ GetTaskNameFromFragment(Process &process, lldb::addr_t task_addr) {
 }
 
 /// Legacy implementation for Concurrency Debug Version 1.
-llvm::Expected<std::optional<std::string>>
+static llvm::Expected<std::optional<std::string>>
 GetTaskNameFromRecord(Process &process, lldb::addr_t task_addr) {
   Status status;
   Task task{process, task_addr};
