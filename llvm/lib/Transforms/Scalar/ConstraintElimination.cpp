@@ -235,7 +235,8 @@ struct MonotonicInfo {
 struct State {
   DominatorTree &DT;
   LoopInfo &LI;
-  ScalarEvolution &SE;
+  /// Only available for functions with loops.
+  ScalarEvolution *SE;
   TargetLibraryInfo &TLI;
   const DataLayout &DL;
   LLVMContext &Ctx;
@@ -256,14 +257,14 @@ struct State {
   /// induction.
   DenseMap<PHINode *, InductionInfo> PtrInductionPHIInfoMap;
 
-  State(DominatorTree &DT, LoopInfo &LI, ScalarEvolution &SE,
-        TargetLibraryInfo &TLI,
-        const DataLayout &DL, LLVMContext &Ctx)
+  State(DominatorTree &DT, LoopInfo &LI, ScalarEvolution *SE,
+        TargetLibraryInfo &TLI, const DataLayout &DL, LLVMContext &Ctx)
       : DT(DT), LI(LI), SE(SE), TLI(TLI), DL(DL), Ctx(Ctx) {}
 
   ~State() {
     for (Instruction *I : reverse(ExtraInsts)) {
-      SE.forgetValue(I);
+      if (SE)
+        SE->forgetValue(I);
       I->eraseFromParent();
     }
   }
@@ -1530,7 +1531,7 @@ void State::collectPHIInductionVars(Function &F) {
       if (PHI.getNumIncomingValues() != 2)
         continue;
       InductionDescriptor IndDesc;
-      if (!InductionDescriptor::isInductionPHI(&PHI, Loop, &SE, IndDesc))
+      if (!InductionDescriptor::isInductionPHI(&PHI, Loop, SE, IndDesc))
         continue;
       if (!IndDesc.getConstIntStepValue())
         continue;
@@ -1679,14 +1680,14 @@ MonotonicInfo State::getMonotonicityInfo(PHINode &PN, Value *Step) {
   if (Info.Unsigned || Info.Signed || !StepOffset)
     return Info;
 
-  const auto *AR = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+  const auto *AR = dyn_cast<SCEVAddRecExpr>(SE->getSCEV(&PN));
   if (!AR)
     return Info;
   ScalarEvolution::MonotonicPredicateType Expected =
       Info.Decreasing ? ScalarEvolution::MonotonicallyDecreasing
                       : ScalarEvolution::MonotonicallyIncreasing;
   auto IsMonotonic = [&](CmpInst::Predicate Pred) {
-    return SE.getMonotonicPredicateType(AR, Pred) == Expected;
+    return SE->getMonotonicPredicateType(AR, Pred) == Expected;
   };
   Info.Signed = IsMonotonic(CmpInst::ICMP_SGT);
   Info.Unsigned = !Info.Decreasing && IsMonotonic(CmpInst::ICMP_UGT);
@@ -1843,7 +1844,7 @@ void State::addInfoForInductions(BasicBlock &BB) {
       return;
   }
 
-  if (PN->getParent() != Header || !SE.isSCEVable(PN->getType()))
+  if (PN->getParent() != Header || !SE->isSCEVable(PN->getType()))
     return;
 
   // For latch conditions, we need to inject the condition that holds for the
@@ -1933,7 +1934,7 @@ void State::addInfoForInductions(BasicBlock &BB) {
     if (StepOffset->isZero())
       return;
   } else {
-    const SCEV *Expr = SE.getSCEV(PN);
+    const SCEV *Expr = SE->getSCEV(PN);
     if (!match(Expr,
                m_scev_AffineAddRec(m_SCEV(StartSCEV), m_scev_APInt(StepOffset),
                                    m_SpecificLoop(L))))
@@ -1988,10 +1989,10 @@ void State::addInfoForInductions(BasicBlock &BB) {
   if (!StepOffset->isOne()) {
     // Check whether B-Start is known to be a multiple of StepOffset.
     if (!StartSCEV)
-      StartSCEV = SE.getSCEV(StartValue);
-    const SCEV *BMinusStart = SE.getMinusSCEV(SE.getSCEV(B), StartSCEV);
+      StartSCEV = SE->getSCEV(StartValue);
+    const SCEV *BMinusStart = SE->getMinusSCEV(SE->getSCEV(B), StartSCEV);
     if (isa<SCEVCouldNotCompute>(BMinusStart) ||
-        !SE.getConstantMultiple(BMinusStart).urem(*StepOffset).isZero())
+        !SE->getConstantMultiple(BMinusStart).urem(*StepOffset).isZero())
       return;
   }
 
@@ -2346,11 +2347,11 @@ void State::addInfoFor(BasicBlock &BB) {
 
   auto *L = LI.getLoopFor(&BB);
   if (L && &BB == L->getHeader()) {
-    const SCEV *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
+    const SCEV *BTC = SE->getSymbolicMaxBackedgeTakenCount(L);
     for (PHINode &PN : BB.phis()) {
-      if (!SE.isSCEVable(PN.getType()))
+      if (!SE->isSCEVable(PN.getType()))
         continue;
-      auto *IV = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+      auto *IV = dyn_cast<SCEVAddRecExpr>(SE->getSCEV(&PN));
       if (!IV)
         continue;
 
@@ -2359,19 +2360,20 @@ void State::addInfoFor(BasicBlock &BB) {
       // wrapping in the unsigned sense. Otherwise, evaluateAtIteration may
       // return a result that wraps, which  can lead to inconsistent constraints
       // being added.
-      if (!C || !C->isZero() || !IV->getStepRecurrence(SE)->isOne())
+      if (!C || !C->isZero() || !IV->getStepRecurrence(*SE)->isOne())
         continue;
 
       // Evaluate IV at BTC, if there's either an exact BTC (in which case
       // evaluating at the last iteration cannot wrap) or if there's a symbolic
       // max BTC that's not constant. If we evaluate at a constant maximum, we
       // are guaranteed to wrap.
-      if (IV->hasNoUnsignedWrap() && (!isa<SCEVCouldNotCompute>(SE.getBackedgeTakenCount(L)) ||
-          (!isa<SCEVCouldNotCompute>(BTC) && !isa<SCEVConstant>(BTC)))) {
-        auto *IVAtEnd = IV->evaluateAtIteration(BTC, SE);
+      if (IV->hasNoUnsignedWrap() &&
+          (!isa<SCEVCouldNotCompute>(SE->getBackedgeTakenCount(L)) ||
+           (!isa<SCEVCouldNotCompute>(BTC) && !isa<SCEVConstant>(BTC)))) {
+        auto *IVAtEnd = IV->evaluateAtIteration(BTC, *SE);
 
-        Value *V = getValueOrConstant(IVAtEnd, L, SE).first;
-        auto Monotonic = SE.getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
+        Value *V = getValueOrConstant(IVAtEnd, L, *SE).first;
+        auto Monotonic = SE->getMonotonicPredicateType(IV, CmpInst::ICMP_UGE);
         bool CanBuildCmp =
             V && (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
         if (CanBuildCmp && Monotonic &&
@@ -2388,15 +2390,15 @@ void State::addInfoFor(BasicBlock &BB) {
       SCEVUse StartV = IV->getStart();
       bool NeedZExt;
       Value *V;
-      std::tie(V, NeedZExt) = getValueOrConstant(StartV, L, SE);
+      std::tie(V, NeedZExt) = getValueOrConstant(StartV, L, *SE);
       bool CanBuildCmp =
           V && !NeedZExt &&
           (!PN.getType()->isPointerTy() || V->getType() == PN.getType());
-      if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_SGE, IV, StartV)) {
+      if (CanBuildCmp && SE->isKnownPredicate(CmpInst::ICMP_SGE, IV, StartV)) {
         WorkList.push_back(FactOrCheck::getConditionFact(
             DT.getNode(&BB), CmpInst::ICMP_SGE, &PN, V));
       }
-      if (CanBuildCmp && SE.isKnownPredicate(CmpInst::ICMP_UGE, IV, StartV)) {
+      if (CanBuildCmp && SE->isKnownPredicate(CmpInst::ICMP_UGE, IV, StartV)) {
         WorkList.push_back(FactOrCheck::getConditionFact(
             DT.getNode(&BB), CmpInst::ICMP_UGE, &PN, V));
       }
@@ -3235,7 +3237,7 @@ tryToSimplifyOverflowMath(WithOverflowInst *II, ConstraintInfo &Info,
 }
 
 static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
-                                 ScalarEvolution &SE,
+                                 ScalarEvolution *SE,
                                  OptimizationRemarkEmitter &ORE,
                                  TargetLibraryInfo &TLI) {
   bool Changed = false;
@@ -3601,7 +3603,8 @@ PreservedAnalyses ConstraintEliminationPass::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &LI = AM.getResult<LoopAnalysis>(F);
-  auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+  // SCEV is only used for loops, only construct it if there are some.
+  auto *SE = LI.empty() ? nullptr : &AM.getResult<ScalarEvolutionAnalysis>(F);
   auto &ORE = AM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   if (!eliminateConstraints(F, DT, LI, SE, ORE, TLI))
