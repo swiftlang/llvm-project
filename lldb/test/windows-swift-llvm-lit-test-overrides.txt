@@ -37,18 +37,6 @@ xfail lldb-shell :: Swift/expression-diagnostics.test
 #
 skip lldb-unit :: Symbol/./SymbolTests.exe
 
-### Tests that fail occasionally ###
-
-# Passes upstream in bot lldb-aarch64-windows; it fails in swiftlang
-# since https://github.com/swiftlang/llvm-project/pull/9493 relanded
-skip lldb-api :: functionalities/breakpoint/same_cu_name/TestFileBreakpoinsSameCUName.py
-
-# Disable 37 tests: 17 unsupported, 6 usually failed, 14 usually passed (but flaky)
-# https://github.com/swiftlang/llvm-project/issues/9099
-# https://github.com/swiftlang/llvm-project/issues/9100
-# https://github.com/swiftlang/llvm-project/issues/9101
-skip lldb-api :: tools/lldb-server
-
 ### Tests that fail during setup and thus show up as UNRESOLVED ***
 
 # https://github.com/swiftlang/llvm-project/issues/9887
@@ -56,10 +44,7 @@ skip lldb-api :: lang/swift/async/tasks/TestSwiftTaskSelect.py
 
 ### Untriaged ###
 
-skip lldb-shell :: Commands/command-expr-diagnostics.test
 skip lldb-unit :: Host/./HostTests.exe
 skip lldb-api :: commands/platform/connect/TestPlatformConnect.py
 
 # Untriaged: new in stable/21.x
-skip lldb-api :: commands/frame/var-dil/basics/QualifiedId/TestFrameVarDILQualifiedId.py
-skip lldb-api :: lang/cpp/forward/TestCPPForwardDeclaration.py
