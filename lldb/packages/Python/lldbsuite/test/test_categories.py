@@ -3,7 +3,6 @@ Provides definitions for various lldb test categories
 """
 
 # System modules
-import platform
 import sys
 
 # Third-party modules
@@ -28,7 +27,7 @@ swift_module_importer_categories = {
 
 embedded_swift_categories = {
     "swift": True,
-    "swiftembed": platform.system() != "Windows",
+    "swiftembed": True,
 }
 
 all_categories = {
