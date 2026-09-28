@@ -1,9 +1,9 @@
 RUN: rm -rf %t
 RUN: split-file %s %t
 RUN: %python -c "with open(r'%t/input/large', 'w') as file: file.truncate(100000)"
-RUN: env LLVM_CAS_LOG=2 llvm-cas --cas %t/cas --ingest %t/input
-RUN: env LLVM_CAS_LOG=2 llvm-cas --cas %t/cas --validate-if-needed -check-hash
-RUN: env LLVM_CAS_LOG=2 llvm-cas --cas %t/cas --validate-if-needed -force -allow-recovery
+RUN: env LLVM_CAS_LOG=2 llvm-cas ingest --cas %t/cas %t/input
+RUN: env LLVM_CAS_LOG=2 llvm-cas validate-if-needed --cas %t/cas -check-hash
+RUN: env LLVM_CAS_LOG=2 llvm-cas validate-if-needed --cas %t/cas -force -allow-recovery
 RUN: FileCheck %s --input-file %t/cas/v1.log
 RUN: FileCheck %s --input-file %t/cas/v1.log --check-prefix=STANDALONE
 

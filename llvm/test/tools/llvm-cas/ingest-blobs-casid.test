@@ -4,7 +4,7 @@
 
 ; RUN: llc --filetype=obj %t/a.ll -o %t/a.o
 ; RUN: llc --filetype=obj %t/b.ll -o %t/b.o
-; RUN: llvm-cas --ingest %t/a.o %t/b.o --cas %t/cas > %t/just-blobs.id
+; RUN: llvm-cas ingest %t/a.o %t/b.o --cas %t/cas > %t/just-blobs.id
 ; RUN: llvm-cas-dump --cas %t/cas --object-stats - @%t/just-blobs.id | FileCheck %s --check-prefix=JUST-BLOBS
 
 ; JUST-BLOBS: Kind                        Count            Parents           Children           Data (B)           Cost (B)        
@@ -15,7 +15,7 @@
 
 ; RUN: llc --filetype=obj --cas-backend --cas=%t/cas --mccas-casid --mtriple=arm64-apple-darwin %t/a.ll -o %t/a.id
 ; RUN: llc --filetype=obj --cas-backend --cas=%t/cas --mccas-casid --mtriple=arm64-apple-darwin %t/b.ll -o %t/b.id
-; RUN: llvm-cas --ingest --casid-file %t/a.id %t/b.id --cas %t/cas > %t/casid-file.id
+; RUN: llvm-cas ingest --casid-file %t/a.id %t/b.id --cas %t/cas > %t/casid-file.id
 ; RUN: llvm-cas-dump --cas %t/cas --object-stats - @%t/casid-file.id | FileCheck %s --check-prefix=CASID-FILE
 
 ; CASID-FILE: Kind                        Count            Parents           Children           Data (B)           Cost (B)        
