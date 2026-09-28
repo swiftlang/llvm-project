@@ -19,7 +19,6 @@ import lldbsuite.test.lldbutil as lldbutil
 import os
 
 
-@skipIfWindows
 class TestSwiftErrorBreakpoint(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
