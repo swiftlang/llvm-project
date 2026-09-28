@@ -42,7 +42,7 @@
 // RUN:   -cc1 -triple x86_64-apple-macos11 \
 // RUN:   -fcas-path %t/cas.new -emit-obj %s -o output.o
 // Add the 'key => result' association we got earlier.
-// RUN: llvm-cas --cas %t/cas.new --put-cache-key @%t/cache-key @%t/cache-result
+// RUN: llvm-cas put-cache-key --cas %t/cas.new @%t/cache-key @%t/cache-result
 // RUN: %clang @%t.rsp -fcache-compile-job -Rcompile-job-cache 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CACHE-RESULT
 // RUN: ls %t/output.o
