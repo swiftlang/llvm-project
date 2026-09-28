@@ -19,7 +19,6 @@ class TestDAP_disconnect(DAPTestCaseBase):
 
     source = "main.cpp"
 
-    @skipIfWindows
     def test_launch(self):
         """
         This test launches a process that would creates a file, but we disconnect

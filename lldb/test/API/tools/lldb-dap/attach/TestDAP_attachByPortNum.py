@@ -67,7 +67,6 @@ class TestDAP_attachByPortNum(DAPTestCaseBase):
         session.continue_to_breakpoint(bp1)
         session.continue_to_exit()
 
-    @skipIfWindows
     @skipIfNetBSD
     def test_fails_if_both_port_and_pid_are_set(self):
         """Tests attaching to a process by process ID and port number."""
@@ -83,7 +82,6 @@ class TestDAP_attachByPortNum(DAPTestCaseBase):
         )
         pending.error("The user can't specify both pid and port")
 
-    @skipIfWindows
     @skipIfNetBSD
     def test_by_invalid_port(self):
         """Tests attaching to a process by invalid port number 0."""

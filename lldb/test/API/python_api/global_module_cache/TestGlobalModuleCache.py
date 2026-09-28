@@ -43,7 +43,6 @@ class GlobalModuleCacheTestCase(TestBase):
 
     # The rerun tests indicate rerunning on Windows doesn't really work, so
     # this one won't either.
-    @skipIfWindows
     # On Arm and AArch64 Linux, this test attempts to pop a thread plan when
     # we only have the base plan remaining. Skip it until we can figure out
     # the bug this is exposing (https://github.com/llvm/llvm-project/issues/76057).

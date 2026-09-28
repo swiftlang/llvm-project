@@ -11,7 +11,6 @@ from lldbsuite.test.tools.lldb_dap.types import Console, RunInTerminalRequest
 @skipIfRemote
 @skipIfAsan
 @skipIfBuildType(["debug"])
-@skipIfWindows
 @skipIfWasm  # runInTerminal has the client run the program, and a Wasm module is not executable
 class TestDAP_launch_io_IntegratedTerminal(DAP_launchIO):
     console = Console.INTEGRATED_TERMINAL
@@ -19,9 +18,11 @@ class TestDAP_launch_io_IntegratedTerminal(DAP_launchIO):
     def test_all_redirection(self):
         self.all_redirection(console=self.console)
 
+    @skipIfWindows
     def test_stdin_redirection(self):
         self.stdin_redirection(console=self.console)
 
+    @skipIfWindows
     def test_stdout_redirection(self):
         self.stdout_redirection(console=self.console)
 

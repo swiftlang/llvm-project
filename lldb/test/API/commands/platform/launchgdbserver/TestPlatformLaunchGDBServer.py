@@ -46,7 +46,6 @@ class TestPlatformProcessLaunchGDBServer(TestBase):
 
     @skipIfRemote
     @skipIfDarwin  # Uses debugserver for debugging
-    @skipIfWindows
     @add_test_categories(["lldb-server"])
     def test_launch_with_unusual_process_name(self):
         """

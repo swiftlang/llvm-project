@@ -65,7 +65,6 @@ class TestFrameSelect(TestBase):
         )
 
     @no_debug_info_test
-    @skipIfWindows
     def test_mixing_relative_and_abs(self):
         self.build()
 

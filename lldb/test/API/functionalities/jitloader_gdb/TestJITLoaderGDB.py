@@ -80,7 +80,6 @@ class JITLoaderGDBTestCase(TestBase):
         logcontent = open(logfile).read()
         self.assertIn("SetJITBreakpoint setting JIT breakpoint", logcontent)
 
-    @skipIfWindows  # This test fails on Windows during C code build
     def test_jit_int_off(self):
         """Tests interface with 'enable' settings 'off'"""
         self.build()
