@@ -10,6 +10,7 @@ class ConcurrentManyBreakpoints(ConcurrentEventsBase):
     @expectedFailureAll(
         archs=["aarch64"], oslist=["freebsd"], bugnumber="llvm.org/pr49433"
     )
+    @skip # Fixed upstream in 5ce6d3a2423ef046
     def test(self):
         """Test 100 breakpoints from 100 threads."""
         self.build()
