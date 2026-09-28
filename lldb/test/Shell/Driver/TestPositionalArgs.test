@@ -1,4 +1,4 @@
-RUN: echo "int main() { return 0; }" | %clang_host -x c - -o %t.foo
+RUN: echo "int main() { return 0; }" | %link -x c - -o %t.foo
 
 RUN: %lldb -x -b %t.foo bar baz quux | FileCheck %s
 RUN: %lldb -x -b -- %t.foo bar baz quux | FileCheck %s

@@ -6,7 +6,7 @@
 //                 DW_AT_location  (DW_OP_piece 0x2, DW_OP_addrx 0x0, DW_OP_piece 0x1)
 
 // UNSUPPORTED: system-windows
-// RUN: %clang_host -O3 -gdwarf %s -o %t
+// RUN: %link -O3 -gdwarf %s -o %t
 // RUN: %lldb %t \
 // RUN:   -o "b 26" \
 // RUN:   -o "r" \

@@ -6,8 +6,8 @@
 ##
 # RUN: split-file %s %t
 
-# RUN: %clangxx_host -g %t/main_with_inlined.cc %t/foo.cc -o %t/main_with_inlined.out
-# RUN: %clangxx_host -g %t/main_no_inlined.cc %t/foo.cc -o %t/main_no_inlined.out
+# RUN: %linkxx -g %t/main_with_inlined.cc %t/foo.cc -o %t/main_with_inlined.out
+# RUN: %linkxx -g %t/main_no_inlined.cc %t/foo.cc -o %t/main_no_inlined.out
 
 # RUN: %lldb %t/main_with_inlined.out -o "list foo.h:2" -o "exit" 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=CHECK-INLINED

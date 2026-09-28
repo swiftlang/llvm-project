@@ -4,7 +4,7 @@
 # the safe-path script is loaded as a fallback.
 
 # RUN: split-file %s %t
-# RUN: %clang_host -g %t/main.c -o %t/TestModule.out
+# RUN: %link -g %t/main.c -o %t/TestModule.out
 # RUN: mkdir -p %t/safe-path/TestModule
 
 # RUN: cp %t/script.py %t/safe-path/TestModule/TestModule.py

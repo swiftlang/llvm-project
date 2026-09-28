@@ -14,7 +14,7 @@
 # UNSUPPORTED: system-darwin, system-windows
 # REQUIRES: target-x86_64
 
-# RUN: %clang_host -gdwarf-4 -o %t %s \
+# RUN: %link -gdwarf-4 -o %t %s \
 # RUN:   %S/Inputs/DW_TAG_variable-DW_AT_decl_file-DW_AT_abstract_origin-crosscu2.s
 
 # RUN: %lldb %t \

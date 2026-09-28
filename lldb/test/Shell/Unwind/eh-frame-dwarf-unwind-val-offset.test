@@ -5,7 +5,7 @@
 # UNSUPPORTED: system-windows, ld_new-bug
 # REQUIRES: target-x86_64, native
 
-# RUN: %clang_host %p/Inputs/call-asm.c %p/Inputs/eh-frame-dwarf-unwind-val-offset.s -o %t
+# RUN: %link %p/Inputs/call-asm.c %p/Inputs/eh-frame-dwarf-unwind-val-offset.s -o %t
 # RUN: %lldb %t -s %s -o exit | FileCheck %s
 
 breakpoint set -n asm_main

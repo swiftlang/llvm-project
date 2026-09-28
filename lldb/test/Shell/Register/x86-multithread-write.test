@@ -1,7 +1,7 @@
 # XFAIL: system-windows
 # REQUIRES: native && (target-x86 || target-x86_64)
 # UNSUPPORTED: system-debugserver
-# RUN: %clangxx_host %p/Inputs/x86-multithread-write.cpp -o %t -pthread
+# RUN: %linkxx %p/Inputs/x86-multithread-write.cpp -o %t -pthread
 # RUN: %lldb -b -s %s %t | FileCheck %s
 
 process launch

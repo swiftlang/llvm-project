@@ -3,7 +3,7 @@
 # Test that the last appended safe-auto-load path takes priority.
 
 # RUN: split-file %s %t
-# RUN: %clang_host %t/main.c -o %t/TestModule.out
+# RUN: %link %t/main.c -o %t/TestModule.out
 # RUN: mkdir -p %t/first-path/TestModule
 # RUN: mkdir -p %t/second-path/TestModule
 

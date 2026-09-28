@@ -10,7 +10,7 @@
 # RUN: split-file %s %t
 # RUN: %clangxx_host -c -g -x objective-c++ %t/request.m -o %t/request_objc.o
 # RUN: %clangxx_host -c -g %t/main.cpp -o %t/main.o
-# RUN: %clangxx_host %t/main.o %t/request_objc.o -framework Foundation -o %t/a.out
+# RUN: %linkxx %t/main.o %t/request_objc.o -framework Foundation -o %t/a.out
 #
 # RUN: %lldb %t/a.out \
 # RUN:    -o "breakpoint set -p return -X main" \

@@ -1,4 +1,4 @@
-# RUN: %clang_host -g -O0 %S/Inputs/main.c -o %t.out
+# RUN: %link -g -O0 %S/Inputs/main.c -o %t.out
 # RUN: %lldb %t.out -b -s %s | FileCheck %s
 
 breakpoint set -a "main+26"

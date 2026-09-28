@@ -4,8 +4,8 @@
 # auto-loaded.
 
 # RUN: split-file %s %t
-# RUN: %clang_host -g -shared %t/lib.c -o %t/libFoo.dylib
-# RUN: %clang_host -g %t/main.c -o %t/TestModule.out %t/libFoo.dylib
+# RUN: %link -g -shared %t/lib.c -o %t/libFoo.dylib
+# RUN: %link -g %t/main.c -o %t/TestModule.out %t/libFoo.dylib
 # RUN: mkdir -p %t/TestModule.out.dSYM/Contents/Resources/Python
 # RUN: mkdir -p %t/libFoo.dylib.dSYM/Contents/Resources/Python
 

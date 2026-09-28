@@ -1,5 +1,5 @@
 # REQUIRES: native && target-riscv64
-# RUN: %clangxx_host %p/Inputs/riscv64-gp-read.cpp -o %t
+# RUN: %linkxx %p/Inputs/riscv64-gp-read.cpp -o %t
 # RUN: %lldb -b -s %s %t | FileCheck %s
 process launch
 

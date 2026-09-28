@@ -5,10 +5,10 @@
 # REQUIRES: target-x86_64
 # REQUIRES: lld
 
-# RUN: %clang_host %p/Inputs/basic-block-sections.c -o %t
+# RUN: %link %p/Inputs/basic-block-sections.c -o %t
 # RUN: %lldb %t -s %s -o exit | FileCheck  %s --check-prefix=DEFAULT
 
-# RUN: %clang_host %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all
+# RUN: %link %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all
 # RUN: %lldb %t -s %s -o exit | FileCheck  %s --check-prefix=BBSECTIONS
 
 # Reorder basic blocks so that main's basic blocks are discontiguous
@@ -18,7 +18,7 @@
 # RUN: echo "main.__part.2" >> %t.order
 # RUN: echo "foo" >> %t.order
 # RUN: echo "main.__part.1" >> %t.order
-# RUN: %clang_host %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all -fuse-ld=lld -Wl,--symbol-ordering-file,%t.order -Wl,--warn-symbol-ordering -Wl,--fatal-warnings
+# RUN: %link %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all -fuse-ld=lld -Wl,--symbol-ordering-file,%t.order -Wl,--warn-symbol-ordering -Wl,--fatal-warnings
 # RUN: %lldb %t -s %s -o exit | FileCheck  %s --check-prefix=BBSECTIONS
 
 # Test the reverse permutation too.
@@ -28,7 +28,7 @@
 # RUN: echo "main" >> %t.order
 # RUN: echo "bar" >> %t.order
 # RUN: echo "main.__part.3" >> %t.order
-# RUN: %clang_host %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all -fuse-ld=lld -Wl,--symbol-ordering-file,%t.order -Wl,--warn-symbol-ordering -Wl,--fatal-warnings
+# RUN: %link %p/Inputs/basic-block-sections.c -o %t -fbasic-block-sections=all -fuse-ld=lld -Wl,--symbol-ordering-file,%t.order -Wl,--warn-symbol-ordering -Wl,--fatal-warnings
 # RUN: %lldb %t -s %s -o exit | FileCheck  %s --check-prefix=BBSECTIONS
 
 breakpoint set -n bar

@@ -6,7 +6,7 @@
 # REQUIRES: system-linux, native
 # REQUIRES: target-x86_64
 
-# RUN: %clang_host %S/Inputs/basic-block-sections-with-dwarf.s -o %t
+# RUN: %link %S/Inputs/basic-block-sections-with-dwarf.s -o %t
 # RUN: %lldb %t -s %s -o exit | FileCheck %s
 
 breakpoint set -n baz

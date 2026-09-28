@@ -3,7 +3,7 @@
 # This test is specific to elf platforms.
 # UNSUPPORTED: system-windows, system-darwin
 
-# RUN: %clangxx_host %p/Inputs/aarch64_thunk.cc -g -o %t.out
+# RUN: %linkxx %p/Inputs/aarch64_thunk.cc -g -o %t.out
 # RUN: %lldb %t.out -s %s | FileCheck %s
 
 b main

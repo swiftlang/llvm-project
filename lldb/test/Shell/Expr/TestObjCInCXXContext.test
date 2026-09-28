@@ -3,7 +3,7 @@
 // Tests that we don't consult the the Objective-C runtime
 // plugin when in a purely C++ context.
 //
-// RUN: %clangxx_host %p/Inputs/objc-cast.cpp -g -o %t
+// RUN: %linkxx %p/Inputs/objc-cast.cpp -g -o %t
 // RUN: %lldb %t \
 // RUN:   -o "b main" -o run \
 // RUN:   -o "expression --language objective-c -- NSString * a; a" \

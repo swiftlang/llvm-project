@@ -1,5 +1,5 @@
 // XFAIL: target-windows
-// RUN: %clangxx_host -gdwarf -o %t %s
+// RUN: %linkxx -gdwarf -o %t %s
 // RUN: %lldb %t \
 // RUN:   -o "expr alignof(packed)" \
 // RUN:   -o "expr sizeof(packed)" \

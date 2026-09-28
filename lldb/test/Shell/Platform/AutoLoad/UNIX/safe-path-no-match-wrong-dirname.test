@@ -4,7 +4,7 @@
 # the module name.
 
 # RUN: split-file %s %t
-# RUN: %clang_host %t/main.c -o %t/TestModule.out
+# RUN: %link %t/main.c -o %t/TestModule.out
 # RUN: mkdir -p %t/safe-path/WrongName
 
 # RUN: cp %t/script.py %t/safe-path/WrongName/TestModule.py

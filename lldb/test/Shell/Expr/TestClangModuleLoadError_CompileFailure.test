@@ -3,7 +3,7 @@
 # REQUIRES: system-darwin
 #
 # RUN: split-file %s %t/sources
-# RUN: %clang_host -g %t/sources/main.m -fmodules -fcxx-modules \
+# RUN: %link -g %t/sources/main.m -fmodules -fcxx-modules \
 # RUN:             -DSHOULD_COMPILE=1 \
 # RUN:             -fmodule-map-file=%t/sources/module.modulemap \
 # RUN:             -fmodules-cache-path=%t/ModuleCache -o %t.out

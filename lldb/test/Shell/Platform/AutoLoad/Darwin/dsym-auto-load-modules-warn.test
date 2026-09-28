@@ -5,7 +5,7 @@
 # is true but we still print a warning.
 
 # RUN: split-file %s %t
-# RUN: %clang_host -g %t/main.c -o %t/TestModule.out
+# RUN: %link -g %t/main.c -o %t/TestModule.out
 # RUN: mkdir -p %t/TestModule.out.dSYM/Contents/Resources/Python
 # RUN: cp %t/dsym_script.py %t/TestModule.out.dSYM/Contents/Resources/Python/TestModule.py
 

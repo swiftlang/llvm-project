@@ -1,6 +1,6 @@
 // UNSUPPORTED: system-linux, system-windows
 //
-// RUN: %clangxx_host %p/Inputs/objc-cast.cpp -g -o %t
+// RUN: %linkxx %p/Inputs/objc-cast.cpp -g -o %t
 // RUN: %lldb %t \
 // RUN:   -o "b main" -o run -o "expression --language objc -- *(id)0x1" \
 // RUN:   2>&1 | FileCheck %s
