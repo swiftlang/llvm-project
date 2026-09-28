@@ -1,8 +1,10 @@
 import re
 import os
+import platform
 import subprocess
 
 from .builder import Builder
+import lldbsuite
 from lldbsuite.test import configuration
 import lldbsuite.test.lldbutil as lldbutil
 
@@ -20,6 +22,14 @@ def split_triple(triple):
     if m := TRIPLE_RE.match(triple):
         return m.groups()
     return [None] * TRIPLE_RE.groups
+
+
+def get_codesign_wrapper():
+    """Returns a program to run codesign through, or None to invoke it directly."""
+    # Only macOS 26 hosts make the extra check worth a round trip per binary.
+    if platform.mac_ver()[0].split(".")[0] != "26":
+        return None
+    return os.path.join(lldbsuite.lldb_root, "scripts", "codesign-and-check.sh")
 
 
 class BuilderDarwin(Builder):
@@ -54,7 +64,10 @@ class BuilderDarwin(Builder):
                 else:
                     entitlements_file = "entitlements.plist"
             entitlements = os.path.join(test_dir, "make", entitlements_file)
-            args["CODESIGN"] = "codesign --entitlements {}".format(entitlements)
+            codesign = "codesign --entitlements {}".format(entitlements)
+            if wrapper := get_codesign_wrapper():
+                codesign = "{} {}".format(wrapper, codesign)
+            args["CODESIGN"] = codesign
 
         # Return extra args as a formatted string.
         return ["{}={}".format(key, value) for key, value in args.items()]
