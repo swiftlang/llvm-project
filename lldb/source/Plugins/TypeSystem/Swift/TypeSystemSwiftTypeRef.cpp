@@ -2747,13 +2747,17 @@ SwiftASTContextSP TypeSystemSwiftTypeRefForExpressions::GetSwiftASTContext(
       process_sp = target_sp->GetProcessSP();
     if (llvm::Error error =
             swift_ast_context->PerformCompileUnitImports(sc, process_sp)) {
-      if (target_sp) {
+      std::string msg = llvm::toString(std::move(error));
+      // The async error stream is shown to the user but not persisted; also
+      // record the failure in the health log.
+      LLDB_LOG(lldb_private::GetSwiftHealthLog(),
+               "{0}: Could not import Swift modules for translation unit: {1}",
+               swift_ast_context->GetDescription(), msg);
+      if (target_sp)
         if (StreamSP errs_sp = target_sp->GetDebugger().GetAsyncErrorStream())
           errs_sp->Printf(
               "Could not import Swift modules for translation unit: %s",
-              llvm::toString(std::move(error)).c_str());
-      } else
-        llvm::consumeError(std::move(error));
+              msg.c_str());
     }
   };
 

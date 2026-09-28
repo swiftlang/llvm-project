@@ -60,7 +60,7 @@ class TestSwiftMainModuleCaching(TestBase):
 
 # CHECK:            ConfigureDefaultCASStorage() -- Bound default CAS at path
 # CAS-LOAD:         DiscoverExplicitMainModule() -- Discovered main module llvmcas://
-# CAS-MISS:         Could not open llvmcas://{{.*}}: No such file or directory
+# CAS-MISS:         DiscoverExplicitMainModule() -- Could not load main module {{.*}}llvmcas://{{.*}}No such file or directory
 # CAS-LOAD:         LogConfiguration() --   Explicit modules : true
 # CAS-MISS:         LogConfiguration() --   Explicit modules : false
 # CHECK:            LogConfiguration() --   Extra clang arguments
