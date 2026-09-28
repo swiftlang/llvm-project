@@ -34,7 +34,6 @@ class ModuleCacheTestcaseSimple(TestBase):
 
     # Doesn't depend on any specific debug information.
     @no_debug_info_test
-    @skipIfWindows
     def test(self):
         """
         Test module cache functionality for a simple object file.

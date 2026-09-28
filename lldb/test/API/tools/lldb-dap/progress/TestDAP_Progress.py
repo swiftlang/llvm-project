@@ -51,7 +51,6 @@ class TestDAP_progress(lldbdap_testcase.DAPTestCaseBase):
         self.assertTrue(end_found)
         self.dap_server.progress_events.clear()
 
-    @skipIfWindows
     def test(self):
         program = self.getBuildArtifact("a.out")
         self.build_and_launch(program, stopOnEntry=True)
