@@ -9,6 +9,7 @@ from lldbsuite.test.decorators import *
 class TestExternalProviderExtraInhabitants(TestBase):
 
     @requireDarwin
+    @requireNotEmbeddedSwift
     @swiftTest
     def test(self):
         self.build()
