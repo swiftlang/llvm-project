@@ -914,8 +914,8 @@ void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
     // If `llvm-cas` tool can be located, validate out-of-process. Otherwise do
     // in-process validation.
     if (auto Exec = findLLVMCasBinary(Argv0, LLVMCasStorage)) {
-      SmallVector<StringRef> Args{*Exec,          "--cas",
-                                  CASPath,        "--validate-if-needed",
+      SmallVector<StringRef> Args{*Exec,          "validate-if-needed",
+                                  "--cas",        CASPath,
                                   "--check-hash", "--allow-recovery"};
       if (Forced)
         Args.push_back("--force");

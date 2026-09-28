@@ -2,7 +2,7 @@
 
 // RUN: rm -rf %t
 
-// RUN: llvm-cas --cas %t/cas --ingest %s
+// RUN: llvm-cas ingest --cas %t/cas %s
 // RUN: mv %t/cas/v1.1/data.v1 %t/cas/v1.1/data.v1.bak
 
 // RUN: %clang -cc1depscand -execute %{clang-daemon-dir}/%basename_t -cas-args -fcas-path %t/cas -- \
@@ -12,7 +12,7 @@
 
 // RUN: ls %t/cas/corrupt.0.v1.1
 
-// RUN: llvm-cas --cas %t/cas --validate-if-needed | FileCheck %s -check-prefix=SKIPPED
+// RUN: llvm-cas validate-if-needed --cas %t/cas | FileCheck %s -check-prefix=SKIPPED
 // SKIPPED: validation skipped
 
 #include "test.h"
