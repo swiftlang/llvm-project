@@ -1,4 +1,3 @@
-// UNSUPPORTED: system-windows
 // XFAIL: powerpc64le
 // SR-10212
 // Test that we can handle errors.

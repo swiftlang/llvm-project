@@ -1,4 +1,3 @@
-// UNSUPPORTED: system-windows
 // Test that we can define and use basic functions/expressions in the REPL.
 // Note: All of this should work on all supported platforms.
 // REQUIRES: swift
