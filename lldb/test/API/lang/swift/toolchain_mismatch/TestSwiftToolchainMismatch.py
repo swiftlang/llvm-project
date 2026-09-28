@@ -40,7 +40,6 @@ class TestSwiftToolchainMismatch(TestBase):
         self.dbg.DeleteTarget(target)
         return messages
 
-    @skipIfWindows # The Makefile needs a POSIX shell.
     @skipEmbeddedSwift
     @swiftTest
     def test_toolchain_mismatch(self):
