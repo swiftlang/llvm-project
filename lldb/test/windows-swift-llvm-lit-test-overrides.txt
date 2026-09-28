@@ -18,10 +18,6 @@ xfail lldb-shell :: SwiftREPL/ClosureScope.test
 
 ### Tests that pass locally, but fail in CI reliably ###
 
-# https://github.com/swiftlang/llvm-project/issues/9539
-xfail lldb-shell :: SwiftREPL/SimpleExpressions.test
-xfail lldb-shell :: SwiftREPL/enum-singlecase.test
-
 xfail lldb-api :: source-manager/TestSourceManager.py
 
 # https://github.com/swiftlang/llvm-project/issues/9620
