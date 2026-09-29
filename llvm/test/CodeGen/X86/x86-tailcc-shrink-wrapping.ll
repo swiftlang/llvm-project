@@ -20,11 +20,12 @@ define tailcc void @test_shrink_wrap_tailcc(i64 %0) {
 ; CHECK-NEXT:    testq %rdi, %rdi
 ; CHECK-NEXT:    je LBB0_2
 ; CHECK-NEXT:  ## %bb.1: ## %a
+; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rax
+; CHECK-NEXT:    movq %rax, (%rsp)
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rax
-; CHECK-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    movq %rax, (%rsp)
+; CHECK-NEXT:    movq $0, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    movq $0, {{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    movl $16, %esi
 ; CHECK-NEXT:    xorl %edi, %edi
 ; CHECK-NEXT:    xorl %edx, %edx
@@ -56,11 +57,12 @@ define tailcc void @test_shrink_wrap_swifttailcc(i64 %0) {
 ; CHECK-NEXT:    testq %rdi, %rdi
 ; CHECK-NEXT:    je LBB1_2
 ; CHECK-NEXT:  ## %bb.1: ## %a
+; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rax
+; CHECK-NEXT:    movq %rax, (%rsp)
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
 ; CHECK-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rax
-; CHECK-NEXT:    movaps %xmm0, {{[0-9]+}}(%rsp)
-; CHECK-NEXT:    movq %rax, (%rsp)
+; CHECK-NEXT:    movq $0, {{[0-9]+}}(%rsp)
+; CHECK-NEXT:    movq $0, {{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    movl $16, %esi
 ; CHECK-NEXT:    xorl %edi, %edi
 ; CHECK-NEXT:    xorl %edx, %edx
