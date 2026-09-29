@@ -276,7 +276,7 @@ To make `PassBuilder` aware of dynamically linked pass plugins:
 
 ```c++
 // Load plugin dynamically.
-auto Plugin = PassPlugin::Load(PathToPlugin);
+auto Plugin = PassPlugin::load(PathToPlugin);
 if (!Plugin)
   report_error();
 // Register plugin extensions in PassBuilder.
