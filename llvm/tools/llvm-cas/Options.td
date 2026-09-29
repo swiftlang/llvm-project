@@ -93,3 +93,6 @@ def prefix_map : Separate<["-", "--"], "prefix-map">,
 
 def casid_file : F<"casid-file">,
                  HelpText<"Input is CASID file, just ingest CASID">;
+
+def verbose : F<"verbose">,
+              HelpText<"Print why validation failed when recovering">;
