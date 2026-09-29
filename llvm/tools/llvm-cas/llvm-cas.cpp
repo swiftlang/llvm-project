@@ -81,7 +81,7 @@ struct CommandOptions {
   std::vector<std::string> Inputs;
   std::string CASPath;
   std::string CASPluginPath;
-  std::vector<std::string> CASPluginOpts;
+  SmallVector<std::pair<std::string, std::string>> CASPluginOpts;
   std::string UpstreamCASPath;
   std::string DataPath;
   std::vector<std::string> PrefixMapPaths;
@@ -210,7 +210,10 @@ static Expected<CommandOptions> parseOptions(int Argc, char **Argv) {
     Opts.Inputs.push_back(File->getValue());
   Opts.CASPath = Args.getLastArgValue(OPT_cas_path);
   Opts.CASPluginPath = Args.getLastArgValue(OPT_cas_plugin_path);
-  Opts.CASPluginOpts = Args.getAllArgValues(OPT_cas_plugin_option);
+  for (StringRef PluginOpt : Args.getAllArgValues(OPT_cas_plugin_option)) {
+    auto [Name, Value] = PluginOpt.split('=');
+    Opts.CASPluginOpts.emplace_back(Name, Value);
+  }
   Opts.UpstreamCASPath = Args.getLastArgValue(OPT_upstream_cas);
   Opts.DataPath = Args.getLastArgValue(OPT_data);
   Opts.PrefixMapPaths = Args.getAllArgValues(OPT_prefix_map);
@@ -247,13 +250,8 @@ int main(int Argc, char **Argv) {
   if (sys::path::is_absolute(Opts.CASPath)) {
     CASFilePath = Opts.CASPath;
     if (!Opts.CASPluginPath.empty()) {
-      SmallVector<std::pair<std::string, std::string>> PluginOptions;
-      for (const auto &PluginOpt : Opts.CASPluginOpts) {
-        auto [Name, Val] = StringRef(PluginOpt).split('=');
-        PluginOptions.push_back({std::string(Name), std::string(Val)});
-      }
       std::tie(CAS, AC) = ExitOnErr(createPluginCASDatabases(
-          Opts.CASPluginPath, Opts.CASPath, PluginOptions));
+          Opts.CASPluginPath, Opts.CASPath, Opts.CASPluginOpts));
     } else {
       std::tie(CAS, AC) =
           ExitOnErr(createOnDiskUnifiedCASDatabases(Opts.CASPath));
@@ -698,8 +696,12 @@ int validate(ObjectStore &CAS, ActionCache &AC, bool CheckHash) {
 /// Validates the CAS in this process and prints the result.
 static Error validateInProcess(const CommandOptions &Opts) {
   ValidationResult Result;
-  if (Error E = validateOnDiskUnifiedCASDatabasesIfNeeded(
-                    Opts.CASPath, Opts.CheckHash, Opts.Force)
+  if (Error E = (Opts.CASPluginPath.empty()
+                     ? validateOnDiskUnifiedCASDatabasesIfNeeded(
+                           Opts.CASPath, Opts.CheckHash, Opts.Force)
+                     : validatePluginCASDatabasesIfNeeded(
+                           Opts.CASPluginPath, Opts.CASPath, Opts.CASPluginOpts,
+                           Opts.CheckHash, Opts.Force))
                     .moveInto(Result))
     return E;
   outs() << (Result == ValidationResult::Skipped ? "validation skipped\n"
@@ -717,8 +719,17 @@ static Expected<bool> validateOutOfProcess(const CommandOptions &Opts,
                                            const char *Argv0) {
   std::string Exec =
       sys::fs::getMainExecutable(Argv0, (void *)validateOutOfProcess);
-  SmallVector<StringRef> Args{Exec, "--cas", Opts.CASPath,
-                              "--validate-if-needed", "--in-process"};
+  SmallVector<std::string> PluginOpts;
+  for (const auto &[Name, Value] : Opts.CASPluginOpts)
+    PluginOpts.push_back(Name + "=" + Value);
+
+  SmallVector<StringRef> Args{Exec, "--cas", Opts.CASPath};
+  if (!Opts.CASPluginPath.empty()) {
+    Args.append({"--fcas-plugin-path", Opts.CASPluginPath});
+    for (StringRef PluginOpt : PluginOpts)
+      Args.append({"--fcas-plugin-option", PluginOpt});
+  }
+  Args.append({"--validate-if-needed", "--in-process"});
   if (Opts.CheckHash)
     Args.push_back("--check-hash");
   if (Opts.Force)
@@ -767,8 +778,11 @@ int validateIfNeeded(const CommandOptions &Opts, const char *Argv0) {
       ExitOnErr(createStringError("cas contents invalid"));
   }
 
-  ValidationResult Result =
-      ExitOnErr(recoverOnDiskUnifiedCASDatabases(Opts.CASPath));
+  ValidationResult Result = ExitOnErr(
+      Opts.CASPluginPath.empty()
+          ? recoverOnDiskUnifiedCASDatabases(Opts.CASPath)
+          : recoverPluginCASDatabases(Opts.CASPluginPath, Opts.CASPath,
+                                      Opts.CASPluginOpts));
   outs() << (Result == ValidationResult::Skipped
                  ? "recovery skipped\n"
                  : "recovered from invalid data\n");

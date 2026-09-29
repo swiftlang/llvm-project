@@ -62,8 +62,8 @@ def cas_plugin_path : Separate<["-", "--"], "fcas-plugin-path">,
                       HelpText<"Path to plugin CAS library">;
 
 def cas_plugin_option : Separate<["-", "--"], "fcas-plugin-option">,
-                        MetaVarName<"<option>">,
-                        HelpText<"Plugin CAS Options">;
+                        MetaVarName<"<name>=<value>">,
+                        HelpText<"Option passed to the plugin CAS">;
 
 def upstream_cas : Separate<["-", "--"], "upstream-cas">,
                    MetaVarName<"<path>">,
