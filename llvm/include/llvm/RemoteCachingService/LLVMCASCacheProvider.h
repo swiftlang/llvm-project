@@ -10,6 +10,7 @@
 #define LLVM_REMOTECACHINGSERVICE_LLVMCASCACHEPROVIDER_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include <memory>
 
 namespace llvm::cas {
@@ -21,7 +22,7 @@ class RemoteCacheProvider;
 
 /// Returns a \p RemoteCacheProvider that is implemented using an on-disk \p
 /// cas::ObjectStore and \p cas::ActionCache.
-std::unique_ptr<RemoteCacheProvider>
+LLVM_ABI std::unique_ptr<RemoteCacheProvider>
 createLLVMCASCacheProvider(StringRef TempPath, std::unique_ptr<ObjectStore> CAS,
                            std::unique_ptr<ActionCache> Cache);
 

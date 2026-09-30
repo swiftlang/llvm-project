@@ -9,6 +9,7 @@
 #ifndef LLVM_CASOBJECTFORMATS_UTILS_H
 #define LLVM_CASOBJECTFORMATS_UTILS_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -20,10 +21,10 @@ namespace cas {
 class ObjectStore;
 class CASID;
 
-Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
-                                llvm::MemoryBufferRef Buffer);
+LLVM_ABI Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
+                                         llvm::MemoryBufferRef Buffer);
 
-void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
+LLVM_ABI void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 
 /// Writes an extended attribute to \p Path containing the hash from \p ID
 /// along with information about the hash schema.
@@ -33,7 +34,7 @@ void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 /// * Null-terminated hash schema name, e.g. llvm.builtin.v2[BLAKE3]
 /// * Hash length (4 bytes little-endian, e.g. 32)
 /// * Hash bytes
-Error writeCASHashXAttr(const CASID &ID, const llvm::Twine &Path);
+LLVM_ABI Error writeCASHashXAttr(const CASID &ID, const llvm::Twine &Path);
 
 } // namespace cas
 
@@ -43,11 +44,11 @@ namespace reader {
 class CASObjectReader;
 }
 
-Error printCASObject(const reader::CASObjectReader &Reader, raw_ostream &OS,
-                     bool omitCASID,
-                     std::function<const char *(uint8_t)> GetEdgeName,
-                     std::function<const char *(uint8_t)> GetScopeName,
-                     std::function<const char *(uint8_t)> GetLinkageName);
+LLVM_ABI Error
+printCASObject(const reader::CASObjectReader &Reader, raw_ostream &OS,
+               bool omitCASID, std::function<const char *(uint8_t)> GetEdgeName,
+               std::function<const char *(uint8_t)> GetScopeName,
+               std::function<const char *(uint8_t)> GetLinkageName);
 
 } // end namespace casobjectformats
 } // end namespace llvm

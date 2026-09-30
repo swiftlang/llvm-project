@@ -14,6 +14,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -140,7 +141,7 @@ private:
   Expected<std::optional<T>> Value;
 };
 
-class Cancellable {
+class LLVM_ABI Cancellable {
   virtual void anchor();
 
 public:

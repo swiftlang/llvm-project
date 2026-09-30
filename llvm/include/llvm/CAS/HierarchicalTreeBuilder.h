@@ -13,6 +13,7 @@
 #include "llvm/CAS/CASReference.h"
 #include "llvm/CAS/TreeEntry.h"
 #include "llvm/CAS/TreeSchema.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h" // FIXME: Split out sys::fs::file_status.
 #include "llvm/Support/MemoryBuffer.h"
@@ -50,8 +51,8 @@ class HierarchicalTreeBuilder {
   SmallVector<HierarchicalEntry, 8> Entries;
   SmallVector<HierarchicalEntry, 0> TreeContents;
 
-  void pushImpl(std::optional<ObjectRef> Ref, TreeEntry::EntryKind Kind,
-                const Twine &Path);
+  LLVM_ABI void pushImpl(std::optional<ObjectRef> Ref,
+                         TreeEntry::EntryKind Kind, const Twine &Path);
 
 public:
   HierarchicalTreeBuilder(sys::path::Style PathStyle = sys::path::Style::native)
@@ -78,14 +79,14 @@ public:
   ///   * Calling push() for every non-tree
   ///
   /// Allows merging the contents of multiple directories.
-  void pushTreeContent(ObjectRef Ref, const Twine &Path);
+  LLVM_ABI void pushTreeContent(ObjectRef Ref, const Twine &Path);
 
   /// Drop all entries.
   void clear() { Entries.clear(); }
 
   /// Recursively create the trees implied by calls to \a push(), return the
   /// top-level \a CASID.
-  Expected<ObjectProxy> create(ObjectStore &CAS);
+  LLVM_ABI Expected<ObjectProxy> create(ObjectStore &CAS);
 };
 
 } // namespace cas

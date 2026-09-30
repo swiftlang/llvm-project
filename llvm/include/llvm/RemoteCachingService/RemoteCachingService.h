@@ -11,18 +11,21 @@
 
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm::cas {
 /// Create GRPC ObjectStore from a path.
-Expected<std::shared_ptr<ObjectStore>> createGRPCRelayCAS(const Twine &Path);
+LLVM_ABI Expected<std::shared_ptr<ObjectStore>>
+createGRPCRelayCAS(const Twine &Path);
 
 /// Create GRPC ActionCache from a path.
-Expected<std::unique_ptr<ActionCache>> createGRPCActionCache(StringRef Path);
+LLVM_ABI Expected<std::unique_ptr<ActionCache>>
+createGRPCActionCache(StringRef Path);
 
 // Register GRPC CAS.
 class RegisterGRPCCAS {
 public:
-  RegisterGRPCCAS();
+  LLVM_ABI RegisterGRPCCAS();
 };
 
 } // namespace llvm::cas

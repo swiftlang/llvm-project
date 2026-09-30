@@ -17,6 +17,7 @@
 #include "llvm/CAS/ThreadSafeAllocator.h"
 #include "llvm/Support/AlignOf.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/VirtualCachedDirectoryEntry.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -120,7 +121,7 @@ public:
     void skip() { advance(*Entry); }
   };
 
-  class DiscoveryInstance {
+  class LLVM_ABI DiscoveryInstance {
   public:
     virtual ~DiscoveryInstance();
 
@@ -149,53 +150,58 @@ public:
   ///
   /// Not thread-safe. Assumes there is a lock in place already on \p Parent's
   /// mutex.
-  DirectoryEntry &makeDirectoryAlreadyLocked(DirectoryEntry &Parent,
-                                             StringRef TreePath,
-                                             std::optional<ObjectRef> Ref);
+  LLVM_ABI DirectoryEntry &
+  makeDirectoryAlreadyLocked(DirectoryEntry &Parent, StringRef TreePath,
+                             std::optional<ObjectRef> Ref);
 
   /// Create a directory entry for a \a Symlink without allocating it.
   ///
   /// Not thread-safe. Assumes there is a lock in place already on \p Parent's
   /// mutex.
-  DirectoryEntry &makeLazySymlinkAlreadyLocked(DirectoryEntry &Parent,
-                                               StringRef TreePath,
-                                               ObjectRef Ref);
+  LLVM_ABI DirectoryEntry &makeLazySymlinkAlreadyLocked(DirectoryEntry &Parent,
+                                                        StringRef TreePath,
+                                                        ObjectRef Ref);
 
   /// Create a directory entry for a \a File without allocating it.
   ///
   /// Not thread-safe. Assumes there is a lock in place already on \p Parent's
   /// mutex.
-  DirectoryEntry &makeLazyFileAlreadyLocked(DirectoryEntry &Parent,
-                                            StringRef TreePath, ObjectRef Ref,
-                                            bool IsExecutable);
+  LLVM_ABI DirectoryEntry &makeLazyFileAlreadyLocked(DirectoryEntry &Parent,
+                                                     StringRef TreePath,
+                                                     ObjectRef Ref,
+                                                     bool IsExecutable);
 
   /// Create a directory entry and a directory (with no contents).
   ///
   /// Thread-safe; takes a lock on \p Parent's mutex.
-  DirectoryEntry &makeDirectory(DirectoryEntry &Parent, StringRef TreePath,
-                                std::optional<ObjectRef> Ref = std::nullopt);
+  LLVM_ABI DirectoryEntry &
+  makeDirectory(DirectoryEntry &Parent, StringRef TreePath,
+                std::optional<ObjectRef> Ref = std::nullopt);
 
   /// Create a directory entry and a symlink.
   ///
   /// Thread-safe; takes a lock on \p Parent's mutex.
-  DirectoryEntry &makeSymlink(DirectoryEntry &Parent, StringRef TreePath,
-                              ObjectRef Ref, StringRef Target);
+  LLVM_ABI DirectoryEntry &makeSymlink(DirectoryEntry &Parent,
+                                       StringRef TreePath, ObjectRef Ref,
+                                       StringRef Target);
 
   /// Create a directory entry and a file.
   ///
   /// Thread-safe; takes a lock on \p Parent's mutex.
-  DirectoryEntry &makeFile(DirectoryEntry &Parent, StringRef TreePath,
-                           ObjectRef Ref, size_t Size, bool IsExecutable);
+  LLVM_ABI DirectoryEntry &makeFile(DirectoryEntry &Parent, StringRef TreePath,
+                                    ObjectRef Ref, size_t Size,
+                                    bool IsExecutable);
 
   /// Fill in a lazy symlink, setting its target to \p Target.
   ///
   /// Thread-safe; takes a lock on \c SymlinkEntry.getParent()->Mutex.
-  void finishLazySymlink(DirectoryEntry &SymlinkEntry, StringRef Target);
+  LLVM_ABI void finishLazySymlink(DirectoryEntry &SymlinkEntry,
+                                  StringRef Target);
 
   /// Fill in a lazy file, setting its size to \p Target.
   ///
   /// Thread-safe; takes a lock on \c FileEntry.getParent()->Mutex.
-  void finishLazyFile(DirectoryEntry &FileEntry, size_t Size);
+  LLVM_ABI void finishLazyFile(DirectoryEntry &FileEntry, size_t Size);
 
   /// Look up a directory entry in the CAS, navigating trees and resolving
   /// symlinks in the parent path. If \p FollowSymlinks is true, also follows
@@ -204,47 +210,49 @@ public:
   /// If \p TrackNonRealPathEntries is given, symlinks and
   /// navigated-away-from directories are passed through as the search
   /// progresses.
-  Expected<DirectoryEntry *> lookupPath(DiscoveryInstance &DI, StringRef Path,
-                                        DirectoryEntry &WorkingDirectory,
-                                        bool FollowSymlinks);
+  LLVM_ABI Expected<DirectoryEntry *>
+  lookupPath(DiscoveryInstance &DI, StringRef Path,
+             DirectoryEntry &WorkingDirectory, bool FollowSymlinks);
 
   /// Look up a directory entry in the CAS, navigating through real paths but
   /// returning early on a symlink.
-  LookupPathState lookupRealPathPrefixFromCached(
+  LLVM_ABI LookupPathState lookupRealPathPrefixFromCached(
       LookupPathState State,
       function_ref<void(DirectoryEntry &)> TrackNonRealPathEntries);
 
   /// Look up a directory entry in the CAS, navigating through real paths but
   /// returning early on a symlink.
-  Expected<LookupPathState> lookupRealPathPrefixFrom(DiscoveryInstance &DI,
-                                                     LookupPathState State);
+  LLVM_ABI Expected<LookupPathState>
+  lookupRealPathPrefixFrom(DiscoveryInstance &DI, LookupPathState State);
 
   /// Lookup \p Path, knowing that \a sys::fs::real_path() was called and
   /// failed.
-  Expected<LookupPathState>
+  LLVM_ABI Expected<LookupPathState>
   lookupInvalidRealPathPrefixFrom(DirectoryEntry &Start, StringRef Path);
 
   /// Look up a name inside \p From. Never checks the disk.
-  DirectoryEntry *lookupNameFromCached(DirectoryEntry &Parent, StringRef Name);
+  LLVM_ABI DirectoryEntry *lookupNameFromCached(DirectoryEntry &Parent,
+                                                StringRef Name);
 
   /// Look up a name on disk inside \p From.
-  Expected<DirectoryEntry *> lookupOnDiskFrom(DirectoryEntry &Parent,
-                                              StringRef Name);
+  LLVM_ABI Expected<DirectoryEntry *> lookupOnDiskFrom(DirectoryEntry &Parent,
+                                                       StringRef Name);
 
-  std::error_code setCurrentWorkingDirectory(const Twine &Path);
+  LLVM_ABI std::error_code setCurrentWorkingDirectory(const Twine &Path);
 
-  static StringRef canonicalizeWorkingDirectory(sys::path::Style PathStyle,
-                                                StringRef WorkingDirectory,
-                                                SmallVectorImpl<char> &Storage);
+  LLVM_ABI static StringRef
+  canonicalizeWorkingDirectory(sys::path::Style PathStyle,
+                               StringRef WorkingDirectory,
+                               SmallVectorImpl<char> &Storage);
 
-  DirectoryEntry &getRoot(StringRef root_path,
-                          std::optional<ObjectRef> RootRef = std::nullopt);
+  LLVM_ABI DirectoryEntry &
+  getRoot(StringRef root_path, std::optional<ObjectRef> RootRef = std::nullopt);
   sys::path::Style getPathStyle() const { return PathStyle; }
 
   using LookupSymlinkPathType =
       unique_function<Expected<DirectoryEntry *>(StringRef)>;
 
-  vfs::directory_iterator
+  LLVM_ABI vfs::directory_iterator
   getCachedVFSDirIter(Directory &D, LookupSymlinkPathType LookupSymlinkPath,
                       StringRef WorkingDirectory, StringRef RequestedName);
 
@@ -292,12 +300,12 @@ public:
   DirectoryEntry *getParent() const { return Parent; }
   std::optional<ObjectRef> getRef() const { return Ref; }
 
-  sys::fs::file_type getFileType() const;
+  LLVM_ABI sys::fs::file_type getFileType() const;
 
   /// Get the status with the requested name. Requires that this is not a
   /// symlink.
-  ErrorOr<vfs::Status> getStatus(const Twine &RequestedName,
-                                 bool FollowSymlinks);
+  LLVM_ABI ErrorOr<vfs::Status> getStatus(const Twine &RequestedName,
+                                          bool FollowSymlinks);
 
   FileSystemCache::Directory &asDirectory() const {
     assert(isDirectory());
@@ -452,7 +460,7 @@ class FileSystemCache::Directory::Writer {
 
 public:
   Writer() = delete;
-  explicit Writer(Directory &D);
+  LLVM_ABI explicit Writer(Directory &D);
 };
 
 class FileSystemCache::File {
@@ -485,7 +493,8 @@ private:
   sys::fs::UniqueID UniqueID;
 };
 
-class FileSystemCache::VFSDirIterImpl : public vfs::detail::DirIterImpl {
+class LLVM_ABI FileSystemCache::VFSDirIterImpl
+    : public vfs::detail::DirIterImpl {
 public:
   std::error_code increment() override;
 

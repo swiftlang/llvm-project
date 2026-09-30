@@ -53,7 +53,7 @@ public:
   /// cannot be used beyond the \p SchemaPool instance's lifetime.
   ///
   /// Thread-safe.
-  NodeSchema *getSchemaForRoot(cas::ObjectProxy Node) const;
+  LLVM_ABI NodeSchema *getSchemaForRoot(cas::ObjectProxy Node) const;
 
   /// Add a schema to the pool.
   void addSchema(std::unique_ptr<NodeSchema> S) {

@@ -9,6 +9,7 @@
 #ifndef LLVM_REMOTECACHINGSERVICE_REMOTECACHEPROVIDER_H
 #define LLVM_REMOTECACHINGSERVICE_REMOTECACHEPROVIDER_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm::cas::remote {
@@ -18,7 +19,7 @@ namespace llvm::cas::remote {
 ///
 /// While the functions are running they are blocking \p RemoteCacheServer from
 /// serving more requests, implementations should do the work asynchronously.
-class RemoteCacheProvider {
+class LLVM_ABI RemoteCacheProvider {
 public:
   virtual ~RemoteCacheProvider() = default;
 

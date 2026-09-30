@@ -10,6 +10,7 @@
 #define LLVM_CAS_CASOUTPUTBACKEND_H
 
 #include "llvm/CAS/CASReference.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualOutputBackend.h"
 
@@ -19,7 +20,7 @@ class ObjectStore;
 class CASID;
 
 /// Handle the cas
-class CASOutputBackend : public vfs::OutputBackend {
+class LLVM_ABI CASOutputBackend : public vfs::OutputBackend {
   void anchor() override;
 
 public:

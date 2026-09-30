@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASReference.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace cas {
@@ -61,7 +62,7 @@ public:
   NamedTreeEntry(ObjectRef Ref, EntryKind Kind, StringRef Name)
       : TreeEntry(Ref, Kind), Name(Name) {}
 
-  void print(raw_ostream &OS, ObjectStore &CAS) const;
+  LLVM_ABI void print(raw_ostream &OS, ObjectStore &CAS) const;
 
 private:
   StringRef Name;

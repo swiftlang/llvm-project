@@ -9,6 +9,7 @@
 #ifndef LLVM_CAS_UTILS_H
 #define LLVM_CAS_UTILS_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -21,10 +22,10 @@ namespace cas {
 class ObjectStore;
 class CASID;
 
-Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
-                                llvm::MemoryBufferRef Buffer);
+LLVM_ABI Expected<CASID> readCASIDBuffer(cas::ObjectStore &CAS,
+                                         llvm::MemoryBufferRef Buffer);
 
-void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
+LLVM_ABI void writeCASIDBuffer(const CASID &ID, llvm::raw_ostream &OS);
 
 } // namespace cas
 } // namespace llvm

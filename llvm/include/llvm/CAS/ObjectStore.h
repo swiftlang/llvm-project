@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASID.h"
 #include "llvm/CAS/CASReference.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include <cstddef>
@@ -421,11 +422,11 @@ createOnDiskCAS(const Twine &Path);
 
 /// Set \p Path to a reasonable default on-disk path for a persistent CAS for
 /// the current user.
-Error getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path);
+LLVM_ABI Error getDefaultOnDiskCASPath(SmallVectorImpl<char> &Path);
 
 /// Get a reasonable default on-disk path for a persistent CAS for the current
 /// user.
-llvm::Expected<std::string> getDefaultOnDiskCASPath();
+LLVM_ABI llvm::Expected<std::string> getDefaultOnDiskCASPath();
 
 class ActionCache;
 
@@ -444,14 +445,16 @@ class ActionCache;
 /// on-disk directory that the plugin should use, otherwise the default
 /// OnDiskCAS location will be used.
 /// FIXME: Need to implement proper URL encoding scheme that allows "%".
-Expected<std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
+LLVM_ABI Expected<
+    std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>
 createCASFromIdentifier(StringRef Path);
 
 /// Register a URL scheme to CAS Identifier.
 using ObjectStoreCreateFuncTy = Expected<
     std::pair<std::shared_ptr<ObjectStore>, std::shared_ptr<ActionCache>>>(
     const Twine &);
-void registerCASURLScheme(StringRef Prefix, ObjectStoreCreateFuncTy *Func);
+LLVM_ABI void registerCASURLScheme(StringRef Prefix,
+                                   ObjectStoreCreateFuncTy *Func);
 
 /// Create \c ObjectStore and \c ActionCache instances backed by a plugin that
 /// implements the C API in \c "llvm-c/CAS/PluginAPI_functions.h".

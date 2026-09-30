@@ -12,6 +12,7 @@
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/MC/MCCASFormatSchemaBase.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace mccasformats {
@@ -19,7 +20,7 @@ namespace mccasformats {
 /// Creates all the schemas and can be used to retrieve a particular schema
 /// based on a CAS root node. A client should aim to create and maximize re-use
 /// of an instance of this object.
-void addMCFormatSchemas(cas::SchemaPool &Pool);
+LLVM_ABI void addMCFormatSchemas(cas::SchemaPool &Pool);
 
 /// Wrapper for a pool that is preloaded with object file schemas.
 class MCFormatSchemaPool {
