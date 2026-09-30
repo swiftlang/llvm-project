@@ -240,6 +240,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/OnDiskHashTable.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include <cstdint>
 #include <list>
 #include <memory>
@@ -252,10 +253,6 @@ namespace llvm {
 
 class raw_ostream;
 class Twine;
-
-namespace vfs {
-class FileSystem;
-} // namespace vfs
 
 namespace sampleprof {
 

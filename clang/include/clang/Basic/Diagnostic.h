@@ -30,6 +30,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include <cassert>
 #include <cstdint>
 #include <limits>
@@ -47,9 +48,6 @@ namespace llvm {
 class Error;
 class raw_ostream;
 class MemoryBuffer;
-namespace vfs {
-class FileSystem;
-} // namespace vfs
 } // namespace llvm
 
 namespace clang {
