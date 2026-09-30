@@ -143,9 +143,10 @@ std::optional<StringRef> PrefixMapper::mapImpl(StringRef Path,
     if (!llvm::sys::path::is_separator(Suffix.front(), PathStyle))
       continue;
 
-    // Drop the separator, append, and return.
+    // Drop the separator, append, and return the native representation.
     Storage.assign(New.begin(), New.end());
     llvm::sys::path::append(Storage, PathStyle, Suffix.drop_front());
+    llvm::sys::path::native(Storage, PathStyle);
     return StringRef(Storage.begin(), Storage.size());
   }
   return std::nullopt;
