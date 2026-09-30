@@ -633,7 +633,7 @@ public:
 
   /// Enable or disable the hot/cold splitting optimization. By default, it is
   /// disabled.
-  void setEnableHotColdSplitting(bool Enabled);
+  LLVM_ABI void setEnableHotColdSplitting(bool Enabled);
 
   /// Add PGOInstrumenation passes for O0 only.
   LLVM_ABI void addPGOInstrPassesForO0(ModulePassManager &MPM,

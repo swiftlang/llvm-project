@@ -63,15 +63,15 @@ public:
 
   virtual ErrorOr<std::unique_ptr<MemoryBuffer>> tryLoadingBuffer() = 0;
   virtual void write(const MemoryBuffer &OutputBuffer) = 0;
-  virtual Error writeObject(const MemoryBuffer &OutputBuffer,
-                            StringRef OutputPath);
+  LLVM_ABI virtual Error writeObject(const MemoryBuffer &OutputBuffer,
+                                     StringRef OutputPath);
   virtual std::optional<std::unique_ptr<MemoryBuffer>> getMappedBuffer() {
     return std::nullopt;
   }
 
   virtual ~ModuleCacheEntry() {}
 
-  static std::optional<std::string> computeCacheKey(
+  LLVM_ABI static std::optional<std::string> computeCacheKey(
       const ModuleSummaryIndex &Index, StringRef ModuleID,
       const FunctionImporter::ImportMapTy &ImportList,
       const FunctionImporter::ExportSetTy &ExportList,
@@ -176,15 +176,15 @@ public:
     std::optional<cas::remote::ClientServices> Service;
 
     // Init the CAS and Cache
-    Error startCache();
+    LLVM_ABI Error startCache();
   };
 
   /// Provide a path to a directory where to store the cached files for
   /// incremental build.
-  Error setCacheDir(std::string Path);
+  LLVM_ABI Error setCacheDir(std::string Path);
 
   /// Create a cache entry for the module
-  std::unique_ptr<ModuleCacheEntry> createModuleCacheEntry(
+  LLVM_ABI std::unique_ptr<ModuleCacheEntry> createModuleCacheEntry(
       const ModuleSummaryIndex &Index, StringRef ModuleID, StringRef OutputPath,
       const FunctionImporter::ImportMapTy &ImportList,
       const FunctionImporter::ExportSetTy &ExportList,
@@ -253,7 +253,7 @@ public:
 
   /// Set the path to a directory where to save temporaries from the remote
   /// service.
-  void setRemoteServiceTempsDir(std::string Path);
+  LLVM_ABI void setRemoteServiceTempsDir(std::string Path);
 
   /// Set the path to a directory where to save generated object files. This
   /// path can be used by a linker to request on-disk files instead of in-memory
