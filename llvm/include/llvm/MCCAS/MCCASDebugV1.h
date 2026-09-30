@@ -12,6 +12,7 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
 #include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LEB128.h"
 
@@ -24,13 +25,14 @@ constexpr unsigned Dwarf5HeaderSize32Bit = 12;
 
 /// Returns true if the values associated with a combination of Form and Attr
 /// are not expected to deduplicate.
-bool doesntDedup(dwarf::Form Form, dwarf::Attribute Attr);
+LLVM_ABI bool doesntDedup(dwarf::Form Form, dwarf::Attribute Attr);
 
 /// Reads data from `CUData[CUOffset]`, interpreting it as a value encoded as
 /// `Form`, and returns the number of bytes taken by the encoded value.
-Expected<uint64_t> getFormSize(dwarf::Form Form, dwarf::FormParams FP,
-                               StringRef CUData, uint64_t CUOffset,
-                               bool IsLittleEndian, uint8_t AddressSize);
+LLVM_ABI Expected<uint64_t> getFormSize(dwarf::Form Form, dwarf::FormParams FP,
+                                        StringRef CUData, uint64_t CUOffset,
+                                        bool IsLittleEndian,
+                                        uint8_t AddressSize);
 
 /// A special value to indicate the end of a sequence of sibling DIEs.
 inline uint16_t getEndOfDIESiblingsMarker() { return 0; }
@@ -88,22 +90,23 @@ protected:
 };
 
 /// Use a more efficient format for storing 4-byte wide form data.
-uint64_t convertFourByteFormDataToULEB(ArrayRef<char> FormData,
-                                       DataWriter &Writer, bool IsLittleEndian);
+LLVM_ABI uint64_t convertFourByteFormDataToULEB(ArrayRef<char> FormData,
+                                                DataWriter &Writer,
+                                                bool IsLittleEndian);
 
 // Helper class to write a DIE's abbreviation contents to a buffer.
 struct AbbrevEntryWriter : DataWriter {
-  void writeAbbrevEntry(DWARFDie DIE);
+  LLVM_ABI void writeAbbrevEntry(DWARFDie DIE);
 };
 
 struct AbbrevEntryReader {
   AbbrevEntryReader(StringRef Data, bool IsLittleEndian)
       : Extractor(Data, IsLittleEndian), Cursor(0) {}
-  Expected<dwarf::Tag> readTag();
-  Expected<bool> readHasChildren();
+  LLVM_ABI Expected<dwarf::Tag> readTag();
+  LLVM_ABI Expected<bool> readHasChildren();
 
-  Expected<dwarf::Attribute> readAttr();
-  Expected<dwarf::Form> readForm();
+  LLVM_ABI Expected<dwarf::Attribute> readAttr();
+  LLVM_ABI Expected<dwarf::Form> readForm();
 
 private:
   DataExtractor Extractor;
@@ -114,10 +117,10 @@ private:
 /// reconstruct the abbreviation section into OS according to the DWARF
 /// specification.
 /// Returns the number of bytes written to OS.
-uint64_t reconstructAbbrevSection(raw_ostream &OS,
-                                  ArrayRef<StringRef> AbbrevEntries,
-                                  uint64_t &MaxDIEAbbrevCount,
-                                  bool IsLittleEndian);
+LLVM_ABI uint64_t reconstructAbbrevSection(raw_ostream &OS,
+                                           ArrayRef<StringRef> AbbrevEntries,
+                                           uint64_t &MaxDIEAbbrevCount,
+                                           bool IsLittleEndian);
 } // namespace v1
 } // namespace mccasformats
 } // namespace llvm

@@ -12,13 +12,14 @@
 #include "llvm/CAS/CASNodeSchema.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/CAS/TreeEntry.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace cas {
 
 class TreeProxy;
 
-class TreeSchema : public RTTIExtends<TreeSchema, NodeSchema> {
+class LLVM_ABI TreeSchema : public RTTIExtends<TreeSchema, NodeSchema> {
   void anchor() override;
 
 public:
@@ -68,11 +69,11 @@ private:
 
 class TreeProxy : public ObjectProxy {
 public:
-  static Expected<TreeProxy> get(const TreeSchema &Schema,
-                                     Expected<ObjectProxy> Ref);
+  LLVM_ABI static Expected<TreeProxy> get(const TreeSchema &Schema,
+                                          Expected<ObjectProxy> Ref);
 
-  static Expected<TreeProxy> create(TreeSchema &Schema,
-                                        ArrayRef<NamedTreeEntry> Entries);
+  LLVM_ABI static Expected<TreeProxy> create(TreeSchema &Schema,
+                                             ArrayRef<NamedTreeEntry> Entries);
 
   const TreeSchema &getSchema() const { return *Schema; }
 
@@ -94,7 +95,7 @@ public:
     return std::nullopt;
   }
 
-  StringRef getName(size_t I) const;
+  LLVM_ABI StringRef getName(size_t I) const;
 
   NamedTreeEntry get(size_t I) const { return Schema->loadTreeEntry(*this, I); }
 
@@ -106,9 +107,9 @@ private:
 
   class Builder {
   public:
-    static Expected<Builder> startNode(TreeSchema &Schema);
+    LLVM_ABI static Expected<Builder> startNode(TreeSchema &Schema);
 
-    Expected<TreeProxy> build(ArrayRef<NamedTreeEntry> Entries);
+    LLVM_ABI Expected<TreeProxy> build(ArrayRef<NamedTreeEntry> Entries);
 
   private:
     Builder(const TreeSchema &Schema) : Schema(&Schema) {}
