@@ -1814,6 +1814,7 @@ void ASTStmtReader::VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E)
     assert(DomainNameLength == DomainName.size());
     (void)DomainNameLength;
     strcpy(E->getTrailingObjects(), DomainName.data());
+    E->DomainLoc = readSourceLocation();
   }
 }
 

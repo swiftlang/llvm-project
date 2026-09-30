@@ -134,6 +134,7 @@ static std::string ReadPCHRecord(StringRef type) {
       .Case("StringRef", "Record.readString()")
       .Case("ParamIdx", "ParamIdx::deserialize(Record.readInt())")
       .Case("OMPTraitInfo *", "Record.readOMPTraitInfo()")
+      .Case("SourceLocation", "Record.readSourceLocation()")
       .Default("Record.readInt()");
 }
 
@@ -157,6 +158,7 @@ static std::string WritePCHRecord(StringRef type, StringRef name) {
              .Case("StringRef", "AddString(" + name.str() + ");\n")
              .Case("ParamIdx", "push_back(" + name.str() + ".serialize());\n")
              .Case("OMPTraitInfo *", "writeOMPTraitInfo(" + name.str() + ");\n")
+             .Case("SourceLocation", "AddSourceLocation(" + name.str() + ");\n")
              .Default("push_back(" + name.str() + ");\n");
 }
 
@@ -1349,6 +1351,23 @@ namespace {
     }
   };
 
+  class SourceLocArgument : public SimpleArgument {
+  public:
+    SourceLocArgument(const Record &Arg, StringRef Attr)
+        : SimpleArgument(Arg, Attr, "SourceLocation") {}
+
+    std::string getIsOmitted() const override {
+      return "get" + getUpperName().str() + "().isInvalid()";
+    }
+
+    // Source locations are not part of an attribute's spelling.
+    void writeValue(raw_ostream &OS) const override {
+      PrintFatalError("SourceLocArgument must be a fake argument");
+    }
+
+    void writeDump(raw_ostream &OS) const override {}
+  };
+
   class ExprArgument : public SimpleArgument {
   public:
     ExprArgument(const Record &Arg, StringRef Attr)
@@ -1634,6 +1653,8 @@ createArgument(const Record &Arg, StringRef Attr,
         Arg, Attr, "int", Arg.getValueAsInt("Default"));
   else if (ArgName == "IntArgument")
     Ptr = std::make_unique<SimpleArgument>(Arg, Attr, "int");
+  else if (ArgName == "SourceLocArgument")
+    Ptr = std::make_unique<SourceLocArgument>(Arg, Attr);
   else if (ArgName == "StringArgument")
     Ptr = std::make_unique<StringArgument>(Arg, Attr);
   else if (ArgName == "TypeArgument")

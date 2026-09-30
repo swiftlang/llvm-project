@@ -301,6 +301,13 @@ public:
     return true;
   }
 
+  bool VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E) {
+    if (!E->hasDomainName())
+      return true;
+    return IndexCtx.handleAvailabilityDomainReference(
+        E->getDomainName(), E->getDomainLoc(), Parent, ParentDC, E);
+  }
+
   bool VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *E) {
     if (E->isExplicitProperty()) {
       SmallVector<SymbolRelation, 2> Relations;
