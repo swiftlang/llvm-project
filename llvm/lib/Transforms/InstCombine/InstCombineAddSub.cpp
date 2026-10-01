@@ -1942,8 +1942,16 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
     Changed = true;
     I.setHasNoSignedWrap(true);
   }
+  // A + ((B -nuw A) >>u C) and A + ((B -nuw A) /u C) are at most B, so they
+  // do not wrap unsigned.
+  Value *Lo;
   if (!I.hasNoUnsignedWrap() &&
-      willNotOverflowUnsignedAdd(LHSCache, RHSCache, I)) {
+      (willNotOverflowUnsignedAdd(LHSCache, RHSCache, I) ||
+       match(&I,
+             m_c_Add(m_CombineOr(
+                         m_LShr(m_NUWSub(m_Value(), m_Value(Lo)), m_Value()),
+                         m_UDiv(m_NUWSub(m_Value(), m_Value(Lo)), m_Value())),
+                     m_Deferred(Lo))))) {
     Changed = true;
     I.setHasNoUnsignedWrap(true);
   }
