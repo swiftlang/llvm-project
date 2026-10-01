@@ -157,6 +157,9 @@ public:
   getSubSystem(ArrayRef<Entry> R,
                SmallVectorImpl<unsigned> *SubToOld = nullptr) const;
 
+  /// Returns true if a single row of the system implies \p R.
+  LLVM_ABI bool isImpliedBySingleRow(ArrayRef<Entry> R) const;
+
   LLVM_ABI bool isConditionImplied(RowTy R) const;
   LLVM_ABI bool isConditionImpliedInSubSystem(ArrayRef<Entry> R) const;
 
