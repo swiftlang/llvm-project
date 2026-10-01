@@ -1703,6 +1703,8 @@ def check_expression(test, frame, expression, expected_result, use_summary=True)
     test.assertTrue(value.IsValid(), expression + "returned a valid value")
     answer = value.GetSummary() if use_summary else value.GetValue()
     report_str = "%s expected: %s got: %s" % (expression, expected_result, answer)
+    if value.GetError().Fail():
+        report_str += " (error: %s)" % value.GetError().GetCString()
     test.assertTrue(answer == expected_result, report_str)
 
 
