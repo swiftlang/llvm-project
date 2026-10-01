@@ -16,11 +16,7 @@ func main() {
   var short_path = IndexPath(indexes: [1,2])
   var very_short_path = IndexPath(indexes: [1])
   var empty_path = IndexPath()
-  print("done!") //% self.expect("frame variable path -d run", substrs=['5 indices'])
-   //% self.expect("frame variable short_path", substrs=['2 indices'])
-   //% self.expect("frame variable very_short_path", substrs=['1 index'])   
-   //% self.expect("frame variable empty_path", substrs=['0 indices'])
-   //% self.expect("expression -d run -- path", substrs=['5 indices'])
+  print("break here")
 }
 
 main()

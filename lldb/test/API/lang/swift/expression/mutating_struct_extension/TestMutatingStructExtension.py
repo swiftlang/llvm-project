@@ -9,7 +9,24 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-lldbinline.MakeInlineTest(__file__, globals(), decorators=[swiftTest,skipEmbeddedSwiftOnWindows])
+
+class TestMutatingStructExtension(TestBase):
+
+    @swiftTest
+    @skipEmbeddedSwiftOnWindows
+    def test(self):
+        """Test expression evaluation in a mutating generic struct extension method"""
+        self.build()
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "break here", lldb.SBFileSpec("main.swift"))
+        frame = thread.GetFrameAtIndex(0)
+        options = lldb.SBExpressionOptions()
+        options.SetFetchDynamicValue(lldb.eDynamicCanRunTarget)
+        value = frame.EvaluateExpression("2+3", options)
+        self.assertSuccess(value.GetError())
+        lldbutil.check_variable(self, value, value="5")

@@ -11,8 +11,7 @@ struct KeyTransformer<K1: Key> {
 
     func printOutput() {
         let patatino = input
-        print(patatino) //%self.expect('frame variable -d run-target -- patatino', substrs=['(Int?) patatino = 5'])
-                        //%self.expect('expr -d run-target -- patatino', substrs=['(Int?) $R0 = 5'])
+        print(patatino) // break here
     }
 }
 

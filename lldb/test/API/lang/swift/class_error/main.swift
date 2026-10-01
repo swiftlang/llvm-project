@@ -13,11 +13,11 @@ class MyErr : Error {
 class MyOtherErr : MyErr {}
 
 func f<T>(_ Pat : T) -> T {
-  return Pat //%self.expect('frame variable -d run -- Pat', substrs=['MyErr', 'x = 23'])
+  return Pat // break 1
 }
 
 func g<T>(_ Pat : T) -> T {
-  return Pat //%self.expect('frame variable -d run -- Pat', substrs=['MyOtherErr', 'x = 42'])
+  return Pat // break 2
 }
 
 func main() -> Int {

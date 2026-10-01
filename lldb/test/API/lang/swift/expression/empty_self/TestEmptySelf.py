@@ -10,7 +10,33 @@
 #
 # ------------------------------------------------------------------------------
 
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-lldbinline.MakeInlineTest(__file__, globals(), decorators=[swiftTest,skipEmbeddedSwiftOnWindows])
+
+class TestEmptySelf(TestBase):
+
+    def expr(self, frame, expression):
+        value = frame.EvaluateExpression(expression, lldb.SBExpressionOptions())
+        self.assertSuccess(value.GetError())
+        return value
+
+    @swiftTest
+    @skipEmbeddedSwiftOnWindows
+    def test(self):
+        """Test evaluating self in struct and class methods with no stored properties"""
+        self.build()
+        _, process, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "break 1", lldb.SBFileSpec("main.swift"))
+        frame = thread.GetFrameAtIndex(0)
+        lldbutil.check_variable(self, self.expr(frame, "self"),
+                                typename="a.StructTest")
+
+        threads = lldbutil.continue_to_source_breakpoint(
+            self, process, "break 2", lldb.SBFileSpec("main.swift"))
+        self.assertEqual(len(threads), 1)
+        frame = threads[0].GetFrameAtIndex(0)
+        lldbutil.check_variable(self, self.expr(frame, "self"),
+                                typename="a.ClassTest")

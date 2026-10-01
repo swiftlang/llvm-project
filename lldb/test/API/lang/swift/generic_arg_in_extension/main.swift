@@ -11,7 +11,7 @@
 // -----------------------------------------------------------------------------
 extension Collection {
   func group<Key: Hashable>(f: Key) -> Key {
-    print(f) //%self.expect('frame variable -d run -- f', substrs=['= 123456'])
+    print(f) // break here
     return f
   }
 }
