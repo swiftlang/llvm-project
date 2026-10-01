@@ -14,8 +14,7 @@ typealias X = Int
 func main() {
   let d = unsafeBitCast(5, to: Int.self)
   let x = unsafeBitCast(5, to: X.self)
-  print("break here and do test") //%self.expect('frame variable d', substrs=['5'])
-  //%self.expect('frame variable x', substrs=['.X)', '5'])
+  print("break here")
 }
 
 main()

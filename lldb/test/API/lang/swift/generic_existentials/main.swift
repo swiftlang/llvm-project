@@ -6,16 +6,14 @@ class MyClass {
 }
 
 func f<T>(_ x : T) -> T {
-  return x //%self.expect("frame var -d run-target -- x", substrs=['(a.MyClass) x', '(x = 23)'])
-           //%self.expect("expr -d run-target -- x", substrs=['(a.MyClass) $R', '(x = 23)'])
+  return x // break 1
 }
 
 f(MyClass(23) as Any)
 f(MyClass(23) as AnyObject)
 
 func g<T>(_ x : T) -> T {
-  return x //%self.expect("frame var -d run-target -- x", substrs=['(a.MyStruct) x', '(x = 23)'])
-           //%self.expect("expr -d run-target -- x", substrs=['(a.MyStruct) $R', '(x = 23)'])
+  return x // break 2
 }
 
 struct MyStruct {
@@ -29,8 +27,7 @@ struct MyStruct {
 g(MyStruct(23) as Any)
 
 func h<T>(_ x : T) -> T {
-  return x //%self.expect("frame var -d run-target -- x", substrs=['(a.MyBigStruct) x', '(x = 23, y = 24, z = 25, w = 26)'])
-           //%self.expect("expr -d run-target -- x", substrs=['(a.MyBigStruct) $R', '(x = 23, y = 24, z = 25, w = 26)'])
+  return x // break 3
 }
 
 struct MyBigStruct {

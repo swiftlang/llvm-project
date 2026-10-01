@@ -9,8 +9,21 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-lldbinline.MakeInlineTest(__file__, globals(),
-                          decorators=[swiftTest,skipIf(oslist=['windows'])])
+
+class TestSwiftNonmodularInclude(TestBase):
+
+    @swiftTest
+    @skipIf(oslist=['windows'])
+    def test(self):
+        """Test expressions on a Clang type from a module with a nonmodular include"""
+        self.build()
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "break here", lldb.SBFileSpec("main.swift"))
+        foo = thread.GetFrameAtIndex(0).EvaluateExpression("foo")
+        self.assertSuccess(foo.GetError(), "import worked")
+        lldbutil.check_variable(self, foo.GetChildMemberWithName("i"), value="42")
