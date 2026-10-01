@@ -169,7 +169,7 @@ ValueObjectSP BorrowedStackFrame::GuessValueForAddress(addr_t addr) {
 }
 
 ValueObjectSP
-BorrowedStackFrame::GuessValueForRegisterAndOffset(ConstString reg,
+BorrowedStackFrame::GuessValueForRegisterAndOffset(llvm::StringRef reg,
                                                    int64_t offset) {
   return m_borrowed_frame_sp->GuessValueForRegisterAndOffset(reg, offset);
 }
