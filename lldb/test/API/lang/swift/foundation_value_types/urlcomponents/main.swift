@@ -13,13 +13,12 @@ import Foundation
 
 func main() {
   var urlc = URLComponents(string: "https://www.apple.com:12345/thisurl/isnotreal/itoldyou.php?page=fake")!
-  print(urlc.scheme) //% self.expect('frame variable -d run -- urlc', substrs=['urlString = "https://www.apple.com:12345/thisurl/isnotreal/itoldyou.php?page=fake"'])
-  print(urlc.host) //% self.expect('frame variable -d run --  urlc', substrs=['scheme = "https"'])
-  print(urlc.port) //% self.expect('frame variable -d run --  urlc', substrs=['host = "www.apple.com"'])
-  print(urlc.path) //% self.expect('frame variable -d run --  urlc', substrs=['port = 0x', 'Int64(12345)'])
-  print(urlc.query) //% self.expect('frame variable -d run --  urlc', substrs=['path = "/thisurl/isnotreal/itoldyou.php"'])
-  print("break here last") //% self.expect('frame variable -d run --  urlc', substrs=['query = "page=fake"'])
-  //% self.expect('expression -d run --  urlc', substrs=['urlString = "https://www.apple.com:12345/thisurl/isnotreal/itoldyou.php?page=fake"', 'scheme = "https"', 'user = nil', 'fragment = nil'])
+  print(urlc.scheme) // break 1
+  print(urlc.host) // break 2
+  print(urlc.port) // break 3
+  print(urlc.path) // break 4
+  print(urlc.query) // break 5
+  print("break 6")
 }
 
 main()

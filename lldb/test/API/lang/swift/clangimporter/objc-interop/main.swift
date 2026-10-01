@@ -10,8 +10,7 @@ func main() {
   let queue = DispatchQueue(label: label)
   print(queue)
 #endif
-  print(label) //% self.expect("fr var -- label", substrs=['lldbtest'])
-               //% self.expect("expr -- label",   substrs=['lldbtest'])
+  print(label) // break here
 }
 
 main()

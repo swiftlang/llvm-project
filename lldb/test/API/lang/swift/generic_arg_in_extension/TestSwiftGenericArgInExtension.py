@@ -9,7 +9,21 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-lldbinline.MakeInlineTest(__file__, globals(), decorators=[requireNotEmbeddedSwift, swiftTest])
+
+class TestSwiftGenericArgInExtension(TestBase):
+
+    @requireNotEmbeddedSwift
+    @swiftTest
+    def test(self):
+        """Test that a generic argument of a method in a protocol extension is resolved"""
+        self.build()
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "break here", lldb.SBFileSpec("main.swift"))
+        frame = thread.GetFrameAtIndex(0)
+        lldbutil.check_variable(self, frame.FindVariable("f"), use_dynamic=True,
+                                value="123456")
