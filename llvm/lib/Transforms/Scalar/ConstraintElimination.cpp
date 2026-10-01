@@ -190,7 +190,7 @@ struct InductionInfo {
 /// The senses in which an induction phi is monotonic, together with the
 /// direction it moves in.
 struct MonotonicInfo {
-  /// True if the phi steps by a negative constant.
+  /// True if the phi never increases.
   bool Decreasing = false;
   /// True if the phi is monotonic in the unsigned sense.
   bool Unsigned = false;
@@ -1437,8 +1437,30 @@ static auto m_IncrementOf(const PhiMatchTy &PhiM, const APInt *&Off) {
           m_c_Intrinsic<Intrinsic::sadd_with_overflow>(PhiM, m_APInt(Off)))));
 }
 
+/// Returns true if \p X <=u \p PN by construction: PN -nuw Y, PN >>u Y,
+/// PN /u Y, or the midpoint L +nuw ((PN -nuw L) >>u Y) (or /u Y).
+static bool isULEByConstruction(Value *X, Value *PN) {
+  auto IsShrOrDivOf = [](auto Op) {
+    return m_CombineOr(m_LShr(Op, m_Value()), m_UDiv(Op, m_Value()));
+  };
+  Value *L;
+  return match(X, m_NUWSub(m_Specific(PN), m_Value())) ||
+         match(X, IsShrOrDivOf(m_Specific(PN))) ||
+         match(X, m_c_NUWAdd(IsShrOrDivOf(m_NUWSub(m_Specific(PN), m_Value(L))),
+                             m_Deferred(L)));
+}
+
 MonotonicInfo State::getMonotonicityInfo(PHINode &PN, Value *Step) {
   MonotonicInfo Info;
+  // A select between PN and a value that is <=u PN never increases PN.
+  Value *X;
+  if (match(Step, m_c_Select(m_Specific(&PN), m_Value(X))) &&
+      isULEByConstruction(X, &PN)) {
+    Info.Decreasing = true;
+    Info.Unsigned = true;
+    return Info;
+  }
+
   const APInt *StepOffset = nullptr;
   if (match(Step, m_IncrementOf(m_Specific(&PN), StepOffset))) {
     Info.Decreasing = StepOffset->isNegative();
