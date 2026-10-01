@@ -99,6 +99,10 @@ ProcessSP ProcessWindows::CreateInstance(lldb::TargetSP target_sp,
 }
 
 static bool ShouldUseLLDBServer() {
+  return false;
+  // Using the in process plugin while lldb tests are being fixed on Windows.
+  // rdar://188700436
+  /*
   if (const char *env = ::getenv("LLDB_USE_LLDB_SERVER")) {
     llvm::StringRef use_lldb_server(env);
     return use_lldb_server.equals_insensitive("on") ||
@@ -107,6 +111,7 @@ static bool ShouldUseLLDBServer() {
            use_lldb_server.equals_insensitive("true");
   }
   return LLDB_ENABLE_LIBXML2;
+  */
 }
 
 void ProcessWindows::Initialize() {
