@@ -14,20 +14,15 @@ import Foundation
 func main() {
   // Data's .empty case
   var data = Data()
-  print("break here") //% self.expect('frame variable data', substrs=['0 bytes'])
-   //% self.expect('expression data', substrs=['0 bytes'])
+  print("break 1")
 
   // Data's .inline case
   data.append(Data([1,2,3]))
-  print("break here") //% self.expect('frame variable data', substrs=['3 bytes'])
-   //% self.expect('expression data', substrs=['3 bytes'])
-   //% self.expect('expression data.subdata(in: data.startIndex ..< data.index(after: data.startIndex))', substrs=['1 byte'])
+  print("break 2")
 
   // Data's .slice case
   data.append(Data(repeating: 0xFF, count: 256))
-  print("break here") //% self.expect('frame variable data', substrs=['259 bytes'])
-   //% self.expect('expression data', substrs=['259 bytes'])
-   //% self.expect('expression data.subdata(in: data.startIndex ..< data.index(after: data.startIndex))', substrs=['1 byte'])
+  print("break 3")
 
   // NOTE: Data's .large case requires a UInt32.max-sized allocation on 64-bit,
   //       and a UInt16.max-sized allocation on 32-bit. Such a large allocation

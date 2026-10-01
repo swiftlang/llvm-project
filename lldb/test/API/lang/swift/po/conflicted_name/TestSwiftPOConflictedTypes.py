@@ -9,8 +9,20 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-# rdar://185128962 (Embedded Swift: po falls back to p, so object-description output is unavailable)
-lldbinline.MakeInlineTest(__file__, globals(), decorators=[skipEmbeddedSwift, swiftTest])
+
+class TestSwiftPOConflictedTypes(TestBase):
+
+    # rdar://185128962 (Embedded Swift: po falls back to p, so object-description output is unavailable)
+    @skipEmbeddedSwift
+    @swiftTest
+    def test(self):
+        """Test po of a class whose name shadows a standard library type"""
+        self.build()
+        lldbutil.run_to_source_breakpoint(
+            self, "break here", lldb.SBFileSpec("main.swift"))
+        self.expect("po m", substrs=['Fun with mirrors'])

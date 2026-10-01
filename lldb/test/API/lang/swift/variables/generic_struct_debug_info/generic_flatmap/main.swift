@@ -34,15 +34,11 @@ struct FlatMapper<Type>
         ]
         
         let _ = tuples.flatMap { tuple in
-            return tuple //% self.expect('expr -o -d run -- tuple', substrs=['originalIndex : 0', 'filteredIndex : 0', 'name : "Coffee"', 'ID : "1"'])
-            //% self.expect('expr -d run -- tuple', substrs=['originalIndex = 0', 'filteredIndex = 0', 'name = "Coffee"', 'ID = "1"'])
-            //% self.expect('frame var -d run -- tuple', substrs=['originalIndex = 0', 'filteredIndex = 0', 'name = "Coffee"', 'ID = "1"'])
+            return tuple // break 1
         }
         
        let _ = values.flatMap { value in
-            return value //% self.expect('expr -o -d run -- value', substrs=['name : "Coffee"', 'ID : "1"'])
-            //% self.expect('expr -d run -- value', substrs=['name = "Coffee"', 'ID = "1"'])
-            //% self.expect('frame var -d run -- value', substrs=['name = "Coffee"', 'ID = "1"'])
+            return value // break 2
         }
     }
 }

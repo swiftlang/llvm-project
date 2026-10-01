@@ -16,7 +16,7 @@ class Mirror : CustomDebugStringConvertible {
 
 func main() {
   var m = Mirror()
-  print("yay I am done!") //% self.expect("po m", substrs=['Fun with mirrors'])
+  print("break here")
 }
 
 main()
