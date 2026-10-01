@@ -376,6 +376,11 @@ Used on Windows to populate the test inferior's PATH so dynamically-loaded \
 Swift runtime DLLs resolve."
 )
 
+# Failed tests are rerun on Windows (see lldbflakes.py)
+if(CMAKE_HOST_WIN32)
+  set(LLDB_TEST_LIT_ARGS --show-flakypass)
+endif()
+
 add_subdirectory(API)
 add_subdirectory(Shell)
 add_subdirectory(Unit)
@@ -389,6 +394,7 @@ configure_lit_site_cfg(
 
 add_lit_testsuite(check-lldb "Running lldb lit test suite"
   ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${LLDB_TEST_LIT_ARGS}
   DEPENDS
     lldb-api-test-deps
     lldb-shell-test-deps
@@ -400,7 +406,7 @@ add_lit_testsuite(check-lldb "Running lldb lit test suite"
 add_lit_testsuite(check-lldb-swift
   "Running swift tests"
   ${CMAKE_CURRENT_BINARY_DIR}
-  ARGS "--filter=[sS]wift"
+  ARGS "--filter=[sS]wift" ${LLDB_TEST_LIT_ARGS}
   DEPENDS
     lldb-test-deps
     lldb-unit-test-deps)

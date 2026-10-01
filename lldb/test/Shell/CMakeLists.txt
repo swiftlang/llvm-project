@@ -20,5 +20,6 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/lit-lldb-init-quiet
 
 add_lit_testsuite(check-lldb-shell "Running lldb shell test suite"
   ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${LLDB_TEST_LIT_ARGS}
   EXCLUDE_FROM_CHECK_ALL
   DEPENDS lldb-shell-test-deps)
