@@ -19,6 +19,7 @@
 #include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -160,7 +161,11 @@ Expected<ObjectRef> OnDiskCAS::storeImpl(ArrayRef<uint8_t> ComputedHash,
 }
 
 Expected<ObjectRef> OnDiskCAS::storeFromFile(StringRef Path) {
-  auto Hash = BuiltinObjectHasher<HasherT>::hashFile(Path);
+  TimeTraceScope TimeScope("OnDiskCAS::storeFromFile", Path);
+  auto Hash = [&] {
+    TimeTraceScope HashScope("BuiltinObjectHasher::hashFile");
+    return BuiltinObjectHasher<HasherT>::hashFile(Path);
+  }();
   if (LLVM_UNLIKELY(!Hash))
     return Hash.takeError();
   auto StoredID = DB->getReference(*Hash);
@@ -179,6 +184,7 @@ OnDiskCAS::getStandaloneMemoryBufferImpl(ObjectHandle Node, StringRef Name,
 }
 
 Error OnDiskCAS::exportDataToFile(ObjectHandle Node, StringRef Path) const {
+  TimeTraceScope TimeScope("OnDiskCAS::exportDataToFile", Path);
   auto FBData = DB->getInternalFileBackedObjectData(convertHandle(Node));
   if (!FBData.FileInfo.has_value())
     return BuiltinCAS::exportDataToFile(Node, Path);

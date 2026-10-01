@@ -17,6 +17,7 @@
 #include "llvm/CAS/Utils.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <optional>
 
@@ -212,6 +213,12 @@ canonicalizeForCaching(const llvm::cas::ObjectStore &CAS,
       FrontendOpts.DisableCachedCompileJobReplay;
   FrontendOpts.DisableCachedCompileJobReplay = false;
   FrontendOpts.IncludeTimestamps = false;
+  // Keep time-trace settings out of the cache key: they change only the
+  // trace, not the output, and with them a traced compile or one into another
+  // directory would miss.
+  FrontendOpts.TimeTracePath.clear();
+  FrontendOpts.TimeTraceGranularity = FrontendOptions().TimeTraceGranularity;
+  FrontendOpts.TimeTraceVerbose = false;
   std::swap(Opts.PathPrefixMappings, FrontendOpts.PathPrefixMappings);
 
   // Hide the CAS configuration, canonicalizing it to keep the path to the
@@ -248,6 +255,7 @@ clang::canonicalizeAndCreateCacheKeys(ObjectStore &CAS, ActionCache &Cache,
                                       DiagnosticsEngine &Diags,
                                       CompilerInvocation &CI,
                                       CompileJobCachingOptions &Opts) {
+  llvm::TimeTraceScope TimeScope("canonicalizeAndCreateCacheKeys");
   Opts = canonicalizeForCaching(CAS, CI.getFrontendOpts(), CI.getCASOpts());
   auto CacheKey = CI.withCowRef<std::optional<CASID>>(
       [&](const CowCompilerInvocation &CowCI) {

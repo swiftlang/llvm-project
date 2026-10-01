@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CAS/BuiltinObjectHasher.h"
 #include "llvm/CAS/UnifiedOnDiskCache.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -64,6 +65,7 @@ const BuiltinCASContext &BuiltinCASContext::getDefaultContext() {
 
 Expected<ObjectRef> BuiltinCAS::store(ArrayRef<ObjectRef> Refs,
                                       ArrayRef<char> Data) {
+  TimeTraceScope TimeScope("BuiltinCAS::store");
   return storeImpl(BuiltinObjectHasher<HasherT>::hashObject(*this, Refs, Data),
                    Refs, Data);
 }

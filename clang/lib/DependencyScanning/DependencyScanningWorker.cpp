@@ -26,6 +26,7 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/AdvisoryLock.h"
 #include "llvm/Support/CrashRecoveryContext.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
 #include <mutex>
@@ -964,6 +965,8 @@ class CompilerInstanceWithContext {
 
   bool initializeScanInstance(DependencyActionController &Controller,
                               DiagnosticConsumer *DiagConsumer) {
+    llvm::TimeTraceScope TimeScope(
+        "CompilerInstanceWithContext::initializeScanInstance");
     assert(OriginalInvocation && ScanFS &&
            "OriginalInvocation and ScanFS must be set before this call");
 
@@ -1215,6 +1218,8 @@ public:
   std::shared_ptr<ModuleDepCollector>
   scanTranslationUnit(DependencyConsumer &Consumer,
                       DependencyActionController &Controller) {
+    llvm::TimeTraceScope TimeScope(
+        "CompilerInstanceWithContext::scanTranslationUnit");
     assert(CIPtr && "CIPtr must be initialized before calling this method");
     auto &CI = *CIPtr;
 

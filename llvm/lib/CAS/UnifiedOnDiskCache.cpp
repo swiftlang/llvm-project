@@ -93,6 +93,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <limits>
 #include <optional>
@@ -223,6 +224,7 @@ Error UnifiedOnDiskCache::validateActionCache() const {
 static Error validateInProcess(StringRef RootPath, StringRef HashName,
                                unsigned HashByteSize, bool CheckHash,
                                OnDiskGraphDB::HashingFuncT HashFn) {
+  TimeTraceScope TimeScope("validateInProcess", RootPath);
   std::shared_ptr<UnifiedOnDiskCache> UniDB;
   if (Error E = UnifiedOnDiskCache::open(RootPath, std::nullopt, HashName,
                                          HashByteSize)
@@ -411,6 +413,7 @@ static Error markAllDBDirsCorrupt(StringRef RootPath) {
 Expected<ValidationResult> UnifiedOnDiskCache::validateIfNeeded(
     StringRef RootPath, StringRef HashName, unsigned HashByteSize,
     bool CheckHash, OnDiskGraphDB::HashingFuncT HashFn, bool ForceValidation) {
+  TimeTraceScope TimeScope("UnifiedOnDiskCache::validateIfNeeded", RootPath);
   std::unique_ptr<LockedValidationFile> VF;
   if (Error E = LockedValidationFile::open(RootPath).moveInto(VF))
     return std::move(E);
@@ -505,6 +508,7 @@ Expected<std::unique_ptr<UnifiedOnDiskCache>>
 UnifiedOnDiskCache::open(StringRef RootPath, std::optional<uint64_t> SizeLimit,
                          StringRef HashName, unsigned HashByteSize,
                          OnDiskGraphDB::FaultInPolicy FaultInPolicy) {
+  TimeTraceScope TimeScope("UnifiedOnDiskCache::open", RootPath);
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
   if (std::error_code EC = sys::fs::create_directories(RootPath))
@@ -642,6 +646,7 @@ Error UnifiedOnDiskCache::close(bool CheckSizeLimit) {
 
   if (LockFD == -1)
     return Error::success(); // already closed.
+  TimeTraceScope TimeScope("UnifiedOnDiskCache::close", RootPath);
   llvm::scope_exit CloseLock([&]() {
     assert(LockFD >= 0);
     sys::fs::file_t LockFile = sys::fs::convertFDToNativeFile(LockFD);

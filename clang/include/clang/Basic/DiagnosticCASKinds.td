@@ -56,6 +56,8 @@ def err_clang_cache_missing_compiler_command: Error<
   "missing compiler command for clang-cache">;
 def err_clang_cache_scanserve_missing_args: Error<
   "missing arguments for dep-scanning server mode">;
+def err_clang_cache_env_var: Error<
+  "environment variable %0 has invalid value %1">;
 def err_caching_backend_fail: Error<
   "caching backend error: %0">, DefaultFatal;
 def err_caching_output_non_deterministic: Error<

@@ -26,6 +26,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -71,6 +72,7 @@ OnDiskKeyValueDB::open(StringRef Path, StringRef HashName, unsigned KeySize,
                        StringRef ValueName, size_t ValueSize,
                        UnifiedOnDiskCache *Cache,
                        std::shared_ptr<OnDiskCASLogger> Logger) {
+  TimeTraceScope TimeScope("OnDiskKeyValueDB::open", Path);
   if (std::error_code EC = sys::fs::create_directories(Path))
     return createFileError(Path, EC);
 

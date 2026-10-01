@@ -26,6 +26,7 @@
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/ScopedDurationTimer.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/VirtualOutputBackends.h"
 
 using namespace clang;
@@ -299,6 +300,7 @@ std::optional<int> CompileJobCache::initialize(CompilerInstance &Clang) {
   if (!CacheCompileJob)
     return std::nullopt;
 
+  llvm::TimeTraceScope TimeScope("CompileJobCache::initialize");
   std::tie(CAS, Cache) = Clang.getOrCreateCASDatabases();
   if (!CAS || !Cache)
     return 1; // Exit with error!
@@ -395,6 +397,7 @@ Expected<bool> ObjectStoreCachingOutputs::tryReplayCachedResult(
 
   std::optional<llvm::cas::CASID> Result;
   {
+    llvm::TimeTraceScope TimeScope("Backend Key Query");
     llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
       Diags.Report(diag::remark_compile_job_cache_timing_backend_key_query)
           << llvm::format("%.6fs", Seconds);
@@ -411,6 +414,7 @@ Expected<bool> ObjectStoreCachingOutputs::tryReplayCachedResult(
     return false;
   }
 
+  llvm::TimeTraceScope TimeScope("Backend Load Artifacts");
   llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
     Diags.Report(diag::remark_compile_job_cache_timing_backend_load)
         << llvm::format("%.6fs", Seconds);
@@ -440,6 +444,7 @@ CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
   if (!CacheCompileJob)
     return std::nullopt;
 
+  llvm::TimeTraceScope TimeScope("CompileJobCache::tryReplayCachedResult");
   DiagnosticsEngine &Diags = Clang.getDiagnostics();
 
   assert(ResultCacheKey.has_value() && "ResultCacheKey not initialized?");
@@ -513,6 +518,8 @@ void CompileJobCache::CachingOutputs::stopDiagnosticsCapture() {
 
 Error CompileJobCache::CachingOutputs::replayCachedDiagnostics(
     StringRef DiagsData) {
+  llvm::TimeTraceScope TimeScope(
+      "CompileJobCache::CachingOutputs::replayCachedDiagnostics");
   DiagnosticConsumer &Consumer = *Clang.getDiagnostics().getClient();
   Consumer.BeginSourceFile(Clang.getLangOpts());
   if (Error E = DiagProcessor->replayCachedDiagnostics(DiagsData, Consumer))
@@ -542,6 +549,7 @@ bool CompileJobCache::finishComputedResult(CompilerInstance &Clang,
   if (!CacheCompileJob)
     return Success;
 
+  llvm::TimeTraceScope TimeScope("CompileJobCache::finishComputedResult");
   CacheBackend->stopDiagnosticsCapture();
 
   // Don't cache failed builds.
@@ -679,6 +687,7 @@ Expected<bool> CompileJobCache::replayCachedResult(
 
 Expected<llvm::cas::ObjectRef> ObjectStoreCachingOutputs::writeOutputs(
     const llvm::cas::CASID &ResultCacheKey) {
+  llvm::TimeTraceScope TimeScope("ObjectStoreCachingOutputs::writeOutputs");
   DiagnosticsEngine &Diags = Clang.getDiagnostics();
   llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
     Diags.Report(diag::remark_compile_job_cache_timing_backend_store)
@@ -741,6 +750,7 @@ Error ObjectStoreCachingOutputs::finishComputedResult(
 
   // Skip caching if requested.
   if (!SkipCache) {
+    llvm::TimeTraceScope TimeScope("Backend Key Update");
     DiagnosticsEngine &Diags = Clang.getDiagnostics();
     llvm::ScopedDurationTimer ScopedTime([&Diags](double Seconds) {
       Diags.Report(diag::remark_compile_job_cache_timing_backend_key_update)
@@ -774,11 +784,14 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
     return false;
 
   std::optional<clang::cas::CompileJobCacheResult> Result;
-  auto Schema = clang::cas::CompileJobResultSchema::create(*CAS);
-  if (!Schema)
-    return Schema.takeError();
-  if (Error E = Schema->load(ResultID).moveInto(Result))
-    return std::move(E);
+  {
+    llvm::TimeTraceScope TimeScope("CompileJobCache Load Result");
+    auto Schema = clang::cas::CompileJobResultSchema::create(*CAS);
+    if (!Schema)
+      return Schema.takeError();
+    if (Error E = Schema->load(ResultID).moveInto(Result))
+      return std::move(E);
+  }
 
   return replayCachedResult(ResultCacheKey, *Result, JustComputedResult);
 }
@@ -817,13 +830,17 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
       // The output may be always generated but not needed with this invocation.
       return Error::success(); // continue
 
+    llvm::TimeTraceScope TimeScope("CompileJobCache Write Output", Path);
+
     // Always create parent directory of outputs, since it is hard to precisely
     // match which outputs rely on creating parents and the order outputs are
     // replayed in, in case a previous output would create the parent
     // (e.g. a .pcm and .diag file in the same directory).
     StringRef ParentPath = llvm::sys::path::parent_path(Path);
-    if (!ParentPath.empty())
+    if (!ParentPath.empty()) {
+      llvm::TimeTraceScope DirScope("CompileJobCache Create Directories");
       llvm::sys::fs::create_directories(ParentPath);
+    }
 
     bool IsOutputFile = O.Kind == OutputKind::MainOutput;
 
@@ -865,6 +882,7 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
       } else {
         *Output << Obj->getData();
       }
+      llvm::TimeTraceScope KeepScope("CompileJobCache Keep Output");
       if (Error E = Output->keep())
         return E;
     }

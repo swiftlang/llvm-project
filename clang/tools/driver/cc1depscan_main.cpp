@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CacheLauncherMode.h"
 #include "cc1depscanProtocol.h"
 #include "clang/Basic/DiagnosticCAS.h"
 #include "clang/Basic/DiagnosticDriver.h"
@@ -19,6 +20,7 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
+#include "clang/Options/OptionUtils.h"
 #include "clang/Options/Options.h"
 #include "clang/Tooling/DependencyScanningTool.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -33,6 +35,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/BLAKE3.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -44,10 +47,10 @@
 #include "llvm/Support/ScopedDurationTimer.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ThreadPool.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/VirtualOutputBackends.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/raw_socket_stream.h"
-#include "llvm/Support/ConvertUTF.h"
 #include <chrono>
 #include <mutex>
 #include <optional>
@@ -520,6 +523,7 @@ static int scanAndUpdateCC1Inline(
     StringRef WorkingDirectory, SmallVectorImpl<const char *> &OutputArgs,
     llvm::function_ref<const char *(const Twine &)> SaveArg,
     const CASOptions &CASOpts, DiagnosticsEngine &Diag, std::string &RootID) {
+  llvm::TimeTraceScope TimeScope("scanAndUpdateCC1Inline");
   auto [DB, Cache] = CASOpts.createDatabases(Diag);
   if (!DB || !Cache)
     return 1;
@@ -563,6 +567,7 @@ static int scanAndUpdateCC1UsingDaemon(
     llvm::function_ref<const char *(const Twine &)> SaveArg,
     std::string &Root) {
   using namespace clang::cc1depscand;
+  llvm::TimeTraceScope TimeScope("scanAndUpdateCC1UsingDaemon", Path);
   auto reportScanFailure = [&](Error E) {
     Diag.Report(diag::err_cas_depscan_failed) << std::move(E);
     return 1;
@@ -572,9 +577,12 @@ static int scanAndUpdateCC1UsingDaemon(
 
   bool NoSpawnDaemon = (bool)Sharing.Path;
   // llvm::dbgs() << "connecting to daemon...\n";
-  auto Daemon = NoSpawnDaemon
-                    ? ScanDaemon::connectToDaemonAndShakeHands(Path)
-                    : ScanDaemon::constructAndShakeHands(Path, Exec, Sharing);
+  auto Daemon = [&] {
+    llvm::TimeTraceScope TimeScope("Depscan Connect");
+    return NoSpawnDaemon
+               ? ScanDaemon::connectToDaemonAndShakeHands(Path)
+               : ScanDaemon::constructAndShakeHands(Path, Exec, Sharing);
+  }();
   if (!Daemon)
     return reportScanFailure(Daemon.takeError());
   CC1DepScanDProtocol Comms(Daemon->getStream());
@@ -590,8 +598,11 @@ static int scanAndUpdateCC1UsingDaemon(
   StringRef FailedReason;
   StringRef RootID;
   StringRef DiagOut;
-  auto E = Comms.getScanResult(Saver, Result, FailedReason, RootID, RawNewArgs,
+  auto E = [&] {
+    llvm::TimeTraceScope TimeScope("Depscan Get Scan Result");
+    return Comms.getScanResult(Saver, Result, FailedReason, RootID, RawNewArgs,
                                DiagOut);
+  }();
   // Send the diagnostics to std::err.
   llvm::errs() << DiagOut;
   if (E)
@@ -743,6 +754,15 @@ int cc1depscan_main(ArrayRef<const char *> Argv, const char *Argv0,
     return 1;
   }
 
+  if (Args.hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ) &&
+      !llvm::timeTraceProfilerEnabled())
+    llvm::timeTraceProfilerInitialize(
+        getLastArgIntValue(Args, options::OPT_ftime_trace_granularity_EQ, 500,
+                           Diags),
+        Argv0, Args.hasArg(options::OPT_ftime_trace_verbose));
+
+  llvm::TimeTraceScope TimeScope("cc1depscan_main");
+
   auto *CC1Args = Args.getLastArg(clang::options::OPT_cc1_args);
   if (!CC1Args) {
     llvm::errs() << "missing -cc1-args option\n";
@@ -824,6 +844,7 @@ struct ScanServer {
   int PidFD = -1;
   /// \p std::nullopt means it runs indefinitely.
   std::optional<unsigned> TimeoutSeconds;
+  std::optional<unsigned> TimeTraceGranularity;
   std::unique_ptr<llvm::ListeningSocket> Listener;
   std::atomic<bool> ShutDown{false};
 
@@ -884,6 +905,7 @@ findLLVMCasBinary(const char *Argv0, llvm::SmallVectorImpl<char> &Storage) {
 
 
 void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
+  llvm::TimeTraceScope TimeScope("ScanServer::start");
   // Parse CAS options and validate if needed.
   DiagnosticOptions DiagOpts;
   DiagnosticsEngine Diags(new DiagnosticIDs(), DiagOpts);
@@ -910,6 +932,8 @@ void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
       llvm::consumeError(std::move(Err));
       return;
     }
+
+    llvm::TimeTraceScope TimeScope("Depscan Validate CAS", CASPath);
     bool Forced = getenv("LLVM_CAS_FORCE_VALIDATION");
     // If `llvm-cas` tool can be located, validate out-of-process. Otherwise do
     // in-process validation.
@@ -1008,6 +1032,13 @@ int ScanServer::listen() {
   auto ServiceLoop = [this, &Service, &NumRunning, &Start,
                       &SecondsSinceLastClose, &SharedOS,
                       &AcceptLock](unsigned I) {
+    if (TimeTraceGranularity)
+      llvm::timeTraceProfilerInitialize(*TimeTraceGranularity, Argv0);
+    llvm::scope_exit FinishTimeTrace([] {
+      if (llvm::timeTraceProfilerEnabled())
+        llvm::timeTraceProfilerFinishThread();
+    });
+
     std::optional<tooling::DependencyScanningTool> Tool;
     SmallString<256> Message;
     while (true) {
@@ -1030,6 +1061,7 @@ int ScanServer::listen() {
         stream = std::move(*fd);
       }
 
+      llvm::TimeTraceScope RequestScope("Depscan Request");
       cc1depscand::CC1DepScanDProtocol Comms(*stream);
 
       // Explicitly close the socket and clear any errors before the stream is
@@ -1345,6 +1377,21 @@ int cc1depscand_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainA
   openAndReplaceFD(2, LogErrPath);
 #endif
 
+  Server.TimeTraceGranularity = getClangCacheTimeTraceGranularity();
+  if (Server.TimeTraceGranularity)
+    llvm::timeTraceProfilerInitialize(*Server.TimeTraceGranularity, Argv0);
+
   Server.start(/*Exclusive*/ false, CASArgs);
-  return Server.listen();
+  int Result = Server.listen();
+
+  if (Server.TimeTraceGranularity) {
+    // The trace goes next to the socket unless a path is given.
+    std::string TracePath =
+        llvm::sys::Process::GetEnv("CLANG_CACHE_SCAN_DAEMON_TIME_TRACE_PATH")
+            .value_or("");
+    if (Error E = llvm::timeTraceProfilerWrite(TracePath, Server.BasePath))
+      logAllUnhandledErrors(std::move(E), llvm::errs());
+    llvm::timeTraceProfilerCleanup();
+  }
+  return Result;
 }

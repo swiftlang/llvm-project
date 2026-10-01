@@ -19,6 +19,7 @@
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/PrefixMappingFileSystem.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace clang;
 using namespace dependencies;
@@ -358,6 +359,7 @@ bool IncludeTreeActionController::initialize(
 
 bool IncludeTreeActionController::finalize(
     CompilerInstance &ScanInstance, CowCompilerInvocation &NewInvocation) {
+  llvm::TimeTraceScope TimeScope("IncludeTreeActionController::finalize");
   auto GetInputCacheKey = [&]() -> std::optional<StringRef> {
     if (NewInvocation.getFrontendOpts().Inputs.size() != 1)
       return {};
@@ -655,6 +657,7 @@ getIncludeTreeModule(cas::ObjectStore &DB, Module *M) {
 Expected<cas::IncludeTreeRoot> IncludeTreeBuilder::finishIncludeTree(
     CompilerInstance &ScanInstance,
     const CompilerInvocationBase &NewInvocation) {
+  llvm::TimeTraceScope TimeScope("IncludeTreeBuilder::finishIncludeTree");
   if (ErrorToReport)
     return std::move(*ErrorToReport);
 
