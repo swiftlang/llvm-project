@@ -72,14 +72,16 @@ class CompileUnitAPITestCase(TestBase):
         self.assertTrue(main_cu.IsValid(), "Main executable CU is not valid")
         return main_cu
 
+    # DW_AT_APPLE_optimized is only emitted when tuning for LLDB, which is
+    # not the default outside of Darwin.
     def test_is_optimized(self):
         """A compile unit built with optimization reports it."""
-        self.build(dictionary={"CFLAGS_EXTRAS": "-O1"})
+        self.build(dictionary={"CFLAGS_EXTRAS": "-O1 -glldb"})
         self.assertTrue(self.find_main_compile_unit().GetIsOptimized())
 
     def test_is_not_optimized(self):
         """A compile unit built without optimization reports it."""
-        self.build()
+        self.build(dictionary={"CFLAGS_EXTRAS": "-glldb"})
         self.assertFalse(self.find_main_compile_unit().GetIsOptimized())
 
     def test_id_is_unique_per_module(self):
