@@ -10,11 +10,12 @@
 #define LLVM_TRANSFORMS_INSTRUMENTATION_SOFTPOINTERAUTH_H
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
 struct SoftPointerAuthPass : public PassInfoMixin<SoftPointerAuthPass> {
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // end namespace llvm
