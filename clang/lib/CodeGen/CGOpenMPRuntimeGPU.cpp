@@ -1725,10 +1725,8 @@ void CGOpenMPRuntimeGPU::emitReduction(
   llvm::Value *RTLoc = emitUpdateLocation(CGF, Loc);
 
   using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
-  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getParent(),
-                         CGF.AllocaInsertPt->getIterator());
-  InsertPointTy CodeGenIP(CGF.Builder.GetInsertBlock(),
-                          CGF.Builder.GetInsertPoint());
+  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getIterator());
+  InsertPointTy CodeGenIP(CGF.Builder.GetInsertPoint());
   llvm::OpenMPIRBuilder::LocationDescription OmpLoc(
       CodeGenIP, CGF.SourceLocToDebugLoc(Loc));
   llvm::SmallVector<llvm::OpenMPIRBuilder::ReductionInfo, 2> ReductionInfos;
@@ -1779,8 +1777,7 @@ void CGOpenMPRuntimeGPU::emitReduction(
 
       CGF.CurFn = CurFn;
 
-      return InsertPointTy(CGF.Builder.GetInsertBlock(),
-                           CGF.Builder.GetInsertPoint());
+      return CGF.Builder.GetInsertPoint();
     };
     ReductionInfos.emplace_back(llvm::OpenMPIRBuilder::ReductionInfo(
         ElementType, Variable, PrivateVariable, EvalKind,
