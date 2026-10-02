@@ -6302,7 +6302,14 @@ namespace {
         Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
         assert(TInfo);
         // TO_UPSTREAM(BoundsSafety): initializeFullCopy -> copy
-        TL.getValueLoc().copy(TInfo->getTypeLoc());
+        TypeLoc ValueLoc = TL.getValueLoc();
+        TypeLoc ParsedLoc = TInfo->getTypeLoc();
+        while (ValueLoc.getTypeLocClass() != ParsedLoc.getTypeLocClass()) {
+          AttributedTypeLoc ATL = ValueLoc.castAs<AttributedTypeLoc>();
+          fillAttributedTypeLoc(ATL, State);
+          ValueLoc = ATL.getModifiedLoc();
+        }
+        ValueLoc.copy(ParsedLoc);
       } else {
         TL.setKWLoc(DS.getAtomicSpecLoc());
         // No parens, to indicate this was spelled as an _Atomic qualifier.
@@ -9377,7 +9384,14 @@ public:
       return AttrOnlyModeType;
     }
 
-    return Ctx.getPointerType(PTy->getPointeeType(), FAttr);
+    QualType NewPtrTy = Ctx.getPointerType(PTy->getPointeeType(), FAttr);
+
+    if (Kind == ParsedAttr::AT_PtrSingle) {
+      const Attr *A = createSimpleAttr<PtrSingleAttr>(Ctx, PAttr);
+      return state.getAttributedType(A, NewPtrTy, NewPtrTy);
+    }
+
+    return NewPtrTy;
   }
 
   QualType GetTypeWithAttrForAttributeOnlyMode(QualType T) const {
