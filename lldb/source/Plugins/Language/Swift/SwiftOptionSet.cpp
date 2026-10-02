@@ -215,7 +215,8 @@ bool lldb_private::formatters::swift::SwiftOptionSetSummaryProvider::
       ss << "rawValue = ";
     ss << "0x" << string;
   }
-  ss << ']';
+  if (any_match)
+    ss << ']';
 
   dest.assign(ss.GetData());
   return true;
