@@ -5,11 +5,22 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${LLVM_COMMON_CMAKE_UTILS}/Modules")
 
 option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
+# BEGIN SWIFT MOD
+option(LLDB_LINK_SWIFT_COMPILER_DYLIB "Link against SwiftCompilerShared" OFF)
+if (LLDB_LINK_SWIFT_COMPILER_DYLIB AND NOT LLDB_ENABLE_SWIFT_SUPPORT)
+  message(FATAL_ERROR "Cannot link swift compiler dylib if swift support is disabled.")
+endif()
+# END SWIFT MOD
 
 find_package(LLVM REQUIRED CONFIG HINTS ${LLVM_DIR} NO_CMAKE_FIND_ROOT_PATH)
 find_package(Clang REQUIRED CONFIG HINTS ${Clang_DIR} ${LLVM_DIR}/../clang NO_CMAKE_FIND_ROOT_PATH)
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   find_package(Swift REQUIRED CONFIG HINTS "${Swift_DIR}" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    if (NOT TARGET SwiftCompilerShared)
+      message(FATAL_ERROR "Cannot find target SwiftCompilerShared for LLDB_LINK_SWIFT_COMPILER_DYLIB")
+    endif()
+  endif()
 endif()
 
 # We set LLVM_CMAKE_DIR so that GetSVN.cmake is found correctly when building SVNVersion.inc
