@@ -190,7 +190,7 @@ function(add_lldb_library name)
   cmake_parse_arguments(PARAM
     "MODULE;SHARED;STATIC;OBJECT;PLUGIN;FRAMEWORK;NO_INTERNAL_DEPENDENCIES;NO_PLUGIN_DEPENDENCIES"
     "INSTALL_PREFIX"
-    "LINK_LIBS;CLANG_LIBS;ALLOWED_INTERNAL_DEPENDENCIES"
+    "LINK_LIBS;CLANG_LIBS;LINK_COMPONENTS;SWIFT_LIBS;ALLOWED_INTERNAL_DEPENDENCIES"
     ${ARGN})
 
   foreach(link_lib ${PARAM_LINK_LIBS})
@@ -201,6 +201,10 @@ function(add_lldb_library name)
 
     if (link_lib MATCHES "^clang")
       message(FATAL_ERROR "Library ${name} links against clang library ${link_lib} via LINK_LIBS but must be added via CLANG_LIBS")
+    endif()
+
+    if (link_lib MATCHES "^swift" OR link_lib MATCHES "^Swift")
+      message(FATAL_ERROR "Library ${name} links against swift library ${link_lib} via LINK_LIBS but must be added via SWIFT_LIBS")
     endif()
 
     get_target_property(_is_llvm_component ${link_lib} LLVM_COMPONENT)
@@ -311,19 +315,44 @@ function(add_lldb_library name)
     set(pass_NO_INSTALL_RPATH NO_INSTALL_RPATH)
   endif()
 
+  # The component libraries are in the SwiftCompilerDylib, do not embed if
+  # linking against it.
+  set(_link_components_param LINK_COMPONENTS ${PARAM_LINK_COMPONENTS})
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    set(_link_components_param)
+  endif()
+
+  # LLVMDebuginfod and LLVMHTTP are not component libraries but are also in the
+  # SwiftCompilerDylib.
+  set(_link_libs ${PARAM_LINK_LIBS})
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    list(FILTER _link_libs EXCLUDE REGEX "LLVMDebuginfod|LLVMHTTP")
+  endif()
+
   llvm_add_library(${name} ${libkind}
     ${PARAM_UNPARSED_ARGUMENTS}
-    LINK_LIBS ${PARAM_LINK_LIBS}
+    LINK_LIBS ${_link_libs}
+    ${_link_components_param}
     ${pass_NO_INSTALL_RPATH}
   )
 
   # Mark whether this library transitively pulls in liblldb.
   _lldb_propagate_links_liblldb(${name} "${PARAM_LINK_LIBS}")
 
-  if(CLANG_LINK_CLANG_DYLIB)
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    set(_should_link_compiler_dylib FALSE)
+    if (PARAM_LINK_COMPONENTS OR PARAM_CLANG_LIBS OR PARAM_SWIFT_LIBS)
+      set(_should_link_compiler_dylib TRUE)
+    endif()
+    if (_should_link_compiler_dylib)
+      target_link_libraries(${name} PRIVATE SwiftCompilerShared)
+    endif()
+  elseif(CLANG_LINK_CLANG_DYLIB)
     target_link_libraries(${name} PRIVATE clang-cpp)
+    target_link_libraries(${name} PRIVATE ${PARAM_SWIFT_LIBS})
   else()
     target_link_libraries(${name} PRIVATE ${PARAM_CLANG_LIBS})
+    target_link_libraries(${name} PRIVATE ${PARAM_SWIFT_LIBS})
   endif()
 
   # A target cannot be changed to a FRAMEWORK after calling install() because
@@ -463,7 +492,7 @@ function(add_lldb_executable name)
   cmake_parse_arguments(ARG
     "GENERATE_INSTALL"
     "INSTALL_PREFIX"
-    "LINK_LIBS;CLANG_LIBS;LINK_COMPONENTS;BUILD_RPATH;INSTALL_RPATH"
+    "LINK_LIBS;CLANG_LIBS;SWIFT_LIBS;LINK_COMPONENTS;BUILD_RPATH;INSTALL_RPATH"
     ${ARGN}
     )
 
@@ -471,13 +500,21 @@ function(add_lldb_executable name)
     set(pass_NO_INSTALL_RPATH NO_INSTALL_RPATH)
   endif()
 
-  list(APPEND LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
+  if (NOT LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    list(APPEND LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
+  endif()
+
   add_llvm_executable(${name}
     ${pass_NO_INSTALL_RPATH}
     ${ARG_UNPARSED_ARGUMENTS}
   )
 
-  target_link_libraries(${name} PRIVATE ${ARG_LINK_LIBS})
+  set(_link_libs ${ARG_LINK_LIBS})
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    list(FILTER _link_libs EXCLUDE REGEX "LLVMDebuginfod|LLVMHTTP")
+  endif()
+  target_link_libraries(${name} PRIVATE ${_link_libs})
+
   if(WIN32)
     list(FIND ARG_LINK_LIBS liblldb LIBLLDB_INDEX)
     if(NOT LIBLLDB_INDEX EQUAL -1)
@@ -498,10 +535,21 @@ function(add_lldb_executable name)
       endif()
     endif()
   endif()
-  if(CLANG_LINK_CLANG_DYLIB)
+
+  if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+    set(_should_link_compiler_dylib FALSE)
+    if (ARG_LINK_COMPONENTS OR ARG_CLANG_LIBS OR ARG_SWIFT_LIBS)
+      set(_should_link_compiler_dylib TRUE)
+    endif()
+    if (_should_link_compiler_dylib)
+      target_link_libraries(${name} PRIVATE SwiftCompilerShared)
+    endif()
+  elseif(CLANG_LINK_CLANG_DYLIB)
     target_link_libraries(${name} PRIVATE clang-cpp)
+    target_link_libraries(${name} PRIVATE ${ARG_SWIFT_LIBS})
   else()
     target_link_libraries(${name} PRIVATE ${ARG_CLANG_LIBS})
+    target_link_libraries(${name} PRIVATE ${ARG_SWIFT_LIBS})
   endif()
 
   if (ARG_BUILD_RPATH)
