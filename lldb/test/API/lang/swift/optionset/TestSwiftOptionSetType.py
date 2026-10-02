@@ -58,6 +58,6 @@ class TestSwiftOptionSetType(TestBase):
                                 summary="[.firstEqual, 0x1]")
 
         lldbutil.check_variable(self, frame.FindVariable("sdk_option_nonevalid"),
-                                summary="rawValue = 0xC]")
+                                summary="rawValue = 0xC")
         lldbutil.check_variable(self, self.expr(frame, "sdk_option_nonevalid"),
-                                summary="rawValue = 0xC]")
+                                summary="rawValue = 0xC")
