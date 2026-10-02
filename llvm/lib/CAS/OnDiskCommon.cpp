@@ -40,8 +40,7 @@
 #endif
 
 #ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
+#include "llvm/Support/Windows/WindowsSupport.h"
 #endif
 
 using namespace llvm;
@@ -245,13 +244,13 @@ Expected<uint64_t> cas::ondisk::getBootTime() {
     return createFileError("/proc", EC);
   return Status.getLastModificationTime().time_since_epoch().count();
 #elif defined(_WIN32)
-  // Windows: Calculate boot time from current time minus uptime
-  // GetTickCount64() returns milliseconds since boot
-  auto now = std::chrono::system_clock::now();
-  ULONGLONG uptimeMs = GetTickCount64();
-  auto bootTime = now - std::chrono::milliseconds(uptimeMs);
+  // Compute it from the current time and the time since boot, which includes
+  // time spent asleep.
+  auto Uptime = std::chrono::milliseconds(GetTickCount64());
+  auto Boot = std::chrono::system_clock::now() - Uptime;
   return std::chrono::duration_cast<std::chrono::seconds>(
-      bootTime.time_since_epoch()).count();
+             Boot.time_since_epoch())
+      .count();
 #else
   return 0;
 #endif
