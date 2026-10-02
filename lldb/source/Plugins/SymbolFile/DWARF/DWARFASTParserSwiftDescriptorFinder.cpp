@@ -572,13 +572,6 @@ DWARFASTParserSwift::getBuiltinTypeDescriptor(
       type.GetMangledTypeName());
 }
 
-std::unique_ptr<swift::reflection::MultiPayloadEnumDescriptorBase>
-DWARFASTParserSwift::getMultiPayloadEnumDescriptor(
-    const swift::reflection::TypeRef *TR) {
-  // Remote mirrors is able to calculate type information without needing a MultiPayloadEnumDescriptor.
-  return nullptr;
-}
-
 namespace {
 DWARFDIE FindSuperClassDIE(DWARFDIE &die) {
   const auto inheritance_die_it =
