@@ -21977,20 +21977,18 @@ void BoUpSLP::setInsertPointAfterBundle(const TreeEntry *E) {
       (GatheredLoadsEntriesFirst.has_value() &&
        E->Idx >= *GatheredLoadsEntriesFirst && !E->isGather() &&
        E->getOpcode() == Instruction::Load)) {
-    Builder.SetInsertPoint(LastInst->getParent(), LastInstIt);
+    Builder.SetInsertPoint(LastInstIt);
   } else {
     // Set the insertion point after the last instruction in the bundle. Set the
     // debug location to Front.
-    Builder.SetInsertPoint(
-        LastInst->getParent(),
-        LastInst->getNextNode()->getIterator());
+    Builder.SetInsertPoint(LastInst->getNextNode()->getIterator());
     if (Instruction *Res = LastInstructionToPos.lookup(LastInst)) {
-      Builder.SetInsertPoint(LastInst->getParent(), Res->getIterator());
+      Builder.SetInsertPoint(Res->getIterator());
     } else {
       Res = Builder.CreateAlignedLoad(Builder.getPtrTy(),
                                       PoisonValue::get(Builder.getPtrTy()),
                                       MaybeAlign());
-      Builder.SetInsertPoint(LastInst->getParent(), Res->getIterator());
+      Builder.SetInsertPoint(Res->getIterator());
       eraseInstruction(Res);
       if (E->State != TreeEntry::SplitVectorize)
         LastInstructionToPos.try_emplace(LastInst, Res);
@@ -23623,15 +23621,13 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
               E != VectorizableTree.front().get() || E->UserTreeIndex) &&
              "PHI reordering is free.");
       auto *PH = cast<PHINode>(VL0);
-      Builder.SetInsertPoint(PH->getParent(),
-                             PH->getParent()->getFirstNonPHIIt());
+      Builder.SetInsertPoint(PH->getParent()->getFirstNonPHIIt());
       Builder.SetCurrentDebugLocation(getDebugLocFromPHI(*PH));
       PHINode *NewPhi = Builder.CreatePHI(VecTy, PH->getNumIncomingValues());
       Value *V = NewPhi;
 
       // Adjust insertion point once all PHI's have been generated.
-      Builder.SetInsertPoint(PH->getParent(),
-                             PH->getParent()->getFirstInsertionPt());
+      Builder.SetInsertPoint(PH->getParent()->getFirstInsertionPt());
       Builder.SetCurrentDebugLocation(getDebugLocFromPHI(*PH));
 
       V = FinalShuffle(V, E);
@@ -24723,10 +24719,9 @@ Value *BoUpSLP::vectorizeTree(
   }
 
   if (ReductionRoot)
-    Builder.SetInsertPoint(ReductionRoot->getParent(),
-                           ReductionRoot->getIterator());
+    Builder.SetInsertPoint(ReductionRoot->getIterator());
   else
-    Builder.SetInsertPoint(&F->getEntryBlock(), F->getEntryBlock().begin());
+    Builder.SetInsertPoint(F->getEntryBlock().begin());
 
   // Vectorize gather operands of the nodes with the external uses only.
   SmallVector<std::pair<TreeEntry *, Instruction *>> GatherEntries;
@@ -25123,19 +25118,15 @@ Value *BoUpSLP::vectorizeTree(
       if (auto *VecI = dyn_cast<Instruction>(Vec)) {
         if (auto *PHI = dyn_cast<PHINode>(VecI)) {
           if (PHI->getParent()->isLandingPad())
-            Builder.SetInsertPoint(
-                PHI->getParent(),
-                std::next(
-                    PHI->getParent()->getLandingPadInst()->getIterator()));
+            Builder.SetInsertPoint(std::next(
+                PHI->getParent()->getLandingPadInst()->getIterator()));
           else
-            Builder.SetInsertPoint(PHI->getParent(),
-                                   PHI->getParent()->getFirstNonPHIIt());
+            Builder.SetInsertPoint(PHI->getParent()->getFirstNonPHIIt());
         } else {
-          Builder.SetInsertPoint(VecI->getParent(),
-                                 std::next(VecI->getIterator()));
+          Builder.SetInsertPoint(std::next(VecI->getIterator()));
         }
       } else {
-        Builder.SetInsertPoint(&F->getEntryBlock(), F->getEntryBlock().begin());
+        Builder.SetInsertPoint(F->getEntryBlock().begin());
       }
       Value *NewInst = ExtractAndExtendIfNeeded(Vec);
       // Required to update internally referenced instructions.
@@ -25165,10 +25156,8 @@ Value *BoUpSLP::vectorizeTree(
               IRBuilderBase::InsertPointGuard Guard(Builder);
               if (auto *IVec = dyn_cast<PHINode>(Vec)) {
                 if (IVec->getParent()->isLandingPad())
-                  Builder.SetInsertPoint(IVec->getParent(),
-                                         std::next(IVec->getParent()
-                                                       ->getLandingPadInst()
-                                                       ->getIterator()));
+                  Builder.SetInsertPoint(std::next(
+                      IVec->getParent()->getLandingPadInst()->getIterator()));
                 else
                   Builder.SetInsertPoint(
                       IVec->getParent()->getFirstNonPHIOrDbgOrLifetime());
@@ -25223,8 +25212,7 @@ Value *BoUpSLP::vectorizeTree(
             Instruction *IncomingTerminator =
                 PH->getIncomingBlock(I)->getTerminator();
             if (isa<CatchSwitchInst>(IncomingTerminator)) {
-              Builder.SetInsertPoint(VecI->getParent(),
-                                     std::next(VecI->getIterator()));
+              Builder.SetInsertPoint(std::next(VecI->getIterator()));
             } else {
               Builder.SetInsertPoint(PH->getIncomingBlock(I)->getTerminator());
             }
@@ -25245,7 +25233,7 @@ Value *BoUpSLP::vectorizeTree(
         }
       }
     } else {
-      Builder.SetInsertPoint(&F->getEntryBlock(), F->getEntryBlock().begin());
+      Builder.SetInsertPoint(F->getEntryBlock().begin());
       Value *NewInst = ExtractAndExtendIfNeeded(Vec);
       User->replaceUsesOfWith(Scalar, NewInst);
     }
@@ -25540,8 +25528,7 @@ Value *BoUpSLP::vectorizeTree(
                                       It != MinBWs.end() &&
                                       ReductionBitWidth != It->second.first) {
     IRBuilder<>::InsertPointGuard Guard(Builder);
-    Builder.SetInsertPoint(ReductionRoot->getParent(),
-                           ReductionRoot->getIterator());
+    Builder.SetInsertPoint(ReductionRoot->getIterator());
     if (isReducedBitcastRoot() || isReducedCmpBitcastRoot()) {
       Vec = Builder.CreateIntCast(Vec, Builder.getIntNTy(ReductionBitWidth),
                                   It->second.second);

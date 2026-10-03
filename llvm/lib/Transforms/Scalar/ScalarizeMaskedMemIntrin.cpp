@@ -208,7 +208,7 @@ static void scalarizeMaskedLoad(const DataLayout &DL, bool HasBranchDivergence,
     Load->copyMetadata(*CI);
 
     BasicBlock *PostLoad = ThenTerm->getSuccessor(0);
-    Builder.SetInsertPoint(PostLoad, PostLoad->begin());
+    Builder.SetInsertPoint(PostLoad->begin());
     PHINode *Phi = Builder.CreatePHI(VecType, /*NumReservedValues=*/2);
     Phi->addIncoming(Load, CondBlock);
     Phi->addIncoming(Src0, IfBlock);
@@ -273,7 +273,7 @@ static void scalarizeMaskedLoad(const DataLayout &DL, bool HasBranchDivergence,
     IfBlock = NewIfBlock;
 
     // Create the phi to join the new and previous value.
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
     PHINode *Phi = Builder.CreatePHI(VecType, 2, "res.phi.else");
     Phi->addIncoming(NewVResult, CondBlock);
     Phi->addIncoming(VResult, PrevIfBlock);
@@ -426,7 +426,7 @@ static void scalarizeMaskedStore(const DataLayout &DL, bool HasBranchDivergence,
     BasicBlock *NewIfBlock = ThenTerm->getSuccessor(0);
     NewIfBlock->setName("else");
 
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
   }
   CI->eraseFromParent();
 
@@ -558,7 +558,7 @@ static void scalarizeMaskedGather(const DataLayout &DL,
     IfBlock = NewIfBlock;
 
     // Create the phi to join the new and previous value.
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
     PHINode *Phi = Builder.CreatePHI(VecType, 2, "res.phi.else");
     Phi->addIncoming(NewVResult, CondBlock);
     Phi->addIncoming(VResult, PrevIfBlock);
@@ -685,7 +685,7 @@ static void scalarizeMaskedScatter(const DataLayout &DL,
     BasicBlock *NewIfBlock = ThenTerm->getSuccessor(0);
     NewIfBlock->setName("else");
 
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
   }
   CI->eraseFromParent();
 
@@ -805,7 +805,7 @@ static void scalarizeMaskedExpandLoad(const DataLayout &DL,
     IfBlock = NewIfBlock;
 
     // Create the phi to join the new and previous value.
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
     PHINode *ResultPhi = Builder.CreatePHI(VecType, 2, "res.phi.else");
     ResultPhi->addIncoming(NewVResult, CondBlock);
     ResultPhi->addIncoming(VResult, PrevIfBlock);
@@ -921,7 +921,7 @@ static void scalarizeMaskedCompressStore(const DataLayout &DL,
     BasicBlock *PrevIfBlock = IfBlock;
     IfBlock = NewIfBlock;
 
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
 
     // Add a PHI for the pointer if this isn't the last iteration.
     if ((Idx + 1) != VectorWidth) {
@@ -1014,7 +1014,7 @@ static void scalarizeMaskedVectorHistogram(const DataLayout &DL, CallInst *CI,
     // Create "else" block, fill it in the next iteration
     BasicBlock *NewIfBlock = ThenTerm->getSuccessor(0);
     NewIfBlock->setName("else");
-    Builder.SetInsertPoint(NewIfBlock, NewIfBlock->begin());
+    Builder.SetInsertPoint(NewIfBlock->begin());
   }
 
   CI->eraseFromParent();

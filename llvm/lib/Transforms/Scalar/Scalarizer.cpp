@@ -1295,7 +1295,7 @@ bool ScalarizerVisitor::finish() {
         BasicBlock *BB = Op->getParent();
         IRBuilder<> Builder(Op);
         if (isa<PHINode>(Op))
-          Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
+          Builder.SetInsertPoint(BB->getFirstInsertionPt());
 
         VectorSplit VS = *getVectorSplit(Ty);
         assert(VS.NumFragments == CV.size());
@@ -1307,7 +1307,7 @@ bool ScalarizerVisitor::finish() {
         BasicBlock *BB = Op->getParent();
         IRBuilder<> Builder(Op);
         if (isa<PHINode>(Op))
-          Builder.SetInsertPoint(BB, BB->getFirstInsertionPt());
+          Builder.SetInsertPoint(BB->getFirstInsertionPt());
 
         // Iterate over each element in the struct
         unsigned NumOfStructElements = Ty->getNumElements();
