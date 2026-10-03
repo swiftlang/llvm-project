@@ -716,7 +716,7 @@ static llvm::Expected<llvm::BasicBlock *> convertOmpOpRegions(
   if (continuationBlockPHIs) {
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
     continuationBlockPHIs->reserve(continuationBlockPHITypes.size());
-    builder.SetInsertPoint(continuationBlock, continuationBlock->begin());
+    builder.SetInsertPoint(continuationBlock->begin());
     for (llvm::Type *ty : continuationBlockPHITypes)
       continuationBlockPHIs->push_back(builder.CreatePHI(ty, numYields));
   }
@@ -1077,8 +1077,7 @@ static LogicalResult inlineConvertOmpRegions(
 
   if (continuationBlockArgs)
     llvm::append_range(*continuationBlockArgs, phis);
-  builder.SetInsertPoint(*continuationBlock,
-                         (*continuationBlock)->getFirstInsertionPt());
+  builder.SetInsertPoint((*continuationBlock)->getFirstInsertionPt());
   return success();
 }
 
@@ -4516,7 +4515,7 @@ convertOmpWsloop(Operation &opInst, llvm::IRBuilderBase &builder,
     linearClauseProcessor.splitLinearFiniBB(builder, loopInfo->getExit());
   }
 
-  builder.SetInsertPoint(*regionBlock, (*regionBlock)->begin());
+  builder.SetInsertPoint((*regionBlock)->begin());
 
   // Check if we can generate no-loop kernel
   bool noLoopMode = false;
@@ -4943,7 +4942,7 @@ convertOmpSimd(Operation &opInst, llvm::IRBuilderBase &builder,
     linearClauseProcessor.updateLinearVar(builder, loopInfo->getBody(),
                                           loopInfo->getIndVar());
   }
-  builder.SetInsertPoint(*regionBlock, (*regionBlock)->begin());
+  builder.SetInsertPoint((*regionBlock)->begin());
 
   for (size_t index = 0; index < simdOp.getLinearVars().size(); index++)
     linearClauseProcessor.rewriteInPlace(builder, loopInfo->getBody(),
@@ -5042,7 +5041,7 @@ convertOmpLoopNest(Operation &opInst, llvm::IRBuilderBase &builder,
     if (!regionBlock)
       return regionBlock.takeError();
 
-    builder.SetInsertPoint(*regionBlock, (*regionBlock)->begin());
+    builder.SetInsertPoint((*regionBlock)->begin());
     return llvm::Error::success();
   };
 
@@ -7793,7 +7792,7 @@ convertOmpDistribute(Operation &opInst, llvm::IRBuilderBase &builder,
                             builder, moduleTranslation);
     if (!regionBlock)
       return regionBlock.takeError();
-    builder.SetInsertPoint(*regionBlock, (*regionBlock)->begin());
+    builder.SetInsertPoint((*regionBlock)->begin());
 
     // Skip applying a workshare loop below when translating 'distribute
     // parallel do' (it's been already handled by this point while translating

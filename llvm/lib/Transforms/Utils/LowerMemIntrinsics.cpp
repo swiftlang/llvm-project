@@ -1029,8 +1029,7 @@ static void createMemMoveLoopKnownSize(Instruction *InsertBefore,
                                           PartDstAlign);
     for (auto *OpTy : RemainingOps) {
       // reverse the order of the emitted operations
-      BwdResBuilder.SetInsertPoint(CopyBackwardsBB,
-                                   CopyBackwardsBB->getFirstNonPHIIt());
+      BwdResBuilder.SetInsertPoint(CopyBackwardsBB->getFirstNonPHIIt());
       GenerateResidualLdStPair(OpTy, BwdResBuilder, BytesCopied);
     }
   }
