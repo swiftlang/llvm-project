@@ -70,7 +70,6 @@ config.spirv_tools_tests = @LLVM_INCLUDE_SPIRV_TOOLS_TESTS@
 config.have_vc_rev = @LLVM_APPEND_VC_REV@
 config.force_vc_rev = "@LLVM_FORCE_VC_REVISION@"
 config.has_logf128 = @LLVM_HAS_LOGF128@
-config.llvm_cas_plugin_test_path = lit_config.substitute(r"@LLVM_CAS_PLUGIN_TEST_PATH@")
 config.have_opencsd = @LLVM_HAVE_OPENCSD@
 
 import lit.llvm
