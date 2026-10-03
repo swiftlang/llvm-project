@@ -70,7 +70,7 @@ public:
   }
 
 protected:
-  llvm::StringRef GetDeviceSupportDirectoryName() override;
+  llvm::SmallVector<llvm::StringRef> GetDeviceSupportDirectoryNames() override;
   llvm::StringRef GetPlatformName() override;
 };
 
