@@ -1532,6 +1532,36 @@ void State::addLatchConditionFacts(BasicBlock &BB, Loop *L,
   DomTreeNode *DTN = DT.getNode(&BB);
   WorkList.push_back(
       FactOrCheck::getConditionFact(DTN, Pred, Lo, Hi, StartsHold));
+
+  // Binary search: with Lo <s Hi and 0 <= LoStart, Mid = Lo + (Hi - Lo) / C
+  // for C >= 2 satisfies Lo <= Mid < Hi. If Hi steps to Mid or stays and Lo
+  // steps to Mid + 1 or stays, then LoStart <= Lo <s Hi <= HiStart holds on
+  // every entry to the header.
+  if (Pred != CmpInst::ICMP_SLT || !match(LoStart, m_NonNegative()))
+    return;
+  Value *Mid;
+  if (!match(HiNext, m_c_Select(m_Specific(Hi), m_Value(Mid))) ||
+      !match(LoNext,
+             m_c_Select(m_Specific(Lo), m_c_Add(m_Specific(Mid), m_One()))))
+    return;
+  auto Diff = m_Sub(m_Specific(Hi), m_Specific(Lo));
+  const APInt *C;
+  bool IsMid = (match(Mid, m_c_Add(m_Specific(Lo), m_SDiv(Diff, m_APInt(C)))) &&
+                C->sge(2)) ||
+               (match(Mid, m_c_Add(m_Specific(Lo), m_UDiv(Diff, m_APInt(C)))) &&
+                C->uge(2)) ||
+               (match(Mid, m_c_Add(m_Specific(Lo), m_LShr(Diff, m_APInt(C)))) &&
+                !C->isZero());
+  if (!IsMid)
+    return;
+  // All of LoStart, Lo, Hi and HiStart are non-negative, so the bounds hold
+  // in both the signed and unsigned sense.
+  WorkList.push_back(FactOrCheck::getConditionFact(
+      DTN, CmpPredicate(CmpInst::ICMP_UGE, /*HasSameSign=*/true), Lo, LoStart,
+      StartsHold));
+  WorkList.push_back(FactOrCheck::getConditionFact(
+      DTN, CmpPredicate(CmpInst::ICMP_ULE, /*HasSameSign=*/true), Hi, HiStart,
+      StartsHold));
 }
 
 void State::addInfoForInductions(BasicBlock &BB) {
