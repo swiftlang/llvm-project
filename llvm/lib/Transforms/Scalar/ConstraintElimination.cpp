@@ -239,6 +239,10 @@ struct State {
   /// value.
   void addBoundsForHeaderInductions(BasicBlock &BB);
 
+  /// If the latch of loop \p L with header \p BB branches back on a compare of
+  /// two header phis' backedge values, add facts for the phis in \p BB.
+  void addLatchConditionFacts(BasicBlock &BB, Loop *L, BasicBlock *LoopPred);
+
   /// Try to add facts for loop inductions (AddRecs) in EQ/NE compares
   /// controlling the loop header.
   void addInfoForInductions(BasicBlock &BB);
@@ -1481,6 +1485,53 @@ void State::addBoundsForHeaderInductions(BasicBlock &BB) {
                       /*HasSameSign=*/Info.Unsigned && Info.Signed);
     WorkList.push_back(FactOrCheck::getConditionFact(DTN, Pred, LHS, RHS));
   }
+
+  addLatchConditionFacts(BB, L, LoopPred);
+}
+
+/// Returns the header phi of \p L whose incoming value from the latch is \p V.
+static PHINode *getPhiWithBackedgeValue(Loop *L, Value *V) {
+  BasicBlock *Latch = L->getLoopLatch();
+  for (PHINode &PN : L->getHeader()->phis())
+    if (PN.getNumIncomingValues() == 2 &&
+        PN.getIncomingValueForBlock(Latch) == V)
+      return &PN;
+  return nullptr;
+}
+
+void State::addLatchConditionFacts(BasicBlock &BB, Loop *L,
+                                   BasicBlock *LoopPred) {
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Latch)
+    return;
+  auto *Br = dyn_cast<CondBrInst>(Latch->getTerminator());
+  if (!Br)
+    return;
+  CmpPredicate LatchPred;
+  Value *LoNext, *HiNext;
+  if (!match(Br->getCondition(),
+             m_ICmp(LatchPred, m_Value(LoNext), m_Value(HiNext))))
+    return;
+  // Drop samesign: it is only known to hold on the backedge.
+  CmpInst::Predicate Pred = LatchPred;
+  if (Br->getSuccessor(1) == &BB)
+    Pred = CmpInst::getInversePredicate(Pred);
+  else if (Br->getSuccessor(0) != &BB)
+    return;
+  PHINode *Lo = getPhiWithBackedgeValue(L, LoNext);
+  PHINode *Hi = getPhiWithBackedgeValue(L, HiNext);
+  if (!Lo || !Hi || Lo == Hi)
+    return;
+
+  // The header is entered from LoopPred with the start values and from the
+  // latch only if Pred holds for the backedge values, so Pred holds for the
+  // phis if it holds for the start values.
+  Value *LoStart = Lo->getIncomingValueForBlock(LoopPred);
+  Value *HiStart = Hi->getIncomingValueForBlock(LoopPred);
+  ConditionTy StartsHold(Pred, LoStart, HiStart);
+  DomTreeNode *DTN = DT.getNode(&BB);
+  WorkList.push_back(
+      FactOrCheck::getConditionFact(DTN, Pred, Lo, Hi, StartsHold));
 }
 
 void State::addInfoForInductions(BasicBlock &BB) {
