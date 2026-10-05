@@ -149,7 +149,7 @@ ExtractSomeIfAny(ValueObject *optional,
   if (!projected) {
     LLDB_LOG_ERROR(GetLog(LLDBLog::DataFormatters), projected.takeError(),
                    "{0}");
-    // Some Optionals (TestSwiftExternalProviderExtraInhabitants) cannot be
+    // Some Optionals (TestExternalProviderExtraInhabitants) cannot be
     // projected. They worked by accident in the old implementation,
     // this hack makes the test pass, but it is not correct.
     CompilerType projected_type =
