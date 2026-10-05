@@ -586,6 +586,31 @@ static bool preconditionHolds(const ConstraintInfo &Info,
   return Info.doesHold(Pred, Op, ConstantInt::get(Op->getType(), RHS));
 }
 
+/// Returns the first operand of \p X if it is a sub of \p Y, i.e. X = op(Z - Y,
+/// ...), and nullptr otherwise.
+static Value *getSubOfOperand(Value *X, Value *Y) {
+  auto *XI = dyn_cast<BinaryOperator>(X);
+  if (!XI || !match(XI->getOperand(0), m_Sub(m_Value(), m_Specific(Y))))
+    return nullptr;
+  return XI->getOperand(0);
+}
+
+/// Returns true if \p Op0 + \p Op1 does not wrap unsigned because one operand
+/// X satisfies X <=u D for D = Z - Y with Z >=u Y, where D is X's first
+/// operand and Y is the other operand of the add.
+static bool isAddBoundedBySub(Value *Op0, Value *Op1,
+                              const ConstraintInfo &Info) {
+  for (auto [X, Y] : {std::pair(Op0, Op1), std::pair(Op1, Op0)}) {
+    Value *D = getSubOfOperand(X, Y);
+    if (D &&
+        Info.doesHold(CmpInst::ICMP_UGE, cast<Instruction>(D)->getOperand(0),
+                      Y) &&
+        Info.doesHold(CmpInst::ICMP_ULE, X, D))
+      return true;
+  }
+  return false;
+}
+
 static Decomposition
 decomposeGEP(GEPOperator &GEP, const ConstraintInfo &Info, bool IsSigned,
              State &State) {
@@ -827,11 +852,12 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
 
   if (match(V, m_Add(m_Value(Op0), m_Value(Op1)))) {
     // An add does not wrap unsigned if both operands are non-negative, with
-    // or without nsw.
-    if ((!isKnownNonNegative(Op0, State.DL) &&
-         !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0)) ||
-        (!isKnownNonNegative(Op1, State.DL) &&
-         !preconditionHolds(Info, CmpInst::ICMP_SGE, Op1, 0)))
+    // or without nsw, or if it is bounded by a sub.
+    if (((!isKnownNonNegative(Op0, State.DL) &&
+          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0)) ||
+         (!isKnownNonNegative(Op1, State.DL) &&
+          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op1, 0))) &&
+        !isAddBoundedBySub(Op0, Op1, Info))
       return V;
 
     if (auto Decomp = MergeResults(Op0, Op1, IsSigned))
