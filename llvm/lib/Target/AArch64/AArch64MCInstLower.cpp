@@ -25,6 +25,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalPtrAuthInfo.h"
 #include "llvm/IR/Mangler.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
@@ -108,7 +109,7 @@ AArch64MCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
 
 MCSymbol *AArch64MCInstLower::GetGlobalValueSymbol(const GlobalValue *GV,
                                                    unsigned TargetFlags) const {
-  const Triple &TheTriple = Printer.TM.getTargetTriple();
+  const Triple &TheTriple = GV->getParent()->getTargetTriple();
   if (!TheTriple.isOSBinFormatCOFF())
     return Printer.getSymbolPreferLocal(*GV);
 
