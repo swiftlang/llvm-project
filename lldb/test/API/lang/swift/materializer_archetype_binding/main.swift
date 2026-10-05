@@ -18,14 +18,7 @@ protocol Problematic {
 
 extension Problematic {
     func problemMethod<G>(param: G, anotherParam: String) where G : Generic {
-        print("patatino")   //%self.expect('frame var -d run-target -- param',
-                            //% substrs=['(a.GenericImpl) param = (test = "test test")'])
-                            //%self.expect('expr -d run-target -- param',
-                            //% substrs=['(a.GenericImpl)', '= (test = "test test")'])
-                            //%self.expect('frame var -d run-target -- anotherParam',
-                            //% substrs=['(String) anotherParam = "just a string"'])
-                            //%self.expect('expr -d run-target -- anotherParam',
-                            //% substrs=['(String)', '= "just a string"'])
+        print("break 1")
         getAStringAsync { string in
             print("breakpoint")
         }
@@ -44,14 +37,7 @@ extension NotProblematic {
 
 class NotProblematicImpl: NotProblematic {
     func problemMethod<G>(param: G, anotherParam: String) where G : Generic {
-        print("patatino")   //%self.expect('frame var -d run-target -- param',
-                            //% substrs=['(a.GenericImpl) param = (test = "test test")'])
-                            //%self.expect('expr -d run-target -- param',
-                            //% substrs=['(a.GenericImpl)', '= (test = "test test")'])
-                            //%self.expect('frame var -d run-target -- anotherParam',
-                            //% substrs=['(String) anotherParam = "just a string"'])
-                            //%self.expect('expr -d run-target -- anotherParam',
-                            //% substrs=['(String)', '= "just a string"'])
+        print("break 2")
         getAStringAsync { string in
             print("breakpoint")
         }

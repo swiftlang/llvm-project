@@ -14,7 +14,7 @@ struct Q<T> {
 }
 struct S<T> {
   init(x: [Q<T>]) {
-    print(x) //% self.expect('frame variable -d run -- x', substrs=['1 value', '4276993775'])
+    print(x) // break here
   }
 }
 

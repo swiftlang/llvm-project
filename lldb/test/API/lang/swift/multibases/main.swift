@@ -20,9 +20,7 @@ func testDisappearingStringMember()
     var derived1 = Derived1()
     var derived2 = Derived2()
     let thename = derived2.name
-    print("--- break here ---") //% self.expect("frame variable base", substrs=['"hardcodedstring"'])
-    //% self.expect("frame variable derived1", substrs=['"hardcodedstring"'])
-    //% self.expect("frame variable derived2", substrs=['"hardcodedstring"'])
+    print("break here")
 }
 
 testDisappearingStringMember()

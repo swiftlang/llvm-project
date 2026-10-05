@@ -16,19 +16,19 @@ protocol MyProtocol {
 
 struct StructTest {
   func foo() {
-    print("Stop here in StructTest method") //% self.expect("expr self", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["StructTest"])
+    print("break 1")
   }
 }
 
 extension StructTest : MyProtocol {
   func bar() {
-    print("Stop here in MyProtocol method") //% # disabled self.expect("expr self", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["StructTest"])
+    print("Stop here in MyProtocol method")
   }
 }
 
 class ClassTest {
   func foo () {
-    print ("Stop here in ClassTest method") //% self.expect("expr self", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["ClassTest"])
+    print("break 2")
   }
 }
 

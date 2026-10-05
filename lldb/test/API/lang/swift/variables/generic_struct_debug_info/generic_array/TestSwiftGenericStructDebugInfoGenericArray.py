@@ -9,7 +9,35 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldbsuite.test.lldbinline as lldbinline
+import lldb
+from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
+import lldbsuite.test.lldbutil as lldbutil
 
-lldbinline.MakeInlineTest(__file__, globals(), decorators=[requireNotEmbeddedSwift, swiftTest])
+
+class TestSwiftGenericStructDebugInfoGenericArray(TestBase):
+
+    def expr(self, frame, expression):
+        options = lldb.SBExpressionOptions()
+        options.SetFetchDynamicValue(lldb.eDynamicCanRunTarget)
+        value = frame.EvaluateExpression(expression, options)
+        self.assertSuccess(value.GetError())
+        return value
+
+    @requireNotEmbeddedSwift
+    @swiftTest
+    def test(self):
+        """Test that an array of generic structs shows the elements' fields"""
+        self.build()
+        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
+            self, "break here", lldb.SBFileSpec("main.swift"))
+        frame = thread.GetFrameAtIndex(0)
+        self.expect('expr -o -d run -- arg', substrs=['x : 3735928559'])
+        arg = self.expr(frame, "arg")
+        lldbutil.check_variable(
+            self, arg.GetChildAtIndex(0).GetChildMemberWithName("x"),
+            value="3735928559")
+        arg = frame.FindVariable("arg").GetDynamicValue(lldb.eDynamicCanRunTarget)
+        lldbutil.check_variable(
+            self, arg.GetChildAtIndex(0).GetChildMemberWithName("x"),
+            value="3735928559")

@@ -16,8 +16,7 @@ import Foundation
 func main() {
 
   var point = NSMakeRange(23, 42)
-  print(point) //% self.expect("frame variable -- point", substrs=['23', '42'])
-               //% self.expect("expression -- point", substrs=['23', '42'])
+  print(point) // break here
 }
 
 main()
