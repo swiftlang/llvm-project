@@ -16,7 +16,12 @@ enum Generic<T> {
 }
 
 func foo<T0>(_ x: Generic<T0>) {
-  print(x) // break here
+  print(x) //% self.expect('frame variable -d run -- x', substrs=['Case1'])
+  //% self.expect('frame variable -d run -- x', substrs=['Case2'], matching=False)
+  //% self.expect('frame variable -d run -- x', substrs=['Case3'], matching=False)
+  //% self.expect('expression -d run -- x', substrs=['Case1'])
+  //% self.expect('expression -d run -- x', substrs=['Case2'], matching=False)
+  //% self.expect('expression -d run -- x', substrs=['Case3'], matching=False)
 }
 
 foo(Generic<Int>.Case1)

@@ -15,7 +15,8 @@ class Generic<T> {
 }
 
 func foo<T0>(_ x: Generic<T0>) {
-  print(x) // break here
+  print(x) //% self.expect('frame variable -d run -- x', substrs=['"Hello world"', '12'])
+  //% self.expect('expression -d run -- x', substrs=['"Hello world"', '12'])
 }
 
 foo(Generic<Int>())

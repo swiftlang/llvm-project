@@ -14,7 +14,7 @@ func use<T>(_ t : T) {}
 
 struct GenericSelf<T> {
   init(x: T) {
-    use(x) // break 1
+    use(x) //%self.expect('frame variable -d run -- self', substrs=['GenericSelf<String>'])
   }
 }
 
@@ -30,7 +30,7 @@ struct MyStruct<S : MyKey> : MyProtocol {
 }
 extension MyProtocol {
     func decode() {
-        use(self) // break 2
+        use(self) //%self.expect('frame variable -d run -- self', substrs=['(a.MyStruct<Int>)', 'self', '=', '{}'])
         return
     }
 }

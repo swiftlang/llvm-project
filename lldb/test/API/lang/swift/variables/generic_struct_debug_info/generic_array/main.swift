@@ -13,7 +13,9 @@ public struct Q<T> {
   let x: T
 }
 public func foo<T>(_ arg: [Q<T>]) {
-  print(arg) // break here
+  print(arg) //% self.expect('expr -o -d run -- arg', substrs=['x : 3735928559'])
+  //% self.expect('expr -d run -- arg', substrs=['x = 3735928559'])
+  //% self.expect('frame var -d run -- arg', substrs=['x = 3735928559'])
 }
 
 foo([Q(x: 0xdeadbeef)])

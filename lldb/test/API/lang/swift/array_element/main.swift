@@ -1,2 +1,2 @@
 var patatino = [1,2,3,4]
-print(patatino) // break here
+print(patatino) //%self.expect('frame variable -d run -- patatino[0]', substrs=['(Int)', '1'])

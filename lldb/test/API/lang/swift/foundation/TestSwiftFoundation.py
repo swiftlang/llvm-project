@@ -9,33 +9,16 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftFoundation(TestBase):
-
-    @requireNotEmbeddedSwift
-    @skipUnlessFoundationEssentials
-    @skipIfLinux  # https://github.com/swiftlang/llvm-project/issues/13465
-    @swiftTest
-    def test(self):
-        """Test that the fields of an NSRange are displayed with Foundation imported"""
-        self.build()
-        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        point = frame.FindVariable("point")
-        lldbutil.check_variable(self, point.GetChildMemberWithName("location"),
-                                value="23")
-        lldbutil.check_variable(self, point.GetChildMemberWithName("length"),
-                                value="42")
-
-        point = frame.EvaluateExpression("point")
-        self.assertSuccess(point.GetError())
-        lldbutil.check_variable(self, point.GetChildMemberWithName("location"),
-                                value="23")
-        lldbutil.check_variable(self, point.GetChildMemberWithName("length"),
-                                value="42")
+lldbinline.MakeInlineTest(
+    __file__,
+    globals(),
+    decorators=[
+        requireNotEmbeddedSwift,
+        skipUnlessFoundationEssentials,
+        skipIfLinux,  # https://github.com/swiftlang/llvm-project/issues/13465
+        swiftTest,
+    ],
+)

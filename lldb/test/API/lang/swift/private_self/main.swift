@@ -15,7 +15,7 @@ class MyString {
   
 class MyClass {
   fileprivate func processItem(_ item: MyString) -> () {
-    debugPrint(item) // break here
+    debugPrint(item) //% self.expect("expr -d run -- self", substrs=['MyClass'])
   }
 }
 

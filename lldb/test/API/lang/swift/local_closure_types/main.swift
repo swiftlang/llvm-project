@@ -14,7 +14,8 @@ let foo: () -> () = {
     let i: Int
   }
   let s = S(i: 777)
-  print(s.i) // break here
+  print(s.i) //% self.expect("frame variable s", substrs=['i = 777'])
+  //% self.expect("expr s", substrs=['i = 777'])
 }
 
 foo()

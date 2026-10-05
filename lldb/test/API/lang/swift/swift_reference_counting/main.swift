@@ -27,7 +27,11 @@ func main() -> Int {
   var LiveObj = Patatino(37)
   var Ret : Int = lambda(LiveObj)
   var MyStruct = Tinky()
-  return Ret // break here
+  print("break here")
+  //%self.expect('language swift refcount Blah', substrs=['cannot find \'Blah\''], error=True)
+  //%self.expect('language swift refcount LiveObj', substrs=['(strong =', 'unowned =', 'weak ='])
+  //%self.expect('language swift refcount MyStruct', substrs=['refcount only available for class types'], error=True)
+  return Ret
 }
 
 main()

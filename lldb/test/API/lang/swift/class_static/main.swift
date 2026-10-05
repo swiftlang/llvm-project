@@ -20,7 +20,8 @@ class WithStatic {
 
 func main() {
   var v = WithStatic.Shared
-  print(1) // break here
+  print(1) //% self.expect("frame variable v", substrs=['a = 1', 'b = 2'])
+  //% self.expect("expr WithStatic.Shared", substrs=['a = 1', 'b = 2'])
 }
 
 main()

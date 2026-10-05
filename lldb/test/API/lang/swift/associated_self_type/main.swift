@@ -11,7 +11,7 @@
 // -----------------------------------------------------------------------------
 extension Collection {
   func foo(_ x: Iterator.Element) {
-    print(x) // break here
+    print(x) //%self.expect('frame variable -d run -- x', substrs=['key = 2', 'value = 2'])
   }
 }
 

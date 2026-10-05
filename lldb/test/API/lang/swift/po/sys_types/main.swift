@@ -18,20 +18,24 @@ import Foundation
 
 func main() {
   var num = 22
-  var str = "Hello world" // break 1
+  //% self.expect("po num", substrs=["\\n", "\""], matching=False) # Make sure po doesn't escape non-printables.
+  var str = "Hello world" //% self.expect("po num", substrs = ['22'])
   var arr = [1,2,3,4] 
-  var nsarr = NSMutableArray(array: arr) // break 2
+  var nsarr = NSMutableArray(array: arr) //% self.expect("po str", substrs = ['Hello world'])
 #if os(iOS)
-  var clr = UIColor.red // break 3
+  var clr = UIColor.red //% self.expect("po arr", substrs = ['1','2','3','4'])
 #elseif os(OSX)
-  var clr = NSColor.red // break 3
+  var clr = NSColor.red //% self.expect("po arr", substrs = ['1','2','3','4'])
 #endif
-  var nsobject = NSObject() // break 4
-  var any: Any = 1234 // break 5
-  var anyobject: AnyObject = 1234 as NSNumber // break 6
+  //% self.expect("po nsarr", substrs = ['1','2','3','4'])
+  var nsobject = NSObject() //% self.expect("po clr", substrs = ['1 0 0 1']) # may change depending on OS/platform
+  var any: Any = 1234 //% self.expect("po nsobject", substrs = ['<NSObject: 0x']) # may change depending on OS/platform
+  //% self.expect("script lldb.frame.FindVariable('nsobject').GetObjectDescription()", substrs = ['<NSObject: 0x']) # may change depending on OS/platform
+  var anyobject: AnyObject = 1234 as NSNumber //% self.expect("po any", substrs = ['1234'])
   var notification = Notification(name: Notification.Name(rawValue: "JustANotification"), object: nil)
-  var lines = "one\ndue" // break 7
-  print("break 8")
+  var lines = "one\ndue" //% self.expect("po notification", substrs=['JustANotification'])
+  //% self.expect("po notification", matching=False, substrs=['super'])
+  print("yay I am done!") //% self.expect("po lines", startstr='one\ndue')
 }
 
 main()

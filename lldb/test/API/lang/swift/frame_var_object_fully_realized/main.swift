@@ -1,5 +1,5 @@
 func swapTwoValues<T>(_ a: inout T, _ b: inout T) {
-  let temporaryA = a // break here
+  let temporaryA = a //%self.expect('frame variable -d run -O -- a', substrs=['(UInt8) a = 97'])
   a = b
   b = temporaryA
 }

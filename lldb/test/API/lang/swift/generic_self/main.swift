@@ -22,7 +22,11 @@ class BlubbyUbby<T>
     my_string = in_string
     my_t = in_t
     stop()
-    stop() // break 1
+    //% self.expect('expr -d run -f hex -- my_t', substrs=['deadbeef'])
+    //% self.expect('fr var -d run -f hex -- self.my_t', substrs=['deadbeef'])
+    //% self.expect('expr -d run -- self', substrs=['3735928559'])
+    //% self.expect('fr var -d run -- self', substrs=['3735928559'])
+    stop()
   }
 }
 
@@ -32,7 +36,9 @@ struct S<T> {
   var a : T
   func foo() {
     stop()
-    stop() // break 2
+    //% self.expect('expr -d run -- self', substrs=['(a.S<Int>)','a = 12'])
+    //% self.expect('fr v -d run -- self', substrs=['(a.S<Int>)','a = 12'])
+    stop()
   }
 }
 

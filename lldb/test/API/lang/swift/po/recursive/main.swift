@@ -28,7 +28,7 @@ func main() {
   s.a = A()
   s.a?.a = A()
   s.a?.a?.a = s.a
-  print("break here")
+  print("a") //%self.expect('po s', substrs=['▿ a : Optional', 'some', '0x', '{ ... }'])
 }
 
 main()

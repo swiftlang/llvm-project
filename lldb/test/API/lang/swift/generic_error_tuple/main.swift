@@ -14,11 +14,19 @@ enum CErr : Error {
 }
 
 func g<T, U>(_ tuple : (T, U)) -> T {
-  return tuple.0 // break 1
+  return tuple.0 //%self.expect("frame var -d run-target -- tuple",
+                 //%            substrs=['(Error, Int)', 'Topolino', '42'])
 }
 
 func h<U, V>(_ tuple : (U, V)) -> (U, V) {
-  return tuple // break 2
+  return tuple //%self.expect("frame var -d run-target -- tuple", 
+               //%             substrs=['(a.PayloadErr, a.PayloadErr) tuple',
+               //%                      '0 =', '(x = 23)',
+               //%                      'a.PayloadErr = {', 'x = 42'])
+               //%self.expect("expr -d run-target -- tuple",
+               //%             substrs=['(a.PayloadErr, a.PayloadErr) $R',
+               //%                      '0 =', '(x = 23)',
+               //%                      'a.PayloadErr = {', 'x = 42'])
 }
 
 g((CErr.Topolino as Error, 42))

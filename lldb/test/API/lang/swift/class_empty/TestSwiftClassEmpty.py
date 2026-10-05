@@ -9,22 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftClassEmpty(TestBase):
-
-    @swiftTest
-    @skipEmbeddedSwiftOnWindows
-    def test(self):
-        """Test expression evaluation next to an instance of a class without fields"""
-        self.build()
-        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        value = frame.EvaluateExpression("1")
-        self.assertSuccess(value.GetError())
-        lldbutil.check_variable(self, value, value="1")
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[swiftTest,skipEmbeddedSwiftOnWindows])

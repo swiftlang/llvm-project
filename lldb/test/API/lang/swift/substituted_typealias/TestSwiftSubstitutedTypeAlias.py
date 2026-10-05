@@ -9,22 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftSubstitutedTypeAlias(TestBase):
-
-    @skipEmbeddedSwiftOnWindows
-    @swiftTest
-    def test(self):
-        """Test that a variable declared with a type alias keeps the alias type"""
-        self.build()
-        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        lldbutil.check_variable(self, frame.FindVariable("d"), value="5")
-        lldbutil.check_variable(self, frame.FindVariable("x"), typename="a.X",
-                                value="5")
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[skipEmbeddedSwiftOnWindows, swiftTest])

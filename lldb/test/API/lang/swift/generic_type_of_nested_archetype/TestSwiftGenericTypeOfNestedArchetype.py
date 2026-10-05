@@ -9,24 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftGenericTypeOfNestedArchetype(TestBase):
-
-    @requireNotEmbeddedSwift
-    @swiftTest
-    def test(self):
-        """Test that an array of a generic struct bound to an archetype is resolved"""
-        self.build()
-        target, process, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        x = frame.FindVariable("x")
-        lldbutil.check_variable(self, x, use_dynamic=True, summary="1 value")
-        x = x.GetDynamicValue(lldb.eDynamicCanRunTarget)
-        lldbutil.check_variable(self, x.GetChildAtIndex(0).GetChildMemberWithName("x"),
-                                value="4276993775")
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[requireNotEmbeddedSwift, swiftTest])
