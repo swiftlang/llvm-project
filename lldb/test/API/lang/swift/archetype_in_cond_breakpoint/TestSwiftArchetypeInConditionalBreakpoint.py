@@ -5,7 +5,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftArchetypeInConditionalBreakpoint(TestBase):
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184867874 (Embedded Swift: archetype names are unavailable in monomorphized frames, so expr T.self fails)
     @swiftTest
     def test_free_function(self):
         self.do_test("break here for free function")

@@ -30,7 +30,9 @@ struct S {
 // global. LLDB accesses globals via unsafe pointers, which aren't subject to
 // dynamic exclusivity checks, and we need to actually hit these checks to
 // verify that enforcement is suppressed.
-class Wrapper {
+// "final" matters for embedded Swift because the compiler devirtualizes
+// virtual functions and removes them.
+final class Wrapper {
   var s = S()
 }
 

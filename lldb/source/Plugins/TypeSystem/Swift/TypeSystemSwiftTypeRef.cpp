@@ -982,6 +982,14 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
         {CompilerContextKind::AnyDeclContext, ConstString(type_name)});
     return true;
   }
+
+  case Node::Kind::Extension: {
+    // An Extension node is (extending module, extended type, [generic
+    // signature]).
+    if (node->getNumChildren() < 2)
+      return false;
+    return BuildDeclContext(node->getChild(1), context);
+  }
   default:
     break;
   }
@@ -2885,27 +2893,6 @@ llvm::Triple TypeSystemSwiftTypeRef::GetTriple() const {
   return {};
 }
 
-bool TypeSystemSwiftTypeRef::IsEmbeddedSwift() {
-  llvm::call_once(m_is_embedded_swift_once_flag, [&]() {
-    Module *module = GetModule();
-    if (!module)
-      return;
-    // A Swift module is compiled either entirely as Embedded Swift or not at
-    // all, so the first Swift compile unit has the answer for all of them.
-    const size_t num_compile_units = module->GetNumCompileUnits();
-    for (size_t i = 0; i < num_compile_units; ++i) {
-      lldb::CompUnitSP cu_sp = module->GetCompileUnitAtIndex(i);
-      if (!cu_sp || cu_sp->GetLanguage() != lldb::eLanguageTypeSwift)
-        continue;
-      m_is_embedded_swift = ShouldEnableEmbeddedSwift(cu_sp.get());
-      LLDB_LOGF(GetLog(LLDBLog::Types), "%s::IsEmbeddedSwift() = %d",
-                m_description.c_str(), m_is_embedded_swift);
-      return;
-    }
-  });
-  return m_is_embedded_swift;
-}
-
 void TypeSystemSwiftTypeRef::SetTriple(const SymbolContext &sc,
                                        const llvm::Triple triple) {
   // This function appears to be only called via
@@ -3146,8 +3133,14 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
 
   swift::Demangle::Demangler dem;
   auto maybe_context = BuildDeclContext(AsMangledName(opaque_type), dem);
-  if (!maybe_context || maybe_context->empty())
+  if (!maybe_context || maybe_context->empty()) {
+    // Bailing out here means no module query is issued at all, which is easy to
+    // mistake for a failed lookup, so make it visible.
+    LLDB_LOGV(GetLog(LLDBLog::Types),
+              "Could not build the decl context of {0}",
+              AsMangledName(opaque_type));
     return {};
+  }
 
   swift::Mangle::ManglingFlavor flavor =
       SwiftLanguageRuntime::GetManglingFlavor(AsMangledName(opaque_type));

@@ -46,7 +46,7 @@ class TestCase(TestBase):
         self._filecheck("STRING")
         # CHECK-STRING: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "SSD")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test_user_types(self):
         self.build()

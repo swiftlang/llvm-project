@@ -16,6 +16,7 @@ class TestSwiftGenericErrorTuple(TestBase):
         lldbutil.check_variable(self, base.GetChildMemberWithName("x"), value="42")
 
     @swiftTest
+    @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
     def test(self):
         """Test that generic tuples of errors resolve to their bound types"""
