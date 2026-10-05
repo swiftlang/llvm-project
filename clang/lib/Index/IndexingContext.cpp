@@ -79,9 +79,32 @@ bool IndexingContext::handleDecl(const Decl *D, SourceLocation Loc,
   if (isa<ObjCPropertyImplDecl>(D)) {
     D = cast<ObjCPropertyImplDecl>(D)->getPropertyDecl();
   }
-  return handleDeclOccurrence(D, Loc, /*IsRef=*/false, cast<Decl>(DC),
-                              Roles, Relations,
-                              nullptr, OrigD, DC);
+  if (!handleDeclOccurrence(D, Loc, /*IsRef=*/false, cast<Decl>(DC), Roles,
+                            Relations, nullptr, OrigD, DC))
+    return false;
+  return indexDomainAvailabilityAttrs(OrigD);
+}
+
+bool IndexingContext::indexDomainAvailabilityAttrs(const Decl *D) {
+  // An implicit decl gets its attributes from a decl that is indexed on its
+  // own, such as the property of a synthesized accessor.
+  if (D->isImplicit())
+    return true;
+
+  auto *ND = dyn_cast<NamedDecl>(D);
+  if (!ND)
+    return true;
+
+  for (auto *AA : D->specific_attrs<DomainAvailabilityAttr>()) {
+    // An inherited attribute is written on another decl, so the reference
+    // belongs to that decl.
+    if (AA->isImplicit() || AA->isInherited())
+      continue;
+    if (!handleAvailabilityDomainReference(AA->getDomain(), AA->getDomainLoc(),
+                                           ND, ND->getLexicalDeclContext()))
+      return false;
+  }
+  return true;
 }
 
 bool IndexingContext::handleReference(const NamedDecl *D, SourceLocation Loc,
@@ -497,6 +520,23 @@ bool IndexingContext::handleDeclOccurrence(const Decl *D, SourceLocation Loc,
 
   IndexDataConsumer::ASTNodeInfo Node{OrigE, OrigD, Parent, ContainerDC};
   return DataConsumer.handleDeclOccurrence(D, Roles, FinalRelations, Loc, Node);
+}
+
+bool IndexingContext::handleAvailabilityDomainReference(StringRef DomainName,
+                                                        SourceLocation Loc,
+                                                        const NamedDecl *Parent,
+                                                        const DeclContext *DC,
+                                                        const Expr *RefE) {
+  if (Loc.isInvalid())
+    return true;
+
+  // A domain that is defined on the command line has no decl.
+  auto *DomainD =
+      dyn_cast_or_null<NamedDecl>(Ctx->getFeatureAvailInfo(DomainName).Decl);
+  if (!DomainD)
+    return true;
+
+  return handleReference(DomainD, Loc, Parent, DC, SymbolRoleSet(), {}, RefE);
 }
 
 void IndexingContext::handleMacroDefined(const IdentifierInfo &Name,

@@ -370,14 +370,12 @@ ObjCAvailabilityCheckExpr *ObjCAvailabilityCheckExpr::CreateEmpty(
 }
 
 ObjCAvailabilityCheckExpr *
-ObjCAvailabilityCheckExpr::CreateAvailabilityFeatureCheck(SourceLocation AtLoc,
-                                                          SourceLocation RParen,
-                                                          QualType Ty,
-                                                          StringRef DomainName,
-                                                          const ASTContext &C) {
+ObjCAvailabilityCheckExpr::CreateAvailabilityFeatureCheck(
+    SourceLocation AtLoc, SourceLocation RParen, QualType Ty,
+    StringRef DomainName, SourceLocation DomainLoc, const ASTContext &C) {
   ObjCAvailabilityCheckExpr *E = (ObjCAvailabilityCheckExpr *)C.Allocate(
       totalSizeToAlloc<char>(DomainName.size() + 1),
       alignof(ObjCAvailabilityCheckExpr));
-  new (E) ObjCAvailabilityCheckExpr(AtLoc, RParen, Ty, DomainName);
+  new (E) ObjCAvailabilityCheckExpr(AtLoc, RParen, Ty, DomainName, DomainLoc);
   return E;
 }

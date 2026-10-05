@@ -2672,8 +2672,9 @@ static void handleFeatureAvailabilityAttr(Sema &S, Decl *D,
     S.Diag(p.first->getLocation(), diag::note_feature_incompatible1)
         << p.first->getFeatureAttributeStr();
   } else if (!p.first)
-    D->addAttr(DomainAvailabilityAttr::Create(S.Context, II->getName(),
-                                              IsUnavailable, AL));
+    D->addAttr(
+        DomainAvailabilityAttr::Create(S.Context, II->getName(), IsUnavailable,
+                                       AL.getArgAsIdent(0)->getLoc(), AL));
 }
 
 AvailabilityAttr *Sema::mergeAndInferAvailabilityAttr(

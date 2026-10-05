@@ -244,6 +244,8 @@ class BoolArgument<string name, bit opt = 0, bit fake = 0> : Argument<name, opt,
 class IdentifierArgument<string name, bit opt = 0> : Argument<name, opt>;
 class IntArgument<string name, bit opt = 0> : Argument<name, opt>;
 class StringArgument<string name, bit opt = 0> : Argument<name, opt>;
+// A source location has no spelling, so it must be a fake argument.
+class SourceLocArgument<string name> : Argument<name, 1, 1>;
 class ExprArgument<string name, bit opt = 0> : Argument<name, opt>;
 class DeclArgument<DeclNode kind, string name, bit opt = 0, bit fake = 0>
     : Argument<name, opt, fake> {
@@ -1308,7 +1310,8 @@ def DomainAvailability : InheritableAttr {
   // This attribute has no spellings as it is created implicitly when
   // __attribute__((availability(domain:...))) is seen.
   let Spellings = [];
-  let Args = [StringArgument<"domain">, BoolArgument<"unavailable">];
+  let Args = [StringArgument<"domain">, BoolArgument<"unavailable">,
+              SourceLocArgument<"domainLoc">];
   let AdditionalMembers = [{
     std::string getFeatureAttributeStr() const;
   }];
