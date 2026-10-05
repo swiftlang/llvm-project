@@ -11,6 +11,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/AtomicLineLogger.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticCAS.h"
@@ -68,6 +69,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/SmallVectorMemoryBuffer.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -1572,8 +1574,13 @@ CompilerInstance::compileModule(SourceLocation ImportLoc, StringRef ModuleName,
 
   // Execute the action to actually build the module in-place. Use a separate
   // thread so that we get a stack large enough.
+  uint64_t ParentTID = llvm::get_threadid();
   bool Crashed = !llvm::CrashRecoveryContext().RunSafelyOnNewStack(
       [&]() {
+        getModuleCache().getLogger().log()
+            << "module_compile_thread: parent=" << ParentTID
+            << " pcm_compile: " << ModuleFileName;
+
         auto OS = std::make_unique<llvm::raw_svector_ostream>(Buffer);
 
         std::unique_ptr<FrontendAction> Action =

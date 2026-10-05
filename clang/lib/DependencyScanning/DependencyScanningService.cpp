@@ -50,7 +50,7 @@ DependencyScanningServiceOptions::DependencyScanningServiceOptions()
 
 DependencyScanningService::DependencyScanningService(
     DependencyScanningServiceOptions OptsArg)
-    : Opts(std::move(OptsArg)) {
+    : Opts(std::move(OptsArg)), Logger(this->Opts.LogPath) {
   // Include-tree compilation completely subsumes header search and VFS
   // optimizations due to how it works. Disable these optimizations so we're not
   // doing unneeded work.
