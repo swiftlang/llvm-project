@@ -3777,11 +3777,10 @@ void SwiftASTContext::LogFatalErrors() const {
                "SwiftASTContext is in fatal error state, bailing out.");
     return;
   }
-  if (!m_fatal_errors.Fail())
-    GetFatalErrors();
+  Status error = GetFatalErrors();
   HEALTH_LOG_PRINTF(
       "SwiftASTContext is in fatal error state, bailing out: (%s).",
-      m_fatal_errors.AsCString());
+      error.AsCString());
   m_logged_fatal_error = true;
 }
 
