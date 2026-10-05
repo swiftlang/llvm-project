@@ -10,11 +10,13 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
   SwiftMetadataCache.cpp
   SwiftTask.cpp
 
-  LINK_LIBS
+  SWIFT_LIBS
     swiftAST
     swiftBasic
     swiftRemoteInspection
     swiftRemoteAST
+
+  LINK_LIBS
     lldbCore
     lldbExpression
     lldbInterpreter
