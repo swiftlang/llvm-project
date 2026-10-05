@@ -14,6 +14,7 @@
 #define LLVM_CLANG_AST_APVALUE_H
 
 #include "clang/AST/CharUnits.h"
+#include "clang/AST/Reflection.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/APFixedPoint.h"
 #include "llvm/ADT/APFloat.h"
@@ -217,7 +218,8 @@ public:
     Struct,
     Union,
     MemberPointer,
-    AddrLabelDiff
+    AddrLabelDiff,
+    Reflection
   };
 
   class alignas(uint64_t) LValueBase {
@@ -402,7 +404,8 @@ private:
     APValue *Elts;
     unsigned NumBases;
     unsigned NumFields;
-    StructData(unsigned NumBases, unsigned NumFields);
+    unsigned NumVirtualBases;
+    StructData(unsigned NumBases, unsigned NumFields, unsigned NumVirtualBases);
     StructData(const StructData &) = delete;
     StructData &operator=(const StructData &) = delete;
     ~StructData();
@@ -418,6 +421,17 @@ private:
   struct AddrLabelDiffData {
     const AddrLabelExpr* LHSExpr;
     const AddrLabelExpr* RHSExpr;
+  };
+  struct ReflectionData {
+    // OperandKind will eventually have support for
+    // Null, TypeSourceInfo, TemplateReference, NamespaceReference, DeclRefExpr.
+    // Operand stores the opaque pointer of the reflection operand.
+    // Depending on the value of OperandKind, we can perform the
+    // corresponding cast to the associated type.
+    // If OperandKind is Null, then the ReflectionData represents
+    // a null reflection, and therefore Operand should be a nullptr.
+    ReflectionKind OperandKind;
+    const void *Operand;
   };
   struct MemberPointerData;
 
@@ -455,11 +469,12 @@ private:
   /* TO_UPSTREAM(BoundsSafety) OFF */
 
   // We ensure elsewhere that Data is big enough for LV and MemberPointerData.
-  typedef llvm::AlignedCharArrayUnion<void *, APSInt, APFloat, ComplexAPSInt,
-                                      ComplexAPFloat, Vec, Mat, Arr, StructData,
-                                      UnionData, AddrLabelDiffData,
-                                      // TO_UPSTREAM(BoundsSafety)
-                                      LVPlaceHolder> DataType;
+  typedef llvm::AlignedCharArrayUnion<
+      void *, APSInt, APFloat, ComplexAPSInt, ComplexAPFloat, Vec, Mat, Arr,
+      StructData, UnionData, AddrLabelDiffData, ReflectionData,
+      // TO_UPSTREAM(BoundsSafety)
+      LVPlaceHolder>
+      DataType;
   static const size_t DataSize = sizeof(DataType);
 
   DataType Data;
@@ -475,11 +490,11 @@ public:
   APValue() : Kind(None), AllowConstexprUnknown(false) {}
   /// Creates an integer APValue holding the given value.
   explicit APValue(APSInt I) : Kind(None), AllowConstexprUnknown(false) {
-    MakeInt(); setInt(std::move(I));
+    MakeInt(std::move(I));
   }
   /// Creates a float APValue holding the given value.
   explicit APValue(APFloat F) : Kind(None), AllowConstexprUnknown(false) {
-    MakeFloat(); setFloat(std::move(F));
+    MakeFloat(std::move(F));
   }
   /// Creates a fixed-point APValue holding the given value.
   explicit APValue(APFixedPoint FX) : Kind(None), AllowConstexprUnknown(false) {
@@ -553,13 +568,23 @@ public:
       : Kind(None), AllowConstexprUnknown(false) {
     MakeArray(InitElts, Size);
   }
+
+  /// Creates a new Reflection APValue.
+  /// \param OperandKind The kind of reflection.
+  /// \param Operand The entity being reflected.
+  APValue(ReflectionKind OperandKind, const void *Operand) : Kind(None) {
+    MakeReflection(OperandKind, Operand);
+  }
+
   /// Creates a new struct APValue.
   /// \param UninitStruct Marker. Pass an empty UninitStruct.
   /// \param NumBases Number of bases.
   /// \param NumMembers Number of members.
-  APValue(UninitStruct, unsigned NumBases, unsigned NumMembers)
+  /// \param NumVirtualBases Number of virtual bases.
+  APValue(UninitStruct, unsigned NumBases, unsigned NumMembers,
+          unsigned NumVirtualBases = 0)
       : Kind(None), AllowConstexprUnknown(false) {
-    MakeStruct(NumBases, NumMembers);
+    MakeStruct(NumBases, NumMembers, NumVirtualBases);
   }
   /// Creates a new union APValue.
   /// \param ActiveDecl The FieldDecl of the active union member.
@@ -634,6 +659,7 @@ public:
   bool isUnion() const { return Kind == Union; }
   bool isMemberPointer() const { return Kind == MemberPointer; }
   bool isAddrLabelDiff() const { return Kind == AddrLabelDiff; }
+  bool isReflection() const { return Kind == Reflection; }
 
   void dump() const;
   void dump(raw_ostream &OS, const ASTContext &Context) const;
@@ -819,6 +845,10 @@ public:
     assert(isStruct() && "Invalid accessor");
     return ((const StructData *)(const char *)&Data)->NumFields;
   }
+  unsigned getStructNumVirtualBases() const {
+    assert(isStruct() && "Invalid accessor");
+    return ((const StructData *)(const char *)&Data)->NumVirtualBases;
+  }
   APValue &getStructBase(unsigned i) {
     assert(isStruct() && "Invalid accessor");
     assert(i < getStructNumBases() && "base class index OOB");
@@ -829,11 +859,20 @@ public:
     assert(i < getStructNumFields() && "field index OOB");
     return ((StructData *)(char *)&Data)->Elts[getStructNumBases() + i];
   }
+  APValue &getStructVirtualBase(unsigned i) {
+    assert(isStruct() && "Invalid accessor");
+    assert(i < getStructNumVirtualBases() && "virtual base class index OOB");
+    return ((StructData *)(char *)&Data)
+        ->Elts[getStructNumBases() + getStructNumFields() + i];
+  }
   const APValue &getStructBase(unsigned i) const {
     return const_cast<APValue*>(this)->getStructBase(i);
   }
   const APValue &getStructField(unsigned i) const {
     return const_cast<APValue*>(this)->getStructField(i);
+  }
+  const APValue &getStructVirtualBase(unsigned i) const {
+    return const_cast<APValue *>(this)->getStructVirtualBase(i);
   }
 
   const FieldDecl *getUnionField() const {
@@ -859,6 +898,16 @@ public:
   const AddrLabelExpr* getAddrLabelDiffRHS() const {
     assert(isAddrLabelDiff() && "Invalid accessor");
     return ((const AddrLabelDiffData *)(const char *)&Data)->RHSExpr;
+  }
+
+  ReflectionKind getReflectionOperandKind() const {
+    assert(isReflection() && "Invalid accessor");
+    return ((const ReflectionData *)(const char *)&Data)->OperandKind;
+  }
+
+  const void *getReflectionOpaqueOperand() const {
+    assert(isReflection() && "Invalid accessor");
+    return ((const ReflectionData *)(const char *)&Data)->Operand;
   }
 
   void setInt(APSInt I) {
@@ -917,14 +966,29 @@ public:
 
 private:
   void DestroyDataAndMakeUninit();
-  void MakeInt() {
+  void MakeReflection(ReflectionKind OperandKind, const void *Operand) {
     assert(isAbsent() && "Bad state change");
-    new ((void *)&Data) APSInt(1);
+    new ((void *)(char *)Data.buffer) ReflectionData{OperandKind, Operand};
+    Kind = Reflection;
+  }
+  void MakeInt(const APSInt &I) {
+    assert(isAbsent() && "Bad state change");
+    new ((void *)&Data) APSInt(std::move(I));
     Kind = Int;
   }
-  void MakeFloat() {
+  void MakeInt(APSInt &&I) {
     assert(isAbsent() && "Bad state change");
-    new ((void *)(char *)&Data) APFloat(0.0);
+    new ((void *)&Data) APSInt(std::move(I));
+    Kind = Int;
+  }
+  void MakeFloat(const APFloat &F) {
+    assert(isAbsent() && "Bad state change");
+    new ((void *)(char *)&Data) APFloat(F);
+    Kind = Float;
+  }
+  void MakeFloat(APFloat &&F) {
+    assert(isAbsent() && "Bad state change");
+    new ((void *)(char *)&Data) APFloat(std::move(F));
     Kind = Float;
   }
   void MakeFixedPoint(APFixedPoint &&FX) {
@@ -954,9 +1018,9 @@ private:
   }
   void MakeLValue();
   void MakeArray(unsigned InitElts, unsigned Size);
-  void MakeStruct(unsigned B, unsigned M) {
+  void MakeStruct(unsigned B, unsigned M, unsigned V) {
     assert(isAbsent() && "Bad state change");
-    new ((void *)(char *)&Data) StructData(B, M);
+    new ((void *)(char *)&Data) StructData(B, M, V);
     Kind = Struct;
   }
   void MakeUnion() {

@@ -29,6 +29,7 @@
 #include "MemberPointer.h"
 #include "PrimType.h"
 #include "Program.h"
+#include "Reflect.h"
 #include "State.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
@@ -2202,6 +2203,14 @@ inline bool GetPtrVirtBasePop(InterpState &S, CodePtr OpPC,
   return VirtBaseHelper(S, D, Ptr);
 }
 
+inline bool GetPtrVirtBase(InterpState &S, CodePtr OpPC, const RecordDecl *D) {
+  assert(D);
+  const Pointer &Ptr = S.Stk.peek<Pointer>();
+  if (!CheckNull(S, OpPC, Ptr, CSK_Base))
+    return false;
+  return VirtBaseHelper(S, D, Ptr);
+}
+
 inline bool GetPtrThisVirtBase(InterpState &S, CodePtr OpPC,
                                const RecordDecl *D) {
   assert(D);
@@ -4071,6 +4080,17 @@ bool DiagTypeid(InterpState &S, CodePtr OpPC);
 inline bool CheckDestruction(InterpState &S, CodePtr OpPC) {
   const auto &Ptr = S.Stk.peek<Pointer>();
   return checkDestructor(S, OpPC, Ptr);
+}
+
+inline bool ReflectValue(InterpState &S, CodePtr OpPC, ReflectionKind Kind,
+                         const void *Operand) {
+  S.Stk.push<Reflect>(Kind, Operand);
+  return true;
+}
+
+inline bool IsBaseClass(InterpState &S) {
+  S.Stk.push<bool>(S.Stk.peek<Pointer>().isBaseClass());
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

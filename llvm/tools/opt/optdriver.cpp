@@ -448,7 +448,7 @@ optMain(int argc, char **argv,
 
   SmallVector<PassPlugin, 1> PluginList;
   PassPlugins.setCallback([&](const std::string &PluginPath) {
-    auto Plugin = PassPlugin::Load(PluginPath);
+    auto Plugin = PassPlugin::load(PluginPath);
     if (!Plugin)
       reportFatalUsageError(Plugin.takeError());
     PluginList.emplace_back(Plugin.get());
@@ -931,10 +931,11 @@ optMain(int argc, char **argv,
       BOS = std::make_unique<raw_svector_ostream>(Buffer);
       OS = BOS.get();
     }
-    if (OutputAssembly)
+    if (OutputAssembly) {
       Passes.add(createPrintModulePass(
-          *OS, "", /* ShouldPreserveAssemblyUseListOrder */ false));
-    else
+          *OS, "", /*ShouldPreserveAssemblyUseListOrder=*/false,
+          /*ShouldRenumberMetadata=*/true));
+    } else
       Passes.add(createBitcodeWriterPass(
           *OS, /* ShouldPreserveBitcodeUseListOrder */ true));
   }

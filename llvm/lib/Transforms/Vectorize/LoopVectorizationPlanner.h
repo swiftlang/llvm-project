@@ -536,6 +536,27 @@ public:
         VectorIntrinsicID, CallArguments, Ty, Alignment, MD, DL));
   }
 
+  /// Create a recipe widening \p Load, loading from \p Addr with \p Mask (may
+  /// be null).
+  VPWidenLoadRecipe *createWidenLoad(LoadInst &Load, VPValue *Addr,
+                                     VPValue *Mask, bool Consecutive,
+                                     const VPIRMetadata &Metadata,
+                                     DebugLoc DL) {
+    return tryInsertInstruction(
+        new VPWidenLoadRecipe(Load, Addr, Mask, Consecutive, Metadata, DL));
+  }
+
+  /// Create a recipe widening \p Store, storing \p StoredVal to \p Addr with
+  /// \p Mask (may be null).
+  VPWidenStoreRecipe *createWidenStore(StoreInst &Store, VPValue *Addr,
+                                       VPValue *StoredVal, VPValue *Mask,
+                                       bool Consecutive,
+                                       const VPIRMetadata &Metadata,
+                                       DebugLoc DL) {
+    return tryInsertInstruction(new VPWidenStoreRecipe(
+        Store, Addr, StoredVal, Mask, Consecutive, Metadata, DL));
+  }
+
   //===--------------------------------------------------------------------===//
   // RAII helpers.
   //===--------------------------------------------------------------------===//
@@ -731,6 +752,13 @@ public:
   /// \return The vscale value used for tuning the cost model.
   std::optional<unsigned> getVScaleForTuning() const { return VScaleForTuning; }
 
+  const TargetTransformInfo &getTTI() const { return TTI; }
+
+  PredicatedScalarEvolution &getPSE() const { return PSE; }
+
+  /// \return The loop being analyzed.
+  const Loop *getLoop() const { return TheLoop; }
+
   /// \return True if register pressure should be considered for the given VF.
   bool shouldConsiderRegPressureForVF(ElementCount VF) const;
 
@@ -771,10 +799,12 @@ public:
   /// of FP operations.
   bool useOrderedReductions(const RecurrenceDescriptor &RdxDesc) const;
 
-  /// Returns true if the target machine supports masked loads or stores
-  /// for \p I's data type and alignment. The caller must ensure the access is
-  /// consecutive or part of an interleave group.
-  bool isLegalMaskedLoadOrStore(Instruction *I, ElementCount VF) const;
+  /// Returns true if the target machine supports a masked load (if \p IsLoad)
+  /// or masked store of scalar type \p ScalarTy with \p Alignment in address
+  /// space \p AddressSpace. The caller must ensure the access is consecutive or
+  /// part of an interleave group.
+  bool isLegalMaskedLoadOrStore(bool IsLoad, Type *ScalarTy, Align Alignment,
+                                unsigned AddressSpace) const;
 
   /// Returns true if the target machine can represent \p V as a masked gather
   /// or scatter operation.

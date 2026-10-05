@@ -3549,7 +3549,7 @@ ItaniumCXXABI::getOrCreateVirtualFunctionPointerThunk(const CXXMethodDecl *MD) {
   const FunctionProtoType *FPT = MD->getType()->getAs<FunctionProtoType>();
   RequiredArgs Required = RequiredArgs::forPrototypePlus(FPT, /*this*/ 1);
   const CGFunctionInfo &CallInfo =
-      CGM.getTypes().arrangeCXXMethodCall(CallArgs, FPT, Required, 0);
+      CGM.getTypes().arrangeCXXMethodCall(CallArgs, FPT, Required, 0, MD);
   CGCallee Callee = CGCallee::forVirtual(nullptr, GlobalDecl(MD),
                                          getThisAddress(CGF), ThunkTy);
   llvm::CallBase *CallOrInvoke;
@@ -3807,6 +3807,8 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
 #include "clang/Basic/AMDGPUTypes.def"
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/HLSLIntangibleTypes.def"
+#define HLSL_PACKED_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/HLSLPackedTypes.def"
 #define SPIRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/SPIRVTypes.def"
     case BuiltinType::ShortAccum:
@@ -3834,6 +3836,7 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
     case BuiltinType::SatUFract:
     case BuiltinType::SatULongFract:
     case BuiltinType::BFloat16:
+    case BuiltinType::MetaInfo:
       return false;
 
     case BuiltinType::Dependent:

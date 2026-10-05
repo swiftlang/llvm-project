@@ -31,6 +31,7 @@
 #include "DXILTranslateMetadata.h"
 #include "DXILWriter/DXILWriterPass.h"
 #include "DirectX.h"
+#include "DirectXIRPasses/DXILDebugInfo.h"
 #include "DirectXSubtarget.h"
 #include "DirectXTargetTransformInfo.h"
 #include "TargetInfo/DirectXTargetInfo.h"
@@ -60,6 +61,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeDirectXTarget() {
   RegisterTargetMachine<DirectXTargetMachine> X(getTheDirectXTarget());
   auto *PR = PassRegistry::getPassRegistry();
+  initializeDXILDebugInfoLegacyPass(*PR);
   initializeDXILIntrinsicExpansionLegacyPass(*PR);
   initializeDXILMemIntrinsicsLegacyPass(*PR);
   initializeDXILDataScalarizationLegacyPass(*PR);
@@ -142,6 +144,7 @@ public:
     addPass(createDXILPostOptimizationValidationLegacyPass());
     addPass(createDXILOpLoweringLegacyPass());
     addPass(createDXILPrepareModulePass());
+    addPass(createDXILDebugInfoLegacyPass());
   }
 };
 

@@ -539,6 +539,9 @@ OptPrimType Context::classify(QualType T) const {
   if (T->isFixedPointType())
     return PT_FixedPoint;
 
+  if (T->isMetaInfoType())
+    return PT_Reflect;
+
   // Vector and complex types get here.
   return std::nullopt;
 }
@@ -571,7 +574,6 @@ bool Context::Run(State &Parent, const Function *Func) {
   return false;
 }
 
-// TODO: Virtual bases?
 const CXXMethodDecl *
 Context::getOverridingFunction(const CXXRecordDecl *DynamicDecl,
                                const CXXRecordDecl *StaticDecl,
