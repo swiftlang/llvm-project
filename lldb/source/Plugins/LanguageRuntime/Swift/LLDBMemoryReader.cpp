@@ -100,52 +100,32 @@ LLDBMemoryReader::getSymbolAddress(const std::string &name) {
   }
 
   SymbolContext sym_ctx;
-  // Remove undefined symbols from the list.
-  size_t num_sc_matches = sc_list.GetSize();
-  if (num_sc_matches > 1) {
-    SymbolContextList tmp_sc_list(sc_list);
-    sc_list.Clear();
-    for (size_t idx = 0; idx < num_sc_matches; idx++) {
-      tmp_sc_list.GetContextAtIndex(idx, sym_ctx);
-      if (sym_ctx.symbol &&
-          sym_ctx.symbol->GetType() != lldb::eSymbolTypeUndefined) {
-        sc_list.Append(sym_ctx);
-      }
+  {
+    size_t num = sc_list.GetSize();
+    SymbolContextList defined, resolvable;
+    SymbolContext sc;
+    for (size_t idx = 0; idx < num; idx++) {
+      sc_list.GetContextAtIndex(idx, sc);
+      if (!sc.symbol || sc.symbol->GetType() == lldb::eSymbolTypeUndefined)
+        continue;
+      defined.Append(sc);
+      if (sc.symbol->GetLoadAddress(&m_process.GetTarget()) !=
+          LLDB_INVALID_ADDRESS)
+        resolvable.Append(sc);
     }
+    if (resolvable.GetSize())
+      sc_list = resolvable;
+    else if (defined.GetSize())
+      sc_list = defined;
   }
-  if (sc_list.GetSize() == 1 && sc_list.GetContextAtIndex(0, sym_ctx)) {
-    if (sym_ctx.symbol) {
-      auto load_addr = sym_ctx.symbol->GetLoadAddress(&m_process.GetTarget());
-      LLDB_LOGV(log, "[MemoryReader] symbol resolved to {0:x}", load_addr);
-      return swift::remote::RemoteAddress(
-          load_addr, swift::remote::RemoteAddress::DefaultAddressSpace);
-    }
+  if (sc_list.GetContextAtIndex(0, sym_ctx) && sym_ctx.symbol) {
+    auto load_addr = sym_ctx.symbol->GetLoadAddress(&m_process.GetTarget());
+    LLDB_LOGV(log, "[MemoryReader] symbol resolved to {0:x}", load_addr);
+    return swift::remote::RemoteAddress(
+        load_addr, swift::remote::RemoteAddress::DefaultAddressSpace);
   }
-
-  // Empty list, resolution failed.
-  if (sc_list.GetSize() == 0) {
-    LLDB_LOGV(log, "[MemoryReader] symbol resolution failed {0}", name);
-    return swift::remote::RemoteAddress();
-  }
-
-  // If there's a single symbol, then we're golden. If there's more than
-  // a symbol, then just make sure all of them agree on the value.
-  Status error;
-  auto load_addr = sym_ctx.symbol->GetLoadAddress(&m_process.GetTarget());
-  uint64_t sym_value = m_process.GetTarget().ReadUnsignedIntegerFromMemory(
-      load_addr, m_process.GetAddressByteSize(), 0, error, true);
-  for (unsigned i = 1; i < sc_list.GetSize(); ++i) {
-    uint64_t other_sym_value =
-        m_process.GetTarget().ReadUnsignedIntegerFromMemory(
-            load_addr, m_process.GetAddressByteSize(), 0, error, true);
-    if (sym_value != other_sym_value) {
-      LLDB_LOGV(log, "[MemoryReader] symbol resolution failed {0}", name);
-      return swift::remote::RemoteAddress();
-    }
-  }
-  LLDB_LOGV(log, "[MemoryReader] symbol resolved to {0}", load_addr);
-  return swift::remote::RemoteAddress(
-      load_addr, swift::remote::RemoteAddress::DefaultAddressSpace);
+  LLDB_LOGV(log, "[MemoryReader] symbol resolution failed {0}", name);
+  return swift::remote::RemoteAddress();
 }
 
 swift::remote::RemoteAddress
