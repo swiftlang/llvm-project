@@ -785,7 +785,12 @@ void CodeGenFunction::EmitNullabilityCheck(QualType LHSQTy, llvm::Value *RHS,
   auto CheckOrdinal = SanitizerKind::SO_NullabilityAssign;
   auto CheckHandler = SanitizerHandler::TypeMismatch;
   SanitizerDebugLocation SanScope(this, {CheckOrdinal}, CheckHandler);
-  llvm::Value *IsNotNull = Builder.CreateIsNotNull(RHS);
+  llvm::Value *IsNotNull;
+  if (auto *MPT = LHS.getType()->getAs<MemberPointerType>())
+    IsNotNull = CGM.getCXXABI().EmitMemberPointerIsNotNull(*this, RHS, MPT);
+  else
+    IsNotNull = Builder.CreateIsNotNull(RHS);
+
   llvm::Constant *StaticData[] = {
       EmitCheckSourceLocation(Loc), EmitCheckTypeDescriptor(LHSQTy),
       llvm::ConstantInt::get(Int8Ty, 0), // The LogAlignment info is unused.
