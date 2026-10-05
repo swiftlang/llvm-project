@@ -12,14 +12,15 @@
 
 struct StructTest {
   func foo() {
-    print("Stop here in method \(m_var)") // break 1
+    print("Stop here in method \(m_var)") //% self.expect("expr self", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["StructTest"])
+                                          //% self.expect("expr typealias foo = StructTest; self as foo", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["foo"]) 
   }
   let m_var = 234
 }
 
 class ClassTest {
   func foo () {
-    print ("Stop here in method \(m_var)") // break 2
+    print ("Stop here in method \(m_var)") //% self.expect("expr self", DATA_TYPES_DISPLAYED_CORRECTLY, substrs = ["ClassTest"])
   }
   let m_var = 234
 }

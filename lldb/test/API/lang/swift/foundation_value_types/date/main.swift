@@ -13,7 +13,8 @@ import Foundation
 
 func main() {
   var date = Date(timeIntervalSince1970: 23*60*60)
-  print("break here")
+  print("done!") //% self.expect("frame variable date", substrs=['1970-01-'])
+   //% self.expect("expression -d run -- date", substrs=['1970-01-'])
 }
 
 main()

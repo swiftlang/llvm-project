@@ -9,22 +9,9 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftPONestedNSDictionary(TestBase):
-
-    @requireNotEmbeddedSwift
-    @swiftTest
-    @requireObjCFoundation
-    def test(self):
-        """Test po of a dictionary with nested NSArray and NSDictionary values"""
-        self.build()
-        lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        self.expect('po a', ordered=False,
-                    substrs=['Key1', 'Value1', 'Key2', '1234', '5678', 'Object',
-                             'WAHHH', '2467'])
+lldbinline.MakeInlineTest(__file__, globals(),
+                          decorators=[requireNotEmbeddedSwift,
+        swiftTest,requireObjCFoundation])

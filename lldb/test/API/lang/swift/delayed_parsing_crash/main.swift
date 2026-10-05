@@ -1,7 +1,7 @@
 private class V
 { 
     func layoutSubviews() {
-        print("break here")
+        print("patatino") //%self.expect('expr typealias $MyV = V')
     }
 }
 

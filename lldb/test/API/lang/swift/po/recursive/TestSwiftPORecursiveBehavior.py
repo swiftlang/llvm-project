@@ -9,19 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftPORecursiveBehavior(TestBase):
-
-    @requireNotEmbeddedSwift
-    @swiftTest
-    def test(self):
-        """Test that po of a cyclic object graph elides the repeated object"""
-        self.build()
-        lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        self.expect('po s', substrs=['▿ a : Optional', 'some', '0x', '{ ... }'])
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[requireNotEmbeddedSwift, swiftTest])

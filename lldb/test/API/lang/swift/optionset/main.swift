@@ -32,10 +32,23 @@ func main() {
   var sdk_option_exhaustive: NSBinarySearchingOptions = [.firstEqual, .insertionIndex]
   var sdk_option_nonexhaustive = NSBinarySearchingOptions(rawValue: 257)
   var sdk_option_nonevalid = NSBinarySearchingOptions(rawValue: 12)
-  use((user_option, computed_option,
+  use((user_option, computed_option, // break here
       sdk_option_single_valued,
       sdk_option_exhaustive, sdk_option_nonexhaustive,
       sdk_option_nonevalid))
-} // break here
+  //%self.expect('frame variable user_option', substrs=['rawValue = 123456'])
+  //%self.expect('frame variable computed_option', substrs=['storedValue', '789'])
+  //%self.expect('expression user_option', substrs=['rawValue = 123456'])
+  //%self.expect('frame variable sdk_option_single_valued', substrs=['.insertionIndex'])
+  //%self.expect('frame variable sdk_option_single_valued', matching=False, substrs=['['])
+  //%self.expect('expression sdk_option_single_valued', substrs=['.insertionIndex'])
+  //%self.expect('expression sdk_option_single_valued', matching=False, substrs=['['])
+  //%self.expect('frame variable sdk_option_exhaustive', substrs=['[.firstEqual, .insertionIndex]'])
+  //%self.expect('expression sdk_option_exhaustive', substrs=['[.firstEqual, .insertionIndex]'])
+  //%self.expect('frame variable sdk_option_nonexhaustive', substrs=['[.firstEqual, 0x1]'])
+  //%self.expect('expression sdk_option_nonexhaustive', substrs=['[.firstEqual, 0x1]'])
+  //%self.expect('frame variable sdk_option_nonevalid', substrs=['rawValue = 0xC'])
+  //%self.expect('expression sdk_option_nonevalid', substrs=['rawValue = 0xC'])
+}
 
 main()

@@ -1,6 +1,6 @@
 extension Array where Element: Comparable {
   public func union(_ rhs: [Element]) -> [Element] {
-    return [] // break 1
+    return [] //%self.expect('frame variable -d run -- rhs', substrs=['([Int]) rhs = 1 value'])
   }
 }
 
@@ -9,7 +9,7 @@ patatino.union([2])
 
 extension Collection where Element: Equatable {
     func split<C: Collection>(separatedBy separator: C) -> [SubSequence] where C.Element == Element {
-        var results = [SubSequence]() // break 2
+        var results = [SubSequence]() //%self.expect('frame variable -d run -- separator', substrs=['(String) separator'])
         return results
     }
 }

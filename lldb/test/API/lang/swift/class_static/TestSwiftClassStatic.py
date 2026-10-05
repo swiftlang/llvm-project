@@ -9,26 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftClassStatic(TestBase):
-
-    @skipEmbeddedSwiftOnWindows
-    @swiftTest
-    def test(self):
-        """Test that a static class property can be inspected"""
-        self.build()
-        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        v = frame.FindVariable("v")
-        lldbutil.check_variable(self, v.GetChildMemberWithName("a"), value="1")
-        lldbutil.check_variable(self, v.GetChildMemberWithName("b"), value="2")
-        shared = frame.EvaluateExpression("WithStatic.Shared")
-        self.assertSuccess(shared.GetError())
-        lldbutil.check_variable(self, shared.GetChildMemberWithName("a"), value="1")
-        lldbutil.check_variable(self, shared.GetChildMemberWithName("b"), value="2")
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[skipEmbeddedSwiftOnWindows, swiftTest])

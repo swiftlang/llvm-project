@@ -8,7 +8,7 @@ func main() -> Int {
     Int.self,
     Float.self,
   ]
-  return 0 // break here
+  return 0 //%self.expect('frame variable -d run -- patatino', substrs=['Any.Type', '3 values', 'String', 'Int', 'Float'])
 }
 
 let _ = main()

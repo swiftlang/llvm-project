@@ -46,7 +46,18 @@ if #available(macOS 10.15, *) {
     let i = h[unwrapped: ()]
     let j = h[wrapped: ()]
 
-    bar(a) // break here
+    //%self.expect("frame var -d run-target -- a", substrs=['(Int) a = 0'])
+    //%self.expect("frame var -d run-target -- b", substrs=['(Int) b = 0'])
+    //%self.expect("frame var -d run-target -- c", substrs=['(Int) c = 0'])
+    //%self.expect("frame var -d run-target -- d", substrs=['(a.Wrapper<Int>) d = (value = 0)'])
+    //%self.expect("frame var -d run-target -- e", substrs=['(a.Wrapper<a.Wrapper<Int>>) e = {', 'value = (value = 0)'])
+    //%self.expect("frame var -d run-target -- f", substrs=['(Int) f = 0'])
+    //%self.expect("frame var -d run-target -- g", substrs=['(a.Wrapper<Int>) g = (value = 0)'])
+    //%self.expect("frame var -d run-target -- h", substrs=['(a.Wrapper<a.Wrapper<Int>>) h = {', 'value = (value = 0)'])
+    //%self.expect("frame var -d run-target -- i", substrs=['(a.Wrapper<Int>) i = (value = 0)'])
+    //%self.expect("frame var -d run-target -- j", substrs=['(a.Wrapper<a.Wrapper<Int>>) j = {', 'value = (value = 0)'])
+
+    bar(a) 
     bar(b)
     bar(c)
     bar(d)

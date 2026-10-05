@@ -9,24 +9,9 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftPrivateSelf(TestBase):
-
-    @requireNotEmbeddedSwift
-    @swiftTest
-    def test(self):
-        """Test evaluating self in a fileprivate method"""
-        self.build()
-        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        options = lldb.SBExpressionOptions()
-        options.SetFetchDynamicValue(lldb.eDynamicCanRunTarget)
-        value = frame.EvaluateExpression("self", options)
-        self.assertSuccess(value.GetError())
-        lldbutil.check_variable(self, value, typename="a.MyClass")
+lldbinline.MakeInlineTest(
+    __file__, globals(), decorators=[requireNotEmbeddedSwift, swiftTest]
+)

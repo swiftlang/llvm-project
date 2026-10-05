@@ -4,7 +4,7 @@ enum MyErr : Error {
 }
 
 func f<T>(_ Pat : T) -> T {
-  return Pat // break here
+  return Pat //%self.expect("frame var -d run-target -- Pat", substrs=['(a.MyErr) Pat = Patatino'])
 }
 
 f(MyErr.Patatino as Error)

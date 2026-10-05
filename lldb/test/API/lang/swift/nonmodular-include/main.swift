@@ -15,7 +15,7 @@ func use<T>(_ t: T) {}
 
 func main() {
   let foo = Foo(i: 42)
-  use(foo) // break here
+  use(foo) //% self.expect("expr foo", "import worked", ["42"])
 }
 
 main()

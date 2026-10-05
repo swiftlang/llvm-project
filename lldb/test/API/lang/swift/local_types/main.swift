@@ -40,12 +40,12 @@ func main() -> Int {
     var f = Foo()
     var b = Foo.Bar()
     var c = Derived()
-    print("break 1")
-    print("break 2")
-    print("break 3")
-    print("break 4")
-    print("break 5")
-    print("break 6")
+    print("I like my f") //% self.expect("frame variable f", substrs = ['f = (a = 234, b = 1.25)'])
+    print("and my b too") //% self.expect("frame variable b", substrs = ['b = (c = 48, d = "Hello")'])
+    print("and my c is quite cool") //% self.expect("frame variable -d run -- c", substrs = ['a = 1', 'b = 2'])
+    print("[chorus] I like my f") //% self.expect("expr f", substrs = ['= (a = 234, b = 1.25)'])
+    print("[chorus] and my b too") //% self.expect("expr b", substrs = ['= (c = 48, d = "Hello")'])
+    print("[chorus] and my c is quite cool") //% self.expect("expr -d run -- c", substrs = ['a = 1', 'b = 2'])
     return 0
 }
 

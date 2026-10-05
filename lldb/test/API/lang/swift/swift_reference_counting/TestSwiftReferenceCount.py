@@ -9,24 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftReferenceCount(TestBase):
-
-    @swiftTest
-    @skipEmbeddedSwiftOnWindows
-    def test(self):
-        """Test the language swift refcount command on class, struct and unknown names"""
-        self.build()
-        lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        self.expect('language swift refcount Blah', substrs=['cannot find \'Blah\''],
-                    error=True)
-        self.expect('language swift refcount LiveObj',
-                    substrs=['(strong =', 'unowned =', 'weak ='])
-        self.expect('language swift refcount MyStruct',
-                    substrs=['refcount only available for class types'], error=True)
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[swiftTest,skipEmbeddedSwiftOnWindows])

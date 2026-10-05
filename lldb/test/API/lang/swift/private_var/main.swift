@@ -13,12 +13,12 @@
 private var a = 1
 
 func doSomething(b: Int) {
-	a += b // break 2
+	a += b //% self.expect("expr a", substrs=['Int', '= 1'])
 }
 
 func withLocalShadow() {
   let a = 23
-  doSomething(b: a) // break 1
+  doSomething(b: a) //% self.expect("log enable lldb expr");self.expect("expr a", substrs=['Int', '= 23'])
 }
 
 withLocalShadow()

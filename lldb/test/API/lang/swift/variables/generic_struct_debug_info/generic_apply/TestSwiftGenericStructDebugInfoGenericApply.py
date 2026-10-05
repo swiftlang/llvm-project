@@ -9,34 +9,7 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftGenericStructDebugInfoGenericApply(TestBase):
-
-    def expr(self, frame, expression):
-        options = lldb.SBExpressionOptions()
-        options.SetFetchDynamicValue(lldb.eDynamicCanRunTarget)
-        value = frame.EvaluateExpression(expression, options)
-        self.assertSuccess(value.GetError())
-        return value
-
-    @swiftTest
-    @skipEmbeddedSwiftOnWindows
-    def test(self):
-        """Test that a generic closure argument resolves to its bound type"""
-        self.build()
-        # Embedded Swift specializes generic code, so these values are concrete
-        # there and have no dynamic type to resolve.
-        use_dynamic = not self.isEmbeddedSwift()
-        target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-        self.expect('expr -o -d run -- arg', substrs=['3735928559'])
-        lldbutil.check_variable(self, self.expr(frame, "arg"), typename="Swift.Int",
-                                value="3735928559")
-        lldbutil.check_variable(self, frame.FindVariable("arg"), use_dynamic=use_dynamic,
-                                typename="Swift.Int", value="3735928559")
+lldbinline.MakeInlineTest(__file__, globals(), decorators=[swiftTest,skipEmbeddedSwiftOnWindows])

@@ -9,55 +9,9 @@
 # See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 #
 # ------------------------------------------------------------------------------
-import lldb
-from lldbsuite.test.lldbtest import *
+import lldbsuite.test.lldbinline as lldbinline
 from lldbsuite.test.decorators import *
-import lldbsuite.test.lldbutil as lldbutil
 
-
-class TestSwiftOptionSetType(TestBase):
-
-    def expr(self, frame, expression):
-        value = frame.EvaluateExpression(expression, lldb.SBExpressionOptions())
-        self.assertSuccess(value.GetError())
-        return value
-
-    @requireNotEmbeddedSwift
-    @swiftTest
-    @requireObjCFoundation
-    def test(self):
-        """Test the summaries of user-defined and SDK OptionSet values"""
-        self.build()
-        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break here", lldb.SBFileSpec("main.swift"))
-        frame = thread.GetFrameAtIndex(0)
-
-        lldbutil.check_variable(
-            self, frame.FindVariable("user_option").GetChildMemberWithName("rawValue"),
-            value="123456")
-        lldbutil.check_variable(
-            self,
-            frame.FindVariable("computed_option").GetChildMemberWithName("storedValue"),
-            value="789")
-        lldbutil.check_variable(
-            self, self.expr(frame, "user_option").GetChildMemberWithName("rawValue"),
-            value="123456")
-
-        lldbutil.check_variable(self, frame.FindVariable("sdk_option_single_valued"),
-                                summary=".insertionIndex")
-        lldbutil.check_variable(self, self.expr(frame, "sdk_option_single_valued"),
-                                summary=".insertionIndex")
-
-        lldbutil.check_variable(self, frame.FindVariable("sdk_option_exhaustive"),
-                                summary="[.firstEqual, .insertionIndex]")
-        lldbutil.check_variable(self, self.expr(frame, "sdk_option_exhaustive"),
-                                summary="[.firstEqual, .insertionIndex]")
-        lldbutil.check_variable(self, frame.FindVariable("sdk_option_nonexhaustive"),
-                                summary="[.firstEqual, 0x1]")
-        lldbutil.check_variable(self, self.expr(frame, "sdk_option_nonexhaustive"),
-                                summary="[.firstEqual, 0x1]")
-
-        lldbutil.check_variable(self, frame.FindVariable("sdk_option_nonevalid"),
-                                summary="rawValue = 0xC]")
-        lldbutil.check_variable(self, self.expr(frame, "sdk_option_nonevalid"),
-                                summary="rawValue = 0xC]")
+lldbinline.MakeInlineTest(__file__, globals(),
+                          decorators=[requireNotEmbeddedSwift,
+        swiftTest,requireObjCFoundation])
