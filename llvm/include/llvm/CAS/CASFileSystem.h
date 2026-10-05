@@ -9,6 +9,7 @@
 #ifndef LLVM_CAS_CASFILESYSTEM_H
 #define LLVM_CAS_CASFILESYSTEM_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ExtensibleRTTI.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -20,7 +21,7 @@ class CASID;
 /// Abstract class represents an open file backed by a CAS.
 class CASBackedFile : public RTTIExtends<CASBackedFile, vfs::File> {
 public:
-  static const char ID;
+  LLVM_ABI static const char ID;
   /// Get the CAS reference for the contents of the file.
   virtual cas::ObjectRef getObjectRefForContent() = 0;
 };
@@ -29,20 +30,22 @@ public:
 class CASBackedFileSystem
     : public llvm::RTTIExtends<CASBackedFileSystem, vfs::FileSystem> {
 public:
-  static const char ID;
+  LLVM_ABI static const char ID;
 
   /// This is a convenience method that opens a file, gets its content and then
   /// closes the file. It returns MemoryBuffer and ObjectRef in one call to avoid
   /// open the file twice.
   /// The IsText parameter is used to distinguish whether the file should be
   /// opened as a binary or text file.
-  llvm::Expected<std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
+  LLVM_ABI llvm::Expected<
+      std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
   getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize = -1,
                                bool RequiresNullTerminator = true,
                                bool IsVolatile = false, bool IsText = true);
 
   /// Get ObjectRef of a file from its path.
-  llvm::Expected<cas::ObjectRef> getObjectRefForFileContent(const Twine &Name);
+  LLVM_ABI llvm::Expected<cas::ObjectRef>
+  getObjectRefForFileContent(const Twine &Name);
 
   /// Implementation for openFileForRead using CASBackedFile.
   ErrorOr<std::unique_ptr<vfs::File>>
@@ -62,11 +65,11 @@ public:
   createThreadSafeProxyFS() = 0;
 };
 
-Expected<std::unique_ptr<vfs::FileSystem>>
+LLVM_ABI Expected<std::unique_ptr<vfs::FileSystem>>
 createCASFileSystem(std::shared_ptr<ObjectStore> DB, const CASID &RootID,
                     sys::path::Style PathStyle = sys::path::Style::native);
 
-Expected<std::unique_ptr<vfs::FileSystem>>
+LLVM_ABI Expected<std::unique_ptr<vfs::FileSystem>>
 createCASFileSystem(ObjectStore &DB, const CASID &RootID,
                     sys::path::Style PathStyle = sys::path::Style::native);
 

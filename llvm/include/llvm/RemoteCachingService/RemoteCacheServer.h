@@ -10,6 +10,7 @@
 #define LLVM_REMOTECACHINGSERVICE_REMOTECACHESERVER_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm::cas::remote {
@@ -20,14 +21,15 @@ class RemoteCacheProvider;
 class RemoteCacheServer {
 public:
   /// Returns a gRPC server for the remote caching protocol.
+  LLVM_ABI
   RemoteCacheServer(StringRef SocketPath,
                     std::unique_ptr<RemoteCacheProvider> CacheProvider);
 
-  ~RemoteCacheServer();
+  LLVM_ABI ~RemoteCacheServer();
 
-  void Start();
-  void Listen();
-  void Shutdown();
+  LLVM_ABI void Start();
+  LLVM_ABI void Listen();
+  LLVM_ABI void Shutdown();
 
 private:
   class Implementation;
