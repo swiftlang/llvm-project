@@ -5167,7 +5167,8 @@ ExprResult SemaObjC::ActOnObjCAvailabilityCheckExpr(
                                                  Spec.getBeginLoc());
 
     return ObjCAvailabilityCheckExpr::CreateAvailabilityFeatureCheck(
-        AtLoc, RParen, Context.BoolTy, Spec.getDomainName(), Context);
+        AtLoc, RParen, Context.BoolTy, Spec.getDomainName(), Spec.getBeginLoc(),
+        Context);
   }
 
   auto FindSpecVersion =
