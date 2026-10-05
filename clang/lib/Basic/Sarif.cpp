@@ -297,7 +297,10 @@ void SarifDocumentWriter::endRun() {
   SmallVector<std::pair<StringRef, SarifArtifact>, 0> Vec;
   for (const auto &[K, V] : CurrentArtifacts)
     Vec.emplace_back(K, V);
-  llvm::sort(Vec, llvm::less_first());
+  // Emit in index order, since results refer to artifacts by array position.
+  llvm::sort(Vec, [](const auto &L, const auto &R) {
+    return L.second.Location.Index < R.second.Location.Index;
+  });
   for (const auto &[_, A] : Vec) {
     json::Object Loc{{"uri", A.Location.URI}};
     if (A.Location.Index.has_value()) {
