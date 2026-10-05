@@ -6,6 +6,7 @@ add_clang_library(clangAnalysisLifetimeSafety
   LifetimeSafety.cpp
   LiveOrigins.cpp
   LifetimeStats.cpp
+  LifetimeSummary.cpp
   Loans.cpp
   LoanPropagation.cpp
   MovedLoans.cpp
