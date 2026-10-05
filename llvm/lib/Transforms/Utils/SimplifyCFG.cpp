@@ -4468,9 +4468,7 @@ static bool mergeConditionalStoreToAddress(
   Value *QPHI = ensureValueAvailableInSuccessor(QStore->getValueOperand(),
                                                 QStore->getParent(), PPHI);
 
-  BasicBlock::iterator PostBBFirst = PostBB->getFirstInsertionPt();
-  IRBuilder<> QB(PostBB, PostBBFirst);
-  QB.SetCurrentDebugLocation(PostBBFirst->getStableDebugLoc());
+  IRBuilder<> QB(PostBB->getFirstInsertionPt());
 
   InvertPCond ^= (PStore->getParent() != PTB);
   InvertQCond ^= (QStore->getParent() != QTB);
