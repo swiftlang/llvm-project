@@ -124,6 +124,9 @@ public:
   static llvm::Expected<lldb::offset_t>
   FindAsyncTaskNameOffset(Process &process);
 
+  /// Returns the size of an `AsyncTask` in the target's concurrency runtime.
+  static llvm::Expected<lldb::offset_t> FindAsyncTaskSize(Process &process);
+
   /// Inclusive range of `_swift_concurrency_debug_internal_layout_version`
   /// values that LLDB knows how to decode.
   ///
@@ -1110,9 +1113,6 @@ struct JobFlags {
   bool hasInitialTaskName() const { return hasFlag(Task_HasInitialTaskName); }
 };
 
-/// The offset of ChildFragment, which is the first fragment of an AsyncTask.
-inline constexpr size_t AsyncTaskSize = sizeof(::swift::AsyncTask);
-
 /// Size of `AsyncTask::NameFragment` = `const char *Name` + `size_t Length`,
 /// i.e. two pointer-sized words. Tail-allocated immediately after the
 /// AsyncTask iff `JobFlags::hasInitialTaskName()` is set.
@@ -1134,7 +1134,8 @@ llvm::Expected<lldb::offset_t> GetChildFragmentOffset(Process &process,
 ///
 /// `flags` must come from the same task whose offset is being computed —
 /// they encode which fragments are available, which impacts the offset.
-lldb::offset_t GetChildFragmentOffset(Process &process, JobFlags flags);
+llvm::Expected<lldb::offset_t> GetChildFragmentOffset(Process &process,
+                                                      JobFlags flags);
 
 /// Get the name of a task.
 /// Names are immutable and specified with `Task(name:)` during initialization.
