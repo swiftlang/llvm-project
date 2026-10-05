@@ -314,6 +314,7 @@ public:
     eKindStepThroughGenericTrampoline,
     eKindStepUntil,
     eKindSingleThreadTimeout,
+    eKindRunToBreakpoint
   };
 
   virtual ~ThreadPlan();
