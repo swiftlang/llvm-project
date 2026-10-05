@@ -786,7 +786,7 @@ void CodeGenFunction::EmitNullabilityCheck(QualType LHSQTy, llvm::Value *RHS,
   auto CheckHandler = SanitizerHandler::TypeMismatch;
   SanitizerDebugLocation SanScope(this, {CheckOrdinal}, CheckHandler);
   llvm::Value *IsNotNull;
-  if (auto *MPT = LHS.getType()->getAs<MemberPointerType>())
+  if (auto *MPT = LHSQTy->getAs<MemberPointerType>())
     IsNotNull = CGM.getCXXABI().EmitMemberPointerIsNotNull(*this, RHS, MPT);
   else
     IsNotNull = Builder.CreateIsNotNull(RHS);
