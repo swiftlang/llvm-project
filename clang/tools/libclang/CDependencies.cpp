@@ -209,6 +209,16 @@ void clang_experimental_DependencyScannerService_dispose_v0(
   delete unwrap(Service);
 }
 
+void clang_experimental_DependencyScannerService_addInvalidatedDirectories(
+    CXDependencyScannerService Service, const char *const *Directories,
+    size_t NumDirectories) {
+  std::vector<std::string> Dirs;
+  Dirs.reserve(NumDirectories);
+  for (size_t I = 0; I != NumDirectories; ++I)
+    Dirs.emplace_back(Directories[I]);
+  unwrap(Service)->addInvalidatedDirectories(Dirs);
+}
+
 CXDependencyScannerWorker clang_experimental_DependencyScannerWorker_create_v0(
     CXDependencyScannerService S) {
   ScanningOutputFormat Format = unwrap(S)->getFormat();
@@ -432,6 +442,12 @@ clang_experimental_DepGraphModule_getFileDeps(CXDepGraphModule CXDepMod) {
   std::vector<std::string> FileDeps;
   ModDeps.forEachFileDep([&](StringRef File) { FileDeps.emplace_back(File); });
   return unwrap(CXDepMod)->StrMgr.createCStringsOwned(std::move(FileDeps));
+}
+
+CXCStringArray
+clang_experimental_DepGraphModule_getDirectoryDeps(CXDepGraphModule CXDepMod) {
+  const ModuleDeps &ModDeps = *unwrap(CXDepMod)->ModDeps;
+  return unwrap(CXDepMod)->StrMgr.createCStringsRef(ModDeps.DirectoryDeps);
 }
 
 CXCStringArray

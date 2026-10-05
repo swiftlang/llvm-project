@@ -43,6 +43,9 @@ framework module FW_Private {
 // CHECK_TU-NEXT:       "command-line": [
 // CHECK_TU:            ],
 // CHECK_TU-NEXT:       "context-hash": "{{.*}}",
+// CHECK_TU-NEXT:       "directory-deps": [
+// CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Headers"
+// CHECK_TU-NEXT:       ],
 // CHECK_TU-NEXT:       "file-deps": [
 // CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Modules/module.modulemap",
 // CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Headers/FW.h"
@@ -61,6 +64,9 @@ framework module FW_Private {
 // CHECK_TU-NEXT:       "command-line": [
 // CHECK_TU:            ],
 // CHECK_TU-NEXT:       "context-hash": "{{.*}}",
+// CHECK_TU-NEXT:       "directory-deps": [
+// CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/PrivateHeaders"
+// CHECK_TU-NEXT:       ],
 // CHECK_TU-NEXT:       "file-deps": [
 // CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Modules/module.private.modulemap",
 // CHECK_TU-NEXT:         "[[PREFIX]]/frameworks/FW.framework/PrivateHeaders/FW_Private.h",
@@ -133,6 +139,9 @@ module Mod { header "Mod.h" }
 // CHECK_MODULE-NEXT:       "command-line": [
 // CHECK_MODULE:            ],
 // CHECK_MODULE-NEXT:       "context-hash": "{{.*}}",
+// CHECK_MODULE-NEXT:       "directory-deps": [
+// CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Headers"
+// CHECK_MODULE-NEXT:       ],
 // CHECK_MODULE-NEXT:       "file-deps": [
 // CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Modules/module.modulemap",
 // CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Headers/FW.h"
@@ -151,6 +160,9 @@ module Mod { header "Mod.h" }
 // CHECK_MODULE-NEXT:       "command-line": [
 // CHECK_MODULE:            ],
 // CHECK_MODULE-NEXT:       "context-hash": "{{.*}}",
+// CHECK_MODULE-NEXT:       "directory-deps": [
+// CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/PrivateHeaders"
+// CHECK_MODULE-NEXT:       ],
 // CHECK_MODULE-NEXT:       "file-deps": [
 // CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/Modules/module.private.modulemap",
 // CHECK_MODULE-NEXT:         "[[PREFIX]]/frameworks/FW.framework/PrivateHeaders/FW_Private.h",
