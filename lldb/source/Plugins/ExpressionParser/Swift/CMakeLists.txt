@@ -51,7 +51,8 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     clangRewrite
   )
 
-if(BOOTSTRAPPING_MODE)
+if(BOOTSTRAPPING_MODE OR
+   (NOT LLDB_BUILT_STANDALONE AND NOT DEFINED BOOTSTRAPPING_MODE))
   target_link_libraries(lldbPluginExpressionParserSwift
     PRIVATE
       swiftCompilerModules)
