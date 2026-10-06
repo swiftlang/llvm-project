@@ -19,10 +19,6 @@
 #include "lldb/ValueObject/ValueObject.h"
 #include "llvm/ADT/STLExtras.h"
 
-// BEGIN SWIFT
-#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
-// END SWIFT
-
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::formatters;
@@ -206,14 +202,14 @@ void FormatManager::GetPossibleMatches(
 
 // BEGIN SWIFT
     auto ts = compiler_type.GetTypeSystem();
-    if (ts && !ts.isa_and_nonnull<TypeSystemClang>()) {
-// END SWIFT
-    ConstString display_type_name(compiler_type.GetDisplayTypeName());
-    if (display_type_name != type_name)
-      entries.push_back({display_type_name, script_interpreter,
-                         TypeImpl(compiler_type), current_flags,
-                         ptr_stripped_depth});
-// BEGIN SWIFT
+    if (ts && ts->MatchFormattersByDisplayTypeName()) {
+      // END SWIFT
+      ConstString display_type_name(compiler_type.GetDisplayTypeName());
+      if (display_type_name != type_name)
+        entries.push_back({display_type_name, script_interpreter,
+                           TypeImpl(compiler_type), current_flags,
+                           ptr_stripped_depth});
+      // BEGIN SWIFT
     }
 // END SWIFT
   }
