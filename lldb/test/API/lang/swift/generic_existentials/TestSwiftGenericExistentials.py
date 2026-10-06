@@ -25,7 +25,6 @@ class TestSwiftGenericExistentials(TestBase):
         self.check_x(self.expr(frame, "x"), typename, fields)
 
     @swiftTest
-    @skipEmbeddedSwiftOnWindows
     def test(self):
         """Test that generic arguments bound to existentials resolve to the stored type"""
         self.build()
