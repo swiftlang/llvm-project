@@ -29,7 +29,6 @@ class ThreadStateTestCase(TestBase):
     @expectedFailureDarwin("llvm.org/pr23669")
     # This actually passes on Windows on Arm but it's hard to describe that
     # and xfail it everywhere else.
-    @skipIfWindows
     def test_state_after_expression(self):
         """Test thread state after expression."""
         self.build()

@@ -126,7 +126,6 @@ class TestCase(TestBase):
 
     # BitFields exhibit crashes in record layout on Windows
     # (http://llvm.org/pr21800)
-    @skipIfWindows
     def test_expression_bug(self):
         # Ensure evaluating (emulating) an expression does not break bitfield
         # values for already parsed variables. The expression is run twice
@@ -163,7 +162,6 @@ class TestCase(TestBase):
     @add_test_categories(["pyapi"])
     # BitFields exhibit crashes in record layout on Windows
     # (http://llvm.org/pr21800)
-    @skipIfWindows
     def test_and_python_api(self):
         """Use Python APIs to inspect a bitfields variable."""
         self.run_to_main()
