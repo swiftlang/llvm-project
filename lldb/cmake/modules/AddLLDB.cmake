@@ -326,12 +326,13 @@ function(add_lldb_library name)
   # SwiftCompilerDylib.
   set(_link_libs ${PARAM_LINK_LIBS})
   if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
-    list(FILTER _link_libs EXCLUDE REGEX "LLVMDebuginfod|LLVMHTTP")
+    list(FILTER _link_libs EXCLUDE REGEX "^(LLVMDebuginfod|LLVMHTTP)$")
   endif()
+  set(_link_libs_param LINK_LIBS ${_link_libs})
 
   llvm_add_library(${name} ${libkind}
     ${PARAM_UNPARSED_ARGUMENTS}
-    LINK_LIBS ${_link_libs}
+    ${_link_libs_param}
     ${_link_components_param}
     ${pass_NO_INSTALL_RPATH}
   )

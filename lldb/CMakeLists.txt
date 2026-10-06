@@ -42,6 +42,7 @@ if (LLVM_TARGET_IS_CROSSCOMPILE_HOST)
   set(DEFAULT_LLDB_SWIFT_SUPPORT OFF)
 endif()
 option(LLDB_ENABLE_SWIFT_SUPPORT "Enable swift support" ${DEFAULT_LLDB_SWIFT_SUPPORT})
+option(LLDB_LINK_SWIFT_COMPILER_DYLIB "Link against SwiftCompilerShared" OFF)
 # END SWIFT MOD
 
 if(LLDB_BUILT_STANDALONE)
@@ -62,6 +63,15 @@ include(AddLLDB)
 include(LLDBLayeringCheck)
 
 # BEGIN - Swift Mods
+if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
+  if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
+    message(FATAL_ERROR "Cannot link swift compiler dylib if swift support is disabled.")
+  endif()
+  if (NOT TARGET SwiftCompilerShared)
+    message(FATAL_ERROR "Cannot find target SwiftCompilerShared for LLDB_LINK_SWIFT_COMPILER_DYLIB")
+  endif()
+endif()
+
 if (LLDB_ENABLE_SWIFT_SUPPORT)
   if(EXISTS "${LLVM_EXTERNAL_SWIFT_SOURCE_DIR}")
      cmake_path(CONVERT "${LLVM_EXTERNAL_SWIFT_SOURCE_DIR}" TO_CMAKE_PATH_LIST NORMALIZED_LLVM_EXTERNAL_SWIFT_SOURCE_DIR NORMALIZE)
