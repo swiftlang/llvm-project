@@ -29,6 +29,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Threading.h"
 
+#include <set>
+
 namespace swift {
 class DWARFImporterDelegate;
 namespace Demangle {
@@ -808,6 +810,13 @@ public:
 protected:
   lldb::TargetWP m_target_wp;
   unsigned m_generation = 0;
+  /// The modules ModulesDidLoad() has already been told about. A process plugin
+  /// may announce a module it has announced before: the gdb-remote plugin
+  /// re-reads the inferior's whole library list on every "library" stop reply
+  /// and hands all of it to Target::ModulesDidLoad(). Taking that at face value
+  /// would bump m_generation, and so throw away and rebuild this context's
+  /// SwiftASTContext, over and over.
+  std::set<const Module *> m_modules_seen;
   bool m_repl = false;
   bool m_playground = false;
   const char *m_compiler_options = nullptr;
