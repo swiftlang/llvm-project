@@ -14,8 +14,7 @@ mismatch.ll: $(SRCDIR)/main.swift \
              $(call tool_prereq,$(SWIFTC_PATH)) \
              $(call tool_prereq,$(SWIFT_FRONTEND_PATH))
 	$(SWIFTC) $(SWIFTFLAGS) -emit-ir -module-name main $< -o $@.orig
-	sed -e 's/producer: "[^"]*Swift [^"]*"/producer: "$(FUTURE_SWIFT)"/g' \
-	    $@.orig > $@
+	$(PYTHON) $(SRCDIR)/rewrite-producer.py $@.orig $@ "$(FUTURE_SWIFT)"
 
 mismatch.o: mismatch.ll $(call tool_prereq,$(CC))
 	$(CC) $(CFLAGS_NO_DEBUG) -Wno-override-module -c $< -o $@

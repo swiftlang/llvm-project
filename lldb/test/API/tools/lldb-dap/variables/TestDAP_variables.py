@@ -634,7 +634,6 @@ class TestDAP_variables(DAPTestCaseBase):
                 "Expected std::vector to contain a raw underlying value with internal properties.",
             )
 
-    @skipIfWindows
     def test_return_variables(self):
         """Stepping out of a function with a return value should expose the
         returned value as a local."""
@@ -677,7 +676,6 @@ class TestDAP_variables(DAPTestCaseBase):
     def test_indexedVariables_with_raw_child_for_synthetics(self):
         self.do_test_indexedVariables(enableSyntheticChildDebugging=True)
 
-    @skipIfWindows
     @skipIfAsan  # FIXME this fails with a non-asan issue on green dragon.
     def test_registers(self):
         """Test that registers whose byte size is the size of a pointer on
@@ -744,7 +742,6 @@ class TestDAP_variables(DAPTestCaseBase):
         self.darwin_dwarf_missing_obj(initCommands)
 
     @no_debug_info_test
-    @skipIfWindows
     def test_value_format(self):
         """Test that toggling a variable's value format between decimal and
         hexadecimal works."""
@@ -777,7 +774,6 @@ class TestDAP_variables(DAPTestCaseBase):
         self.assertEqual(var_pt["x"].value, "11")
         self.assertEqual(var_pt["y"].value, "22")
 
-    @skipIfWindows
     def test_variable_id_uniqueness_simple(self):
         """
         Simple regression test for variable ID uniqueness across frames.

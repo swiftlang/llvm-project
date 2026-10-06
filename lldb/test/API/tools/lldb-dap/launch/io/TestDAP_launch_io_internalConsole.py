@@ -8,19 +8,21 @@ from lldbsuite.test.tools.lldb_dap import DAPTestSession
 from lldbsuite.test.tools.lldb_dap.types import Console
 
 
-@skipIfWindows
 class TestDAP_launch_io_InternalConsole(DAP_launchIO):
     console = Console.INTERNAL
 
     def test_all_redirection(self):
         self.all_redirection(console=self.console)
 
+    @skipIfWindows
     def test_stdin_redirection(self):
         self.stdin_redirection(console=self.console)
 
+    @skipIfWindows
     def test_stdout_redirection(self):
         self.stdout_redirection(console=self.console)
 
+    @skipIfWindows
     def test_stderr_redirection(self):
         self.stderr_redirection(console=self.console)
 

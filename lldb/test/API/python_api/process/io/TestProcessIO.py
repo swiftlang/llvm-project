@@ -28,7 +28,6 @@ class ProcessIOTestCase(TestBase):
         )
         self.lines = ["Line 1", "Line 2", "Line 3"]
 
-    @skipIfWindows  # stdio manipulation unsupported on Windows
     @expectedFlakeyLinux(bugnumber="llvm.org/pr26437")
     @skipIfDarwinEmbedded  # I/O redirection like this is not supported on remote iOS devices yet <rdar://problem/54581135>
     def test_stdin_by_api(self):

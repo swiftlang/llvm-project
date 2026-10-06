@@ -209,7 +209,6 @@ class LinuxCoreTestCase(TestBase):
         self.do_test("linux-x86_64", self._x86_64_pid, self._x86_64_regions, "a.out")
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfWindows
     def test_read_memory(self):
         """Test that we are able to read as many bytes as available"""
         target = self.dbg.CreateTarget("linux-x86_64.out")
@@ -1514,7 +1513,6 @@ class LinuxCoreTestCase(TestBase):
         self.dbg.DeleteTarget(target)
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfWindows
     def test_exe_name_extraction_nt_file(self):
         # This core file has:
         # - NT_FILE entry for the executable with path '/path/nt_file_foo
@@ -1543,7 +1541,6 @@ class LinuxCoreTestCase(TestBase):
         self.dbg.DeleteTarget(target)
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfWindows
     def test_exe_name_extraction_at_execfn(self):
         # This core file has:
         # - AT_EXECFN that points to "/path/execfn_foo"
@@ -1573,7 +1570,6 @@ class LinuxCoreTestCase(TestBase):
         self.dbg.DeleteTarget(target)
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfWindows
     def test_exe_name_extraction_nt_prpsinfo(self):
         # This core file has:
         # - NT_PRPSINFO with a pr_fname member set to 'prpsinfo_foo'
