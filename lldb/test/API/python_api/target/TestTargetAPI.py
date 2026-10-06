@@ -166,7 +166,6 @@ class TargetAPITestCase(TestBase):
         self.assertIsNone(target.ReadMemory(sb_addr, 1, error))
         self.assertTrue(error.Fail())
 
-    @skipIfWindows  # stdio manipulation unsupported on Windows
     @skipIfRemote  # stdio manipulation unsupported on remote iOS devices<rdar://problem/54581135>
     @skipIf(oslist=["linux"], archs=["arm$", "aarch64"])
     @no_debug_info_test
@@ -500,7 +499,6 @@ class TargetAPITestCase(TestBase):
         target3 = self.dbg.CreateTargetWithFileAndTargetTriple(exe, target.GetTriple())
         self.assertTrue(target3.IsValid())
 
-    @skipIfWindows
     def test_is_loaded(self):
         """Exercise SBTarget.IsLoaded(SBModule&) API."""
         d = {"EXE": "b.out"}

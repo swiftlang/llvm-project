@@ -361,7 +361,6 @@ class TestDAP_evaluate(DAPTestCaseBase):
         # Tests expression evaluations that are triggered from a watch expression.
         self.run_evaluate_expressions("watch", enableAutoVariableSummaries=True)
 
-    @skipIfWindows
     def test_hover_evaluate_expressions(self):
         # Tests expression evaluations that are triggered when hovering on the editor.
         self.run_evaluate_expressions("hover", enableAutoVariableSummaries=False)
