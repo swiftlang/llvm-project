@@ -3531,8 +3531,6 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     Function *BAFn = I.getOperand(1).getBlockAddress()->getFunction();
     if (std::optional<uint16_t> BADisc =
             STI.getPtrAuthBlockAddressDiscriminatorIfEnabled(*BAFn)) {
-      MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X16}, {});
-      MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
       MIB.buildInstr(AArch64::MOVaddrPAC)
           .addBlockAddress(I.getOperand(1).getBlockAddress())
           .addImm(AArch64PACKey::IA)
@@ -6931,7 +6929,6 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
         extractPtrauthBlendDiscriminators(PACDisc, MRI);
 
     MIB.buildCopy({AArch64::X16}, {ValReg});
-    MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
     MIB.buildInstr(AArch64::AUTPAC)
         .addImm(AUTKey)
         .addImm(AUTConstDiscC)
@@ -6995,7 +6992,6 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
 
     if (STI.isX16X17Safer()) {
       MIB.buildCopy({AArch64::X16}, {ValReg});
-      MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
       MIB.buildInstr(AArch64::AUTx16x17)
           .addImm(AUTKey)
           .addImm(AUTConstDiscC)
@@ -7215,8 +7211,6 @@ bool AArch64InstructionSelector::selectPtrAuthGlobalValue(
   // - GOT load for non-extern_weak -> LOADgotPAC
   //   Note that we disallow extern_weak refs to avoid null checks later.
   if (!GV->hasExternalWeakLinkage()) {
-    MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X16}, {});
-    MIB.buildInstr(TargetOpcode::IMPLICIT_DEF, {AArch64::X17}, {});
     MIB.buildInstr(NeedsGOTLoad ? AArch64::LOADgotPAC : AArch64::MOVaddrPAC)
         .addGlobalAddress(GV, Offset)
         .addImm(Key)
