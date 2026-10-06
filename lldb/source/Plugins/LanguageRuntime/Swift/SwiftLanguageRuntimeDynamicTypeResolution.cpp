@@ -4305,8 +4305,14 @@ bool SwiftLanguageRuntime::IsStoredInlineInBuffer(CompilerType type) {
     return true;
   }
 
+  // This must agree with TargetValueWitnessTable::isValueInline() in the
+  // Swift runtime. A value buffer is NumWords_ValueBuffer pointers in size
+  // and pointer-aligned.
   auto &type_info = *type_info_or_err;
-  return type_info.isBitwiseTakable() && type_info.getSize() <= 24;
+  uint32_t ptr_size = GetProcess().GetAddressByteSize();
+  return type_info.isBitwiseTakable() &&
+         type_info.getSize() <= swift::NumWords_ValueBuffer * ptr_size &&
+         type_info.getAlignment() <= ptr_size;
 }
 
 llvm::Error SwiftLanguageRuntime::FixupVariableLocation(Variable &variable,
