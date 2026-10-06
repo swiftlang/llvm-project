@@ -707,7 +707,7 @@ bool SwiftLanguageRuntime::AddJitObjectFileToReflectionContext(
         // group suffix).
         for (auto section : *obj_file.GetSectionList()) {
           JITSection *jit_section = llvm::dyn_cast<JITSection>(section.get());
-          if (jit_section && section->GetName().AsCString(nullptr) == section_name) {
+          if (jit_section && section->GetName() == section_name) {
             DataExtractor extractor;
             auto section_size = section->GetSectionData(extractor);
             if (!section_size) {
@@ -747,7 +747,7 @@ bool SwiftLanguageRuntime::AddJitObjectFileToReflectionContext(
           if (!llvm::isa<JITSection>(section.get()))
             continue;
           llvm::StringRef section_base_name =
-              section->GetName().GetStringRef().split('$').first;
+              section->GetName().split('$').first;
           if (section_base_name != base_name)
             continue;
           lldb::addr_t start = section->GetFileAddress();
@@ -835,7 +835,7 @@ std::optional<uint32_t> SwiftLanguageRuntime::AddObjectFileToReflectionContext(
     auto section_iter =
         llvm::find_if(segment->GetChildren(), [&](auto section) {
           return obj_file_format->sectionContainsReflectionData(
-              section->GetName().GetStringRef());
+              section->GetName());
         });
     return section_iter != segment->GetChildren().end();
   }();
@@ -898,7 +898,7 @@ std::optional<uint32_t> SwiftLanguageRuntime::AddObjectFileToReflectionContext(
     for (auto section : segment->GetChildren()) {
       // Iterate over the sections until we find the reflection section we
       // need.
-      if (section->GetName().AsCString(nullptr) == section_name) {
+      if (section->GetName() == section_name) {
         DataExtractor extractor;
         auto size = section->GetSectionData(extractor);
         auto data = extractor.GetData();

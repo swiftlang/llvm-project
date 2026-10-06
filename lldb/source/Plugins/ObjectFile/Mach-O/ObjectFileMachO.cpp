@@ -2006,7 +2006,7 @@ static SymbolType GetSymbolType(const char *&symbol_name,
                                 const SectionSP &symbol_section) {
   SymbolType type = eSymbolTypeInvalid;
 
-  const char *symbol_sect_name = symbol_section->GetName().AsCString(nullptr);
+  llvm::StringRef symbol_sect_name = symbol_section->GetName();
   if (symbol_section->IsDescendant(text_section_sp.get())) {
     if (symbol_section->IsClear(S_ATTR_PURE_INSTRUCTIONS |
                                 S_ATTR_SELF_MODIFYING_CODE |
@@ -2017,8 +2017,7 @@ static SymbolType GetSymbolType(const char *&symbol_name,
   } else if (symbol_section->IsDescendant(data_section_sp.get()) ||
              symbol_section->IsDescendant(data_dirty_section_sp.get()) ||
              symbol_section->IsDescendant(data_const_section_sp.get())) {
-    if (symbol_sect_name &&
-        ::strstr(symbol_sect_name, "__objc") == symbol_sect_name) {
+    if (symbol_sect_name.starts_with("__objc")) {
       type = eSymbolTypeRuntime;
 
       if (symbol_name) {
@@ -2043,15 +2042,12 @@ static SymbolType GetSymbolType(const char *&symbol_name,
           }
         }
       }
-    } else if (symbol_sect_name &&
-               ::strstr(symbol_sect_name, "__gcc_except_tab") ==
-                   symbol_sect_name) {
+    } else if (symbol_sect_name.starts_with("__gcc_except_tab")) {
       type = eSymbolTypeException;
     } else {
       type = eSymbolTypeData;
     }
-  } else if (symbol_sect_name &&
-             ::strstr(symbol_sect_name, "__IMPORT") == symbol_sect_name) {
+  } else if (symbol_sect_name.starts_with("__IMPORT")) {
     type = eSymbolTypeTrampoline;
   }
   return type;
@@ -2149,12 +2145,12 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
     case LC_LOADFVMLIB:
     case LC_LOAD_UPWARD_DYLIB: {
       uint32_t name_offset = cmd_offset + m_data_nsp->GetU32(&offset);
-      const char *path = m_data_nsp->PeekCStr(name_offset);
-      if (path) {
-        FileSpec file_spec(path);
+      if (std::optional<llvm::StringRef> path =
+              m_data_nsp->PeekCStr(name_offset)) {
+        FileSpec file_spec(*path);
         // Strip the path if there is @rpath, @executable, etc so we just use
         // the basename
-        if (path[0] == '@')
+        if (path->starts_with("@"))
           file_spec.ClearDirectory();
 
         if (lc.cmd == LC_REEXPORT_DYLIB) {
@@ -2662,6 +2658,8 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
       DataExtractor dsc_local_symbols_data(nlist_buffer,
                                            nlist_count * nlist_byte_size,
                                            byte_order, addr_byte_size);
+      DataExtractor dsc_string_table_data(string_table, vm_string_bytes_read,
+                                          byte_order, addr_byte_size);
       unmapped_local_symbols_found = nlist_count;
 
                 // The normal nlist code cannot correctly size the Symbols
@@ -2686,21 +2684,25 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
                     struct nlist_64 nlist = *nlist_maybe;
 
                     SymbolType type = eSymbolTypeInvalid;
-          const char *symbol_name = string_table + nlist.n_strx;
+                    const char *symbol_name = NULL;
+                    std::optional<llvm::StringRef> name =
+                        dsc_string_table_data.PeekCStr(nlist.n_strx);
 
-                    if (symbol_name == NULL) {
+                    if (!name) {
                       // No symbol should be NULL, even the symbols with no
                       // string values should have an offset zero which
                       // points to an empty C-string
                       Debugger::ReportError(llvm::formatv(
-                          "DSC unmapped local symbol[{0}] has invalid "
-                          "string table offset {1:x} in {2}, ignoring symbol",
+                          "DSC unmapped local symbol[{0}] has invalid or "
+                          "unterminated string table offset {1:x} in {2}, "
+                          "ignoring symbol",
                           nlist_index, nlist.n_strx,
                           module_sp->GetFileSpec().GetPath()));
                       continue;
                     }
-                    if (symbol_name[0] == '\0')
-                      symbol_name = NULL;
+                    // The code below spells "no name" as a NULL pointer.
+                    if (!name->empty())
+                      symbol_name = name->data();
 
                     const char *symbol_name_non_abi_mangled = NULL;
 
@@ -3087,13 +3089,13 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
 
                       switch (n_type) {
                       case N_INDR: {
-                        const char *reexport_name_cstr =
+                        std::optional<llvm::StringRef> reexport_name_str =
                             strtab_data.PeekCStr(nlist.n_value);
-                        if (reexport_name_cstr && reexport_name_cstr[0]) {
+                        if (reexport_name_str && !reexport_name_str->empty()) {
                           type = eSymbolTypeReExported;
                           ConstString reexport_name(
-                              reexport_name_cstr +
-                              ((reexport_name_cstr[0] == '_') ? 1 : 0));
+                              reexport_name_str->drop_front(
+                                  reexport_name_str->front() == '_' ? 1 : 0));
                           sym[sym_idx].SetReExportedSymbolName(reexport_name);
                           set_value = false;
                           reexport_shlib_needs_fixup[sym_idx] = reexport_name;
@@ -3207,8 +3209,8 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
                           }
 
                           if (type == eSymbolTypeInvalid) {
-                            const char *symbol_sect_name =
-                                symbol_section->GetName().AsCString(nullptr);
+                            llvm::StringRef symbol_sect_name =
+                                symbol_section->GetName();
                             if (symbol_section->IsDescendant(
                                     text_section_sp.get())) {
                               if (symbol_section->IsClear(
@@ -3224,26 +3226,19 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
                                            data_dirty_section_sp.get()) ||
                                        symbol_section->IsDescendant(
                                            data_const_section_sp.get())) {
-                              if (symbol_sect_name &&
-                                  ::strstr(symbol_sect_name, "__objc") ==
-                                      symbol_sect_name) {
+                              if (symbol_sect_name.starts_with("__objc")) {
                                 type = eSymbolTypeRuntime;
 
                                 if (TryParseV2ObjCMetadataSymbol(
                                         symbol_name,
                                         symbol_name_non_abi_mangled, type))
                                   demangled_is_synthesized = true;
-                              } else if (symbol_sect_name &&
-                                         ::strstr(symbol_sect_name,
-                                                  "__gcc_except_tab") ==
-                                             symbol_sect_name) {
+                              } else if (symbol_sect_name.starts_with("__gcc_except_tab")) {
                                 type = eSymbolTypeException;
                               } else {
                                 type = eSymbolTypeData;
                               }
-                            } else if (symbol_sect_name &&
-                                       ::strstr(symbol_sect_name, "__IMPORT") ==
-                                           symbol_sect_name) {
+                            } else if (symbol_sect_name.starts_with("__IMPORT")) 
                               type = eSymbolTypeTrampoline;
                             } else if (symbol_section->IsDescendant(
                                            objc_section_sp.get())) {
@@ -3495,19 +3490,21 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
       const char *symbol_name = nullptr;
 
       if (have_strtab_data) {
-        symbol_name = strtab_data.PeekCStr(nlist.n_strx);
+        std::optional<llvm::StringRef> name =
+            strtab_data.PeekCStr(nlist.n_strx);
 
-        if (symbol_name == nullptr) {
+        if (!name) {
           // No symbol should be NULL, even the symbols with no string values
           // should have an offset zero which points to an empty C-string
           Debugger::ReportError(llvm::formatv(
-              "symbol[{0}] has invalid string table offset {1:x} in {2}, "
-              "ignoring symbol",
+              "symbol[{0}] has invalid or unterminated string table offset "
+              "{1:x} in {2}, ignoring symbol",
               nlist_idx, nlist.n_strx, module_sp->GetFileSpec().GetPath()));
           return true;
         }
-        if (symbol_name[0] == '\0')
-          symbol_name = nullptr;
+        // The code below spells "no name" as a nullptr.
+        if (!name->empty())
+          symbol_name = name->data();
       } else {
         const addr_t str_addr = strtab_addr + nlist.n_strx;
         Status str_error;
@@ -3870,11 +3867,12 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
 
         switch (n_type) {
         case N_INDR: {
-          const char *reexport_name_cstr = strtab_data.PeekCStr(nlist.n_value);
-          if (reexport_name_cstr && reexport_name_cstr[0] && symbol_name) {
+          std::optional<llvm::StringRef> reexport_name_str =
+              strtab_data.PeekCStr(nlist.n_value);
+          if (reexport_name_str && !reexport_name_str->empty() && symbol_name) {
             type = eSymbolTypeReExported;
-            ConstString reexport_name(reexport_name_cstr +
-                                      ((reexport_name_cstr[0] == '_') ? 1 : 0));
+            ConstString reexport_name(reexport_name_str->drop_front(
+                reexport_name_str->front() == '_' ? 1 : 0));
             sym[sym_idx].SetReExportedSymbolName(reexport_name);
             set_value = false;
             reexport_shlib_needs_fixup[sym_idx] = reexport_name;
@@ -3979,8 +3977,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
             }
 
             if (type == eSymbolTypeInvalid) {
-              const char *symbol_sect_name =
-                  symbol_section->GetName().AsCString(nullptr);
+              llvm::StringRef symbol_sect_name = symbol_section->GetName();
               if (symbol_section->IsDescendant(text_section_sp.get())) {
                 if (symbol_section->IsClear(S_ATTR_PURE_INSTRUCTIONS |
                                             S_ATTR_SELF_MODIFYING_CODE |
@@ -3993,23 +3990,18 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
                              data_dirty_section_sp.get()) ||
                          symbol_section->IsDescendant(
                              data_const_section_sp.get())) {
-                if (symbol_sect_name &&
-                    ::strstr(symbol_sect_name, "__objc") == symbol_sect_name) {
+                if (symbol_sect_name.starts_with("__objc")) {
                   type = eSymbolTypeRuntime;
 
                   if (TryParseV2ObjCMetadataSymbol(
                           symbol_name, symbol_name_non_abi_mangled, type))
                     demangled_is_synthesized = true;
-                } else if (symbol_sect_name &&
-                           ::strstr(symbol_sect_name, "__gcc_except_tab") ==
-                               symbol_sect_name) {
+                } else if (symbol_sect_name.starts_with("__gcc_except_tab")) {
                   type = eSymbolTypeException;
                 } else {
                   type = eSymbolTypeData;
                 }
-              } else if (symbol_sect_name &&
-                         ::strstr(symbol_sect_name, "__IMPORT") ==
-                             symbol_sect_name) {
+              } else if (symbol_sect_name.starts_with("__IMPORT")) {
                 type = eSymbolTypeTrampoline;
               } else if (symbol_section->IsDescendant(objc_section_sp.get())) {
                 type = eSymbolTypeRuntime;
@@ -4818,23 +4810,20 @@ uint32_t ObjectFileMachO::GetDependentModules(FileSpecList &files) {
         if (flags & 0x08 /* DYLIB_USE_DELAYED_INIT */)
           is_delayed_init = true;
       }
-      const char *path = m_data_nsp->PeekCStr(name_offset);
-      if (path && !is_delayed_init) {
+      std::optional<llvm::StringRef> maybe_path =
+          m_data_nsp->PeekCStr(name_offset);
+      if (maybe_path && !is_delayed_init) {
+        llvm::StringRef path = *maybe_path;
         if (load_cmd.cmd == LC_RPATH)
-          rpath_paths.push_back(path);
-        else {
-          if (path[0] == '@') {
-            if (strncmp(path, "@rpath", strlen("@rpath")) == 0)
-              rpath_relative_paths.push_back(path + strlen("@rpath"));
-            else if (strncmp(path, "@executable_path",
-                             strlen("@executable_path")) == 0)
-              at_exec_relative_paths.push_back(path +
-                                               strlen("@executable_path"));
-          } else {
-            FileSpec file_spec(path);
-            if (files.AppendIfUnique(file_spec))
-              count++;
-          }
+          rpath_paths.push_back(path.str());
+        else if (path.consume_front("@rpath"))
+          rpath_relative_paths.push_back(path.str());
+        else if (path.consume_front("@executable_path"))
+          at_exec_relative_paths.push_back(path.str());
+        else if (!path.starts_with("@")) {
+          FileSpec file_spec(path);
+          if (files.AppendIfUnique(file_spec))
+            count++;
         }
       }
     } break;
@@ -6104,7 +6093,7 @@ CreateAllImageInfosPayload(const lldb::ProcessSP &process_sp,
         addr_t vmaddr = section->GetLoadBaseAddress(&target);
         if (vmaddr == LLDB_INVALID_ADDRESS)
           continue;
-        ConstString name = section->GetName();
+        llvm::StringRef name = section->GetName();
         segment_vmaddr seg_vmaddr;
         // This is the uncommon case where strncpy is exactly
         // the right one, doesn't need to be nul terminated.
@@ -6112,8 +6101,8 @@ CreateAllImageInfosPayload(const lldb::ProcessSP &process_sp,
         // is not guaranteed to be nul-terminated if all 16 characters are
         // used.
         // coverity[buffer_size_warning]
-        strncpy(seg_vmaddr.segname, name.AsCString(nullptr),
-                sizeof(seg_vmaddr.segname));
+        strncpy(seg_vmaddr.segname, name.data(),
+                std::min(name.size(), sizeof(seg_vmaddr.segname)));
         seg_vmaddr.vmaddr = vmaddr;
         seg_vmaddr.unused = 0;
         segment_vmaddrs.push_back(seg_vmaddr);
