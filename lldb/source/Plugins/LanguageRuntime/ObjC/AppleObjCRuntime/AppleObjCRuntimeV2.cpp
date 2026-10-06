@@ -3677,7 +3677,7 @@ static void RegisterObjCExceptionRecognizer(Process *process) {
 
   process->GetTarget().GetFrameRecognizerManager().AddRecognizer(
       StackFrameRecognizerSP(new ObjCExceptionThrowFrameRecognizer()),
-      ConstString(module.GetFilename()), symbols,
+      module.GetFilename().str(), std::move(symbols),
       Mangled::NamePreference::ePreferDemangled,
       /*first_instruction_only*/ true);
 }
