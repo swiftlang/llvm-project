@@ -464,6 +464,10 @@ features cannot lower the translation-unit ABI level;
   reproducable builds. These macros can be redefined from the command line if
   necessary. `/d1nodatetime-` can be used to turn this feature off if
   necessary to override the common build settings.
+- New option `-fmodules-validate-directory-dependencies` makes an implicitly
+  built module out of date when a header is added to a directory it enumerated,
+  such as an umbrella directory or the directory of an umbrella header, after it
+  was built. Off by default.
 
 - Added `-mscs-reg=<reg>` on Hexagon to select which callee-saved register
   (`r16`-`r27`, default `r18`) holds the shadow call stack pointer under
