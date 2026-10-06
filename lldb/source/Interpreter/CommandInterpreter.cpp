@@ -24,7 +24,6 @@
 #include "Commands/CommandObjectFrame.h"
 #include "Commands/CommandObjectGUI.h"
 #include "Commands/CommandObjectHelp.h"
-#include "Commands/CommandObjectHealthcheck.h"
 #include "Commands/CommandObjectLanguage.h"
 #include "Commands/CommandObjectLog.h"
 #include "Commands/CommandObjectMemory.h"
@@ -443,6 +442,10 @@ void CommandInterpreter::Initialize() {
   if (cmd_obj_sp)
     AddAlias("bugreport", cmd_obj_sp);
 
+  cmd_obj_sp = GetCommandSPExact("language swift healthcheck");
+  if (cmd_obj_sp)
+    AddAlias("swift-healthcheck", cmd_obj_sp);
+
   alias_arguments_vector_sp = std::make_shared<OptionArgVector>();
 
   cmd_obj_sp = GetCommandSPExact("dwim-print");
@@ -592,9 +595,6 @@ void CommandInterpreter::LoadCommandDictionary() {
   REGISTER_COMMAND_OBJECT("frame", CommandObjectMultiwordFrame);
   REGISTER_COMMAND_OBJECT("gui", CommandObjectGUI);
   REGISTER_COMMAND_OBJECT("help", CommandObjectHelp);
-#ifdef LLDB_ENABLE_SWIFT
-  REGISTER_COMMAND_OBJECT("swift-healthcheck", CommandObjectHealthcheck);
-#endif
   REGISTER_COMMAND_OBJECT("log", CommandObjectLog);
   REGISTER_COMMAND_OBJECT("memory", CommandObjectMemory);
   REGISTER_COMMAND_OBJECT("platform", CommandObjectPlatform);
