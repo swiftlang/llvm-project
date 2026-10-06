@@ -1,4 +1,4 @@
-set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES Language)
+set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES Language ExpressionParser)
 
 add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
   LLDBMemoryReader.cpp
@@ -21,6 +21,8 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
     lldbTarget
     lldbUtility
     lldbPluginExpressionParserClang
+    # Cyclic with lldbPluginExpressionParserSwift; needed by single-pass linkers.
+    lldbPluginExpressionParserSwift
     lldbPluginProcessUtility
     lldbPluginSwiftLanguage
 )

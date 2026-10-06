@@ -35,6 +35,13 @@ set_source_files_properties(
 )
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+# BEGIN SWIFT
+set(LLDB_VERSION_SWIFT_LIBS)
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_VERSION_SWIFT_LIBS swiftBasic)
+endif()
+# END SWIFT
+
 add_lldb_library(lldbVersion NO_PLUGIN_DEPENDENCIES
   Version.cpp
   ADDITIONAL_HEADERS
@@ -43,4 +50,6 @@ add_lldb_library(lldbVersion NO_PLUGIN_DEPENDENCIES
 
   CLANG_LIBS
     clangBasic
+  LINK_LIBS
+    ${LLDB_VERSION_SWIFT_LIBS}
 )

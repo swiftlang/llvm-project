@@ -1,3 +1,5 @@
+set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES ExpressionParser)
+
 add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
   LLDBExplicitModuleLoader.cpp
   LLDBImplicitModuleLoader.cpp
@@ -11,6 +13,8 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbSymbol
     lldbTarget
     lldbUtility
+    # Cyclic with lldbPluginExpressionParserSwift; needed by single-pass linkers.
+    lldbPluginExpressionParserSwift
 
     ## BEGIN SWIFT
     swiftAST
