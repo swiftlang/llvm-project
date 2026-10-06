@@ -66,11 +66,39 @@ static unsigned inTestVerbosity() {
   return v;
 }
 
+#ifdef LLD_ENABLE_COFF
 LLD_HAS_DRIVER(coff)
+#endif
+#ifdef LLD_ENABLE_ELF
 LLD_HAS_DRIVER(elf)
+#endif
+#ifdef LLD_ENABLE_MINGW
 LLD_HAS_DRIVER(mingw)
+#endif
+#ifdef LLD_ENABLE_MACHO
 LLD_HAS_DRIVER(macho)
+#endif
+#ifdef LLD_ENABLE_WASM
 LLD_HAS_DRIVER(wasm)
+#endif
+
+static constexpr DriverDef enabledDrivers[] = {
+#ifdef LLD_ENABLE_COFF
+    {lld::WinLink, &lld::coff::link},
+#endif
+#ifdef LLD_ENABLE_ELF
+    {lld::Gnu, &lld::elf::link},
+#endif
+#ifdef LLD_ENABLE_MINGW
+    {lld::MinGW, &lld::mingw::link},
+#endif
+#ifdef LLD_ENABLE_MACHO
+    {lld::Darwin, &lld::macho::link},
+#endif
+#ifdef LLD_ENABLE_WASM
+    {lld::Wasm, &lld::wasm::link},
+#endif
+};
 
 int lld_main(int argc, char **argv, const llvm::ToolContext &) {
   sys::Process::UseANSIEscapeCodes(true);
@@ -87,7 +115,7 @@ int lld_main(int argc, char **argv, const llvm::ToolContext &) {
   // exception handling and no memory cleanup on exit.
   if (!inTestVerbosity()) {
     int r =
-        lld::unsafeLldMain(args, llvm::outs(), llvm::errs(), LLD_ALL_DRIVERS,
+        lld::unsafeLldMain(args, llvm::outs(), llvm::errs(), enabledDrivers,
                            /*exitEarly=*/true);
     return r;
   }
@@ -100,7 +128,7 @@ int lld_main(int argc, char **argv, const llvm::ToolContext &) {
     inTestOutputDisabled = (i != 1);
 
     // Execute one iteration.
-    auto r = lldMain(args, llvm::outs(), llvm::errs(), LLD_ALL_DRIVERS);
+    auto r = lldMain(args, llvm::outs(), llvm::errs(), enabledDrivers);
     if (!r.canRunAgain)
       exitLld(r.retCode); // Exit now, can't re-execute again.
 
