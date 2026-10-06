@@ -1544,11 +1544,10 @@ bool Module::SetArchitecture(const ArchSpec &new_arch) {
       llvm::consumeError(type_system_or_err.takeError());
       return true;
     }
-#ifdef LLDB_ENABLE_SWIFT
-    if (auto ts =
-            llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
+    // BEGIN SWIFT
+    if (lldb::TypeSystemSP ts = *type_system_or_err)
       ts->SetTriple(SymbolContext(shared_from_this()), new_arch.GetTriple());
-#endif // LLDB_ENABLE_SWIFT
+    // END SWIFT
     return true;
   }
   return m_arch.IsCompatibleMatch(new_arch);
@@ -1750,11 +1749,8 @@ void Module::ClearModuleDependentCaches() {
     return;
   }
 
-#ifdef LLDB_ENABLE_SWIFT
-  if (auto *ts =
-          llvm::dyn_cast_or_null<TypeSystemSwift>(type_system_or_err->get()))
+  if (lldb::TypeSystemSP ts = *type_system_or_err)
     ts->ClearModuleDependentCaches();
-#endif // LLDB_ENABLE_SWIFT
 }
 
 std::vector<DataBufferSP> Module::GetASTData(lldb::LanguageType language) {
