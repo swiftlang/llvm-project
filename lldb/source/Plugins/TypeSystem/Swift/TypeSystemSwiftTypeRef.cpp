@@ -3136,9 +3136,9 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
   if (!maybe_context || maybe_context->empty()) {
     // Bailing out here means no module query is issued at all, which is easy to
     // mistake for a failed lookup, so make it visible.
-    LLDB_LOGV(GetLog(LLDBLog::Types),
-              "Could not build the decl context of {0}",
-              AsMangledName(opaque_type));
+    LLDB_LOG_VERBOSE(GetLog(LLDBLog::Types),
+                     "Could not build the decl context of {0}",
+                     AsMangledName(opaque_type));
     return {};
   }
 
