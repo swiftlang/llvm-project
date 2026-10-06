@@ -2405,7 +2405,7 @@ static std::string GetSDKPathFromDebugInfo(std::string m_description,
         "toolchains, which is not supported.",
         GetModuleNameForLog(module).c_str());
 
-  return GetSDKPath(m_description, std::move(sdk));
+  return GetSDKPath(m_description, sdk.GetSDK());
 }
 
 static std::vector<llvm::StringRef>
@@ -3341,7 +3341,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
             });
 
       } else {
-        sdk = *sdk_or_err;
+        sdk = sdk_or_err->GetSDK();
         LOG_PRINTF(GetLog(LLDBLog::Types), "Using precise SDK: %s",
                    sdk->GetString().str().c_str());
       }
@@ -3352,7 +3352,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
       // against non-default SDK.
       auto &module = *(module_sp ? module_sp : exe_module_sp);
       if (auto sdk_or_err = platform_sp->GetSDKPathFromDebugInfo(module)) {
-        sdk = sdk_or_err->first;
+        sdk = sdk_or_err->first.GetSDK();
         LLDB_LOG(GetLog(LLDBLog::Types), "Using SDK from module: {0} -- {1}",
                  sdk->GetString(), module_sp->GetFileSpec().GetFilename());
       } else {
