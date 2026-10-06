@@ -10,8 +10,11 @@
 
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/Scalar.h"
 #include "lldb/ValueObject/ValueObject.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorExtras.h"
+#include <limits>
 #include <optional>
 
 using namespace lldb;
@@ -27,7 +30,12 @@ public:
   ~MsvcStlSpanSyntheticFrontEnd() override = default;
 
   llvm::Expected<uint32_t> CalculateNumChildren() override {
-    return m_num_elements;
+    if (!m_num_elements)
+      return llvm::createStringError(
+          "could not determine the size of the span: it has no '_Mysize' "
+          "member, and its extent is in neither a template argument, a "
+          "'_Mysize' constant, nor the type name");
+    return *m_num_elements;
   }
 
   lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) override;
@@ -39,8 +47,9 @@ public:
 private:
   ValueObject *m_start = nullptr; ///< First element of span. Held, not owned.
   CompilerType m_element_type{};  ///< Type of span elements.
-  size_t m_num_elements = 0;      ///< Number of elements in span.
-  uint32_t m_element_size = 0;    ///< Size in bytes of each span element.
+  /// Number of elements in span, or std::nullopt if it could not be read.
+  std::optional<size_t> m_num_elements;
+  uint32_t m_element_size = 0; ///< Size in bytes of each span element.
 };
 
 lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::
@@ -65,11 +74,71 @@ lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::GetChildAtIndex(
                                            m_element_type);
 }
 
+/// Extracts the trailing integral template argument from a type name, e.g. 5
+/// from "std::span<int, 5>".
+static std::optional<uint64_t> ExtentFromTypeName(llvm::StringRef name) {
+  if (!name.consume_back(">"))
+    return std::nullopt;
+
+  size_t depth = 0;
+  size_t separator = llvm::StringRef::npos;
+  for (size_t i = name.size(); i-- > 0;) {
+    if (name[i] == '>')
+      ++depth;
+    else if (name[i] == '<') {
+      if (depth == 0)
+        break;
+      --depth;
+    } else if (name[i] == ',' && depth == 0) {
+      separator = i;
+      break;
+    }
+  }
+  if (separator == llvm::StringRef::npos)
+    return std::nullopt;
+
+  uint64_t extent;
+  if (name.substr(separator + 1).trim().getAsInteger(10, extent))
+    return std::nullopt;
+  return extent;
+}
+
+/// Returns the element count of a span whose extent is part of its type.
+///
+/// A static extent is not stored: MSVC's `_Span_extent_type` holds only
+/// `_Mydata` and derives `_Mysize` from the `_Extent` template argument, so the
+/// count has to be recovered from the type itself. Which spelling survives into
+/// the debug info varies, hence the three attempts: NativePDB rebuilds no
+/// template arguments, and an STL that names the extent directly rather than
+/// re-declaring it as a static member leaves nothing but the type name.
+static std::optional<size_t> GetStaticExtent(CompilerType span_type) {
+  // A dynamic extent means the size is a member instead, so reject the
+  // sentinel rather than reporting SIZE_MAX children.
+  auto if_static = [](uint64_t extent) -> std::optional<size_t> {
+    if (extent == std::numeric_limits<uint64_t>::max())
+      return std::nullopt;
+    return extent;
+  };
+
+  if (auto arg = span_type.GetIntegralTemplateArgument(1))
+    return if_static(arg->value.GetAPSInt().getLimitedValue());
+
+  if (auto field = span_type.GetDirectBaseClassAtIndex(0, nullptr)
+                       .GetStaticFieldWithName("_Mysize"))
+    if (Scalar extent = field.GetConstantValue(); extent.IsValid())
+      return if_static(extent.ULongLong(0));
+
+  if (auto extent = ExtentFromTypeName(span_type.GetTypeName().GetStringRef()))
+    return if_static(*extent);
+
+  return std::nullopt;
+}
+
 lldb::ChildCacheState
 lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::Update() {
   m_start = nullptr;
   m_element_type = CompilerType();
-  m_num_elements = 0;
+  m_num_elements = std::nullopt;
   m_element_size = 0;
 
   ValueObjectSP data_sp = m_backend.GetChildMemberWithName("_Mydata");
@@ -95,11 +164,8 @@ lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::Update() {
   // Get number of elements.
   if (auto size_sp = m_backend.GetChildMemberWithName("_Mysize"))
     m_num_elements = size_sp->GetValueAsUnsigned(0);
-  else if (auto field =
-               m_backend.GetCompilerType()
-                   .GetDirectBaseClassAtIndex(0, nullptr) // _Span_extent_type
-                   .GetStaticFieldWithName("_Mysize"))
-    m_num_elements = field.GetConstantValue().ULongLong(0);
+  else
+    m_num_elements = GetStaticExtent(m_backend.GetCompilerType());
 
   return lldb::ChildCacheState::eRefetch;
 }
