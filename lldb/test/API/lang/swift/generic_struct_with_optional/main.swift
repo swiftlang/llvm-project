@@ -20,6 +20,6 @@ func onError(_ handler: (StructWithGenericContents<Foundation.Data?, CustomError
 }
 
 onError({e in
-  print(e) //% self.expect("expr -O -- e", substrs=["StructWithGenericContents<Optional<Data>, CustomError>"])
-  print(e) //% self.expect("frame var -d run-target -- e", substrs=["field1 = 0 bytes", "field2 = err1"])
+  print(e) // break 1
+  print(e) // break 2
 }) 
