@@ -1736,9 +1736,8 @@ size_t ObjectFileELF::GetSectionHeaderInfo(SectionHeaderColl &section_headers,
         const ELFSectionHeaderInfo &sheader = *I;
         const uint64_t section_size =
             sheader.sh_type == SHT_NOBITS ? 0 : sheader.sh_size;
-        ConstString name(shstr_data.PeekCStr(I->sh_name));
-
-        I->section_name = name;
+        llvm::StringRef name = shstr_data.PeekCStr(I->sh_name).value_or("");
+        I->section_name = name.str();
 
         if (arch_spec.IsMIPS()) {
           uint32_t arch_flags = arch_spec.GetFlags();
@@ -1896,11 +1895,11 @@ ObjectFileELF::GetSectionHeaderByIndex(lldb::user_id_t id) {
   return nullptr;
 }
 
-lldb::user_id_t ObjectFileELF::GetSectionIndexByName(const char *name) {
-  if (!name || !name[0] || !ParseSectionHeaders())
+lldb::user_id_t ObjectFileELF::GetSectionIndexByName(llvm::StringRef name) {
+  if (name.empty() || !ParseSectionHeaders())
     return 0;
   for (size_t i = 1; i < m_section_headers.size(); ++i)
-    if (m_section_headers[i].section_name == ConstString(name))
+    if (m_section_headers[i].section_name == name)
       return i;
   return 0;
 }
@@ -1944,7 +1943,7 @@ SectionType ObjectFileELF::GetSectionType(const ELFSectionHeaderInfo &H) const {
   case SHT_DYNAMIC:
     return eSectionTypeELFDynamicLinkInfo;
   }
-  return GetSectionTypeFromName(H.section_name.GetStringRef());
+  return GetSectionTypeFromName(H.section_name);
 }
 
 static Permissions GetPermissions(const ELFSectionHeader &H) {
@@ -2086,7 +2085,7 @@ static SectionSP FindMatchingSection(const SectionList &section_list,
   SectionSP sect_sp;
 
   addr_t vm_addr = section->GetFileAddress();
-  ConstString name = section->GetName();
+  llvm::StringRef name = section->GetName();
   offset_t byte_size = section->GetByteSize();
   bool thread_specific = section->IsThreadSpecific();
   uint32_t permissions = section->GetPermissions();
@@ -2150,7 +2149,7 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
        I != m_section_headers.end(); ++I) {
     const ELFSectionHeaderInfo &header = *I;
 
-    ConstString &name = I->section_name;
+    const std::string &name = I->section_name;
     const uint64_t file_size =
         header.sh_type == SHT_NOBITS ? 0 : header.sh_size;
 
@@ -2170,8 +2169,8 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
         this,            // ObjectFile to which this section belongs and should
                          // read section data from.
         SectionIndex(I), // Section ID.
-        name,            // Section name.
-        sect_type,       // Section type.
+        ConstString(name),            // Section name.
+        sect_type,                    // Section type.
         InfoOr->Range.GetRangeBase(), // VM address.
         InfoOr->Range.GetByteSize(),  // VM size in bytes of this section.
         header.sh_offset,             // Offset of this section in the file.
@@ -2261,29 +2260,25 @@ std::shared_ptr<ObjectFileELF> ObjectFileELF::GetGnuDebugDataObjectFile() {
 // recognize cases when the mapping symbol prefixed by an arbitrary string
 // because if a symbol prefix added to each symbol in the object file with
 // objcopy then the mapping symbols are also prefixed.
-static char FindArmAarch64MappingSymbol(const char *symbol_name) {
-  if (!symbol_name)
+static char FindArmAarch64MappingSymbol(llvm::StringRef symbol_name) {
+  size_t dollar_pos = symbol_name.find('$');
+  if (dollar_pos == llvm::StringRef::npos)
     return '\0';
 
-  const char *dollar_pos = ::strchr(symbol_name, '$');
-  if (!dollar_pos || dollar_pos[1] == '\0')
+  llvm::StringRef mapping = symbol_name.drop_front(dollar_pos + 1);
+  if (mapping.empty())
     return '\0';
 
-  if (dollar_pos[2] == '\0' || dollar_pos[2] == '.')
-    return dollar_pos[1];
+  if (mapping.size() == 1 || mapping[1] == '.')
+    return mapping[0];
   return '\0';
 }
 
-static char FindRISCVMappingSymbol(const char *symbol_name) {
-  if (!symbol_name)
-    return '\0';
-
-  if (strcmp(symbol_name, "$d") == 0) {
+static char FindRISCVMappingSymbol(llvm::StringRef symbol_name) {
+  if (symbol_name == "$d")
     return 'd';
-  }
-  if (strcmp(symbol_name, "$x") == 0) {
+  if (symbol_name == "$x")
     return 'x';
-  }
   return '\0';
 }
 
@@ -2348,25 +2343,25 @@ ObjectFileELF::ParseSymbols(Symtab *symtab, user_id_t start_id,
     if (!symbol.Parse(symtab_data, &offset))
       break;
 
-    const char *symbol_name = strtab_data.PeekCStr(symbol.st_name);
-    if (!symbol_name)
-      symbol_name = "";
+    // A missing or unterminated name reads as empty.
+    llvm::StringRef symbol_name =
+        strtab_data.PeekCStr(symbol.st_name).value_or("");
 
     // Skip local symbols starting with ".L" because these are compiler
     // generated local labels used for internal purposes (e.g. debugging,
     // optimization) and are not relevant for symbol resolution or external
     // linkage.
-    if (llvm::StringRef(symbol_name).starts_with(".L"))
+    if (symbol_name.starts_with(".L"))
       continue;
+
     // No need to add non-section symbols that have no names
-    if (symbol.getType() != STT_SECTION &&
-        (symbol_name == nullptr || symbol_name[0] == '\0'))
+    if (symbol.getType() != STT_SECTION && symbol_name.empty())
       continue;
 
     // Skipping oatdata and oatexec sections if it is requested. See details
     // above the definition of skip_oatdata_oatexec for the reasons.
-    if (skip_oatdata_oatexec && (::strcmp(symbol_name, "oatdata") == 0 ||
-                                 ::strcmp(symbol_name, "oatexec") == 0))
+    if (skip_oatdata_oatexec &&
+        (symbol_name == "oatdata" || symbol_name == "oatexec"))
       continue;
 
     SectionSP symbol_section_sp;
@@ -2435,7 +2430,7 @@ ObjectFileELF::ParseSymbols(Symtab *symtab, user_id_t start_id,
 
     if (symbol_type == eSymbolTypeInvalid && symbol.getType() != STT_SECTION) {
       if (symbol_section_sp) {
-        ConstString sect_name = symbol_section_sp->GetName();
+        llvm::StringRef sect_name = symbol_section_sp->GetName();
         if (sect_name == text_section_name || sect_name == init_section_name ||
             sect_name == fini_section_name || sect_name == ctors_section_name ||
             sect_name == dtors_section_name) {
@@ -2596,19 +2591,18 @@ ObjectFileELF::ParseSymbols(Symtab *symtab, user_id_t start_id,
 
     bool is_global = symbol.getBinding() == STB_GLOBAL;
     uint32_t flags = symbol.st_other << 8 | symbol.st_info | additional_flags;
-    llvm::StringRef symbol_ref(symbol_name);
 
     // Symbol names may contain @VERSION suffixes. Find those and strip them
     // temporarily.
-    size_t version_pos = symbol_ref.find('@');
+    size_t version_pos = symbol_name.find('@');
     bool has_suffix = version_pos != llvm::StringRef::npos;
-    llvm::StringRef symbol_bare = symbol_ref.substr(0, version_pos);
+    llvm::StringRef symbol_bare = symbol_name.substr(0, version_pos);
     Mangled mangled(symbol_bare);
 
     // Now append the suffix back to mangled and unmangled names. Only do it if
     // the demangling was successful (string is not empty).
     if (has_suffix) {
-      llvm::StringRef suffix = symbol_ref.substr(version_pos);
+      llvm::StringRef suffix = symbol_name.substr(version_pos);
 
       llvm::StringRef mangled_name = mangled.GetMangledName().GetStringRef();
       if (!mangled_name.empty())
@@ -2859,7 +2853,8 @@ static unsigned ParsePLTRelocations(
     if (!symbol.Parse(symtab_data, &symbol_offset))
       break;
 
-    const char *symbol_name = strtab_data.PeekCStr(symbol.st_name);
+    llvm::StringRef symbol_name =
+        strtab_data.PeekCStr(symbol.st_name).value_or("");
     uint64_t plt_index = plt_offset + i * plt_entsize;
 
     Symbol jump_symbol(
@@ -2954,6 +2949,23 @@ ObjectFileELF::ParseTrampolineSymbols(Symtab *symbol_table, user_id_t start_id,
                              rel_data, symtab_data, strtab_data);
 }
 
+/// Returns the \p size bytes at \p offset in \p debug_data for a relocation to
+/// patch, or reports an error and returns null if they overrun the section.
+static uint8_t *GetRelocationTarget(DataExtractor &debug_data,
+                                    Section *rel_section, uint64_t offset,
+                                    size_t size) {
+  if (!debug_data.ValidOffsetForDataOfSize(offset, size)) {
+    rel_section->GetModule()->ReportError("relocation outside of section {0}",
+                                          rel_section->GetName());
+    return nullptr;
+  }
+  DataBufferSP data_buffer_sp = debug_data.GetSharedDataBuffer();
+  // ObjectFileELF creates a WritableDataBuffer in CreateInstance.
+  WritableDataBuffer *data_buffer =
+      llvm::cast<WritableDataBuffer>(data_buffer_sp.get());
+  return data_buffer->GetBytes() + debug_data.GetSharedDataOffset() + offset;
+}
+
 static void ApplyELF64ABS64Relocation(Symtab *symtab, ELFRelocation &rel,
                                       DataExtractor &debug_data,
                                       Section *rel_section) {
@@ -2961,12 +2973,11 @@ static void ApplyELF64ABS64Relocation(Symtab *symtab, ELFRelocation &rel,
       symtab->FindSymbolByID(ELFRelocation::RelocSymbol64(rel));
   if (symbol) {
     addr_t value = symbol->GetAddressRef().GetFileAddress();
-    DataBufferSP data_buffer_sp = debug_data.GetSharedDataBuffer();
-    // ObjectFileELF creates a WritableDataBuffer in CreateInstance.
-    WritableDataBuffer *data_buffer =
-        llvm::cast<WritableDataBuffer>(data_buffer_sp.get());
-    void *const dst = data_buffer->GetBytes() + rel_section->GetFileOffset() +
-                      ELFRelocation::RelocOffset64(rel);
+    uint8_t *dst = GetRelocationTarget(debug_data, rel_section,
+                                       ELFRelocation::RelocOffset64(rel),
+                                       sizeof(uint64_t));
+    if (!dst)
+      return;
     uint64_t val_offset = value + ELFRelocation::RelocAddend64(rel);
     memcpy(dst, &val_offset, sizeof(uint64_t));
   }
@@ -2988,12 +2999,11 @@ static void ApplyELF64ABS32Relocation(Symtab *symtab, ELFRelocation &rel,
       return;
     }
     uint32_t truncated_addr = (value & 0xFFFFFFFF);
-    DataBufferSP data_buffer_sp = debug_data.GetSharedDataBuffer();
-    // ObjectFileELF creates a WritableDataBuffer in CreateInstance.
-    WritableDataBuffer *data_buffer =
-        llvm::cast<WritableDataBuffer>(data_buffer_sp.get());
-    void *const dst = data_buffer->GetBytes() + rel_section->GetFileOffset() +
-                      ELFRelocation::RelocOffset32(rel);
+    uint8_t *dst = GetRelocationTarget(debug_data, rel_section,
+                                       ELFRelocation::RelocOffset32(rel),
+                                       sizeof(uint32_t));
+    if (!dst)
+      return;
     memcpy(dst, &truncated_addr, sizeof(uint32_t));
   }
 }
@@ -3012,12 +3022,11 @@ static void ApplyELF32ABS32RelRelocation(Symtab *symtab, ELFRelocation &rel,
       return;
     }
     assert(llvm::isUInt<32>(value) && "Valid addresses are 32-bit");
-    DataBufferSP data_buffer_sp = debug_data.GetSharedDataBuffer();
-    // ObjectFileELF creates a WritableDataBuffer in CreateInstance.
-    WritableDataBuffer *data_buffer =
-        llvm::cast<WritableDataBuffer>(data_buffer_sp.get());
-    uint8_t *dst = data_buffer->GetBytes() + rel_section->GetFileOffset() +
-                   ELFRelocation::RelocOffset32(rel);
+    uint8_t *dst = GetRelocationTarget(debug_data, rel_section,
+                                       ELFRelocation::RelocOffset32(rel),
+                                       sizeof(uint32_t));
+    if (!dst)
+      return;
     // Implicit addend is stored inline as a signed value.
     int32_t addend;
     memcpy(&addend, dst, sizeof(int32_t));
@@ -3086,14 +3095,11 @@ unsigned ObjectFileELF::ApplyRelocations(
         case R_386_32:
           symbol = symtab->FindSymbolByID(reloc_symbol(rel));
           if (symbol) {
-            addr_t f_offset =
-                rel_section->GetFileOffset() + ELFRelocation::RelocOffset32(rel);
-            DataBufferSP data_buffer_sp = debug_data.GetSharedDataBuffer();
-            // ObjectFileELF creates a WritableDataBuffer in CreateInstance.
-            WritableDataBuffer *data_buffer =
-                llvm::cast<WritableDataBuffer>(data_buffer_sp.get());
-            uint32_t *dst = reinterpret_cast<uint32_t *>(
-                data_buffer->GetBytes() + f_offset);
+            uint32_t *dst = reinterpret_cast<uint32_t *>(GetRelocationTarget(
+                debug_data, rel_section, ELFRelocation::RelocOffset32(rel),
+                sizeof(uint32_t)));
+            if (!dst)
+              break;
 
             addr_t value = symbol->GetAddressRef().GetFileAddress();
             if (rel.IsRela()) {
@@ -3371,7 +3377,7 @@ void ObjectFileELF::ParseSymtab(Symtab &lldb_symtab) {
 
 void ObjectFileELF::RelocateSection(lldb_private::Section *section)
 {
-  static const char *debug_prefix = ".debug";
+  static llvm::StringRef debug_prefix(".debug");
 
   // Set relocated bit so we stop getting called, regardless of whether we
   // actually relocate.
@@ -3381,24 +3387,24 @@ void ObjectFileELF::RelocateSection(lldb_private::Section *section)
   if (CalculateType() != eTypeObjectFile)
     return;
 
-  const char *section_name = section->GetName().GetCString();
+  llvm::StringRef section_name = section->GetName();
   // Can't relocate that which can't be named
-  if (section_name == nullptr)
+  if (section_name.empty())
     return;
 
   // We don't relocate non-debug sections at the moment
-  if (strncmp(section_name, debug_prefix, strlen(debug_prefix)))
+  if (!section_name.starts_with(debug_prefix))
     return;
 
   // Relocation section names to look for
-  std::string needle = std::string(".rel") + section_name;
-  std::string needlea = std::string(".rela") + section_name;
+  std::string needle = std::string(".rel") + section_name.str();
+  std::string needlea = std::string(".rela") + section_name.str();
 
   for (SectionHeaderCollIter I = m_section_headers.begin();
        I != m_section_headers.end(); ++I) {
     if (I->sh_type == SHT_RELA || I->sh_type == SHT_REL) {
-      const char *hay_name = I->section_name.GetCString();
-      if (hay_name == nullptr)
+      llvm::StringRef hay_name(I->section_name);
+      if (hay_name.empty())
         continue;
       if (needle == hay_name || needlea == hay_name) {
         const ELFSectionHeader &reloc_header = *I;
@@ -3744,8 +3750,8 @@ void ObjectFileELF::DumpELFSectionHeaders(Stream *s) {
        I != m_section_headers.end(); ++I, ++idx) {
     s->Printf("[%2u] ", idx);
     ObjectFileELF::DumpELFSectionHeader(s, *I);
-    const char *section_name = I->section_name.AsCString("");
-    if (section_name)
+    const std::string &section_name = I->section_name;
+    if (!section_name.empty())
       *s << ' ' << section_name << "\n";
   }
 }
@@ -4017,15 +4023,14 @@ size_t ObjectFileELF::ReadSectionData(Section *section,
     return result;
 
   auto Decompressor = llvm::object::Decompressor::create(
-      section->GetName().GetStringRef(),
+      section->GetName(),
       {reinterpret_cast<const char *>(section_data.GetDataStart()),
        size_t(section_data.GetByteSize())},
       GetByteOrder() == eByteOrderLittle, GetAddressByteSize() == 8);
   if (!Decompressor) {
     GetModule()->ReportWarning(
         "unable to initialize decompressor for section '{0}': {1}",
-        section->GetName().GetCString(),
-        llvm::toString(Decompressor.takeError()).c_str());
+        section->GetName(), llvm::toString(Decompressor.takeError()).c_str());
     section_data.Clear();
     return 0;
   }
@@ -4035,7 +4040,7 @@ size_t ObjectFileELF::ReadSectionData(Section *section,
   if (auto error = Decompressor->decompress(
           {buffer_sp->GetBytes(), size_t(buffer_sp->GetByteSize())})) {
     GetModule()->ReportWarning("decompression of section '{0}' failed: {1}",
-                               section->GetName().GetCString(),
+                               section->GetName(),
                                llvm::toString(std::move(error)).c_str());
     section_data.Clear();
     return 0;

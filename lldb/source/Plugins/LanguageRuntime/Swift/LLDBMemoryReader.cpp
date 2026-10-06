@@ -1021,11 +1021,8 @@ LLDBMemoryReader::resolveRemoteAddressFromSymbolObjectFile(
     return {};
   }
 
-  if (!resolved.GetSection()
-           ->GetParent()
-           ->GetName()
-           .GetStringRef()
-           .contains_insensitive("DWARF")) {
+  if (!resolved.GetSection()->GetParent()->GetName().contains_insensitive(
+          "DWARF")) {
     auto *main_object_file = module->GetObjectFile();
     resolved = Address(file_address, main_object_file->GetSectionList());
   }
