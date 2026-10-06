@@ -469,7 +469,9 @@ public:
   llvm::Expected<CompilerType>
   BindGenericTypeParameters(StackFrame &stack_frame, CompilerType base_type);
 
-  bool IsStoredInlineInBuffer(CompilerType type) override;
+  /// \return whether the dynamic value stored in a Swift fixed buffer
+  /// fits into that buffer or is indirect and allocated on the heap.
+  bool IsStoredInlineInBuffer(CompilerType type);
 
   /// Check if this type alias is listed in any witness tables and resolve it.
   llvm::Expected<CompilerType> ResolveTypeAlias(CompilerType alias);
@@ -580,6 +582,7 @@ public:
                                                   CompilerType type) override;
   lldb::addr_t FixupAddress(lldb::addr_t addr, CompilerType type,
                             Status &error) override;
+  llvm::Error FixupVariableLocation(Variable &variable, Value &value) override;
 
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
                                                   bool stop_others) override;
