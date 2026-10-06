@@ -32,7 +32,7 @@ class TestCase(TestBase):
             )
             self.assertEqual(len(threads), 1, f"no stop at {bkpt_pattern}")
 
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://184868750 (Embedded Swift: three po test files carry a byte-identical 30-line expectation helper)
     @swiftTest
     def test(self):
         self.build()

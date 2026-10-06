@@ -205,6 +205,11 @@ bool SwiftUserExpression::ScanContext(DiagnosticManager &diagnostic_manager,
     return true;
   }
 
+  if (m_options.GetUseContextFreeSwiftPrintObject()) {
+    LLDB_LOG(log, "  [SUE::SC] Context-free expression, skipping scan");
+    return true;
+  }
+
   StackFrame *frame = exe_ctx.GetFramePtr();
   if (!frame) {
     LLDB_LOG(log, "  [SUE::SC] Null stack frame");
@@ -312,8 +317,7 @@ bool SwiftUserExpression::ScanContext(DiagnosticManager &diagnostic_manager,
       m_is_weak_self = true;
     }
 
-  m_needs_object_ptr =
-      !m_in_static_method && !m_options.GetUseContextFreeSwiftPrintObject();
+  m_needs_object_ptr = !m_in_static_method;
   LLDB_LOGF(log, "  [SUE::SC] Expression captures self: %s",
             m_needs_object_ptr ? "true" : "false");
 

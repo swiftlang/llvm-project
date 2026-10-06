@@ -9,7 +9,9 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 // -----------------------------------------------------------------------------
-class PureSwift
+// "final" matters for embedded Swift because the compiler devirtualizes
+// virtual functions and removes them.
+final class PureSwift
 {
     init (int_value: Int)
     {
@@ -30,4 +32,6 @@ class PureSwift
 }
 
 var my_swift_object = PureSwift(int_value: 10)
+// Keep the getter alive for embedded Swift.
+print(my_swift_object.m_computed_ivar)
 my_swift_object.stop_here()

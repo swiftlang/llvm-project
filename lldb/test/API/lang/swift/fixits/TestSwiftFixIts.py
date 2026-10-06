@@ -19,7 +19,9 @@ import lldbsuite.test.lldbutil as lldbutil
 
 
 class TestSwiftFixIts(TestBase):
-    @skipEmbeddedSwift
+    # Embedded Swift: `Optional: Equatable` asserts in IRGen, and
+    # `_swift_beginAccess` is missing from the runtime.
+    @skipEmbeddedSwift # rdar://184868790 (Embedded Swift: dead-function elimination removes symbols expressions need, and struct size is uncomputable from static debug info)
     @swiftTest
     def test_swift_fixits(self):
         """Test applying fixits to expressions"""
