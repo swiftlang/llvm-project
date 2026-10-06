@@ -1,6 +1,6 @@
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -stop-after=finalize-isel %s -o - | \
 ; RUN:    FileCheck %s --check-prefixes=CHECK,O0
-; RUN: llc -fast-isel -fast-isel-abort=1 -mtriple=x86_64-unknown-unknown -stop-after=finalize-isel %s -o - | \
+; RUN: llc -fast-isel -fast-isel-abort=1 -experimental-debug-variable-locations=true -mtriple=x86_64-unknown-unknown -stop-after=finalize-isel %s -o - | \
 ; RUN:    FileCheck %s --check-prefixes=CHECK,IREF
 
 ; A debug use of the loaded value must not prevent folding the load, and the
