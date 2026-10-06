@@ -380,6 +380,7 @@ Swift runtime DLLs resolve."
 # Failed tests are rerun on Windows (see lldbflakes.py)
 if(CMAKE_HOST_WIN32)
   set(LLDB_TEST_LIT_ARGS --show-flakypass)
+  string(APPEND LLVM_LIT_ARGS " --test-output=failed-or-flaky")
 endif()
 
 add_subdirectory(API)

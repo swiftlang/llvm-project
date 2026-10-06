@@ -36,9 +36,14 @@ def _should_rerun(result):
 def execute_with_reruns(execute_once):
     """Run execute_once, which returns a lit.Test.Result, until it stops
     failing with a known flake, or with any failure on Windows."""
+    outputs = []
     for attempt in range(MAX_ATTEMPTS):
         result = execute_once()
-        if not _should_rerun(result):
+        outputs.append(
+            "Attempt %d of %d: %s\n%s"
+            % (attempt + 1, MAX_ATTEMPTS, result.code.name, result.output)
+        )
+        if result.code != lit.Test.FAIL or not _hit_known_flake(result.output):
             break
 
     # A pass that needed a rerun is reported apart from a clean pass so that
@@ -48,5 +53,6 @@ def execute_with_reruns(execute_once):
             result.code = lit.Test.FLAKYPASS
         result.attempts = attempt + 1
         result.max_allowed_attempts = MAX_ATTEMPTS
+        result.output = "\n".join(outputs)
 
     return result
