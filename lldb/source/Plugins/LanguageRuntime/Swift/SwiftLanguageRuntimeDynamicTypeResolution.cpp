@@ -4340,8 +4340,7 @@ llvm::Error SwiftLanguageRuntime::FixupVariableLocation(Variable &variable,
   Process &process = GetProcess();
   Status error;
   lldb::addr_t box = process.GetTarget().ReadUnsignedIntegerFromMemory(
-      buffer, process.GetAddressByteSize(), LLDB_INVALID_ADDRESS, error,
-      /*force_live_memory=*/process.IsAlive());
+      buffer, process.GetAddressByteSize(), LLDB_INVALID_ADDRESS, error);
   if (error.Fail())
     return error.takeError();
   value.GetScalar() = box;
