@@ -246,5 +246,6 @@ add_lit_testsuite(check-lldb-simulator-tvos
 
 add_lit_testsuite(check-lldb-api "Running lldb api test suite"
   ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${LLDB_TEST_LIT_ARGS}
   EXCLUDE_FROM_CHECK_ALL
   DEPENDS lldb-api-test-deps)

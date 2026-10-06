@@ -1,5 +1,6 @@
 """Rerun policy shared by the API and Shell test formats."""
 
+import platform
 import re
 
 import lit.Test
@@ -16,17 +17,28 @@ KNOWN_FLAKES = [
 
 MAX_ATTEMPTS = 3
 
+# On Windows, any failure or timeout is rerun until the flakes in LLDB's
+# Windows support are fixed.
+# rdar://188906589
+RERUN_ALL_FAILURES = platform.system() == "Windows"
+
 
 def _hit_known_flake(output):
     return any(flake.search(output) for flake in KNOWN_FLAKES)
 
 
+def _should_rerun(result):
+    if RERUN_ALL_FAILURES:
+        return result.code in (lit.Test.FAIL, lit.Test.UNRESOLVED, lit.Test.TIMEOUT)
+    return result.code == lit.Test.FAIL and _hit_known_flake(result.output)
+
+
 def execute_with_reruns(execute_once):
     """Run execute_once, which returns a lit.Test.Result, until it stops
-    failing with a known flake."""
+    failing with a known flake, or with any failure on Windows."""
     for attempt in range(MAX_ATTEMPTS):
         result = execute_once()
-        if result.code != lit.Test.FAIL or not _hit_known_flake(result.output):
+        if not _should_rerun(result):
             break
 
     # A pass that needed a rerun is reported apart from a clean pass so that
