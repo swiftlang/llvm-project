@@ -1,5 +1,3 @@
-# TestSwiftSubmoduleImport.py
-#
 # This source file is part of the Swift.org open source project
 #
 # Copyright (c) 2014 - 2016 Apple Inc. and the Swift project authors
@@ -19,7 +17,7 @@ import lldbsuite.test.lldbutil as lldbutil
 import os
 
 
-class TestSwiftSubmoduleImport(TestBase):
+class TestCase(TestBase):
     # Have to find some submodule that is present on both Darwin & Linux for this
     # test to run on both systems...
 
