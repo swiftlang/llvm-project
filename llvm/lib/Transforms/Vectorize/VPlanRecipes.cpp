@@ -690,7 +690,8 @@ unsigned VPInstruction::getNumOperandsForOpcode() const {
 }
 
 bool VPInstruction::doesGeneratePerAllLanes() const {
-  return Opcode == VPInstruction::PtrAdd && !vputils::onlyFirstLaneUsed(this);
+  return Opcode == VPInstruction::Unpack ||
+         (Opcode == VPInstruction::PtrAdd && !vputils::onlyFirstLaneUsed(this));
 }
 
 bool VPInstruction::canGenerateScalarForFirstLane() const {
@@ -3044,6 +3045,10 @@ void VPDerivedIVRecipe::printRecipe(raw_ostream &O, const Twine &Indent,
 }
 #endif
 
+bool VPScalarIVStepsRecipe::doesGeneratePerAllLanes() const {
+  return !vputils::onlyFirstLaneUsed(this);
+}
+
 InstructionCost VPScalarIVStepsRecipe::computeCost(ElementCount VF,
                                                    VPCostContext &Ctx) const {
   // TODO: Add costs for floating point.
@@ -3221,6 +3226,8 @@ void VPVectorEndPointerRecipe::printRecipe(raw_ostream &O, const Twine &Indent,
   printAsOperand(O, SlotTracker);
   O << " = vector-end-pointer";
   printFlags(O);
+  getSourceElementType()->print(O);
+  O << ", ";
   printOperands(O, SlotTracker);
 }
 #endif
@@ -3250,6 +3257,8 @@ void VPVectorPointerRecipe::printRecipe(raw_ostream &O, const Twine &Indent,
   printAsOperand(O, SlotTracker);
   O << " = vector-pointer";
   printFlags(O);
+  getSourceElementType()->print(O);
+  O << ", ";
   printOperands(O, SlotTracker);
 }
 #endif

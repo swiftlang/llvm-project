@@ -417,6 +417,10 @@ let Class = PropertyTypeCase<APValue, "Struct"> in {
     unsigned numFields = node.getStructNumFields();
     for (unsigned i = 0; i < numFields; ++i)
       structFields.push_back(node.getStructField(i));
+    SmallVector<APValue, 4> structVirtualBases;
+    unsigned numVirtualBases = node.getStructNumVirtualBases();
+    for (unsigned i = 0; i < numVirtualBases; ++i)
+      structVirtualBases.push_back(node.getStructVirtualBase(i));
   }]>;
   def : Property<"bases", Array<APValue>> {
     let Read = [{ structBases }];
@@ -424,13 +428,18 @@ let Class = PropertyTypeCase<APValue, "Struct"> in {
   def : Property<"fields", Array<APValue>> {
     let Read = [{ structFields }];
   }
+  def : Property<"vbases", Array<APValue>> {
+    let Read = [{ structVirtualBases }];
+  }
   def : Creator<[{
     APValue result;
-    result.MakeStruct(bases.size(), fields.size());
+    result.MakeStruct(bases.size(), fields.size(), vbases.size());
     for (unsigned i = 0; i < bases.size(); ++i)
       result.getStructBase(i) = bases[i];
     for (unsigned i = 0; i < fields.size(); ++i)
       result.getStructField(i) = fields[i];
+    for (unsigned i = 0; i < vbases.size(); ++i)
+      result.getStructVirtualBase(i) = vbases[i];
     return result;
   }]>;
 }
@@ -592,6 +601,31 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
         base, offset, pathLength, isLValueOnePastTheEnd, isNullPtr).data();
     llvm::copy(lvaluePath->Path, path);
     return result;
+  }]>;
+}
+
+def ReflectionKind : EnumPropertyType<"ReflectionKind">;
+
+let Class = PropertyTypeCase<APValue, "Reflection"> in {
+  def : Property<"reflectionKind", ReflectionKind> {
+    let Read = [{ node.getReflectionOperandKind() }];
+  }
+  def : Property<"reflectionType", QualType> {
+    let Conditional = [{ reflectionKind == ReflectionKind::Type }];
+    let Read = [{
+      QualType::getFromOpaquePtr(node.getReflectionOpaqueOperand())
+    }];
+  }
+  def : Creator<[{
+    switch (reflectionKind) {
+    // TODO(Reflection): Add support for TypeSourceInfo, NamespaceReference
+    // TemplateReference and DeclRefExpr
+    case ReflectionKind::Null:
+      return APValue(reflectionKind, nullptr);
+    case ReflectionKind::Type:
+      return APValue(reflectionKind, (*reflectionType).getAsOpaquePtr());
+    }
+    llvm_unreachable("unimplemented or unknow reflection entities");
   }]>;
 }
 

@@ -5336,8 +5336,8 @@ void CodeGenFunction::EmitBoundsSafetyTrapCheck(
 }
 
 llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
-  llvm::CallInst *TrapCall =
-      Builder.CreateCall(CGM.getIntrinsic(IntrID));
+  llvm::Function *TrapIntrinsic = CGM.getIntrinsic(IntrID);
+  llvm::CallInst *TrapCall = Builder.CreateCall(TrapIntrinsic);
 
   if (!CGM.getCodeGenOpts().TrapFuncName.empty()) {
     auto A = llvm::Attribute::get(getLLVMContext(), "trap-func-name",
@@ -5347,6 +5347,13 @@ llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
 
   if (InNoMergeAttributedStmt)
     TrapCall->addFnAttr(llvm::Attribute::NoMerge);
+  if (TrapIntrinsic->doesNotThrow())
+    TrapCall->setDoesNotThrow();
+  if (TrapIntrinsic->doesNotReturn()) {
+    TrapCall->setDoesNotReturn();
+    Builder.CreateUnreachable();
+    EmitBlock(createBasicBlock());
+  }
   return TrapCall;
 }
 
@@ -8254,7 +8261,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType,
                E->getDirectCallee(), /*ParamsToSkip=*/0, Order);
 
   const CGFunctionInfo &FnInfo = CGM.getTypes().arrangeFreeFunctionCall(
-      Args, FnType, /*ChainCall=*/Chain);
+      Args, FnType, /*ChainCall=*/Chain, getCurrentFunctionDecl());
 
   if (ResolvedFnInfo)
     *ResolvedFnInfo = &FnInfo;

@@ -2168,6 +2168,11 @@ void MicrosoftCXXNameMangler::mangleTemplateArgValue(QualType T,
     Error("template argument (value type: fixed point)");
     return;
   }
+
+  case APValue::Reflection: {
+    Error("template argument (value type: reflection)");
+    return;
+  }
   }
 }
 
@@ -2831,6 +2836,12 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
     mangleArtificialTagType(TagTypeKind::Struct, #Name);                       \
     break;
 #include "clang/Basic/HLSLIntangibleTypes.def"
+
+#define HLSL_PACKED_TYPE(Name, Id, SingletonId)                                \
+  case BuiltinType::Id:                                                        \
+    mangleArtificialTagType(TagTypeKind::Struct, #Name);                       \
+    break;
+#include "clang/Basic/HLSLPackedTypes.def"
 
   case BuiltinType::SveBool:
     Out << "$_CA";

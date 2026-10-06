@@ -1439,6 +1439,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
 #include "clang/Basic/HLSLIntangibleTypes.def"
 
+#define HLSL_PACKED_TYPE(Name, Id, SingletonId)                                \
+  case DeclSpec::TST_##Name:                                                   \
+    Result = Context.SingletonId;                                              \
+    break;
+#include "clang/Basic/HLSLPackedTypes.def"
+
   case DeclSpec::TST_error:
     Result = Context.IntTy;
     declarator.setInvalidType(true);
@@ -10862,7 +10868,7 @@ bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
   // cannot have any constexpr constructors or a trivial default constructor,
   // so is non-literal. This is better to diagnose than the resulting absence
   // of constexpr constructors.
-  if (RD->getNumVBases()) {
+  if (!getLangOpts().CPlusPlus26 && RD->getNumVBases()) {
     Diag(RD->getLocation(), diag::note_non_literal_virtual_base)
       << getLiteralDiagFromTagKind(RD->getTagKind()) << RD->getNumVBases();
     for (const auto &I : RD->vbases())
