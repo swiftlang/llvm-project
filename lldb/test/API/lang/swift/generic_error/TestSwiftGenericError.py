@@ -7,7 +7,6 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftGenericError(TestBase):
 
     @swiftTest
-    @skipEmbeddedSwiftOnWindows
     def test(self):
         """Test that a generic argument bound to an Error shows the concrete error"""
         self.build()
