@@ -98,7 +98,9 @@ bool ThreadPlanShouldStopHere::DefaultShouldStopHereCallback(
       }
     }
   }
-  // Always avoid code with line number 0.
+  // Source line stepping plans should always avoid code with line number 0.
+  // But trampoline plans should not; it's easier to reason about if they
+  // leave that up to the source line plan that's driving them.
   // FIXME: At present the ShouldStop and the StepFromHere calculate this
   // independently.  If this ever
   // becomes expensive (this one isn't) we can try to have this set a state
@@ -106,12 +108,13 @@ bool ThreadPlanShouldStopHere::DefaultShouldStopHereCallback(
   SymbolContext sc;
   sc = frame->GetSymbolContext(eSymbolContextLineEntry);
 
-  if (sc.line_entry.line == 0)
+  if (flags.Test(ThreadPlanShouldStopHere::eStepPastLine0)
+      && sc.line_entry.line == 0)
     should_stop_here = false;
 
   // If we're in a trampoline, don't stop by default.
   if (Target::GetGlobalProperties().GetEnableTrampolineSupport()) {
-    sc = frame->GetSymbolContext(lldb::eSymbolContextFunction);
+    sc = frame->GetSymbolContext(lldb::eSymbolContextFunction);    
     if (sc.function && sc.function->IsGenericTrampoline())
       should_stop_here = false;
   }
