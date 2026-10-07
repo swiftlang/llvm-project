@@ -253,9 +253,8 @@ define void @loop_induction_var_incorrect_step(ptr %a, i32 %n) {
 ; CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]]
-; CHECK-NEXT:    [[C_2:%.*]] = icmp uge ptr [[PTR_IV]], [[A]]
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i64 4
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
@@ -299,9 +298,8 @@ define void @start_val_non_zero(ptr %a, i32 %n) {
 ; CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]]
-; CHECK-NEXT:    [[C_2:%.*]] = icmp uge ptr [[PTR_IV]], [[A]]
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i64 1
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
@@ -852,9 +850,8 @@ define void @loop_gep_phi_non_const_int_iv_increment(ptr %a, i32 %n, i32 %increm
 ; CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]]
-; CHECK-NEXT:    [[C_2:%.*]] = icmp uge ptr [[PTR_IV]], [[A]]
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i64 1
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], [[INCREMENT:%.*]]
 ; CHECK-NEXT:    br label [[FOR_COND]]

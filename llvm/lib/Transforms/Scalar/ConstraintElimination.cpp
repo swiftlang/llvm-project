@@ -181,6 +181,17 @@ struct InductionInfo {
   APInt Scale;
 };
 
+/// The senses in which an induction phi is monotonic, together with the
+/// direction it moves in.
+struct MonotonicInfo {
+  /// True if the phi steps by a negative constant.
+  bool Decreasing = false;
+  /// True if the phi is monotonic in the unsigned sense.
+  bool Unsigned = false;
+  /// True if the phi is monotonic in the signed sense.
+  bool Signed = false;
+};
+
 /// Keep state required to build worklist.
 struct State {
   DominatorTree &DT;
@@ -218,9 +229,17 @@ struct State {
     }
   }
 
+  /// If \p BB is a loop header, bound each induction phi in it by its start
+  /// value.
+  void addBoundsForHeaderInductions(BasicBlock &BB);
+
   /// Try to add facts for loop inductions (AddRecs) in EQ/NE compares
   /// controlling the loop header.
   void addInfoForInductions(BasicBlock &BB);
+
+  /// Returns the direction the induction phi \p PN with backedge value \p Step
+  /// moves in, and the senses in which it is monotonic in that direction.
+  MonotonicInfo getMonotonicityInfo(PHINode &PN, Value *Step);
 
   /// Returns true if we can add a known condition from BB to its successor
   /// block Succ.
@@ -363,6 +382,10 @@ public:
   }
 
   bool doesHold(CmpInst::Predicate Pred, Value *A, Value *B) const;
+
+  /// Returns true if \p V is known to be non-negative, either because the
+  /// signed system implies it or because ValueTracking can prove it.
+  bool isKnownNonNegative(Value *V) const;
 
   void addFact(CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
                unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack);
@@ -662,7 +685,7 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
         V = Op0;
     }
 
-    if (match(V, m_NSWAdd(m_Value(Op0), m_Value(Op1)))) {
+    if (match(V, m_NSWAddLike(m_Value(Op0), m_Value(Op1)))) {
       if (auto Decomp = MergeResults(Op0, Op1, IsSigned))
         return *Decomp;
       return V;
@@ -942,8 +965,8 @@ ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred, Value *Op0,
   // unsigned ones. This increases the reasoning effectiveness in combination
   // with the signed <-> unsigned transfer logic.
   if (CmpInst::isSigned(Pred) &&
-      isKnownNonNegative(Op0, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1) &&
-      isKnownNonNegative(Op1, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1))
+      ::isKnownNonNegative(Op0, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1) &&
+      ::isKnownNonNegative(Op1, DL, /*Depth=*/MaxAnalysisRecursionDepth - 1))
     Pred = ICmpInst::getUnsignedPredicate(Pred);
 
   SmallVector<Value *> NewVariables;
@@ -1006,13 +1029,14 @@ bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A,
          getCS(R.IsSigned).isConditionImpliedInSubSystem(R.Coefficients);
 }
 
+bool ConstraintInfo::isKnownNonNegative(Value *V) const {
+  return doesHold(CmpInst::ICMP_SGE, V, ConstantInt::get(V->getType(), 0)) ||
+         ::isKnownNonNegative(V, State.DL, /*Depth=*/MaxAnalysisRecursionDepth - 1);
+}
+
 void ConstraintInfo::transferToOtherSystem(
     CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
     unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack) {
-  auto IsKnownNonNegative = [this](Value *V) {
-    return doesHold(CmpInst::ICMP_SGE, V, ConstantInt::get(V->getType(), 0)) ||
-           isKnownNonNegative(V, State.DL, /*Depth=*/MaxAnalysisRecursionDepth - 1);
-  };
   // Check if we can combine facts from the signed and unsigned systems to
   // derive additional facts.
   if (!A->getType()->isIntegerTy())
@@ -1026,7 +1050,7 @@ void ConstraintInfo::transferToOtherSystem(
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
     //  If B is a signed positive constant, then A >=s 0 and A <s (or <=s) B.
-    if (IsKnownNonNegative(B)) {
+    if (isKnownNonNegative(B)) {
       addFact(CmpInst::ICMP_SGE, A, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
       addFact(ICmpInst::getSignedPredicate(Pred), A, B, NumIn, NumOut,
@@ -1036,7 +1060,7 @@ void ConstraintInfo::transferToOtherSystem(
   case CmpInst::ICMP_UGE:
   case CmpInst::ICMP_UGT:
     //  If A is a signed positive constant, then B >=s 0 and A >s (or >=s) B.
-    if (IsKnownNonNegative(A)) {
+    if (isKnownNonNegative(A)) {
       addFact(CmpInst::ICMP_SGE, B, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
       addFact(ICmpInst::getSignedPredicate(Pred), A, B, NumIn, NumOut,
@@ -1045,7 +1069,7 @@ void ConstraintInfo::transferToOtherSystem(
     break;
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
-    if (IsKnownNonNegative(A))
+    if (isKnownNonNegative(A))
       addFact(ICmpInst::getUnsignedPredicate(Pred), A, B, NumIn, NumOut,
               DFSInStack);
     break;
@@ -1053,13 +1077,13 @@ void ConstraintInfo::transferToOtherSystem(
     if (doesHold(CmpInst::ICMP_SGE, B, Constant::getAllOnesValue(B->getType())))
       addFact(CmpInst::ICMP_UGE, A, ConstantInt::get(B->getType(), 0), NumIn,
               NumOut, DFSInStack);
-    if (IsKnownNonNegative(B))
+    if (isKnownNonNegative(B))
       addFact(CmpInst::ICMP_UGT, A, B, NumIn, NumOut, DFSInStack);
 
     break;
   }
   case CmpInst::ICMP_SGE:
-    if (IsKnownNonNegative(B))
+    if (isKnownNonNegative(B))
       addFact(CmpInst::ICMP_UGE, A, B, NumIn, NumOut, DFSInStack);
     break;
   }
@@ -1286,6 +1310,94 @@ void State::addPointerBoundInfoFromOverflowCheck(Value *Op, DomTreeNode *DTN) {
   }
 }
 
+/// Splits the induction phi \p PN into the start value, coming from the loop
+/// predecessor \p LoopPred, and the backedge value, coming from inside the
+/// loop. Returns {nullptr, nullptr} if \p PN has other incoming values.
+static std::pair<Value *, Value *>
+getStartAndBackedgeValue(const PHINode &PN, const BasicBlock *LoopPred) {
+  assert(PN.getBasicBlockIndex(LoopPred) >= 0 &&
+         "LoopPred must be a predecessor of the phi's block");
+  if (PN.getNumIncomingValues() != 2)
+    return {nullptr, nullptr};
+  unsigned StartIdx = PN.getIncomingBlock(0) == LoopPred ? 0 : 1;
+  return {PN.getIncomingValue(StartIdx), PN.getIncomingValue(1 - StartIdx)};
+}
+
+MonotonicInfo State::getMonotonicityInfo(PHINode &PN, Value *Step) {
+  MonotonicInfo Info;
+  const APInt *StepOffset = nullptr;
+  if (match(Step, m_c_Add(m_Specific(&PN), m_APInt(StepOffset)))) {
+    Info.Decreasing = StepOffset->isNegative();
+    const auto *Add = cast<OverflowingBinaryOperator>(Step);
+    Info.Unsigned = !Info.Decreasing && Add->hasNoUnsignedWrap();
+    Info.Signed = Add->hasNoSignedWrap();
+  } else if (const auto *GEP = dyn_cast<GEPOperator>(Step)) {
+    // TODO: Handle the non-increasing direction, which needs a nusw GEP with a
+    // negative constant offset.
+    const DataLayout &DL = PN.getDataLayout();
+    APInt GEPOffset(DL.getIndexTypeSizeInBits(GEP->getType()), 0);
+    Info.Unsigned = GEP->getPointerOperand() == &PN &&
+                    (GEP->hasNoUnsignedWrap() ||
+                     ((GEP->hasNoUnsignedSignedWrap() &&
+                       GEP->accumulateConstantOffset(DL, GEPOffset) &&
+                       !GEPOffset.isNegative())));
+  }
+
+  // Forming the SCEV of a phi is expensive, so only consult it for a PN + C
+  // step whose no-wrap flags prove nothing.
+  if (Info.Unsigned || Info.Signed || !StepOffset)
+    return Info;
+
+  const auto *AR = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+  if (!AR)
+    return Info;
+  ScalarEvolution::MonotonicPredicateType Expected =
+      Info.Decreasing ? ScalarEvolution::MonotonicallyDecreasing
+                      : ScalarEvolution::MonotonicallyIncreasing;
+  auto IsMonotonic = [&](CmpInst::Predicate Pred) {
+    return SE.getMonotonicPredicateType(AR, Pred) == Expected;
+  };
+  Info.Signed = IsMonotonic(CmpInst::ICMP_SGT);
+  Info.Unsigned = !Info.Decreasing && IsMonotonic(CmpInst::ICMP_UGT);
+  return Info;
+}
+
+void State::addBoundsForHeaderInductions(BasicBlock &BB) {
+  Loop *L = LI.getLoopFor(&BB);
+  if (!L || L->getHeader() != &BB)
+    return;
+  BasicBlock *LoopPred = L->getLoopPredecessor();
+  if (!LoopPred)
+    return;
+
+  DomTreeNode *DTN = DT.getNode(&BB);
+  for (PHINode &PN : BB.phis()) {
+    if (!PN.getType()->isIntegerTy() && !PN.getType()->isPointerTy())
+      continue;
+
+    auto [Start, Step] = getStartAndBackedgeValue(PN, LoopPred);
+    if (!Start)
+      continue;
+
+    MonotonicInfo Info = getMonotonicityInfo(PN, Step);
+    // Every variable in the unsigned system already has a `V >= 0` row, so a
+    // zero start value would just duplicate it.
+    if (match(Start, m_Zero()))
+      Info.Unsigned = false;
+    if (!Info.Unsigned && !Info.Signed)
+      continue;
+
+    // A non-decreasing induction cannot step below its start value, and a
+    // non-increasing one cannot step above it.
+    Value *LHS = &PN, *RHS = Start;
+    if (Info.Decreasing)
+      std::swap(LHS, RHS);
+    CmpPredicate Pred(Info.Unsigned ? CmpInst::ICMP_UGE : CmpInst::ICMP_SGE,
+                      /*HasSameSign=*/Info.Unsigned && Info.Signed);
+    WorkList.push_back(FactOrCheck::getConditionFact(DTN, Pred, LHS, RHS));
+  }
+}
+
 void State::addInfoForInductions(BasicBlock &BB) {
   auto *L = LI.getLoopFor(&BB);
   if (!L)
@@ -1322,13 +1434,12 @@ void State::addInfoForInductions(BasicBlock &BB) {
   if (&BB == Latch && !IncStep)
     return;
 
-  BasicBlock *InLoopSucc = nullptr;
-  if (Pred == CmpInst::ICMP_NE)
-    InLoopSucc = cast<CondBrInst>(BB.getTerminator())->getSuccessor(0);
-  else if (Pred == CmpInst::ICMP_EQ)
-    InLoopSucc = cast<CondBrInst>(BB.getTerminator())->getSuccessor(1);
-  else
-    return;
+  bool ContinueOnTrue =
+      Pred == CmpInst::ICMP_NE || ICmpInst::isLT(Pred) || ICmpInst::isLE(Pred);
+  CmpInst::Predicate ContinuePred =
+      ContinueOnTrue ? Pred.dropSameSign() : CmpInst::getInversePredicate(Pred);
+  BasicBlock *InLoopSucc = cast<CondBrInst>(BB.getTerminator())
+                               ->getSuccessor(ContinueOnTrue ? 0 : 1);
 
   if (!L->contains(InLoopSucc) || !L->isLoopExiting(&BB) || InLoopSucc == &BB)
     return;
@@ -1337,18 +1448,29 @@ void State::addInfoForInductions(BasicBlock &BB) {
   if (!LoopPred || !L->isLoopInvariant(B))
     return;
 
-  Value *StartValue = PN->getIncomingValueForBlock(LoopPred);
-  BasicBlock *BackedgeBB = PN->getIncomingBlock(0) == LoopPred
-                               ? PN->getIncomingBlock(1)
-                               : PN->getIncomingBlock(0);
-  Value *Backedge = PN->getIncomingValueForBlock(BackedgeBB);
+  auto [StartValue, Backedge] = getStartAndBackedgeValue(*PN, LoopPred);
+  DomTreeNode *DTN = DT.getNode(InLoopSucc);
+
+  if (ICmpInst::isRelational(ContinuePred)) {
+    if (A != Backedge)
+      return;
+
+    // The latch condition ensures ContinuePred holds in the header on each
+    // iteration other than the first. Together with a precondition on the start
+    // value (StartValue ContinuePred B), we can add B as bound of PN.
+    WorkList.push_back(FactOrCheck::getConditionFact(
+        DTN, ContinuePred, PN, B, ConditionTy(ContinuePred, StartValue, B)));
+
+    // A relational latch steps past B rather than landing on it, so none of the
+    // reasoning below applies.
+    return;
+  }
+
   const APInt *StepOffset = nullptr;
   const SCEV *StartSCEV = nullptr;
-  OverflowingBinaryOperator *Inc = nullptr;
   if (match(Backedge, m_c_Add(m_Specific(PN), m_APInt(StepOffset)))) {
     if (StepOffset->isZero())
       return;
-    Inc = cast<OverflowingBinaryOperator>(Backedge);
   } else {
     const SCEV *Expr = SE.getSCEV(PN);
     if (!match(Expr,
@@ -1357,12 +1479,12 @@ void State::addInfoForInductions(BasicBlock &BB) {
       return;
   }
 
-  DomTreeNode *DTN = DT.getNode(InLoopSucc);
-
   // If we looked through `PN + C`, only derive facts when that add is
   // really the induction's post-increment.
   if (IncStep && (*IncStep != *StepOffset || StepOffset->isNegative()))
     return;
+
+  MonotonicInfo Info = getMonotonicityInfo(*PN, Backedge);
 
   // Handle negative steps.
   if (StepOffset->isNegative()) {
@@ -1376,9 +1498,10 @@ void State::addInfoForInductions(BasicBlock &BB) {
     WorkList.push_back(FactOrCheck::getConditionFact(
         DTN, CmpInst::ICMP_UGE, StartValue, PN,
         ConditionTy(CmpInst::ICMP_ULE, B, StartValue)));
-    WorkList.push_back(FactOrCheck::getConditionFact(
-        DTN, CmpInst::ICMP_SGE, StartValue, PN,
-        ConditionTy(CmpInst::ICMP_SLE, B, StartValue)));
+    if (!(Info.Decreasing && Info.Signed))
+      WorkList.push_back(FactOrCheck::getConditionFact(
+          DTN, CmpInst::ICMP_SGE, StartValue, PN,
+          ConditionTy(CmpInst::ICMP_SLE, B, StartValue)));
     // Add PN > B conditional on B <= StartValue which guarantees that the loop
     // exits when reaching B with a step of -1.
     WorkList.push_back(FactOrCheck::getConditionFact(
@@ -1389,31 +1512,6 @@ void State::addInfoForInductions(BasicBlock &BB) {
         ConditionTy(CmpInst::ICMP_SLE, B, StartValue)));
     return;
   }
-
-  // Monotonicity is only used if the step is non-negative. If Inc is set it
-  // reduces to the induction wrap flags. If that fails, try to refine via SCEV.
-  bool MonotonicallyIncreasingUnsigned = Inc && Inc->hasNoUnsignedWrap();
-  bool MonotonicallyIncreasingSigned = Inc && Inc->hasNoSignedWrap();
-  if (!(MonotonicallyIncreasingUnsigned && MonotonicallyIncreasingSigned)) {
-    const SCEVAddRecExpr *IndAR = cast<SCEVAddRecExpr>(SE.getSCEV(PN));
-    if (!MonotonicallyIncreasingUnsigned)
-      MonotonicallyIncreasingUnsigned =
-          SE.getMonotonicPredicateType(IndAR, CmpInst::ICMP_UGT) ==
-          ScalarEvolution::MonotonicallyIncreasing;
-    if (!MonotonicallyIncreasingSigned)
-      MonotonicallyIncreasingSigned =
-          SE.getMonotonicPredicateType(IndAR, CmpInst::ICMP_SGT) ==
-          ScalarEvolution::MonotonicallyIncreasing;
-  }
-
-  // If the induction is known not to wrap, PN >= StartValue can be added
-  // unconditionally.
-  if (MonotonicallyIncreasingUnsigned)
-    WorkList.push_back(
-        FactOrCheck::getConditionFact(DTN, CmpInst::ICMP_UGE, PN, StartValue));
-  if (MonotonicallyIncreasingSigned)
-    WorkList.push_back(
-        FactOrCheck::getConditionFact(DTN, CmpInst::ICMP_SGE, PN, StartValue));
 
   // Make sure AR either steps by 1 or that the value we compare against is a
   // GEP based on the same start value and all offsets are a multiple of the
@@ -1450,10 +1548,10 @@ void State::addInfoForInductions(BasicBlock &BB) {
   // restrictions on B and the step above.
   ConditionTy StartBeforeBoundULE = {CmpInst::ICMP_ULE, LowerBound, B};
   ConditionTy StartBeforeBoundSLE = {CmpInst::ICMP_SLE, LowerBound, B};
-  if (!MonotonicallyIncreasingUnsigned && LowerBoundNUW)
+  if (!Info.Unsigned && LowerBoundNUW)
     WorkList.push_back(FactOrCheck::getConditionFact(
         DTN, CmpInst::ICMP_UGE, PN, StartValue, StartBeforeBoundULE));
-  if (!MonotonicallyIncreasingSigned && LowerBoundNSW)
+  if (!Info.Signed && LowerBoundNSW)
     WorkList.push_back(FactOrCheck::getConditionFact(
         DTN, CmpInst::ICMP_SGE, PN, StartValue, StartBeforeBoundSLE));
 
@@ -1471,8 +1569,7 @@ void State::addInfoForInductions(BasicBlock &BB) {
   // blocks. When exiting either with EQ or NE, we know that the induction value
   // must be u<= B, as other exits may only exit earlier.
   assert(!StepOffset->isNegative() && "induction must be increasing");
-  assert((Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) &&
-         "unsupported predicate");
+  assert(ContinuePred == CmpInst::ICMP_NE && "unsupported predicate");
   SmallVector<BasicBlock *> ExitBBs;
   L->getExitBlocks(ExitBBs);
   for (BasicBlock *EB : ExitBBs) {
@@ -1528,6 +1625,7 @@ static bool getConstraintFromMemoryAccess(GetElementPtrInst &GEP,
 }
 
 void State::addInfoFor(BasicBlock &BB) {
+  addBoundsForHeaderInductions(BB);
   addInfoForInductions(BB);
   auto &DL = BB.getDataLayout();
 
@@ -2053,6 +2151,18 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
     R = Info.getConstraintForSolving(Pred, A, B, /*ShouldDecompose=*/false);
   if (auto ImpliedCondition = TryWithConstraint(R))
     return ImpliedCondition;
+
+  // For non-negative operands unsigned queries can also be checked against the
+  // signed system.
+  if (CmpInst::isUnsigned(Pred) && A->getType()->isIntegerTy()) {
+    SmallVector<Value *> NewVariables;
+    auto SR = Info.getConstraint(ICmpInst::getSignedPredicate(Pred), A, B,
+                                 NewVariables, /*ShouldDecompose=*/true);
+    if (NewVariables.empty() && !SR.empty() && Info.isKnownNonNegative(A) &&
+        Info.isKnownNonNegative(B))
+      if (auto ImpliedCondition = TryWithConstraint(SR))
+        return ImpliedCondition;
+  }
 
   // Additionally, query the signed system for eq/ne predicates if we know about
   // A or B.

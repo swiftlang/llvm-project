@@ -17,10 +17,9 @@ define void @loop_gep_phi(ptr %a, i32 %n) {
 ; CHECK-NEXT:    [[PTR_IV:%.*]] = phi ptr [ [[A]], [[ENTRY]] ], [ [[PTR_IV_NEXT:%.*]], [[FOR_BODY]] ]
 ; CHECK-NEXT:    br i1 true, label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]], !annotation !0
-; CHECK-NEXT:    [[C_2:%.*]] = icmp uge ptr [[PTR_IV]], [[A]], !annotation !2
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]], !annotation [[META0:![0-9]+]]
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i64 1
 ; CHECK-NEXT:    [[INC]] = sub nuw nsw i32 [[I_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
@@ -56,7 +55,7 @@ define void @loop_gep_phi_step_size(ptr %a, i32 %n) {
 ; CHECK-LABEL: define void @loop_gep_phi_step_size
 ; CHECK-SAME: (ptr [[A:%.*]], i32 [[N:%.*]]) {
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[MUL:%.*]] = shl nsw i32 [[N]], 1, !annotation !3
+; CHECK-NEXT:    [[MUL:%.*]] = shl nsw i32 [[N]], 1, !annotation [[META2:![0-9]+]]
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[MUL]] to i64
 ; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i32, ptr [[A]], i64 [[IDX_EXT]]
 ; CHECK-NEXT:    br label [[FOR_COND:%.*]]
@@ -66,10 +65,9 @@ define void @loop_gep_phi_step_size(ptr %a, i32 %n) {
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp uge i32 [[I_0]], [[N]]
 ; CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]], !annotation !5
-; CHECK-NEXT:    [[C_2:%.*]] = icmp uge ptr [[PTR_IV]], [[A]], !annotation !7
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ult ptr [[PTR_IV]], [[ADD_PTR]], !annotation [[META4:![0-9]+]]
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
-; CHECK-NEXT:    call void @use(i1 [[C_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i64 2
 ; CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 ; CHECK-NEXT:    br label [[FOR_COND]]
@@ -104,12 +102,10 @@ for.cond.cleanup:
 !0 = !{!"bounds-safety-check-ptr-lt-upper-bound"}
 !1 = !{!"bounds-safety-check-ptr-ge-lower-bound"}
 ;.
-; CHECK: [[META0:![0-9]+]] = !{!"bounds-safety-check-ptr-lt-upper-bound", !1}
-; CHECK: [[META1:![0-9]+]] = !{!"bounds-safety-missed-optimization-phi-direction", !"Cannot remove bounds checks because the pointer induction variable and loop counter are not stepping in the same direction. Consider rewriting the loop counter to step in the same direction as the pointer induction variable to help the optimizer remove the access bound checks."}
-; CHECK: [[META2:![0-9]+]] = !{!"bounds-safety-check-ptr-ge-lower-bound", !1}
-; CHECK: [[META3:![0-9]+]] = !{!4}
-; CHECK: [[META4:![0-9]+]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-; CHECK: [[META5:![0-9]+]] = !{!"bounds-safety-check-ptr-lt-upper-bound", !6}
-; CHECK: [[META6:![0-9]+]] = !{!"bounds-safety-missed-optimization-phi-step-size", !"Cannot remove bound checks because the pointer induction variable and loop counter don't have the same step size. Consider rewriting the loop counter to have the same step size as the pointer induction variable to help the optimizer remove the access bound checks"}
-; CHECK: [[META7:![0-9]+]] = !{!"bounds-safety-check-ptr-ge-lower-bound", !6}
+; CHECK: [[META0]] = !{!"bounds-safety-check-ptr-lt-upper-bound", [[META1:![0-9]+]]}
+; CHECK: [[META1]] = !{!"bounds-safety-missed-optimization-phi-direction", !"Cannot remove bounds checks because the pointer induction variable and loop counter are not stepping in the same direction. Consider rewriting the loop counter to step in the same direction as the pointer induction variable to help the optimizer remove the access bound checks."}
+; CHECK: [[META2]] = !{[[META3:![0-9]+]]}
+; CHECK: [[META3]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
+; CHECK: [[META4]] = !{!"bounds-safety-check-ptr-lt-upper-bound", [[META5:![0-9]+]]}
+; CHECK: [[META5]] = !{!"bounds-safety-missed-optimization-phi-step-size", !"Cannot remove bound checks because the pointer induction variable and loop counter don't have the same step size. Consider rewriting the loop counter to have the same step size as the pointer induction variable to help the optimizer remove the access bound checks"}
 ;.
