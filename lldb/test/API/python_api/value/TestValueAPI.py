@@ -19,7 +19,6 @@ class ValueAPITestCase(TestBase):
         # Find the line number to of function 'c'.
         self.line = line_number("main.c", "// Break at this line")
 
-    @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24772")
     def test(self):
         """Exercise some SBValue APIs."""
         d = {"EXE": self.exe_name}
@@ -309,21 +308,20 @@ class ValueAPITestCase(TestBase):
                     and reg_name == "sp"
                 ):
                     # x86 has "rsp", and "sp" which is a subset of "rsp". Then there is
-                    # the ABI name "sp", which LLDB resolves to "rsp", not to the
-                    # architectural register "sp".
+                    # the ABI name "sp", which LLDB resolves to "rsp" ("esp" on i386),
+                    # not to the architectural register "sp".
                     # See https://github.com/llvm/llvm-project/issues/212778.
-                    #
-                    # Some targets expose the architectural "sp" in a different
-                    # set than "rsp" (on Windows, "supplementary registers"),
-                    # leaving nothing to compare against here.
-                    if not reg_set.GetChildMemberWithName("rsp").IsValid():
-                        continue
-
+                    full_sp = "esp" if self.getArchitecture() == "i386" else "rsp"
                     sp_with_name_index = reg_set.GetIndexOfChildWithName(reg_name)
                     self.assertTrue(sp_with_name_index < num_registers)
-                    rsp_with_name_index = reg_set.GetIndexOfChildWithName("rsp")
-                    self.assertTrue(rsp_with_name_index < num_registers)
-                    self.assertEqual(sp_with_name_index, rsp_with_name_index)
+                    full_sp_with_name_index = reg_set.GetIndexOfChildWithName(full_sp)
+                    if full_sp_with_name_index < num_registers:
+                        self.assertEqual(sp_with_name_index, full_sp_with_name_index)
+                    else:
+                        # The full width register is not in this set (on Windows,
+                        # "sp" is in "supplementary registers"), so we get the
+                        # architectural "sp" instead.
+                        self.assertEqual(sp_with_name_index, child_idx)
 
                     continue
 
