@@ -1,16 +1,6 @@
-set(SWIFT_LIBS
-    swiftAST
-    swiftASTSectionImporter
-    swiftBasic
-    swiftClangImporter
-    swiftFrontend
-    swiftSIL
-    swiftSerialization
-)
 list(APPEND LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_SOURCES)
-  unset(SWIFT_LIBS)
 endif()
 
 add_lldb_library(lldbSymbol NO_PLUGIN_DEPENDENCIES
@@ -68,9 +58,6 @@ add_lldb_library(lldbSymbol NO_PLUGIN_DEPENDENCIES
     lldbTarget
     lldbUtility
     lldbValueObject
-    ## BEGIN SWIFT
-    ${SWIFT_LIBS}
-    ## END SWIFT
 
   )
 if(CMAKE_CXX_COMPILER_ID STREQUAL Clang AND NOT SWIFT_COMPILER_IS_MSVC_LIKE)
