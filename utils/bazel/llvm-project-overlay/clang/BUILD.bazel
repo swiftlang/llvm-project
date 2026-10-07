@@ -1283,6 +1283,7 @@ cc_library(
     name = "analysis",
     srcs = glob([
         "lib/Analysis/FlowSensitive/Models/*.cpp",
+        "lib/Analysis/FlowSensitive/Models/*.h",
         "lib/Analysis/FlowSensitive/*.cpp",
         "lib/Analysis/LifetimeSafety/*.cpp",
         "lib/Analysis/LifetimeSafety/*.h",
@@ -1296,6 +1297,7 @@ cc_library(
     includes = [
         "include",
         "lib/Analysis/FlowSensitive",
+        "lib/Analysis/FlowSensitive/Models",
     ],
     textual_hdrs = glob([
         "include/clang/Analysis/**/*.def",
