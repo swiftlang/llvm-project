@@ -10,6 +10,7 @@
 #define LLVM_CAS_CACHINGONDISKFILESYSTEM_H
 
 #include "llvm/CAS/CASFileSystem.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <optional>
@@ -27,7 +28,7 @@ class ObjectProxy;
 /// working directory. This allows a single caching on-disk filesystem to be
 /// used across the filesystem, with each thread using a different proxy to set
 /// the working directory.
-class CachingOnDiskFileSystem
+class LLVM_ABI CachingOnDiskFileSystem
     : public RTTIExtends<CachingOnDiskFileSystem, CASBackedFileSystem> {
   void anchor() override;
 
@@ -146,10 +147,10 @@ protected:
   std::shared_ptr<ObjectStore> OwnedDB;
 };
 
-Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
+LLVM_ABI Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
 createCachingOnDiskFileSystem(std::shared_ptr<ObjectStore> DB);
 
-Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
+LLVM_ABI Expected<IntrusiveRefCntPtr<CachingOnDiskFileSystem>>
 createCachingOnDiskFileSystem(ObjectStore &DB);
 
 } // namespace cas

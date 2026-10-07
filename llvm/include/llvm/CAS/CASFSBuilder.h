@@ -10,6 +10,7 @@
 #define LLVM_CAS_CASFSBUILDER_H
 
 #include "llvm/CAS/HierarchicalTreeBuilder.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/PrefixMapper.h"
 
 namespace llvm::cas {
@@ -23,26 +24,26 @@ class CachingOnDiskFileSystem;
 class CASFSBuilder {
 public:
   /// \param Prefix maps used for file system ingestion.
-  explicit CASFSBuilder(ObjectStore &DB,
-                        ArrayRef<MappedPrefix> PrefixMaps = {});
+  LLVM_ABI explicit CASFSBuilder(ObjectStore &DB,
+                                 ArrayRef<MappedPrefix> PrefixMaps = {});
 
-  ~CASFSBuilder();
+  LLVM_ABI ~CASFSBuilder();
 
   /// Ingest contents from the on-disk file-system. Symlinks are not followed.
   /// Emits an error if the path doesn't exist.
   ///
   /// \param Recursive if true, and path is a directory, its contents will be
   /// ingested recursively, otherwise only the path will be included.
-  Error ingestFileSystemPath(const Twine &Path, bool Recursive = true);
+  LLVM_ABI Error ingestFileSystemPath(const Twine &Path, bool Recursive = true);
 
   /// Merge a prior constructed CAS file-system tree root.
   ///
   /// \param Path the path to place the root at; can be empty.
-  void mergeCASFSRoot(ObjectRef Root, const Twine &Path = "");
+  LLVM_ABI void mergeCASFSRoot(ObjectRef Root, const Twine &Path = "");
 
   /// Produce the merged CAS file-system tree root. \c CASFSBuilder should not
   /// be used after calling this.
-  Expected<ObjectProxy> finish();
+  LLVM_ABI Expected<ObjectProxy> finish();
 
 private:
   ObjectStore &DB;

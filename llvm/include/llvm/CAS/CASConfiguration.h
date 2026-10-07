@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <string>
@@ -52,29 +53,29 @@ public:
   }
 
   // Create CASDatabase from the CASConfiguration.
-  llvm::Expected<std::pair<std::shared_ptr<llvm::cas::ObjectStore>,
-                           std::shared_ptr<llvm::cas::ActionCache>>>
+  LLVM_ABI llvm::Expected<std::pair<std::shared_ptr<llvm::cas::ObjectStore>,
+                                    std::shared_ptr<llvm::cas::ActionCache>>>
   createDatabases() const;
 
   /// Write CAS configuration file.
-  void writeConfigurationFile(raw_ostream &OS) const;
+  LLVM_ABI void writeConfigurationFile(raw_ostream &OS) const;
 
   /// Create CASConfiguration from config file content.
-  static llvm::Expected<CASConfiguration>
+  LLVM_ABI static llvm::Expected<CASConfiguration>
   createFromConfig(llvm::StringRef Content);
 
   /// Create CASConfiguration from recurively search config file from a path.
   ///
   /// Returns the path to configuration file and its corresponding
   /// CASConfiguration.
-  static std::optional<std::pair<std::string, CASConfiguration>>
+  LLVM_ABI static std::optional<std::pair<std::string, CASConfiguration>>
   createFromSearchConfigFile(
       StringRef Path,
       llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = nullptr);
 
   /// Get resolved CASPath.
-  Error getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
- 
+  LLVM_ABI Error getResolvedCASPath(llvm::SmallVectorImpl<char> &Result) const;
+
   /// DenseMap support \{
   static cas::CASConfiguration getDenseMapEmptyKey() { return {}; }
 
