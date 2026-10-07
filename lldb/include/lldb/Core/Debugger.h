@@ -34,6 +34,7 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
+#include "lldb/Utility/StringPool.h"
 #include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/UserID.h"
 #include "lldb/lldb-defines.h"
@@ -421,6 +422,10 @@ public:
   bool GetNotifyVoid() const;
 
   const std::string &GetInstanceName() const { return m_instance_name; }
+
+  /// The pool for strings handed out through the SB API that belong to this
+  /// debugger.
+  StringPoolRef GetStringPool() const { return m_string_pool; }
 
   bool GetShowInlineDiagnostics() const;
 
@@ -823,6 +828,7 @@ protected:
   llvm::StringMap<std::weak_ptr<LogHandler>> m_stream_handlers;
   std::shared_ptr<CallbackLogHandler> m_callback_handler_sp;
   const std::string m_instance_name;
+  StringPoolRef m_string_pool;
   static LoadPluginCallbackType g_load_plugin_callback;
   typedef std::vector<llvm::sys::DynamicLibrary> LoadedPluginsList;
   LoadedPluginsList m_loaded_plugins;
