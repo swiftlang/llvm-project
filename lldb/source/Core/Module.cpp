@@ -1112,30 +1112,6 @@ void Module::ReportWarningUnsupportedLanguage(
 }
 
 #ifdef LLDB_ENABLE_SWIFT
-static llvm::VersionTuple GetAdjustedVersion(llvm::VersionTuple version) {
-  return version;
-}
-
-void Module::ReportWarningToolchainMismatch(
-    CompileUnit &comp_unit, std::optional<lldb::user_id_t> debugger_id) {
-  if (SymbolFile *sym_file = GetSymbolFile()) {
-    llvm::VersionTuple sym_file_version =
-        GetAdjustedVersion(sym_file->GetProducerVersion(comp_unit));
-    llvm::VersionTuple swift_version =
-        GetAdjustedVersion(swift::version::getCurrentCompilerVersion());
-    if (sym_file_version != swift_version) {
-      std::string str = llvm::formatv(
-          "{0} was compiled with a different Swift compiler "
-          "(version '{1}') than the Swift compiler integrated into LLDB "
-          "(version '{2}'). Swift expression evaluation requires a matching "
-          "compiler and debugger from the same toolchain.",
-          GetFileSpec().GetFilename(), sym_file_version.getAsString(),
-          swift_version.getAsString());
-      Debugger::ReportWarning(str, debugger_id, &m_toolchain_mismatch_warning);
-    }
-  }
-}
-
 bool Module::IsSwiftCxxInteropEnabled() {
   switch (m_is_swift_cxx_interop_enabled) {
   case eLazyBoolYes:
