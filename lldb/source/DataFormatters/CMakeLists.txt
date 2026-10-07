@@ -1,6 +1,4 @@
-# FIXME: rdar://164753604 (Remove lldbDataFormatters dependency on
-# TypeSystemClang on swift fork)
-add_lldb_library(lldbDataFormatters
+add_lldb_library(lldbDataFormatters NO_PLUGIN_DEPENDENCIES
   CXXFunctionPointer.cpp
   DataVisualization.cpp
   DumpValueObjectOptions.cpp
@@ -31,5 +29,4 @@ add_lldb_library(lldbDataFormatters
     lldbTarget
     lldbUtility
     lldbValueObject
-    lldbPluginTypeSystemClang
   )

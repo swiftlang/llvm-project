@@ -630,6 +630,9 @@ public:
 
   virtual void ModulesDidLoad(ModuleList &module_list) {}
 
+  /// Whether FormatManager should also match formatters against the display
+  /// type name.
+  virtual bool MatchFormattersByDisplayTypeName() { return true; }
   // END SWIFT
 
 protected:

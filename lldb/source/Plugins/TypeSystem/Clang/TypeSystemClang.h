@@ -154,6 +154,10 @@ public:
 
   static llvm::StringRef GetPluginNameStatic() { return "clang"; }
 
+  // BEGIN SWIFT
+  bool MatchFormattersByDisplayTypeName() override { return false; }
+  // END SWIFT
+
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
                                            Module *module, Target *target);
 
