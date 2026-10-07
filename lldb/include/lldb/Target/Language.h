@@ -26,6 +26,7 @@
 #include "lldb/lldb-public.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
 
@@ -490,6 +491,11 @@ public:
                              const SymbolContext &sc2) const {
     return {};
   }
+
+  // BEGIN SWIFT
+  /// The version of the compiler embedded in lldb, if any.
+  virtual llvm::VersionTuple GetCompilerVersion() { return {}; }
+  // END SWIFT
 
   virtual std::optional<bool> GetBooleanFromString(llvm::StringRef str) const;
 

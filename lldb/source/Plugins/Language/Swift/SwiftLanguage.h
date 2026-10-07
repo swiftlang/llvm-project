@@ -35,6 +35,8 @@ public:
 
   bool IsTopLevelFunction(Function &function) override;
 
+  llvm::VersionTuple GetCompilerVersion() override;
+
   std::vector<Language::MethodNameVariant>
   GetMethodNameVariants(llvm::StringRef method_name) const override;
 
