@@ -91,8 +91,8 @@ class TestSwiftMainExecutable(TestBase):
 
         self.build()
         self.runCmd("settings set symbols.use-swift-dwarfimporter false")
-        os.remove(self.getBuildArtifact("SomeLibrary.swiftmodule"))
-        os.remove(self.getBuildArtifact("SomeLibrary.swiftinterface"))
+        for name in ["SomeLibrary.swiftmodule", "SomeLibrary.swiftinterface"]:
+            os.remove(lldbutil.get_extended_windows_path(self.getBuildArtifact(name)))
         lldbutil.run_to_source_breakpoint(
             self,
             "break here",
@@ -155,8 +155,8 @@ class TestSwiftMainExecutable(TestBase):
         """
 
         self.build(dictionary={"LIBRARY_SWIFTFLAGS_EXTRAS": "-enable-library-evolution"})
-        os.remove(self.getBuildArtifact("SomeLibrary.swiftmodule"))
-        os.remove(self.getBuildArtifact("SomeLibrary.swiftinterface"))
+        for name in ["SomeLibrary.swiftmodule", "SomeLibrary.swiftinterface"]:
+            os.remove(lldbutil.get_extended_windows_path(self.getBuildArtifact(name)))
         lldbutil.run_to_source_breakpoint(
             self,
             "break here",
