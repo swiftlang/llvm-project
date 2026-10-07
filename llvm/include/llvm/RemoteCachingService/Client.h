@@ -17,6 +17,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include <atomic>
 #include <memory>
@@ -25,14 +26,14 @@
 namespace llvm::cas::remote {
 
 /// Used to optionally associate additional context with a particular request.
-class AsyncCallerContext {
+class LLVM_ABI AsyncCallerContext {
   virtual void anchor();
 
 public:
   virtual ~AsyncCallerContext() = default;
 };
 
-class AsyncQueueBase {
+class LLVM_ABI AsyncQueueBase {
   virtual void anchor();
 
 public:
@@ -54,7 +55,7 @@ protected:
 ///   // Wait for one response.
 ///   auto Response = KVClient->getValueQueue().receiveNext();
 /// \endcode
-class KeyValueDBClient {
+class LLVM_ABI KeyValueDBClient {
   virtual void anchor();
 
 public:
@@ -101,7 +102,7 @@ protected:
                                  std::function<void(Error)> Callback) = 0;
 
 public:
-  class GetValueAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI GetValueAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -135,7 +136,7 @@ public:
     virtual Expected<Response> receiveNextImpl() = 0;
   };
 
-  class PutValueAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI PutValueAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -189,7 +190,7 @@ protected:
 ///     ...
 ///   }
 /// \endcode
-class CASDBClient {
+class LLVM_ABI CASDBClient {
   virtual void anchor();
 
 public:
@@ -263,7 +264,7 @@ protected:
                                                 ArrayRef<std::string> Refs) = 0;
 
 public:
-  class LoadAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI LoadAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -295,7 +296,7 @@ public:
     virtual Expected<Response> receiveNextImpl() = 0;
   };
 
-  class SaveAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI SaveAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -333,7 +334,7 @@ public:
     virtual Expected<Response> receiveNextImpl() = 0;
   };
 
-  class GetAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI GetAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -366,7 +367,7 @@ public:
     virtual Expected<Response> receiveNextImpl() = 0;
   };
 
-  class PutAsyncQueue : public AsyncQueueBase {
+  class LLVM_ABI PutAsyncQueue : public AsyncQueueBase {
     virtual void anchor() override;
 
   public:
@@ -421,13 +422,13 @@ struct ClientServices {
   std::unique_ptr<CASDBClient> CASDB;
 };
 
-Expected<std::unique_ptr<CASDBClient>>
+LLVM_ABI Expected<std::unique_ptr<CASDBClient>>
 createRemoteCASDBClient(StringRef SocketPath);
 
-Expected<std::unique_ptr<KeyValueDBClient>>
+LLVM_ABI Expected<std::unique_ptr<KeyValueDBClient>>
 createRemoteKeyValueClient(StringRef SocketPath);
 
-Expected<ClientServices>
+LLVM_ABI Expected<ClientServices>
 createCompilationCachingRemoteClient(StringRef SocketPath);
 
 } // namespace llvm::cas::remote

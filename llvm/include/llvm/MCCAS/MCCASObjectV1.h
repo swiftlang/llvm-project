@@ -179,6 +179,7 @@
 #include "llvm/MC/MCCASFormatSchemaBase.h"
 #include "llvm/MCCAS/MCCASReader.h"
 #include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Endian.h"
 
@@ -194,9 +195,9 @@ class MCCASReader;
 // FIXME: Using the same structure from ObjectV1 from CASObjectFormat.
 class MCObjectProxy : public cas::ObjectProxy {
 public:
-  static Expected<MCObjectProxy> get(const MCSchema &Schema,
-                                     Expected<cas::ObjectProxy> Ref);
-  StringRef getKindString() const;
+  LLVM_ABI static Expected<MCObjectProxy> get(const MCSchema &Schema,
+                                              Expected<cas::ObjectProxy> Ref);
+  LLVM_ABI StringRef getKindString() const;
 
   /// Return the data skipping the type-id character.
   StringRef getData() const { return cas::ObjectProxy::getData().drop_front(); }
@@ -209,11 +210,11 @@ public:
 
   MCObjectProxy() = delete;
 
-  static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
-                                SmallVectorImpl<char> &Data,
-                                SmallVectorImpl<cas::ObjectRef> &IDs);
+  LLVM_ABI static Error encodeReferences(ArrayRef<cas::ObjectRef> Refs,
+                                         SmallVectorImpl<char> &Data,
+                                         SmallVectorImpl<cas::ObjectRef> &IDs);
 
-  static Expected<SmallVector<cas::ObjectRef>>
+  LLVM_ABI static Expected<SmallVector<cas::ObjectRef>>
   decodeReferences(const MCObjectProxy &Node, StringRef &Remaining);
 
 protected:
@@ -222,12 +223,12 @@ protected:
 
   class Builder {
   public:
-    static Expected<Builder> startRootNode(const MCSchema &Schema,
-                                           StringRef KindString);
-    static Expected<Builder> startNode(const MCSchema &Schema,
-                                       StringRef KindString);
+    LLVM_ABI static Expected<Builder> startRootNode(const MCSchema &Schema,
+                                                    StringRef KindString);
+    LLVM_ABI static Expected<Builder> startNode(const MCSchema &Schema,
+                                                StringRef KindString);
 
-    Expected<MCObjectProxy> build();
+    LLVM_ABI Expected<MCObjectProxy> build();
 
   private:
     Error startNodeImpl(StringRef KindString);
@@ -245,7 +246,8 @@ private:
 };
 
 /// Schema for a DAG in a CAS.
-class MCSchema final : public RTTIExtends<MCSchema, MCFormatSchemaBase> {
+class LLVM_ABI MCSchema final
+    : public RTTIExtends<MCSchema, MCFormatSchemaBase> {
   void anchor() override;
 
 public:
@@ -425,9 +427,9 @@ class PaddingRef : public SpecificRef<PaddingRef> {
 public:
   static constexpr StringLiteral KindString = "mc:padding";
 
-  static Expected<PaddingRef> create(MCCASBuilder &MB, uint64_t Size);
+  LLVM_ABI static Expected<PaddingRef> create(MCCASBuilder &MB, uint64_t Size);
 
-  static Expected<PaddingRef> get(Expected<MCObjectProxy> Ref);
+  LLVM_ABI static Expected<PaddingRef> get(Expected<MCObjectProxy> Ref);
   static Expected<PaddingRef> get(const MCSchema &Schema, cas::ObjectRef ID) {
     return get(Schema.get(ID));
   }
@@ -438,7 +440,7 @@ public:
     return PaddingRef(*Specific);
   }
 
-  Expected<uint64_t> materialize(raw_ostream &OS) const;
+  LLVM_ABI Expected<uint64_t> materialize(raw_ostream &OS) const;
 
 private:
   explicit PaddingRef(SpecificRefT Ref) : SpecificRefT(Ref) {}
@@ -451,18 +453,17 @@ class MCAssemblerRef : public SpecificRef<MCAssemblerRef> {
 public:
   static constexpr StringLiteral KindString = "mc:assembler";
 
-  static Expected<MCAssemblerRef> get(Expected<MCObjectProxy> Ref);
+  LLVM_ABI static Expected<MCAssemblerRef> get(Expected<MCObjectProxy> Ref);
   static Expected<MCAssemblerRef> get(const MCSchema &Schema,
                                       cas::ObjectRef ID) {
     return get(Schema.get(ID));
   }
 
-  static Expected<MCAssemblerRef> create(const MCSchema &Schema,
-                                         MachOCASWriter &ObjectWriter,
-                                         MCAssembler &Asm,
-                                         raw_ostream *DebugOS = nullptr);
+  LLVM_ABI static Expected<MCAssemblerRef>
+  create(const MCSchema &Schema, MachOCASWriter &ObjectWriter, MCAssembler &Asm,
+         raw_ostream *DebugOS = nullptr);
 
-  Error materialize(raw_ostream &OS) const;
+  LLVM_ABI Error materialize(raw_ostream &OS) const;
 
   static std::optional<MCAssemblerRef> Cast(MCObjectProxy Ref) {
     auto Specific = SpecificRefT::Cast(Ref);
@@ -495,12 +496,13 @@ struct DwarfSectionsCache {
 
 /// Queries `Asm` for all dwarf sections and returns an object with (possibly
 /// null) pointers to them.
-DwarfSectionsCache getDwarfSections(MCAssembler &Asm);
+LLVM_ABI DwarfSectionsCache getDwarfSections(MCAssembler &Asm);
 
 /// Reads and returns the length field of a dwarf header contained in Reader,
 /// assuming Reader is positioned at the beginning of the header. The Reader's
 /// state is advanced to the first byte after the section.
-Expected<size_t> getSizeFromDwarfHeaderAndSkip(BinaryStreamReader &Reader);
+LLVM_ABI Expected<size_t>
+getSizeFromDwarfHeaderAndSkip(BinaryStreamReader &Reader);
 
 class MCCASBuilder {
 public:
@@ -516,27 +518,27 @@ public:
         DebugOS(DebugOS), FragmentOS(FragmentData), CurrentContext(&Sections),
         DwarfSections(getDwarfSections(Asm)) {}
 
-  Error prepare();
-  Error buildMachOHeader();
-  Error buildFragments();
-  Error buildRelocations();
-  Error buildDataInCodeRegion();
-  Error buildSymbolTable();
+  LLVM_ABI Error prepare();
+  LLVM_ABI Error buildMachOHeader();
+  LLVM_ABI Error buildFragments();
+  LLVM_ABI Error buildRelocations();
+  LLVM_ABI Error buildDataInCodeRegion();
+  LLVM_ABI Error buildSymbolTable();
 
-  void startGroup();
-  Error finalizeGroup();
+  LLVM_ABI void startGroup();
+  LLVM_ABI Error finalizeGroup();
 
-  void startSection(const MCSection *Sec);
+  LLVM_ABI void startSection(const MCSection *Sec);
   template <typename SectionRefTy = SectionRef> Error finalizeSection();
 
-  void startAtom(const MCSymbol *Atom);
-  Error finalizeAtom();
+  LLVM_ABI void startAtom(const MCSymbol *Atom);
+  LLVM_ABI Error finalizeAtom();
 
-  void addNode(cas::ObjectProxy Node);
+  LLVM_ABI void addNode(cas::ObjectProxy Node);
   const MCSymbol *getCurrentAtom() const { return CurrentAtom; }
 
-  Error buildFragment(const MCFragment &F, unsigned FragmentSize,
-                      ArrayRef<char> FragmentContents);
+  LLVM_ABI Error buildFragment(const MCFragment &F, unsigned FragmentSize,
+                               ArrayRef<char> FragmentContents);
 
   ArrayRef<MachO::any_relocation_info> getSectionRelocs() const {
     return SectionRelocs;
@@ -683,7 +685,8 @@ public:
   /// copy the Fragment contents into the section buffer.
   uint64_t AddendBufferIndex = 0;
 
-  MCCASReader(raw_ostream &OS, const Triple &Target, const MCSchema &Schema);
+  LLVM_ABI MCCASReader(raw_ostream &OS, const Triple &Target,
+                       const MCSchema &Schema);
   endianness getEndian() {
     return Target.isLittleEndian() ? endianness::little : endianness::big;
   }
@@ -701,13 +704,17 @@ public:
 
   uint8_t getAddressSize() { return Target.isArch32Bit() ? 4 : 8; }
 
-  Expected<uint64_t> materializeGroup(cas::ObjectRef ID);
-  Expected<uint64_t> materializeDebugAbbrevUnopt(ArrayRef<cas::ObjectRef> Refs);
-  Expected<uint64_t> materializeSection(cas::ObjectRef ID, raw_ostream *Stream);
-  Expected<uint64_t> materializeAtom(cas::ObjectRef ID, raw_ostream *Stream);
-  Expected<uint64_t> reconstructSection(SmallVectorImpl<char> &SectionBuffer,
-                                        ArrayRef<char> FragmentBuffer);
-  Error checkIfAddendRefExistsAndCopy(ArrayRef<cas::ObjectRef> Refs);
+  LLVM_ABI Expected<uint64_t> materializeGroup(cas::ObjectRef ID);
+  LLVM_ABI Expected<uint64_t>
+  materializeDebugAbbrevUnopt(ArrayRef<cas::ObjectRef> Refs);
+  LLVM_ABI Expected<uint64_t> materializeSection(cas::ObjectRef ID,
+                                                 raw_ostream *Stream);
+  LLVM_ABI Expected<uint64_t> materializeAtom(cas::ObjectRef ID,
+                                              raw_ostream *Stream);
+  LLVM_ABI Expected<uint64_t>
+  reconstructSection(SmallVectorImpl<char> &SectionBuffer,
+                     ArrayRef<char> FragmentBuffer);
+  LLVM_ABI Error checkIfAddendRefExistsAndCopy(ArrayRef<cas::ObjectRef> Refs);
 
 private:
   const Triple &Target;
@@ -720,8 +727,8 @@ class DebugInfoSectionRef : public SpecificRef<DebugInfoSectionRef> {
 
 public:
   static constexpr StringLiteral KindString = "mc:debug_info_section";
-  static Expected<DebugInfoSectionRef> create(MCCASBuilder &MB,
-                                              ArrayRef<cas::ObjectRef> IDs);
+  LLVM_ABI static Expected<DebugInfoSectionRef>
+  create(MCCASBuilder &MB, ArrayRef<cas::ObjectRef> IDs);
   static Expected<DebugInfoSectionRef> get(Expected<MCObjectProxy> Ref) {
     auto Specific = SpecificRefT::getSpecific(std::move(Ref));
     if (!Specific)
@@ -753,7 +760,8 @@ struct LoadedDIETopLevel {
 /// 1. The list of abbreviation entries.
 /// 2. The distinct data.
 /// 3. The root DIE node.
-Expected<LoadedDIETopLevel> loadDIETopLevel(DIETopLevelRef TopLevelRef);
+LLVM_ABI Expected<LoadedDIETopLevel>
+loadDIETopLevel(DIETopLevelRef TopLevelRef);
 inline Expected<LoadedDIETopLevel>
 loadDIETopLevel(Expected<DIETopLevelRef> TopLevelRef) {
   if (!TopLevelRef)
@@ -795,7 +803,7 @@ Expected<SmallVector<RefTy>> loadAllRefs(MCObjectProxy Obj) {
 /// HadChildren is provided to indicate whether this Tag had children DIE.
 /// * NewBlockCallback is called to indicate that data from a new CAS block is
 /// about to be read.
-Error visitDebugInfo(
+LLVM_ABI Error visitDebugInfo(
     SmallVectorImpl<StringRef> &TotAbbrevEntries,
     Expected<DIETopLevelRef> TopLevelRef,
     std::function<void(StringRef)> HeaderCallback,
@@ -807,7 +815,7 @@ Error visitDebugInfo(
     std::function<void(StringRef)> NewBlockCallback = [](StringRef) {});
 
 /// If MCCAS supports the target.
-bool isSupportedTarget(Triple Triple);
+LLVM_ABI bool isSupportedTarget(Triple Triple);
 
 } // namespace v1
 } // namespace mccasformats
