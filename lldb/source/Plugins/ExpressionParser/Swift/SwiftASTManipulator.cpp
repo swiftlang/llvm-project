@@ -1331,11 +1331,11 @@ bool SwiftASTManipulator::SaveExpressionTextToTempFile(
   llvm::StringRef suffix;
   switch (options.GetLanguage().AsLanguageType()) {
   default:
-    suffix = ".cpp";
+    suffix = "cpp";
     break;
 
   case lldb::eLanguageTypeSwift:
-    suffix = ".swift";
+    suffix = "swift";
     break;
   }
 
