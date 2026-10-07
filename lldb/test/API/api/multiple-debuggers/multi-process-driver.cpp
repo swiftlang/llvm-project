@@ -17,7 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include "lldb/API/LLDB.h"
 #include "lldb/API/SBCommandInterpreter.h"
