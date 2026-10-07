@@ -169,8 +169,10 @@ public:
   virtual std::shared_ptr<const TypeSystemSwiftTypeRef>
   GetTypeSystemSwiftTypeRef() const = 0;
   virtual void SetTriple(const SymbolContext &sc,
-                         const llvm::Triple triple) = 0;
-  virtual void ClearModuleDependentCaches() = 0;
+                         const llvm::Triple triple) override = 0;
+  virtual void ClearModuleDependentCaches() override = 0;
+
+
   virtual lldb::TargetWP GetTargetWP() const = 0;
 
   virtual bool IsImportedType(lldb::opaque_compiler_type_t type,

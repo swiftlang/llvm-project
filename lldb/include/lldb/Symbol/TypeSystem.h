@@ -23,6 +23,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Expression/Expression.h"
@@ -620,6 +621,16 @@ public:
   bool GetHasForcefullyCompletedTypes() const {
     return m_has_forcefully_completed_types;
   }
+
+  // BEGIN SWIFT
+  // Let core lldb reach the Swift type systems without naming them.
+  virtual void SetTriple(const SymbolContext &sc, const llvm::Triple triple) {}
+
+  virtual void ClearModuleDependentCaches() {}
+
+  virtual void ModulesDidLoad(ModuleList &module_list) {}
+
+  // END SWIFT
 
 protected:
   /// Used for reporting statistics.
