@@ -63,7 +63,7 @@ protected:
       : OrigF(OrigF), Suffix(Suffix), Shape(Shape),
         FKind(Shape.ABI == ABI::Async ? CloneKind::Async
                                       : CloneKind::Continuation),
-        Builder(OrigF.getContext()), TTI(TTI), NewF(NewF),
+        Builder(*OrigF.getParent()), TTI(TTI), NewF(NewF),
         ActiveSuspend(ActiveSuspend) {
     assert(Shape.ABI == ABI::Retcon || Shape.ABI == ABI::RetconOnce ||
            Shape.ABI == coro::ABI::RetconOnceDynamic ||
@@ -76,7 +76,7 @@ public:
   BaseCloner(Function &OrigF, const Twine &Suffix, coro::Shape &Shape,
              CloneKind FKind, TargetTransformInfo &TTI)
       : OrigF(OrigF), Suffix(Suffix), Shape(Shape), FKind(FKind),
-        Builder(OrigF.getContext()), TTI(TTI) {}
+        Builder(*OrigF.getParent()), TTI(TTI) {}
 
   virtual ~BaseCloner() = default;
 
