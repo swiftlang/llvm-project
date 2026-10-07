@@ -4,16 +4,16 @@
 ;; global, a register holding the address is still preferred, and the global is
 ;; only named when no such register exists.
 
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel < %s \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel < %s \
 ; RUN:   | FileCheck %s --check-prefix=MIR
 ;; The GlobalISel equivalent is DebugInfo/AArch64/dbg-value-globaladdr-gisel.ll.
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %s \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -filetype=obj < %s \
 ; RUN:   | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF5
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -dwarf-version=4 -filetype=obj < %s \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -dwarf-version=4 -filetype=obj < %s \
 ; RUN:   | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF4
 ;; Before DWARF 5 there is no address pool outside of split DWARF, which leaves
 ;; a location list no way to name the global.
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -dwarf-version=4 \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -dwarf-version=4 \
 ; RUN:   -stop-after=finalize-isel < %s | FileCheck %s --check-prefix=DWARF4-MIR
 ;; Describing the address as the variable's value needs DW_OP_stack_value, so
 ;; neither the module flag nor the -dwarf-version override may pick this
@@ -21,14 +21,14 @@
 ;; variable lives at, so the implicit-check-nots below exclude it -- spelled
 ;; with its operand, since a bare DW_OP_addr is also a prefix of DW_OP_addrx.
 ; RUN: sed -e 's/!"Dwarf Version", i32 5/!"Dwarf Version", i32 3/' %s \
-; RUN:   | llc -O2 -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel \
+; RUN:   | llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel \
 ; RUN:   | FileCheck %s --check-prefix=DWARF3-MIR \
 ; RUN:       --implicit-check-not='DBG_VALUE @'
 ; RUN: sed -e 's/!"Dwarf Version", i32 5/!"Dwarf Version", i32 3/' %s \
-; RUN:   | llc -O2 -mtriple=x86_64-unknown-linux-gnu -filetype=obj \
+; RUN:   | llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -filetype=obj \
 ; RUN:   | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF3 \
 ; RUN:       --implicit-check-not='DW_OP_addr 0x'
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -dwarf-version=2 -filetype=obj \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -dwarf-version=2 -filetype=obj \
 ; RUN:   < %s | llvm-dwarfdump - | FileCheck %s --check-prefix=DWARF2 \
 ; RUN:       --implicit-check-not='DW_OP_addr 0x'
 

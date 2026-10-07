@@ -3,10 +3,10 @@
 ;; variable by wherever the address is materialized instead.
 
 ;; Nothing anywhere in the output may name a global as a debug value.
-; RUN: llc -O2 -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-unknown-linux-gnu -stop-after=finalize-isel \
 ; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,ELF \
 ; RUN:       --implicit-check-not='DBG_VALUE @'
-; RUN: llc -O2 -mtriple=x86_64-pc-windows-gnu -stop-after=finalize-isel \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-pc-windows-gnu -stop-after=finalize-isel \
 ; RUN:   < %s | FileCheck %s --check-prefixes=CHECK,COFF \
 ; RUN:       --implicit-check-not='DBG_VALUE @'
 
