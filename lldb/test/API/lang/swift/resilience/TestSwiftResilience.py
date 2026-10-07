@@ -115,6 +115,10 @@ class TestSwiftResilience(TestBase):
         self.check_global("g_main_nested_t", ["a = 1"])
         self.check_global("g_main_c", ["a = 1"])
         self.check_global("g_main_nested_c", ["a = 1"])
+        overaligned = target.FindFirstGlobalVariable("g_main_overaligned")
+        lldbutil.check_variable(
+            self, overaligned.GetChildMemberWithName("v"), summary="(1, 2, 3, 4)"
+        )
 
         # Test defining global variables in the expression evaluator.
         self.expect("expr -- var $g_main_b = g_main_b; $g_main_b",

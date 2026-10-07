@@ -37,6 +37,8 @@ private var g_main_t = (S(), S())
 private var g_main_nested_t = ((1, S()), 2)
 private var g_main_c = FixedContainer()
 private var g_main_nested_c = NestedFixedContainer()
+private var g_main_overaligned = OverAligned()
 g_main_b.msg = g_main_msg
 print(g_main_s.a + g_main_t.0.a + g_main_c.s.a)
+print(g_main_overaligned.v)
 main() // break here

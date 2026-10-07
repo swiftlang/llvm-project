@@ -33,10 +33,6 @@
 #include "lldb/lldb-types.h"
 #include "llvm/Support/Error.h"
 
-#if defined(LLDB_ENABLE_SWIFT)
-#include "Plugins/TypeSystem/Swift/TypeSystemSwift.h"
-#endif
-
 #include "llvm/ADT/StringRef.h"
 
 #include <cassert>
@@ -200,8 +196,18 @@ bool ValueObjectVariable::UpdateValue() {
       m_value.SetContext(Value::ContextType::Variable, variable);
 
       CompilerType compiler_type = GetCompilerType();
-      if (compiler_type.IsValid())
+      if (compiler_type.IsValid()) {
         m_value.SetCompilerType(compiler_type);
+
+        if (lldb::ProcessSP process_sp = GetProcessSP())
+          if (LanguageRuntime *runtime = process_sp->GetLanguageRuntime(
+                  compiler_type.GetMinimumLanguage()))
+            if (llvm::Error err =
+                    runtime->FixupVariableLocation(*variable, m_value)) {
+              m_error = Status::FromError(std::move(err));
+              return false;
+            }
+      }
 
       Value::ValueType value_type = m_value.GetValueType();
 
@@ -228,35 +234,6 @@ bool ValueObjectVariable::UpdateValue() {
 
       Process *process = exe_ctx.GetProcessPtr();
       const bool process_is_alive = process && process->IsAlive();
-
-#ifdef LLDB_ENABLE_SWIFT
-      if (auto type = variable->GetType())
-        if (type->GetForwardCompilerType()
-                .GetTypeSystem()
-                .dyn_cast_or_null<TypeSystemSwift>() &&
-            TypePayloadSwift(type->GetPayload()).IsFixedValueBuffer() &&
-            m_value.GetValueType() == Value::ValueType::FileAddress)
-          if (auto process_sp = GetProcessSP())
-            if (auto runtime = process_sp->GetLanguageRuntime(
-                    compiler_type.GetMinimumLanguage())) {
-              if (!runtime->IsStoredInlineInBuffer(compiler_type)) {
-                if (auto *scs = variable->GetSymbolContextScope()) {
-                  if (auto module_sp = scs->CalculateSymbolContextModule()) {
-                    lldb::addr_t file_addr =
-                      m_value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS);
-                    Address address(file_addr, module_sp->GetSectionList());
-                    Target &target = process_sp->GetTarget();
-                    size_t ptr_size = process_sp->GetAddressByteSize();
-                    lldb::addr_t deref_addr;
-                    // FIXME: Add error handling!
-                    if (target.ReadMemory(address, &deref_addr, ptr_size,
-                                          m_error, process_is_alive))
-                      m_value.GetScalar() = deref_addr;
-                  }
-                }
-              }
-          }
-#endif // LLDB_ENABLE_SWIFT
 
       switch (value_type) {
       case Value::ValueType::Invalid:

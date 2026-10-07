@@ -151,9 +151,12 @@ public:
     return addr;
   }
 
-  /// \return whether the dynamic value stored in a Swift fixed buffer
-  /// fits into that buffer or is indirect and allocated on the heap.
-  virtual bool IsStoredInlineInBuffer(CompilerType type) { return true; }
+  /// This allows a language runtime to adjust the location of \p variable
+  /// computed from its debug info, for storage whose indirection is only
+  /// known at runtime.
+  virtual llvm::Error FixupVariableLocation(Variable &variable, Value &value) {
+    return llvm::Error::success();
+  }
 
   virtual void SetExceptionBreakpoints() {}
 
