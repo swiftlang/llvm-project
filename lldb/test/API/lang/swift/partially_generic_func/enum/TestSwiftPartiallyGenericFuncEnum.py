@@ -26,7 +26,6 @@ class TestSwiftPartiallyGenericFuncEnum(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
-    @skipIfWindows  # flaky in CI
     def test(self):
         """Test that a generic enum argument of a generic function shows its case"""
         self.build()
