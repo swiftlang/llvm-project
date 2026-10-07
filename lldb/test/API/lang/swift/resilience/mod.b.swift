@@ -17,6 +17,12 @@ public struct S {
   public init() {}
 }
 
+// Small enough for a fixed-size buffer, but more aligned than one.
+public struct OverAligned {
+  public var v = SIMD4<Int32>(1, 2, 3, 4)
+  public init() {}
+}
+
 fileprivate class Message { fileprivate var s = "hello" }
 fileprivate struct NotBitwiseTakable {
   fileprivate weak var msg : Message?

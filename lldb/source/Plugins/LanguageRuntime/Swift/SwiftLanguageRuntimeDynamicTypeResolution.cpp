@@ -4305,8 +4305,47 @@ bool SwiftLanguageRuntime::IsStoredInlineInBuffer(CompilerType type) {
     return true;
   }
 
+  // This must agree with TargetValueWitnessTable::isValueInline() in the
+  // Swift runtime. A value buffer is NumWords_ValueBuffer pointers in size
+  // and pointer-aligned.
   auto &type_info = *type_info_or_err;
-  return type_info.isBitwiseTakable() && type_info.getSize() <= 24;
+  uint32_t ptr_size = GetProcess().GetAddressByteSize();
+  return type_info.isBitwiseTakable() &&
+         type_info.getSize() <= swift::NumWords_ValueBuffer * ptr_size &&
+         type_info.getAlignment() <= ptr_size;
+}
+
+llvm::Error SwiftLanguageRuntime::FixupVariableLocation(Variable &variable,
+                                                        Value &value) {
+  // Resilient globals are stored in a fixed-size buffer. Values that don't
+  // fit are boxed on the heap and the buffer holds a pointer to the box.
+  if (value.GetValueType() != Value::ValueType::FileAddress)
+    return llvm::Error::success();
+  Type *type = variable.GetType();
+  if (!type ||
+      !type->GetForwardCompilerType()
+           .GetTypeSystem()
+           .isa_and_nonnull<TypeSystemSwift>() ||
+      !TypePayloadSwift(type->GetPayload()).IsFixedValueBuffer() ||
+      IsStoredInlineInBuffer(value.GetCompilerType()))
+    return llvm::Error::success();
+
+  SymbolContextScope *scs = variable.GetSymbolContextScope();
+  ModuleSP module_sp = scs ? scs->CalculateSymbolContextModule() : nullptr;
+  if (!module_sp)
+    return llvm::createStringError("fixed-size buffer has no module");
+
+  Address buffer(value.GetScalar().ULongLong(LLDB_INVALID_ADDRESS),
+                 module_sp->GetSectionList());
+  Process &process = GetProcess();
+  Status error;
+  lldb::addr_t box = process.GetTarget().ReadUnsignedIntegerFromMemory(
+      buffer, process.GetAddressByteSize(), LLDB_INVALID_ADDRESS, error);
+  if (error.Fail())
+    return error.takeError();
+  value.GetScalar() = box;
+  value.SetValueType(Value::ValueType::LoadAddress);
+  return llvm::Error::success();
 }
 
 llvm::Expected<CompilerType>
