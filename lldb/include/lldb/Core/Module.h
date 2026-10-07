@@ -853,10 +853,6 @@ public:
                                    std::optional<lldb::user_id_t> debugger_id);
 
 #ifdef LLDB_ENABLE_SWIFT
-  void
-  ReportWarningToolchainMismatch(CompileUnit &comp_unit,
-                                 std::optional<lldb::user_id_t> debugger_id);
-
   bool IsSwiftCxxInteropEnabled();
 
   bool IsEmbeddedSwift();
@@ -1171,10 +1167,6 @@ protected:
   StatsDuration m_symtab_index_time;
 
   StatisticsMap m_symbol_locator_duration_map;
-
-#ifdef LLDB_ENABLE_SWIFT
-  std::once_flag m_toolchain_mismatch_warning;
-#endif
 
   // BEGIN CAS
 
