@@ -896,6 +896,8 @@ features cannot lower the translation-unit ABI level;
 - Fixed `__builtin_offsetof` incorrectly sign-extending unsigned array indices
   with the high bit set (e.g. `uint8_t` values >= 128), which produced wrong
   offset values in constant expressions. (#GH199319)
+- Fix a crash when using `__builtin_assume_aligned` with dynamic allocations
+  during constant evaluation. (#GH173767)
 
 
 #### Bug Fixes to Attribute Support

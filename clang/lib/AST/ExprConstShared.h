@@ -30,6 +30,10 @@ class ASTContext;
 class CharUnits;
 class Expr;
 class CallExpr;
+enum class DynAllocKind;
+
+CharUnits GetAlignOfDynamicAlloc(const ASTContext &Ctx, QualType AllocType,
+                                 DynAllocKind AllocKind);
 } // namespace clang
 using namespace clang;
 /// Values returned by __builtin_classify_type, chosen to match the values

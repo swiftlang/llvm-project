@@ -13,6 +13,8 @@
 #include "InterpHelpers.h"
 #include "PrimType.h"
 #include "Program.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/InferAlloc.h"
 #include "clang/AST/OSLog.h"
 #include "clang/AST/RecordLayout.h"
@@ -1373,7 +1375,10 @@ static bool interp__builtin_assume_aligned(InterpState &S, CodePtr OpPC,
   // If there is a base object, then it must have the correct alignment.
   if (Ptr.isBlockPointer()) {
     CharUnits BaseAlignment;
-    if (const auto *VD = Ptr.getDeclDesc()->asValueDecl())
+    if (Ptr.isBlockPointer() && Ptr.block()->isDynamic())
+      BaseAlignment =
+          Ptr.getDeclDesc()->computeAlignForDynamicAlloc(S.getASTContext());
+    else if (const auto *VD = Ptr.getDeclDesc()->asValueDecl())
       BaseAlignment = S.getASTContext().getDeclAlign(VD);
     else if (const auto *E = Ptr.getRootExpr())
       BaseAlignment = GetAlignOfExpr(S.getASTContext(), E, UETT_AlignOf);
