@@ -310,12 +310,7 @@ file(GLOB root_public_headers ${LLDB_SOURCE_DIR}/include/lldb/lldb-*.h)
 file(GLOB root_private_headers ${LLDB_SOURCE_DIR}/include/lldb/lldb-private*.h)
 list(REMOVE_ITEM root_public_headers ${root_private_headers})
 
-add_custom_command(
-  OUTPUT ${lldb_header_staging_dir}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${lldb_header_staging_dir}
-  COMMENT "LLDB headers: create staging directory for LLDB headers")
-
-add_custom_target(liblldb-header-staging-dir DEPENDS ${lldb_header_staging_dir})
+file(MAKE_DIRECTORY ${lldb_header_staging_dir})
 
 find_program(unifdef_EXECUTABLE unifdef)
 
@@ -350,7 +345,9 @@ foreach(header
   endif()
 
   add_custom_target(liblldb-stage-header-${basename} DEPENDS ${staged_header})
-  add_dependencies(liblldb-stage-header-${basename} lldb-sbapi-dwarf-enums liblldb-header-staging-dir)
+  set_target_properties(liblldb-stage-header-${basename} PROPERTIES FOLDER "LLDB/Resources/liblldb-header-staging")
+
+  add_dependencies(liblldb-stage-header-${basename} lldb-sbapi-dwarf-enums)
   add_dependencies(liblldb-header-staging liblldb-stage-header-${basename})
   add_custom_command(
     OUTPUT ${staged_header}
