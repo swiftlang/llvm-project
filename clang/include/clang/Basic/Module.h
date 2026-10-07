@@ -415,6 +415,9 @@ public:
   /// The location of the umbrella header or directory declaration.
   SourceLocation UmbrellaDeclLoc;
 
+  /// Directories this module depends on the listing of.
+  std::vector<std::string> DirectoryDependencies;
+
   /// The module signature.
   ASTFileSignature Signature;
 
@@ -1039,6 +1042,15 @@ public:
   /// explicitly written in the module map file, or the parent of the umbrella
   /// header.
   OptionalDirectoryEntryRef getEffectiveUmbrellaDir() const;
+
+  /// Record that this module depends on the listing of \p Path, which must name
+  /// a location in an underlying file system, not in a VFS overlay. Callers
+  /// normally want \c ModuleMap::recordDirectoryDependencies.
+  void addDirectoryDependency(StringRef Path);
+
+  ArrayRef<std::string> getDirectoryDependencies() const {
+    return DirectoryDependencies;
+  }
 
   /// Add a top-level header associated with this module.
   void addTopHeader(FileEntryRef File);
