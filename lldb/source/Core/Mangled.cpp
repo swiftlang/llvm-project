@@ -26,8 +26,7 @@
 #include "llvm/Support/Compiler.h"
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "swift/Demangling/Demangle.h"
+#include "lldb/Core/SwiftDemangle.h"
 #include "llvm/ADT/DenseMap.h"
 #endif // LLDB_ENABLE_SWIFT
 // BEGIN SWIFT
@@ -157,16 +156,16 @@ GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
   const char *mangled_name = m_mangled.AsCString("");
   Log *log = GetLog(LLDBLog::Demangle);
   LLDB_LOGF(log, "demangle swift: %s", mangled_name);
-  SwiftLanguageRuntime::DemangleMode demangle_mode;
+  SwiftDemangle::DemangleMode demangle_mode;
   switch (preference) {
   case Mangled::eFullName:
-    demangle_mode = SwiftLanguageRuntime::DemangleMode::eTypeName;
+    demangle_mode = SwiftDemangle::DemangleMode::eTypeName;
     break;
   case Mangled::eCompactName:
-    demangle_mode = SwiftLanguageRuntime::DemangleMode::eSimplified;
+    demangle_mode = SwiftDemangle::DemangleMode::eSimplified;
     break;
   }
-  auto [demangled, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
+  auto [demangled, info] = SwiftDemangle::TrackedDemangleSymbolAsString(
       mangled_name, demangle_mode, sc);
 
   // Don't cache the demangled name if the function isn't available yet.
@@ -422,10 +421,9 @@ ConstString Mangled::GetDisplayDemangledName(
     // BEGIN SWIFT
     const SymbolContext *sc) const {
 #ifdef LLDB_ENABLE_SWIFT
-  if (m_mangled &&
-      SwiftLanguageRuntime::IsSwiftMangledName(m_mangled.GetStringRef()))
-    return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
-        m_mangled.GetStringRef(), SwiftLanguageRuntime::eSimplified, sc));
+  if (m_mangled && SwiftDemangle::IsSwiftMangledName(m_mangled.GetStringRef()))
+    return ConstString(SwiftDemangle::DemangleSymbolAsString(
+        m_mangled.GetStringRef(), SwiftDemangle::eSimplified, sc));
 #endif // LLDB_ENABLE_SWIFT
        // END SWIFT
 

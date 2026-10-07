@@ -13,6 +13,14 @@ lldb_tablegen(CoreProperties.json -dump-json
 set(LLDB_CURSES_LIBS)
 set(LLDB_LIBEDIT_LIBS)
 
+# BEGIN SWIFT
+set(LLDB_SWIFT_DEMANGLE_SOURCES)
+list(APPEND LLVM_OPTIONAL_SOURCES SwiftDemangle.cpp)
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  set(LLDB_SWIFT_DEMANGLE_SOURCES SwiftDemangle.cpp)
+endif()
+# END SWIFT
+
 if (LLDB_ENABLE_CURSES)
   list(APPEND LLDB_CURSES_LIBS ${PANEL_LIBRARIES} ${CURSES_LIBRARIES})
   if (LLVM_BUILD_STATIC)
@@ -65,6 +73,10 @@ add_lldb_library(lldbCore NO_PLUGIN_DEPENDENCIES
   ThreadedCommunication.cpp
   UserSettingsController.cpp
   Value.cpp
+
+  ## BEGIN SWIFT
+  ${LLDB_SWIFT_DEMANGLE_SOURCES}
+  ## END SWIFT
 
   ADDITIONAL_HEADER_DIRS
     ${LLDB_INCLUDE_DIR}/lldb/Core
