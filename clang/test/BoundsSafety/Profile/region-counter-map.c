@@ -61,9 +61,9 @@ void *__sized_by(len) foo(void *__sized_by(len) buf, unsigned long long len);
 // CHECK-NEXT:    [[CMP10:%.*]] = icmp ule ptr [[WIDE_PTR_PTR]], [[WIDE_PTR_PTR5]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP10]], label %[[LAND_LHS_TRUE:.*]], label %[[LAND_END:.*]], !annotation [[META2]]
 // CHECK:       [[LAND_LHS_TRUE]]:
-// CHECK-NEXT:    [[PGOCOUNT68:%.*]] = load i64, ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 3), align 8
+// CHECK-NEXT:    [[PGOCOUNT68:%.*]] = load i64, ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 24), align 8
 // CHECK-NEXT:    [[TMP8:%.*]] = add i64 [[PGOCOUNT68]], 1
-// CHECK-NEXT:    store i64 [[TMP8]], ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 3), align 8
+// CHECK-NEXT:    store i64 [[TMP8]], ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 24), align 8
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[AGG_TEMP11]], ptr align 8 [[TMP]], i64 24, i1 false), !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB_ADDR12:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP11]], i32 0, i32 2, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_LB13:%.*]] = load ptr, ptr [[WIDE_PTR_LB_ADDR12]], align 8, !annotation [[META2]]
@@ -85,14 +85,14 @@ void *__sized_by(len) foo(void *__sized_by(len) buf, unsigned long long len);
 // CHECK-NEXT:    [[CMP27:%.*]] = icmp ule ptr [[WIDE_PTR_PTR15]], [[WIDE_PTR_PTR22]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP27]], label %[[LOP_RHSCNT:.*]], label %[[LAND_END]], !annotation [[META2]]
 // CHECK:       [[LOP_RHSCNT]]:
-// CHECK-NEXT:    [[PGOCOUNT69:%.*]] = load i64, ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 4), align 8
+// CHECK-NEXT:    [[PGOCOUNT69:%.*]] = load i64, ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 32), align 8
 // CHECK-NEXT:    [[TMP10:%.*]] = add i64 [[PGOCOUNT69]], 1
-// CHECK-NEXT:    store i64 [[TMP10]], ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 4), align 8
+// CHECK-NEXT:    store i64 [[TMP10]], ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 32), align 8
 // CHECK-NEXT:    br label %[[LAND_RHS:.*]], !annotation [[META2]]
 // CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[PGOCOUNT70:%.*]] = load i64, ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 1), align 8
+// CHECK-NEXT:    [[PGOCOUNT70:%.*]] = load i64, ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 8), align 8
 // CHECK-NEXT:    [[TMP11:%.*]] = add i64 [[PGOCOUNT70]], 1
-// CHECK-NEXT:    store i64 [[TMP11]], ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 1), align 8
+// CHECK-NEXT:    store i64 [[TMP11]], ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 8), align 8
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[AGG_TEMP29]], ptr align 8 [[TMP]], i64 24, i1 false), !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_UB_ADDR30:%.*]] = getelementptr inbounds nuw %"__bounds_safety::wide_ptr.bidi_indexable", ptr [[AGG_TEMP29]], i32 0, i32 1, !annotation [[META2]]
 // CHECK-NEXT:    [[WIDE_PTR_UB31:%.*]] = load ptr, ptr [[WIDE_PTR_UB_ADDR30]], align 8, !annotation [[META2]]
@@ -141,9 +141,9 @@ void *__sized_by(len) foo(void *__sized_by(len) buf, unsigned long long len);
 // CHECK-NEXT:    [[CMP58:%.*]] = icmp ule i64 [[TMP6]], [[SUB_PTR_SUB]], !annotation [[META2]]
 // CHECK-NEXT:    br i1 [[CMP58]], label %[[LAND_RHSCNT:.*]], label %[[LAND_END]], !annotation [[META2]]
 // CHECK:       [[LAND_RHSCNT]]:
-// CHECK-NEXT:    [[PGOCOUNT71:%.*]] = load i64, ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 2), align 8
+// CHECK-NEXT:    [[PGOCOUNT71:%.*]] = load i64, ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 16), align 8
 // CHECK-NEXT:    [[TMP19:%.*]] = add i64 [[PGOCOUNT71]], 1
-// CHECK-NEXT:    store i64 [[TMP19]], ptr getelementptr inbounds ([5 x i64], ptr @__profc_bar, i32 0, i32 2), align 8
+// CHECK-NEXT:    store i64 [[TMP19]], ptr getelementptr inbounds (i8, ptr @__profc_bar, i64 16), align 8
 // CHECK-NEXT:    br label %[[LAND_END]], !annotation [[META2]]
 // CHECK:       [[LAND_END]]:
 // CHECK-NEXT:    [[TMP20:%.*]] = phi i1 [ false, %[[LAND_LHS_TRUE]] ], [ false, %[[ENTRY]] ], [ [[CMP58]], %[[LAND_RHSCNT]] ], [ [[CMP58]], %[[LAND_RHS]] ], !annotation [[META2]]

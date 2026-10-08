@@ -77,7 +77,10 @@ enum class DynAllocKind {
 /// Symbolic representation of a dynamic allocation.
 class DynamicAllocLValue {
 public:
-  static constexpr int NumLowBitsAvailable = 2;
+  // TO_UPSTREAM(BoundsSafety) Upstream uses 2. Keep 3 low bits free so that
+  // DynamicAllocOrForgedPtrLValue can encode its tag above the 2 bits used by
+  // APValue::LValueBase.
+  static constexpr int NumLowBitsAvailable = 3;
   static constexpr int NumAllocKindBits = 3;
   static_assert((1 << NumAllocKindBits) - 1 >=
                 static_cast<int>(DynAllocKind::ALLOC_KIND_MAX));
@@ -221,7 +224,8 @@ template <> struct PointerLikeTypeTraits<clang::DynamicAllocOrForgedPtrLValue> {
   static clang::DynamicAllocOrForgedPtrLValue getFromVoidPointer(void *P) {
     return clang::DynamicAllocOrForgedPtrLValue::getFromOpaqueValue(P);
   }
-  static constexpr int NumLowBitsAvailable = 2;
+  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<
+      clang::DynamicAllocOrForgedPtrLValue::BaseTy>::NumLowBitsAvailable;
 };
 /* TO_UPSTREAM(BoundsSafety) OFF*/
 }

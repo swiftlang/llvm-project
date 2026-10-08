@@ -55,7 +55,7 @@ int *__indexable bad_lower(void) {
   return p;
 }
 
-// CHECK-LABEL: define dso_local { ptr, ptr } @good_null(
+// CHECK-LABEL: define dso_local noundef { ptr, ptr } @good_null(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    ret { ptr, ptr } zeroinitializer
