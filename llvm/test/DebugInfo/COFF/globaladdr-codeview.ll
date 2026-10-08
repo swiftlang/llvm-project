@@ -4,9 +4,9 @@
 ;; global keeps the register location CodeView can consume rather than being
 ;; described by a symbol and so marked optimized out.
 
-; RUN: llc -O2 -mtriple=x86_64-pc-windows-msvc -stop-after=finalize-isel < %s \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-pc-windows-msvc -stop-after=finalize-isel < %s \
 ; RUN:   | FileCheck %s --check-prefix=MIR --implicit-check-not='DBG_VALUE @g'
-; RUN: llc -O2 -mtriple=x86_64-pc-windows-msvc -filetype=obj < %s \
+; RUN: llc -O2 -experimental-debug-variable-locations -mtriple=x86_64-pc-windows-msvc -filetype=obj < %s \
 ; RUN:   | llvm-readobj --codeview - | FileCheck %s --check-prefix=CODEVIEW \
 ; RUN:       --implicit-check-not=IsOptimizedOut
 
