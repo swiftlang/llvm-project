@@ -313,6 +313,16 @@ if (LLDB_ENABLE_PYTHON)
     set(default_enable_python_limited_api OFF)
   endif()
 
+  # BEGIN SWIFT MOD
+  # Assume the static bindings are compatible with the Python limited API.
+  if (LLDB_USE_STATIC_BINDINGS)
+    set(AFFECTED_BY_SWIG_BUG FALSE)
+    if (NOT LLDB_EMBED_PYTHON_HOME)
+      set(default_enable_python_limited_api ON)
+    endif()
+  endif()
+  # END SWIFT MOD
+
   option(LLDB_ENABLE_PYTHON_LIMITED_API "Force LLDB to only use the Python Limited API (requires SWIG 4.2 or later)"
     ${default_enable_python_limited_api})
 
@@ -323,7 +333,10 @@ if (LLDB_ENABLE_PYTHON)
   if (LLDB_ENABLE_PYTHON_LIMITED_API AND LLDB_EMBED_PYTHON_HOME)
     message(SEND_ERROR "LLDB_ENABLE_PYTHON_LIMITED_API is not compatible with LLDB_EMBED_PYTHON_HOME")
   endif()
-  if (LLDB_ENABLE_PYTHON_LIMITED_API AND SWIG_VERSION VERSION_LESS PYTHON_LIMITED_API_MIN_SWIG_VERSION)
+  # BEGIN SWIFT MOD
+  if (LLDB_ENABLE_PYTHON_LIMITED_API AND NOT LLDB_USE_STATIC_BINDINGS AND
+      SWIG_VERSION VERSION_LESS PYTHON_LIMITED_API_MIN_SWIG_VERSION)
+  # END SWIFT MOD
     message(SEND_ERROR "LLDB_ENABLE_PYTHON_LIMITED_API is not compatible with SWIG ${SWIG_VERSION} (requires SWIG ${PYTHON_LIMITED_API_MIN_SWIG_VERSION})")
   endif()
 
