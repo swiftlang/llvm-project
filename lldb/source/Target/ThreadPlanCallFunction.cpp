@@ -12,6 +12,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/DumpRegisterValue.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/LanguageRuntime.h"
@@ -28,8 +29,6 @@
 #include <memory>
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "Plugins/ExpressionParser/Swift/SwiftPersistentExpressionState.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #endif // LLDB_ENABLE_SWIFT
 
@@ -450,8 +449,7 @@ void ThreadPlanCallFunction::SetBreakpoints() {
   }
 #ifdef LLDB_ENABLE_SWIFT
   if (GetExpressionLanguage().name == llvm::dwarf::DW_LNAME_Swift) {
-    auto *swift_runtime 
-        = SwiftLanguageRuntime::Get(m_process.shared_from_this());
+    auto *swift_runtime = m_process.GetLanguageRuntime(eLanguageTypeSwift);
     if (swift_runtime) {
       llvm::StringRef backstop_name = swift_runtime->GetErrorBackstopName();
       if (!backstop_name.empty()) {
@@ -529,7 +527,9 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
 #ifdef LLDB_ENABLE_SWIFT
       ConstString persistent_variable_name(
           persistent_state->GetNextPersistentVariableName(/*is_error*/ true));
-      if ((m_return_valobj_sp = SwiftLanguageRuntime::CalculateErrorValue(
+      auto *swift_runtime = m_process.GetLanguageRuntime(eLanguageTypeSwift);
+      if (swift_runtime &&
+          (m_return_valobj_sp = swift_runtime->CalculateErrorValue(
                frame_sp, persistent_variable_name))) {
 
         DataExtractor data;
@@ -541,8 +541,8 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
           lldb::offset_t offset = 0;
           lldb::addr_t addr = data.GetAddress(&offset);
 
-          SwiftLanguageRuntime::RegisterGlobalError(
-              GetTarget(), persistent_variable_name, addr);
+          swift_runtime->RegisterGlobalError(GetTarget(),
+                                             persistent_variable_name, addr);
         }
 
         m_hit_error_backstop = true;

@@ -188,6 +188,40 @@ public:
 
   virtual DeclVendor *GetDeclVendor() { return nullptr; }
 
+  // BEGIN SWIFT
+  /// Swift error handling, used by the thread plans.
+  /// \{
+  virtual const char *GetErrorBackstopName() { return nullptr; }
+
+  virtual ConstString GetStandardLibraryName() { return ConstString(); }
+
+  virtual lldb::ValueObjectSP CalculateErrorValue(lldb::StackFrameSP frame_sp,
+                                                  ConstString name) {
+    return lldb::ValueObjectSP();
+  }
+
+  virtual lldb::ValueObjectSP
+  CalculateErrorValueObjectFromValue(Value &value, ConstString name,
+                                     bool persistent) {
+    return lldb::ValueObjectSP();
+  }
+
+  virtual void RegisterGlobalError(Target &target, ConstString name,
+                                   lldb::addr_t addr) {}
+
+  virtual std::optional<Value>
+  GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
+                                     bool &need_to_check_after_return) {
+    return std::nullopt;
+  }
+
+  virtual std::optional<Value>
+  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp) {
+    return std::nullopt;
+  }
+  /// \}
+  // END SWIFT
+
   virtual lldb::BreakpointResolverSP
   CreateExceptionResolver(const lldb::BreakpointSP &bkpt,
                           bool catch_bp, bool throw_bp) = 0;

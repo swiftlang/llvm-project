@@ -3525,9 +3525,11 @@ constexpr ExecutionContextScope *g_no_exe_ctx = nullptr;
       return result;                                                           \
     /* When in the error backstop the sc will point into the stdlib. */        \
     if (auto *frame = _exe_ctx.GetFramePtr())                                  \
-      if (frame->GetSymbolContext(eSymbolContextFunction).GetFunctionName() == \
-          SwiftLanguageRuntime::GetErrorBackstopName())                        \
-        return result;                                                         \
+      if (auto *swift_runtime =                                                \
+              SwiftLanguageRuntime::Get(_exe_ctx.GetProcessSP()))              \
+        if (frame->GetSymbolContext(eSymbolContextFunction)                    \
+                .GetFunctionName() == swift_runtime->GetErrorBackstopName())   \
+          return result;                                                       \
     bool equivalent = !ReconstructType(TYPE) /* missing .swiftmodule */ ||     \
                       (COMPARISON(result, swift_ast_ctx->REFERENCE ARGS));     \
     if (!equivalent)                                                           \
@@ -3556,14 +3558,16 @@ constexpr ExecutionContextScope *g_no_exe_ctx = nullptr;
       return result;                                                           \
     /* When in the error backstop the sc will point into the stdlib. */        \
     if (auto *frame = _exe_ctx.GetFramePtr())                                  \
-      if (frame->GetSymbolContext(eSymbolContextFunction).GetFunctionName() == \
-          SwiftLanguageRuntime::GetErrorBackstopName())                        \
-        return result;                                                         \
+      if (auto *swift_runtime =                                                \
+              SwiftLanguageRuntime::Get(_exe_ctx.GetProcessSP()))              \
+        if (frame->GetSymbolContext(eSymbolContextFunction)                    \
+                .GetFunctionName() == swift_runtime->GetErrorBackstopName())   \
+          return result;                                                       \
     bool equivalent = true;                                                    \
     if (ReconstructType(TYPE) && !swift_ast_ctx->HasFatalErrors()) {           \
       equivalent = (Equivalent(                                                \
-          llvm::expectedToOptional(std::move(result)),                      \
-          llvm::expectedToOptional(swift_ast_ctx->REFERENCE ARGS)));        \
+          llvm::expectedToOptional(std::move(result)),                         \
+          llvm::expectedToOptional(swift_ast_ctx->REFERENCE ARGS)));           \
     } else { /* missing .swiftmodule */                                        \
       if (!result)                                                             \
         llvm::consumeError(result.takeError());                                \
