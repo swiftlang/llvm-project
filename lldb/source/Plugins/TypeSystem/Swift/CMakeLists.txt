@@ -12,8 +12,22 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbTarget
     lldbUtility
 
+    ## BEGIN SWIFT
+    swiftAST
+    swiftASTSectionImporter
+    swiftBasic
+    swiftClangImporter
+    swiftFrontend
+    swiftSIL
+    swiftSerialization
+    ## END SWIFT
+
   LINK_COMPONENTS
     Support
+  CLANG_LIBS
+    clangAST
+    clangBasic
+    clangFrontend
 )
 
 # Enforce synchronization between Swift compiler updates and LLDB via PR testing.
