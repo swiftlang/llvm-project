@@ -14,15 +14,12 @@ define void @test_remove_check_with_incrementing_integer_induction(i16 %start, i
 ; CHECK-NEXT:    [[C1:%.*]] = icmp ne i8 [[LEN_N]], 0
 ; CHECK-NEXT:    [[OR_COND3:%.*]] = and i1 [[LEN_NEG_NOT]], [[C1]]
 ; CHECK-NEXT:    br i1 [[OR_COND3]], label [[LOOP_LATCH_PREHEADER:%.*]], label [[EXIT:%.*]]
-; CHECK:       loop.latch.preheader:
-; CHECK-NEXT:    [[TMP1:%.*]] = add nsw i16 [[LEN]], -1
-; CHECK-NEXT:    br label [[LOOP_LATCH:%.*]]
 ; CHECK:       loop.latch:
-; CHECK-NEXT:    [[IV2:%.*]] = phi i16 [ [[IV_NEXT:%.*]], [[LOOP_LATCH]] ], [ 0, [[LOOP_LATCH_PREHEADER]] ]
+; CHECK-NEXT:    [[IV2:%.*]] = phi i16 [ [[IV_NEXT:%.*]], [[LOOP_LATCH_PREHEADER]] ], [ 0, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    tail call void @use(i16 [[IV2]])
 ; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i16 [[IV2]], 1
-; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i16 [[IV2]], [[TMP1]]
-; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label [[EXIT]], label [[LOOP_LATCH]]
+; CHECK-NEXT:    [[C_NOT:%.*]] = icmp eq i16 [[IV_NEXT]], [[LEN]]
+; CHECK-NEXT:    br i1 [[C_NOT]], label [[EXIT]], label [[LOOP_LATCH_PREHEADER]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
 ;
