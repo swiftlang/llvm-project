@@ -47,7 +47,7 @@
 #include "llvm/Support/ErrorExtras.h"
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
+#include "lldb/Core/SwiftDemangle.h"
 #endif
 
 using namespace lldb;
@@ -720,7 +720,7 @@ static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
     bool &consumed_next_op) {
   consumed_next_op = false;
   auto func_name = func.GetMangled().GetMangledName();
-  if (!SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(func_name))
+  if (!SwiftDemangle::IsAnySwiftAsyncFunctionSymbol(func_name))
     return llvm::createStringError(
         "SwiftAsyncEvaluate_DW_OP_entry_value: not an async function");
 
@@ -734,8 +734,7 @@ static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
 
   // Q funclets require an extra level of indirection.
   const bool is_q_funclet =
-      SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
-          func_name);
+      SwiftDemangle::IsSwiftAsyncAwaitResumePartialFunctionSymbol(func_name);
   if (is_q_funclet && !next_op_is_deref)
     return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
                                    "missing DW_OP_deref in Q funclet");

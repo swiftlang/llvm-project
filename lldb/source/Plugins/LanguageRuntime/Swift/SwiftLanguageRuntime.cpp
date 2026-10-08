@@ -29,6 +29,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
+#include "lldb/Core/SwiftDemangle.h"
 #include "lldb/DataFormatters/StringPrinter.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
@@ -3359,6 +3360,24 @@ public:
 };
 
 void SwiftLanguageRuntime::Initialize() {
+  static const SwiftDemangle::Callbacks g_demangle_callbacks = {
+      IsSwiftMangledName,
+      [](llvm::StringRef symbol, SwiftDemangle::DemangleMode mode,
+         const SymbolContext *sc) {
+        return TrackedDemangleSymbolAsString(
+            symbol, static_cast<DemangleMode>(mode), sc);
+      },
+      [](llvm::StringRef symbol, SwiftDemangle::DemangleMode mode,
+         const SymbolContext *sc) {
+        return DemangleSymbolAsString(symbol, static_cast<DemangleMode>(mode),
+                                      sc);
+      },
+      MethodName::ExtractFunctionBasenameFromMangled,
+      IsAnySwiftAsyncFunctionSymbol,
+      IsSwiftAsyncAwaitResumePartialFunctionSymbol,
+  };
+  SwiftDemangle::SetCallbacks(&g_demangle_callbacks);
+
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), "Language runtime for the Swift language",
       CreateInstance,
@@ -3369,6 +3388,7 @@ void SwiftLanguageRuntime::Initialize() {
 }
 
 void SwiftLanguageRuntime::Terminate() {
+  SwiftDemangle::SetCallbacks(nullptr);
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
