@@ -7,12 +7,18 @@ class TestCase(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
 
-    @skipEmbeddedSwift  # rdar://183960945 (Fix async tests running in embedded mode)
+    @skipEmbeddedSwiftOnLinux
+    @skipEmbeddedSwiftOnWindows
     @swiftTest
     @skipIf(oslist=['windows'])
     def test(self):
         """Test `frame variable` in async functions"""
         self.build()
+
+        # Embedded Swift monomorphizes inner<T> into a mandatory
+        # specialization, so only assert dynamic resolution where a 
+        # generic function actually survives.
+        use_dynamic = not self.isEmbeddedSwift()
 
         source_file = lldb.SBFileSpec("main.swift")
         target, process, _, _ = lldbutil.run_to_source_breakpoint(
@@ -26,7 +32,7 @@ class TestCase(lldbtest.TestBase):
         b = frame.FindVariable("b")
         self.assertFalse(b.IsValid())
         d = frame.FindVariable("d")
-        lldbutil.check_variable(self, d, use_dynamic=True, value='23')
+        lldbutil.check_variable(self, d, use_dynamic=use_dynamic, value='23')
 
         # The first breakpoint resolves to multiple locations, but only the
         # first location is needed. Now that we've stopped, delete it to
@@ -47,4 +53,4 @@ class TestCase(lldbtest.TestBase):
         self.assertTrue(b.IsValid())
         self.assertGreater(b.unsigned, 0)
         d = frame.FindVariable("d")
-        lldbutil.check_variable(self, d, use_dynamic=True, value='23')
+        lldbutil.check_variable(self, d, use_dynamic=use_dynamic, value='23')
