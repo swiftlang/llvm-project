@@ -1194,7 +1194,7 @@ std::string Symtab::GetCacheKey() {
 }
 
 void Symtab::SaveToCache() {
-  DataFileCache *cache = Module::GetIndexCache();
+  DataFileCache *cache = Module::GetIndexCache(m_objfile->IsInMemory());
   if (!cache)
     return; // Caching is not enabled.
 
@@ -1373,7 +1373,7 @@ bool Symtab::Decode(const DataExtractor &data, lldb::offset_t *offset_ptr,
 }
 
 bool Symtab::LoadFromCache() {
-  DataFileCache *cache = Module::GetIndexCache();
+  DataFileCache *cache = Module::GetIndexCache(m_objfile->IsInMemory());
   if (!cache)
     return false;
 
