@@ -2417,7 +2417,6 @@ private:
   void ParseCUDAFunctionAttributes(ParsedAttributes &attrs);
   // TO_UPSTREAM(BoundsSafety)
   void ParseBoundsSafetyTypeSpecifiers(ParsedAttributes &attrs);
-  bool isHLSLQualifier(const Token &Tok) const;
   void ParseHLSLQualifiers(ParsedAttributes &Attrs);
 
   /// Parse a version number.
