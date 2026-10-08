@@ -68,7 +68,7 @@ char **addrof_bidi_ptr_to_single_oob_upper(void) {
 }
 
 
-// CHECK-LABEL: define noundef ptr @addrof_bidi_ptr_to_single_oob_lower(
+// CHECK-LABEL: define noalias noundef ptr @addrof_bidi_ptr_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT_FOO:%.*]], align 8
@@ -122,7 +122,7 @@ int *addrof_bidi_i_to_single_oob_upper(void) {
   return __addrof_bidi_i_to_single(fp);
 }
 
-// CHECK-LABEL: define noundef ptr @addrof_bidi_i_to_single_oob_lower(
+// CHECK-LABEL: define noalias noundef ptr @addrof_bidi_i_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT_FOO:%.*]], align 8
@@ -177,7 +177,7 @@ long *addrof_bidi_l_to_single_oob_upper(void) {
   return __addrof_bidi_l_to_single(fp);
 }
 
-// CHECK-LABEL: define noundef ptr @addrof_bidi_l_to_single_oob_lower(
+// CHECK-LABEL: define noalias noundef ptr @addrof_bidi_l_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT_FOO:%.*]], align 8

@@ -12,8 +12,8 @@ typedef struct {
 // CHECK-LABEL: define noundef ptr @set(
 // CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[FLEX:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[FLEX]], null, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ne ptr [[FLEX]], null
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_CONT:.*]], {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NOTNULL]]:
 // CHECK-NEXT:    [[ELEMS:%.*]] = getelementptr inbounds nuw i8, ptr [[FLEX]], i64 4
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[FLEX]], align 4, {{!tbaa ![0-9]+}}
@@ -35,9 +35,8 @@ typedef struct {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr align 1 [[FLEX]], i8 0, i64 [[CONV]], i1 false)
-// CHECK-NEXT:    [[DOTNOT89:%.*]] = icmp ne ptr [[FLEX]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT90:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND91:%.*]] = and i1 [[DOTNOT89]], [[DOTNOT90]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND91:%.*]] = and i1 [[DOTNOT]], [[DOTNOT90]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND91]], label %[[TRAP]], label %[[BOUNDSCHECK_NULL88:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL88]]:
 // CHECK-NEXT:    ret ptr [[FLEX]]
@@ -49,8 +48,8 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-LABEL: define noundef ptr @cpy(
 // CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[DEST:%.*]], ptr nofree noundef readonly captures(address) [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[DEST]], null, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ne ptr [[DEST]], null
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_CONT:.*]], {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NOTNULL]]:
 // CHECK-NEXT:    [[ELEMS:%.*]] = getelementptr inbounds nuw i8, ptr [[DEST]], i64 4
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[DEST]], align 4, {{!tbaa ![0-9]+}}
@@ -89,9 +88,8 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT159]]:
 // CHECK-NEXT:    tail call void @llvm.memcpy.p0.p0.i64(ptr align 1 [[DEST]], ptr align 1 [[SRC]], i64 [[CONV]], i1 false)
-// CHECK-NEXT:    [[DOTNOT189:%.*]] = icmp ne ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT190:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT189]], [[DOTNOT190]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT]], [[DOTNOT190]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND193]], label %[[TRAP]], label %[[BOUNDSCHECK_NULL186:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL186]]:
 // CHECK-NEXT:    ret ptr [[DEST]]
@@ -153,8 +151,8 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-LABEL: define noundef ptr @move(
 // CHECK-SAME: ptr nofree noundef returned captures(address, ret: address, provenance) [[DEST:%.*]], ptr nofree noundef readonly captures(address) [[SRC:%.*]], i32 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*]]:
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq ptr [[DEST]], null, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_CONT:.*]], label %[[BOUNDSCHECK_NOTNULL:.*]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ne ptr [[DEST]], null
+// CHECK-NEXT:    br i1 [[DOTNOT]], label %[[BOUNDSCHECK_NOTNULL:.*]], label %[[BOUNDSCHECK_CONT:.*]], {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NOTNULL]]:
 // CHECK-NEXT:    [[ELEMS:%.*]] = getelementptr inbounds nuw i8, ptr [[DEST]], i64 4
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[DEST]], align 4, {{!tbaa ![0-9]+}}
@@ -193,9 +191,8 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT159]]:
 // CHECK-NEXT:    tail call void @llvm.memmove.p0.p0.i64(ptr align 1 [[DEST]], ptr align 1 [[SRC]], i64 [[CONV]], i1 false)
-// CHECK-NEXT:    [[DOTNOT189:%.*]] = icmp ne ptr [[DEST]], null, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT190:%.*]] = icmp eq i32 [[SIZE]], 0, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT189]], [[DOTNOT190]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND193:%.*]] = and i1 [[DOTNOT]], [[DOTNOT190]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND193]], label %[[TRAP]], label %[[BOUNDSCHECK_NULL186:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL186]]:
 // CHECK-NEXT:    ret ptr [[DEST]]
