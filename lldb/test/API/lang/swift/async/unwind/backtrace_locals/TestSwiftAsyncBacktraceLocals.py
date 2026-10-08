@@ -3,7 +3,6 @@ from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbtest as lldbtest
 import lldbsuite.test.lldbutil as lldbutil
 
-
 class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
 
     mydir = lldbtest.TestBase.compute_mydir(__file__)
@@ -17,6 +16,7 @@ class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
     @swiftTest
     @skipIfWindows
     @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
+    @skipEmbeddedSwiftOnLinux
     def test(self):
         """Test async unwind"""
         self.build()
@@ -28,6 +28,7 @@ class TestSwiftAsyncBacktraceLocals(lldbtest.TestBase):
     @swiftTest
     @skipIfWindows
     @skipIf(archs=no_match(["arm64", "arm64e", "arm64_32", "x86_64"]))
+    @skipEmbeddedSwiftOnLinux
     def test_actor(self):
         """Test async unwind"""
         self.build()
