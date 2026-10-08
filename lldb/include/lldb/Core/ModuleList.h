@@ -162,6 +162,7 @@ public:
   FileSpec GetLLDBIndexCachePath() const;
   bool SetLLDBIndexCachePath(const FileSpec &path);
   bool GetLoadSymbolOnDemand() const;
+  uint64_t GetDemangledNameInfoCacheSize() const;
   lldb::SymbolDownload GetSymbolAutoDownload() const;
   PathMappingList GetSymlinkMappings() const;
 };
