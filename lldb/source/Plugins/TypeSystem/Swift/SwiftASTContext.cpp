@@ -49,6 +49,7 @@
 #include "swift/Basic/Located.h"
 #include "swift/Basic/Platform.h"
 #include "swift/Basic/PrimarySpecificPaths.h"
+#include "swift/Basic/Version.h"
 #include "swift/ClangImporter/ClangImporter.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/Demangling/ManglingFlavor.h"
@@ -3191,8 +3192,21 @@ static void ReportToolchainMismatch(Module &module, CompileUnit &comp_unit,
   if (!process_properties.GetWarningsToolchainMismatch())
     return;
 
-  module.ReportWarningToolchainMismatch(comp_unit,
-                                        target.GetDebugger().GetID());
+  SymbolFile *sym_file = module.GetSymbolFile();
+  if (!sym_file)
+    return;
+  llvm::VersionTuple sym_file_version = sym_file->GetProducerVersion(comp_unit);
+  llvm::VersionTuple swift_version =
+      swift::version::getCurrentCompilerVersion();
+  if (sym_file_version == swift_version)
+    return;
+
+  module.ReportWarning(
+      "was compiled with a different Swift compiler (version '{0}') than the "
+      "Swift compiler integrated into LLDB (version '{1}'). Swift expression "
+      "evaluation requires a matching compiler and debugger from the same "
+      "toolchain.",
+      sym_file_version.getAsString(), swift_version.getAsString());
 }
 
 lldb::TypeSystemSP SwiftASTContext::CreateInstance(
@@ -3236,12 +3250,10 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   ModuleSP module_sp = sc.module_sp;
   TargetSP target_sp = typeref_typesystem.GetTargetWP().lock();
 
-  // Only an expression type system carries a target, so a per-module context
-  // takes it from the symbol context. Without a target there is no debugger to
-  // address, and reporting would consume the module's one-shot flag.
-  Target *warning_target = target_sp ? target_sp.get() : sc.target_sp.get();
-  if (module_sp && swift_context && warning_target)
-    ReportToolchainMismatch(*module_sp, *cu, *warning_target);
+  // Only expression evaluation needs a compiler that matches the debugger, so
+  // only an expression context, which always carries a target, reports.
+  if (module_sp && swift_context && target_sp)
+    ReportToolchainMismatch(*module_sp, *cu, *target_sp);
 
   // Make an AST but don't set the triple yet. We need to
   // try and detect if we have a iOS simulator.
