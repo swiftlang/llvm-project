@@ -152,27 +152,15 @@ void Mangled::SetValue(ConstString name) {
 #ifdef LLDB_ENABLE_SWIFT
 std::pair<ConstString, DemangledNameInfo>
 GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
-                     ConstString &m_demangled,
-                     Mangled::NameFormatPreference preference) {
+                     ConstString &m_demangled) {
   const char *mangled_name = m_mangled.AsCString("");
   Log *log = GetLog(LLDBLog::Demangle);
   LLDB_LOGF(log, "demangle swift: %s", mangled_name);
-  SwiftLanguageRuntime::DemangleMode demangle_mode;
-  switch (preference) {
-  case Mangled::eFullName:
-    demangle_mode = SwiftLanguageRuntime::DemangleMode::eTypeName;
-    break;
-  case Mangled::eCompactName:
-    demangle_mode = SwiftLanguageRuntime::DemangleMode::eSimplified;
-    break;
-  }
   auto [demangled, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
-      mangled_name, demangle_mode, sc);
+      mangled_name, SwiftLanguageRuntime::eTypeName, sc);
 
   // Don't cache the demangled name if the function isn't available yet.
-  // Only cache eFullName demangled functions to keep the cache consistent.
-  if (!sc || !sc->function ||
-      preference == Mangled::NameFormatPreference::eCompactName) {
+  if (!sc || !sc->function) {
     LLDB_LOGF(log, "demangle swift: %s -> \"%s\" (not cached)", mangled_name,
               demangled.c_str());
     return std::make_pair(ConstString(demangled), info);
@@ -333,10 +321,10 @@ bool Mangled::GetRichManglingInfo(RichManglingContext &context,
 }
 
 ConstString Mangled::GetDemangledName( // BEGIN SWIFT
-    const SymbolContext *sc, NameFormatPreference preference
+    const SymbolContext *sc
     // END SWIFT
 ) const {
-  return GetDemangledNameImpl(/*force=*/false, sc, preference);
+  return GetDemangledNameImpl(/*force=*/false, sc);
 }
 
 const DemangledNameInfo *Mangled::GetDemangledInfo() const {
@@ -350,8 +338,7 @@ const DemangledNameInfo *Mangled::GetDemangledInfo() const {
 // name. The result is cached and will be kept until a new string value is
 // supplied to this object, or until the end of the object's lifetime.
 ConstString Mangled::GetDemangledNameImpl(bool force, // BEGIN SWIFT
-                                          const SymbolContext *sc,
-                                          NameFormatPreference preference
+                                          const SymbolContext *sc
                                           // END SWIFT
 ) const {
   if (!m_mangled)
@@ -391,8 +378,7 @@ ConstString Mangled::GetDemangledNameImpl(bool force, // BEGIN SWIFT
     // explicitly unsupported on llvm.org.
 #ifdef LLDB_ENABLE_SWIFT
   {
-    auto demangled =
-        GetSwiftDemangledStr(m_mangled, sc, m_demangled, preference);
+    auto demangled = GetSwiftDemangledStr(m_mangled, sc, m_demangled);
     m_demangled_info =
         std::make_unique<DemangledNameInfo>(std::move(demangled.second));
     return demangled.first;
