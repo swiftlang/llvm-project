@@ -13,6 +13,7 @@
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm {
@@ -42,13 +43,13 @@ struct CASSymbolRef {
 
 class MCSectionCAS : public MCSection {
 public:
-  MCSectionCAS(StringRef Name, SectionKind K);
+  LLVM_ABI MCSectionCAS(StringRef Name, SectionKind K);
   virtual ~MCSectionCAS() {}
 };
 
 class MCFragmentCAS : public MCFragment {
 public:
-  MCFragmentCAS(FragmentType Kind, bool HasInstructions);
+  LLVM_ABI MCFragmentCAS(FragmentType Kind, bool HasInstructions);
 
 private:
 };
@@ -77,7 +78,7 @@ public:
   materializeFixups(CASFragmentRef Ref,
                     function_ref<Error(const MCFixupCAS &)> Callback) const = 0;
 
-  MCSectionCAS *createSection(StringRef Name, SectionKind K);
+  LLVM_ABI MCSectionCAS *createSection(StringRef Name, SectionKind K);
 
 protected:
   CASMCReader() = default;
