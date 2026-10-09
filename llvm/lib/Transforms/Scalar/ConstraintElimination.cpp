@@ -1757,8 +1757,7 @@ void State::addInfoFor(BasicBlock &BB) {
       }
       break;
     }
-    // Enqueue intrinsics for simplification.
-    case Intrinsic::sadd_with_overflow:
+    // Enqueue ssub_with_overflow for simplification.
     case Intrinsic::ssub_with_overflow:
     case Intrinsic::ucmp:
     case Intrinsic::scmp:
@@ -2571,21 +2570,16 @@ void ConstraintInfo::addFactImpl(CmpInst::Predicate Pred, Value *A, Value *B,
   }
 }
 
-/// Replace the uses of the overflow intrinsic \p II, which has been proven not
-/// to signed-overflow, by (Opcode A, B).
-static bool replaceOverflowUses(IntrinsicInst *II,
-                                Instruction::BinaryOps Opcode, Value *A,
-                                Value *B,
-                                SmallVectorImpl<Instruction *> &ToRemove) {
+static bool replaceSubOverflowUses(IntrinsicInst *II, Value *A, Value *B,
+                                   SmallVectorImpl<Instruction *> &ToRemove) {
   bool Changed = false;
   IRBuilder<> Builder(II->getParent(), II->getIterator());
-  Value *Res = nullptr;
+  Value *Sub = nullptr;
   for (User *U : make_early_inc_range(II->users())) {
     if (match(U, m_ExtractValue<0>(m_Value()))) {
-      if (!Res)
-        Res = Builder.CreateNoWrapBinOp(Opcode, A, B, /*IsNUW=*/false,
-                                        /*IsNSW=*/true);
-      U->replaceAllUsesWith(Res);
+      if (!Sub)
+        Sub = Builder.CreateNSWSub(A, B);
+      U->replaceAllUsesWith(Sub);
       Changed = true;
     } else if (match(U, m_ExtractValue<1>(m_Value()))) {
       U->replaceAllUsesWith(Builder.getFalse());
@@ -2624,8 +2618,8 @@ tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
     return CSToUse.isConditionImpliedInSubSystem(R.Coefficients);
   };
 
-  switch (II->getIntrinsicID()) {
-  case Intrinsic::ssub_with_overflow: {
+  bool Changed = false;
+  if (II->getIntrinsicID() == Intrinsic::ssub_with_overflow) {
     // If A s>= B && B s>= 0, ssub.with.overflow(a, b) should not overflow and
     // can be simplified to a regular sub.
     Value *A = II->getArgOperand(0);
@@ -2634,24 +2628,9 @@ tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
         !DoesConditionHold(CmpInst::ICMP_SGE, B,
                            ConstantInt::get(A->getType(), 0), Info))
       return false;
-    return replaceOverflowUses(II, Instruction::Sub, A, B, ToRemove);
+    Changed = replaceSubOverflowUses(II, A, B, ToRemove);
   }
-  case Intrinsic::sadd_with_overflow: {
-    Value *A = II->getArgOperand(0);
-    Value *B = II->getArgOperand(1);
-    auto *C = dyn_cast<ConstantInt>(B);
-    if (!C ||
-        !doesHoldInRange(Info, A,
-                         ConstantRange::makeGuaranteedNoWrapRegion(
-                             Instruction::Add, ConstantRange(C->getValue()),
-                             OverflowingBinaryOperator::NoSignedWrap),
-                         /*Signed=*/true))
-      return false;
-    return replaceOverflowUses(II, Instruction::Add, A, B, ToRemove);
-  }
-  default:
-    return false;
-  }
+  return Changed;
 }
 
 static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
