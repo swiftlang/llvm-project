@@ -4023,6 +4023,10 @@ CmpPredicate CmpPredicate::get(const CmpInst *Cmp) {
   return Cmp->getPredicate();
 }
 
+CmpPredicate CmpPredicate::getInverse(CmpPredicate P) {
+  return {CmpInst::getInversePredicate(P), P.hasSameSign()};
+}
+
 CmpPredicate CmpPredicate::getSwapped(CmpPredicate P) {
   return {CmpInst::getSwappedPredicate(P), P.hasSameSign()};
 }
