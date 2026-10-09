@@ -892,6 +892,7 @@ ModuleDepCollector::handleTopLevelModule(serialization::ModuleFile *MF) {
 
   if (!MF->IncludeTreeID.empty())
     MD.IncludeTreeID = MF->IncludeTreeID;
+  MD.DirectoryDeps = MF->DirectoryDependencies;
 
   bool IgnoreCWD = false;
   CowCompilerInvocation CI =

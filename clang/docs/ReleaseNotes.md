@@ -257,6 +257,15 @@ features cannot lower the translation-unit ABI level;
 - Added `__builtin_sort_pack` to sort a pack of types using the same
   order as `__builtin_type_order`.
 
+- `clang-scan-deps` now reports the directories whose listing a module depends
+  on, such as umbrella directories, via `directory-deps` in its
+  `experimental-full` output. When the listing of one of these directories or
+  their subdirectories changes, for example because a header was added, build
+  systems can pass the reported directory to `-invalidated-path=` in the next
+  incremental scan so that the modules depending on it are rebuilt. Changes can
+  be detected by watching the directories or by comparing their modification
+  times.
+
 ### New Compiler Flags
 
 - New option `-fmodules-validate-directory-dependencies` makes an implicitly
