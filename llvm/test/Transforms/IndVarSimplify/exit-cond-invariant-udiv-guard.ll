@@ -112,3 +112,109 @@ latch:
 exit:
   ret void
 }
+
+; Guard n u<= len /u 2: 2 * n u<= len and 2 * n does not wrap.
+define void @step2_guard_udiv(i64 %n, i64 %len) {
+; CHECK-LABEL: define void @step2_guard_udiv(
+; CHECK-SAME: i64 [[N:%.*]], i64 [[LEN:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[HALF:%.*]] = lshr i64 [[LEN]], 1
+; CHECK-NEXT:    [[FITS:%.*]] = icmp ule i64 [[N]], [[HALF]]
+; CHECK-NEXT:    br i1 [[FITS]], label %[[GUARD:.*]], label %[[EXIT:.*]]
+; CHECK:       [[GUARD]]:
+; CHECK-NEXT:    [[N_NONZERO:%.*]] = icmp ne i64 [[N]], 0
+; CHECK-NEXT:    br i1 [[N_NONZERO]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[IN_BOUNDS_FIRST_ITER:%.*]] = icmp ult i64 0, [[LEN]]
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[I:%.*]] = phi i64 [ [[I_NEXT:%.*]], %[[LATCH:.*]] ], [ 0, %[[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[IDX:%.*]] = shl i64 [[I]], 1
+; CHECK-NEXT:    br i1 [[IN_BOUNDS_FIRST_ITER]], label %[[LATCH]], label %[[EXIT_LOOPEXIT:.*]]
+; CHECK:       [[LATCH]]:
+; CHECK-NEXT:    call void @use(i64 [[IDX]])
+; CHECK-NEXT:    [[I_NEXT]] = add nuw i64 [[I]], 1
+; CHECK-NEXT:    [[CONT:%.*]] = icmp ult i64 [[I_NEXT]], [[N]]
+; CHECK-NEXT:    br i1 [[CONT]], label %[[LOOP]], label %[[EXIT_LOOPEXIT]]
+; CHECK:       [[EXIT_LOOPEXIT]]:
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %half = lshr i64 %len, 1
+  %fits = icmp ule i64 %n, %half
+  br i1 %fits, label %guard, label %exit
+
+guard:
+  %n.nonzero = icmp ne i64 %n, 0
+  br i1 %n.nonzero, label %loop, label %exit
+
+loop:
+  %i = phi i64 [ 0, %guard ], [ %i.next, %latch ]
+  %idx = shl i64 %i, 1
+  %in.bounds = icmp ult i64 %idx, %len
+  br i1 %in.bounds, label %latch, label %exit
+
+latch:
+  call void @use(i64 %idx)
+  %i.next = add nuw i64 %i, 1
+  %cont = icmp ult i64 %i.next, %n
+  br i1 %cont, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+; Guard n u<= len /u 2 does not bound idx = {0,+,3}.
+define void @step3_guard_udiv2(i64 %n, i64 %len) {
+; CHECK-LABEL: define void @step3_guard_udiv2(
+; CHECK-SAME: i64 [[N:%.*]], i64 [[LEN:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[HALF:%.*]] = lshr i64 [[LEN]], 1
+; CHECK-NEXT:    [[FITS:%.*]] = icmp ule i64 [[N]], [[HALF]]
+; CHECK-NEXT:    br i1 [[FITS]], label %[[GUARD:.*]], label %[[EXIT:.*]]
+; CHECK:       [[GUARD]]:
+; CHECK-NEXT:    [[N_NONZERO:%.*]] = icmp ne i64 [[N]], 0
+; CHECK-NEXT:    br i1 [[N_NONZERO]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[I:%.*]] = phi i64 [ [[I_NEXT:%.*]], %[[LATCH:.*]] ], [ 0, %[[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[IDX:%.*]] = mul i64 [[I]], 3
+; CHECK-NEXT:    [[IN_BOUNDS:%.*]] = icmp ult i64 [[IDX]], [[LEN]]
+; CHECK-NEXT:    br i1 [[IN_BOUNDS]], label %[[LATCH]], label %[[EXIT_LOOPEXIT:.*]]
+; CHECK:       [[LATCH]]:
+; CHECK-NEXT:    call void @use(i64 [[IDX]])
+; CHECK-NEXT:    [[I_NEXT]] = add nuw i64 [[I]], 1
+; CHECK-NEXT:    [[CONT:%.*]] = icmp ult i64 [[I_NEXT]], [[N]]
+; CHECK-NEXT:    br i1 [[CONT]], label %[[LOOP]], label %[[EXIT_LOOPEXIT]]
+; CHECK:       [[EXIT_LOOPEXIT]]:
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %half = lshr i64 %len, 1
+  %fits = icmp ule i64 %n, %half
+  br i1 %fits, label %guard, label %exit
+
+guard:
+  %n.nonzero = icmp ne i64 %n, 0
+  br i1 %n.nonzero, label %loop, label %exit
+
+loop:
+  %i = phi i64 [ 0, %guard ], [ %i.next, %latch ]
+  %idx = mul i64 %i, 3
+  %in.bounds = icmp ult i64 %idx, %len
+  br i1 %in.bounds, label %latch, label %exit
+
+latch:
+  call void @use(i64 %idx)
+  %i.next = add nuw i64 %i, 1
+  %cont = icmp ult i64 %i.next, %n
+  br i1 %cont, label %loop, label %exit
+
+exit:
+  ret void
+}

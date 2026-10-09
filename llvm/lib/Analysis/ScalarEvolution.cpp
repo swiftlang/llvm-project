@@ -12298,6 +12298,18 @@ bool ScalarEvolution::isImpliedCondBalancedTypes(
     if (FoundLHS == FoundRHS)
       return CmpInst::isFalseWhenEqual(FoundPred);
 
+  // FoundLHS u< 1 + (Y /u C) with C u> 1 means C * FoundLHS u<= Y without
+  // wrapping, so Y u<= RHS (u< RHS) implies C * FoundLHS u<= RHS (u< RHS).
+  const SCEV *Y;
+  const APInt *C;
+  if (FoundPred == ICmpInst::ICMP_ULT &&
+      (Pred == ICmpInst::ICMP_ULE || Pred == ICmpInst::ICMP_ULT) &&
+      match(FoundRHS, m_scev_Add(m_scev_One(),
+                                 m_scev_UDiv(m_SCEV(Y), m_scev_APInt(C)))) &&
+      C->ugt(1) && LHS == getMulExpr(getConstant(*C), FoundLHS) &&
+      isKnownPredicate(Pred, Y, RHS))
+    return true;
+
   // Check to see if we can make the LHS or RHS match.
   if (LHS == FoundRHS || RHS == FoundLHS) {
     if (isa<SCEVConstant>(RHS)) {
