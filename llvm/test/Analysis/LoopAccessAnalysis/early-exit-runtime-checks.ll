@@ -883,3 +883,163 @@ e.1:
 e.2:
   ret void
 }
+
+define void @deref_assumption_on_gep_of_base(ptr %A, ptr %B) nosync nofree {
+; CHECK-LABEL: 'deref_assumption_on_gep_of_base'
+; CHECK-NEXT:    loop.header:
+; CHECK-NEXT:      Memory dependences are safe with run-time checks
+; CHECK-NEXT:      Dependences:
+; CHECK-NEXT:      Run-time memory checks:
+; CHECK-NEXT:      Check 0:
+; CHECK-NEXT:        Comparing group GRP0:
+; CHECK-NEXT:          %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+; CHECK-NEXT:        Against group GRP1:
+; CHECK-NEXT:          %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+; CHECK-NEXT:      Grouped accesses:
+; CHECK-NEXT:        Group GRP0:
+; CHECK-NEXT:          (Low: %B High: (2000 + %B))
+; CHECK-NEXT:            Member: {%B,+,4}<nuw><%loop.header>
+; CHECK-NEXT:        Group GRP1:
+; CHECK-NEXT:          (Low: (32 + %A)<nuw> High: (2032 + %A))
+; CHECK-NEXT:            Member: {(32 + %A)<nuw>,+,4}<nuw><%loop.header>
+; CHECK-EMPTY:
+; CHECK-NEXT:      Non vectorizable stores to invariant address were not found in loop.
+; CHECK-NEXT:      SCEV assumptions:
+; CHECK-EMPTY:
+; CHECK-NEXT:      Expressions re-written:
+;
+entry:
+  %A.off = getelementptr inbounds i8, ptr %A, i64 32
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %A.off, i64 2000) ]
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %B, i64 2000) ]
+  br label %loop.header
+
+loop.header:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %latch ]
+  %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+  %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+  %l = load i32, ptr %gep.A, align 4
+  store i32 0, ptr %gep.B, align 4
+  %iv.next = add nuw nsw i64 %iv, 1
+  %c.0 = icmp eq i32 %l, 0
+  br i1 %c.0, label %e.1, label %latch
+
+latch:
+  %c.1 = icmp eq i64 %iv.next, 500
+  br i1 %c.1, label %e.2, label %loop.header
+
+e.1:
+  ret void
+
+e.2:
+  ret void
+}
+
+define void @deref_assumption_on_other_gep_of_base(ptr %A, ptr %B) nosync nofree {
+; CHECK-LABEL: 'deref_assumption_on_other_gep_of_base'
+; CHECK-NEXT:    loop.header:
+; CHECK-NEXT:      Memory dependences are safe with run-time checks
+; CHECK-NEXT:      Dependences:
+; CHECK-NEXT:      Run-time memory checks:
+; CHECK-NEXT:      Check 0:
+; CHECK-NEXT:        Comparing group GRP0:
+; CHECK-NEXT:          %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+; CHECK-NEXT:        Against group GRP1:
+; CHECK-NEXT:          %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+; CHECK-NEXT:      Grouped accesses:
+; CHECK-NEXT:        Group GRP0:
+; CHECK-NEXT:          (Low: %B High: (2000 + %B))
+; CHECK-NEXT:            Member: {%B,+,4}<nuw><%loop.header>
+; CHECK-NEXT:        Group GRP1:
+; CHECK-NEXT:          (Low: (32 + %A)<nuw> High: inttoptr (i64 -1 to ptr))
+; CHECK-NEXT:            Member: {(32 + %A)<nuw>,+,4}<nuw><%loop.header>
+; CHECK-EMPTY:
+; CHECK-NEXT:      Non vectorizable stores to invariant address were not found in loop.
+; CHECK-NEXT:      SCEV assumptions:
+; CHECK-EMPTY:
+; CHECK-NEXT:      Expressions re-written:
+;
+entry:
+  %A.off = getelementptr inbounds i8, ptr %A, i64 32
+  %A.16 = getelementptr inbounds i8, ptr %A, i64 16
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %A.16, i64 2000) ]
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %B, i64 2000) ]
+  br label %loop.header
+
+loop.header:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %latch ]
+  %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+  %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+  %l = load i32, ptr %gep.A, align 4
+  store i32 0, ptr %gep.B, align 4
+  %iv.next = add nuw nsw i64 %iv, 1
+  %c.0 = icmp eq i32 %l, 0
+  br i1 %c.0, label %e.1, label %latch
+
+latch:
+  %c.1 = icmp eq i64 %iv.next, 500
+  br i1 %c.1, label %e.2, label %loop.header
+
+e.1:
+  ret void
+
+e.2:
+  ret void
+}
+
+define void @deref_assumption_on_gep_of_base_not_valid_in_preheader(ptr %A, ptr %B, i1 %c) nosync nofree {
+; CHECK-LABEL: 'deref_assumption_on_gep_of_base_not_valid_in_preheader'
+; CHECK-NEXT:    loop.header:
+; CHECK-NEXT:      Memory dependences are safe with run-time checks
+; CHECK-NEXT:      Dependences:
+; CHECK-NEXT:      Run-time memory checks:
+; CHECK-NEXT:      Check 0:
+; CHECK-NEXT:        Comparing group GRP0:
+; CHECK-NEXT:          %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+; CHECK-NEXT:        Against group GRP1:
+; CHECK-NEXT:          %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+; CHECK-NEXT:      Grouped accesses:
+; CHECK-NEXT:        Group GRP0:
+; CHECK-NEXT:          (Low: %B High: (2000 + %B))
+; CHECK-NEXT:            Member: {%B,+,4}<nuw><%loop.header>
+; CHECK-NEXT:        Group GRP1:
+; CHECK-NEXT:          (Low: (32 + %A) High: inttoptr (i64 -1 to ptr))
+; CHECK-NEXT:            Member: {(32 + %A),+,4}<nw><%loop.header>
+; CHECK-EMPTY:
+; CHECK-NEXT:      Non vectorizable stores to invariant address were not found in loop.
+; CHECK-NEXT:      SCEV assumptions:
+; CHECK-EMPTY:
+; CHECK-NEXT:      Expressions re-written:
+;
+entry:
+  %A.off = getelementptr inbounds i8, ptr %A, i64 32
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %B, i64 2000) ]
+  br i1 %c, label %then, label %ph
+
+then:
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %A.off, i64 2000) ]
+  br label %ph
+
+ph:
+  br label %loop.header
+
+loop.header:
+  %iv = phi i64 [ 0, %ph ], [ %iv.next, %latch ]
+  %gep.A = getelementptr inbounds i32, ptr %A.off, i64 %iv
+  %gep.B = getelementptr inbounds i32, ptr %B, i64 %iv
+  %l = load i32, ptr %gep.A, align 4
+  store i32 0, ptr %gep.B, align 4
+  %iv.next = add nuw nsw i64 %iv, 1
+  %c.0 = icmp eq i32 %l, 0
+  br i1 %c.0, label %e.1, label %latch
+
+latch:
+  %c.1 = icmp eq i64 %iv.next, 500
+  br i1 %c.1, label %e.2, label %loop.header
+
+e.1:
+  ret void
+
+e.2:
+  ret void
+}

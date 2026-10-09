@@ -240,20 +240,40 @@ static bool evaluatePtrAddRecAtMaxBTCWillNotWrap(
     if (isa<UncondBrInst, CondBrInst>(LoopPred->getTerminator()))
       CtxI = LoopPred->getTerminator();
   }
-  getKnowledgeForValue(
-      StartPtrV, Attribute::Dereferenceable, *AC,
-      [&](RetainedKnowledge RK, Instruction *Assume, auto) {
-        if (!isValidAssumeForContext(Assume, CtxI, DT))
+  auto CollectDerefAssumes = [&](Value *V) {
+    getKnowledgeForValue(
+        V, Attribute::Dereferenceable, *AC,
+        [&](RetainedKnowledge RK, Instruction *Assume, auto) {
+          if (!isValidAssumeForContext(Assume, CtxI, DT))
+            return false;
+          const SCEV *DerefRKSCEV = SE.getSCEV(RK.IRArgValue);
+          Type *CommonTy = SE.getWiderType(DerefBytesSCEV->getType(),
+                                           DerefRKSCEV->getType());
+          DerefBytesSCEV = SE.getNoopOrZeroExtend(DerefBytesSCEV, CommonTy);
+          DerefRKSCEV = SE.getNoopOrZeroExtend(DerefRKSCEV, CommonTy);
+          DerefBytesSCEV = SE.getUMaxExpr(DerefBytesSCEV, DerefRKSCEV);
+          // Continue with other assumptions.
           return false;
-        const SCEV *DerefRKSCEV = SE.getSCEV(RK.IRArgValue);
-        Type *CommonTy =
-            SE.getWiderType(DerefBytesSCEV->getType(), DerefRKSCEV->getType());
-        DerefBytesSCEV = SE.getNoopOrZeroExtend(DerefBytesSCEV, CommonTy);
-        DerefRKSCEV = SE.getNoopOrZeroExtend(DerefRKSCEV, CommonTy);
-        DerefBytesSCEV = SE.getUMaxExpr(DerefBytesSCEV, DerefRKSCEV);
-        // Continue with other assumptions.
-        return false;
-      });
+        });
+  };
+  CollectDerefAssumes(StartPtrV);
+
+  // If nothing is known about the base, use a dereferenceable assumption on a
+  // GEP of the base that computes the start of AR. The GEP is then the base,
+  // at offset 0.
+  const SCEV *Base = StartPtr;
+  if (DerefBytesSCEV->isZero() && AR->getStart() != StartPtr) {
+    for (User *U : StartPtrV->users()) {
+      if (!isa<GetElementPtrInst>(U) || AC->assumptionsFor(U).empty() ||
+          SE.getSCEV(U) != AR->getStart())
+        continue;
+      CollectDerefAssumes(U);
+      if (!DerefBytesSCEV->isZero()) {
+        Base = AR->getStart();
+        break;
+      }
+    }
+  }
 
   if (DerefBytesSCEV->isZero())
     return false;
@@ -266,10 +286,10 @@ static bool evaluatePtrAddRecAtMaxBTCWillNotWrap(
   MaxBTC = SE.getNoopOrZeroExtend(MaxBTC, WiderTy);
 
   // For the computations below, make sure they don't unsigned wrap.
-  if (!SE.isKnownPredicate(CmpInst::ICMP_UGE, AR->getStart(), StartPtr))
+  if (!SE.isKnownPredicate(CmpInst::ICMP_UGE, AR->getStart(), Base))
     return false;
-  const SCEV *StartOffset = SE.getNoopOrZeroExtend(
-      SE.getMinusSCEV(AR->getStart(), StartPtr), WiderTy);
+  const SCEV *StartOffset =
+      SE.getNoopOrZeroExtend(SE.getMinusSCEV(AR->getStart(), Base), WiderTy);
 
   if (!LoopGuards)
     LoopGuards.emplace(ScalarEvolution::LoopGuards::collect(AR->getLoop(), SE));
@@ -298,7 +318,7 @@ static bool evaluatePtrAddRecAtMaxBTCWillNotWrap(
 
   if (IsKnownNonNegative) {
     // For positive steps, check if
-    //  (AR->getStart() - StartPtr) + (MaxBTC  * Step) + EltSize <= DerefBytes,
+    //  (AR->getStart() - Base) + (MaxBTC  * Step) + EltSize <= DerefBytes,
     // while making sure none of the computations unsigned wrap themselves.
     const SCEV *EndBytes = addSCEVNoOverflow(StartOffset, OffsetEndBytes, SE);
     if (!EndBytes)
