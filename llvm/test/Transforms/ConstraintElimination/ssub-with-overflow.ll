@@ -349,3 +349,38 @@ exit.ok:
 exit.fail:
   ret i8 0
 }
+
+declare void @use(i1)
+
+define void @ssub_result_guarded_nonneg_sub(i8 %a, i8 %b) {
+;
+; CHECK-LABEL: @ssub_result_guarded_nonneg_sub(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[B_NONNEG:%.*]] = icmp sge i8 [[B:%.*]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[B_NONNEG]])
+; CHECK-NEXT:    [[WO:%.*]] = call { i8, i1 } @llvm.ssub.with.overflow.i8(i8 [[A:%.*]], i8 [[B]])
+; CHECK-NEXT:    [[OV:%.*]] = extractvalue { i8, i1 } [[WO]], 1
+; CHECK-NEXT:    br i1 [[OV]], label [[EXIT:%.*]], label [[NO_OV:%.*]]
+; CHECK:       no.ov:
+; CHECK-NEXT:    [[S:%.*]] = extractvalue { i8, i1 } [[WO]], 0
+; CHECK-NEXT:    call void @use(i1 true)
+; CHECK-NEXT:    ret void
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %b.nonneg = icmp sge i8 %b, 0
+  call void @llvm.assume(i1 %b.nonneg)
+  %wo = call { i8, i1 } @llvm.ssub.with.overflow.i8(i8 %a, i8 %b)
+  %ov = extractvalue { i8, i1 } %wo, 1
+  br i1 %ov, label %exit, label %no.ov
+
+no.ov:
+  %s = extractvalue { i8, i1 } %wo, 0
+  %t = icmp sle i8 %s, %a
+  call void @use(i1 %t)
+  ret void
+
+exit:
+  ret void
+}
