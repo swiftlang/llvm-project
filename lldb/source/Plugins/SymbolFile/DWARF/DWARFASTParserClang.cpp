@@ -3206,6 +3206,19 @@ void DWARFASTParserClang::ParseSingleMember(
       this_field_info.bit_size = *clang_type_size * character_width;
     }
 
+    dw_offset_t this_type_die_offset =
+        attrs.encoding_form.Reference().GetOffset();
+    bool same_name = attrs.name == last_field_info.name ||
+                      (attrs.name && last_field_info.name &&
+                       llvm::StringRef(attrs.name) == last_field_info.name);
+    if (same_name && this_type_die_offset == last_field_info.type_die_offset &&
+        this_field_info.bit_offset == last_field_info.bit_offset &&
+        this_field_info.bit_size == last_field_info.bit_size) {
+      return;
+    }
+    this_field_info.name = attrs.name;
+    this_field_info.type_die_offset = this_type_die_offset;
+
     if (this_field_info.GetFieldEnd() <= last_field_info.GetEffectiveFieldEnd())
       this_field_info.SetEffectiveFieldEnd(
           last_field_info.GetEffectiveFieldEnd());
