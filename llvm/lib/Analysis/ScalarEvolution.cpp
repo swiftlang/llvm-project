@@ -13564,6 +13564,20 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
     if (IVMayOverflow && !NoWrap)
       IVMayOverflow =
           canIVOverflowOnLT(applyLoopGuards(RHS, L), GuardedStride, IsSigned);
+    // Loop guards cannot express facts like RHS != MAX; check that the loop
+    // entry implies RHS <= MAX - (Stride - 1) directly.
+    if (IVMayOverflow && !NoWrap && isLoopInvariant(RHS, L)) {
+      unsigned BitWidth = getTypeSizeInBits(RHS->getType());
+      const SCEV *StrideMinusOne =
+          getMinusSCEV(GuardedStride, getOne(Stride->getType()));
+      APInt Limit = IsSigned ? APInt::getSignedMaxValue(BitWidth) -
+                                   getSignedRangeMax(StrideMinusOne)
+                             : APInt::getMaxValue(BitWidth) -
+                                   getUnsignedRangeMax(StrideMinusOne);
+      IVMayOverflow = !isLoopEntryGuardedByCond(
+          L, IsSigned ? ICmpInst::ICMP_SLE : ICmpInst::ICMP_ULE, RHS,
+          getConstant(Limit));
+    }
     if (IVMayOverflow && !NoWrap)
       return getCouldNotCompute();
   }
