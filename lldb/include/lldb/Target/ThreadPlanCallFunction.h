@@ -99,7 +99,9 @@ public:
 
   SourceLanguage GetExpressionLanguage() { return m_expression_language; }
 
-  bool HitErrorBackstop() { return m_hit_error_backstop; }
+  /// Whether the call completed by throwing an error that reached the
+  /// language runtime's error backstop.
+  bool HitErrorBackstop() const { return m_hit_error_backstop; }
 
 protected:
   void ReportRegisterState(const char *message);
@@ -150,8 +152,11 @@ protected:
                                // in DoTakedown;
   SourceLanguage
       m_expression_language; // Set from the incoming ExpressionOptions.
+  /// The runtime that catches errors the expression doesn't handle, if it
+  /// runs as top-level code.
+  LanguageRuntime *m_error_backstop_runtime = nullptr;
   lldb::BreakpointSP m_error_backstop_bp_sp;
-  bool m_hit_error_backstop;
+  bool m_hit_error_backstop = false;
 
 private:
   CompilerType m_return_type;
