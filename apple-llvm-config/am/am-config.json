@@ -12,26 +12,6 @@
   "upstream": "swift/release/6.4.x"
 },
 {
-  "target": "stable/20240123",
-  "upstream": "llvm.org/release/18.x"
-},
-{
-  "target": "stable/20230725",
-  "upstream": "swift/release/6.0"
-},
-{
-  "target": "stable/20240723",
-  "upstream": "swift/release/6.2"
-},
-{
-  "target": "swift/release/6.2.1",
-  "upstream": "swift/release/6.2.0"
-},
-{
-  "target": "swift/release/6.2",
-  "upstream": "swift/release/6.2.1"
-},
-{
   "target": "stable/23.x",
   "upstream": "llvm.org/release/23.x"
 }
