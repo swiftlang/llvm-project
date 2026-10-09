@@ -97,8 +97,6 @@ public:
 
   virtual void SetStopOthers(bool new_value) override;
 
-  SourceLanguage GetExpressionLanguage() { return m_expression_language; }
-
   /// Whether the call completed by throwing an error that reached the
   /// language runtime's error backstop.
   bool HitErrorBackstop() const { return m_hit_error_backstop; }
@@ -150,8 +148,6 @@ protected:
   bool m_should_clear_cxx_exception_bp;
   lldb::addr_t m_stop_address; // This is the address we stopped at.  Also set
                                // in DoTakedown;
-  SourceLanguage
-      m_expression_language; // Set from the incoming ExpressionOptions.
   /// The runtime that catches errors the expression doesn't handle, if it
   /// runs as top-level code.
   LanguageRuntime *m_error_backstop_runtime = nullptr;

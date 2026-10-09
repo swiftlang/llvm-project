@@ -27,12 +27,6 @@
 
 #include <memory>
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "Plugins/ExpressionParser/Swift/SwiftPersistentExpressionState.h"
-#include "llvm/BinaryFormat/Dwarf.h"
-#endif // LLDB_ENABLE_SWIFT
-
 using namespace lldb;
 using namespace lldb_private;
 
@@ -116,9 +110,11 @@ ThreadPlanCallFunction::ThreadPlanCallFunction(
       m_return_valobj_sp(), m_takedown_done(false),
       m_should_clear_objc_exception_bp(false),
       m_should_clear_cxx_exception_bp(false),
-      m_stop_address(LLDB_INVALID_ADDRESS),
-      m_expression_language(options.GetLanguage()), m_return_type(return_type) {
+      m_stop_address(LLDB_INVALID_ADDRESS), m_return_type(return_type) {
   bool runs_as_top_level_code = options.GetREPLEnabled();
+  // BEGIN SWIFT
+  runs_as_top_level_code |= options.GetPlaygroundTransformEnabled();
+  // END SWIFT
   if (runs_as_top_level_code)
     m_error_backstop_runtime =
         m_process.GetLanguageRuntime(options.GetLanguage().AsLanguageType());
@@ -455,28 +451,6 @@ void ThreadPlanCallFunction::SetBreakpoints() {
   if (m_error_backstop_runtime)
     m_error_backstop_bp_sp =
         m_error_backstop_runtime->CreateErrorBackstopBreakpoint();
-#ifdef LLDB_ENABLE_SWIFT
-  if (GetExpressionLanguage().name == llvm::dwarf::DW_LNAME_Swift) {
-    auto *swift_runtime 
-        = SwiftLanguageRuntime::Get(m_process.shared_from_this());
-    if (swift_runtime) {
-      llvm::StringRef backstop_name = swift_runtime->GetErrorBackstopName();
-      if (!backstop_name.empty()) {
-        FileSpecList stdlib_module_list;
-        stdlib_module_list.Append(
-            FileSpec(swift_runtime->GetStandardLibraryName().GetStringRef()));
-        const LazyBool skip_prologue = eLazyBoolNo;
-        const bool is_internal = true;
-        const bool is_hardware = false;
-        const bool offset_is_insn_count = false;
-        m_error_backstop_bp_sp = m_process.GetTarget().CreateBreakpoint(
-            &stdlib_module_list, NULL, backstop_name.str().c_str(),
-            eFunctionNameTypeFull, eLanguageTypeUnknown, 0,
-            offset_is_insn_count, skip_prologue, is_internal, is_hardware);
-      }
-    }
-  }
-#endif // LLDB_ENABLE_SWIFT
 }
 
 void ThreadPlanCallFunction::ClearBreakpoints() {
@@ -492,9 +466,6 @@ void ThreadPlanCallFunction::ClearBreakpoints() {
 
 bool ThreadPlanCallFunction::BreakpointsExplainStop() {
   StopInfoSP stop_info_sp = GetPrivateStopInfo();
-
-  if (stop_info_sp->GetStopReason() != eStopReasonBreakpoint)
-    return false;
 
   if (m_trap_exceptions) {
     if ((m_cxx_language_runtime &&
@@ -516,48 +487,7 @@ bool ThreadPlanCallFunction::BreakpointsExplainStop() {
       return true;
     }
   }
-  if (m_error_backstop_bp_sp) {
-    uint64_t break_site_id = stop_info_sp->GetValue();
-    if (m_process.GetBreakpointSiteList().StopPointSiteContainsBreakpoint(
-            break_site_id, m_error_backstop_bp_sp->GetID())) {
-      // Our expression threw an uncaught exception.  That will happen in REPL
-      // & Playground, though not in
-      // the regular expression parser.  In that case, we should fetch the
-      // actual return value from the
-      // argument passed to this function, and set that as the return value.
-      SetPlanComplete(true);
-      StackFrameSP frame_sp = GetThread().GetStackFrameAtIndex(0);
-      PersistentExpressionState *persistent_state =
-          GetTarget().GetPersistentExpressionStateForLanguage(
-              eLanguageTypeSwift);
-      if (!persistent_state)
-        return false;
-#ifdef LLDB_ENABLE_SWIFT
-      ConstString persistent_variable_name(
-          persistent_state->GetNextPersistentVariableName(/*is_error*/ true));
-      if ((m_return_valobj_sp = SwiftLanguageRuntime::CalculateErrorValue(
-               frame_sp, persistent_variable_name))) {
-
-        DataExtractor data;
-        Status data_error;
-        uint64_t data_size =
-            m_return_valobj_sp->GetStaticValue()->GetData(data, data_error);
-
-        if (data_size == data.GetAddressByteSize()) {
-          lldb::offset_t offset = 0;
-          lldb::addr_t addr = data.GetAddress(&offset);
-
-          SwiftLanguageRuntime::RegisterGlobalError(
-              GetTarget(), persistent_variable_name, addr);
-        }
-
-        m_hit_error_backstop = true;
-        return true;
-      }
-#endif // LLDB_ENABLE_SWIFT
-    }
-  }
-  if (m_error_backstop_runtime && m_error_backstop_bp_sp && stop_info_sp &&
+  if (m_error_backstop_bp_sp && stop_info_sp &&
       stop_info_sp->GetStopReason() == eStopReasonBreakpoint &&
       m_process.GetBreakpointSiteList().StopPointSiteContainsBreakpoint(
           stop_info_sp->GetValue(), m_error_backstop_bp_sp->GetID())) {
