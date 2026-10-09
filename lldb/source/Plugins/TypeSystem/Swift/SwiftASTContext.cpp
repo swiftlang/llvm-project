@@ -6505,7 +6505,7 @@ bool SwiftASTContext::IsPossibleDynamicType(opaque_compiler_type_t type,
   if (!can_type)
     return false;
 
-  if (can_type->getClassOrBoundGenericClass() ||
+  if (can_type->getClassDecl() ||
       can_type->isAnyExistentialType())
     return true;
 
@@ -7657,7 +7657,7 @@ SwiftASTContext::GetNumChildren(opaque_compiler_type_t type,
 
   case swift::TypeKind::Class:
   case swift::TypeKind::BoundGenericClass: {
-    auto class_decl = swift_can_type->getClassOrBoundGenericClass();
+    auto class_decl = swift_can_type->getClassDecl();
     return (class_decl->hasSuperclass() ? 1 : 0) + GetNumFields(type);
   }
 
@@ -7683,7 +7683,7 @@ SwiftASTContext::GetNumChildren(opaque_compiler_type_t type,
       return num_pointee_children;
     // If this type points to a simple type (or to a class), then it
     // has 1 child.
-    if (*num_pointee_children == 0 || deref_type->getClassOrBoundGenericClass())
+    if (*num_pointee_children == 0 || deref_type->getClassDecl())
       return 1;
     return num_pointee_children;
   } break;
@@ -7711,7 +7711,7 @@ SwiftASTContext::GetNumDirectBaseClasses(opaque_compiler_type_t opaque_type) {
     return 0;
 
   swift::CanType swift_can_type(GetCanonicalSwiftType(opaque_type));
-  swift::ClassDecl *class_decl = swift_can_type->getClassOrBoundGenericClass();
+  swift::ClassDecl *class_decl = swift_can_type->getClassDecl();
   if (class_decl) {
     if (class_decl->hasSuperclass())
       return 1;
@@ -7851,7 +7851,7 @@ CompilerType SwiftASTContext::GetDirectBaseClassAtIndex(
 
   swift::CanType swift_can_type(GetCanonicalSwiftType(opaque_type));
   swift::ClassDecl *class_decl =
-      swift_can_type->getClassOrBoundGenericClass();
+      swift_can_type->getClassDecl();
   if (class_decl) {
     swift::Type base_class_type = class_decl->getSuperclass();
     if (base_class_type)
@@ -8047,7 +8047,7 @@ CompilerType SwiftASTContext::GetFieldAtIndex(opaque_compiler_type_t type,
 
   case swift::TypeKind::Class:
   case swift::TypeKind::BoundGenericClass: {
-    auto class_decl = swift_can_type->getClassOrBoundGenericClass();
+    auto class_decl = swift_can_type->getClassDecl();
     if (class_decl->hasSuperclass()) {
       if (idx == 0) {
         swift::Type superclass_swift_type = swift_can_type->getSuperclass();
@@ -8513,7 +8513,7 @@ llvm::Expected<CompilerType> SwiftASTContext::GetChildCompilerTypeAtIndex(
 
   case swift::TypeKind::Class:
   case swift::TypeKind::BoundGenericClass: {
-    auto class_decl = swift_can_type->getClassOrBoundGenericClass();
+    auto class_decl = swift_can_type->getClassDecl();
     // Child 0 is the superclass, if there is one.
     if (class_decl->hasSuperclass()) {
       if (idx == 0) {
