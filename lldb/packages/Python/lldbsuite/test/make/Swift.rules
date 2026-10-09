@@ -69,6 +69,12 @@ endif
 ifneq "$(SWIFT_BRIDGING_HEADER)" ""
 # These are incompatible.
 DISABLE_SWIFT_INTERFACE = YES
+# Precompiled bridging headers are broken on Windows: the PCH emitted into the
+# build dir is not found by subsequent swift-frontend jobs ("PCH file ... not
+# found: module file not found"). Import the bridging header from source there.
+ifeq "$(OS)" "Windows_NT"
+SWIFT_PRECOMPILE_BRIDGING_HEADER = NO
+endif
 ifneq "$(SWIFT_PRECOMPILE_BRIDGING_HEADER)" "NO"
 # With PCH.
 SWIFT_HFLAGS = -import-objc-header $(SRCDIR)/$(SWIFT_BRIDGING_HEADER) -enable-bridging-pch -pch-output-dir $(BUILDDIR)
