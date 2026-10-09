@@ -2204,6 +2204,7 @@ cc_library(
         "//llvm:Core",
         "//llvm:Demangle",
         "//llvm:Support",
+        "//llvm:TargetParser",
     ],
 )
 
