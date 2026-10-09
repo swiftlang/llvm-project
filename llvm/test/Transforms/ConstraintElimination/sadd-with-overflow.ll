@@ -688,3 +688,161 @@ entry:
   call void @use(i1 %o)
   ret i8 %v
 }
+
+; A s< N - 1 with N s<= SMAX, so A + 1 does not signed-overflow. SMAX does not
+; fit a constraint row, so this uses the type bound of N.
+define i64 @sadd_type_bound_upper(i64 %a, i64 %n) {
+; CHECK-LABEL: define i64 @sadd_type_bound_upper(
+; CHECK-SAME: i64 [[A:%.*]], i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[N_MINUS_1:%.*]] = add nsw i64 [[N]], -1
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i64 [[A]], [[N_MINUS_1]]
+; CHECK-NEXT:    br i1 [[C]], label %[[THEN:.*]], label %[[ELSE:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i64 [[A]], 1
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    ret i64 [[TMP0]]
+; CHECK:       [[ELSE]]:
+; CHECK-NEXT:    ret i64 0
+;
+entry:
+  %n.minus.1 = add nsw i64 %n, -1
+  %c = icmp slt i64 %a, %n.minus.1
+  br i1 %c, label %then, label %else
+
+then:
+  %s = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %a, i64 1)
+  %v = extractvalue { i64, i1 } %s, 0
+  %o = extractvalue { i64, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i64 %v
+
+else:
+  ret i64 0
+}
+
+; A s> N with N s>= SMIN, so A + (-1) does not signed-overflow.
+define i64 @sadd_type_bound_lower(i64 %a, i64 %n) {
+; CHECK-LABEL: define i64 @sadd_type_bound_lower(
+; CHECK-SAME: i64 [[A:%.*]], i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i64 [[A]], [[N]]
+; CHECK-NEXT:    br i1 [[C]], label %[[THEN:.*]], label %[[ELSE:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i64 [[A]], -1
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    ret i64 [[TMP0]]
+; CHECK:       [[ELSE]]:
+; CHECK-NEXT:    ret i64 0
+;
+entry:
+  %c = icmp sgt i64 %a, %n
+  br i1 %c, label %then, label %else
+
+then:
+  %s = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %a, i64 -1)
+  %v = extractvalue { i64, i1 } %s, 0
+  %o = extractvalue { i64, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i64 %v
+
+else:
+  ret i64 0
+}
+
+; A s<= N allows A == N == SMAX.
+define i64 @sadd_type_bound_upper_le(i64 %a, i64 %n) {
+; CHECK-LABEL: define i64 @sadd_type_bound_upper_le(
+; CHECK-SAME: i64 [[A:%.*]], i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[C:%.*]] = icmp sle i64 [[A]], [[N]]
+; CHECK-NEXT:    br i1 [[C]], label %[[THEN:.*]], label %[[ELSE:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    [[S:%.*]] = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 [[A]], i64 1)
+; CHECK-NEXT:    [[V:%.*]] = extractvalue { i64, i1 } [[S]], 0
+; CHECK-NEXT:    [[O:%.*]] = extractvalue { i64, i1 } [[S]], 1
+; CHECK-NEXT:    call void @use(i1 [[O]])
+; CHECK-NEXT:    ret i64 [[V]]
+; CHECK:       [[ELSE]]:
+; CHECK-NEXT:    ret i64 0
+;
+entry:
+  %c = icmp sle i64 %a, %n
+  br i1 %c, label %then, label %else
+
+then:
+  %s = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %a, i64 1)
+  %v = extractvalue { i64, i1 } %s, 0
+  %o = extractvalue { i64, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i64 %v
+
+else:
+  ret i64 0
+}
+
+; A s< N - 1 with N an i8, so A + 2 s<= 127.
+define i64 @sadd_type_bound_narrow_var(i64 %a, i8 %n) {
+; CHECK-LABEL: define i64 @sadd_type_bound_narrow_var(
+; CHECK-SAME: i64 [[A:%.*]], i8 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[N_EXT:%.*]] = sext i8 [[N]] to i64
+; CHECK-NEXT:    [[N_MINUS_1:%.*]] = add nsw i64 [[N_EXT]], -1
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i64 [[A]], [[N_MINUS_1]]
+; CHECK-NEXT:    br i1 [[C]], label %[[THEN:.*]], label %[[ELSE:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i64 [[A]], 2
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    ret i64 [[TMP0]]
+; CHECK:       [[ELSE]]:
+; CHECK-NEXT:    ret i64 0
+;
+entry:
+  %n.ext = sext i8 %n to i64
+  %n.minus.1 = add nsw i64 %n.ext, -1
+  %c = icmp slt i64 %a, %n.minus.1
+  br i1 %c, label %then, label %else
+
+then:
+  %s = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %a, i64 2)
+  %v = extractvalue { i64, i1 } %s, 0
+  %o = extractvalue { i64, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i64 %v
+
+else:
+  ret i64 0
+}
+
+; N is wider than A, so its type bound does not bound A + 1.
+define i32 @sadd_type_bound_wide_var(i32 %a, i64 %n) {
+; CHECK-LABEL: define i32 @sadd_type_bound_wide_var(
+; CHECK-SAME: i32 [[A:%.*]], i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[A_EXT:%.*]] = sext i32 [[A]] to i64
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i64 [[A_EXT]], [[N]]
+; CHECK-NEXT:    br i1 [[C]], label %[[THEN:.*]], label %[[ELSE:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    [[S:%.*]] = call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 [[A]], i32 1)
+; CHECK-NEXT:    [[V:%.*]] = extractvalue { i32, i1 } [[S]], 0
+; CHECK-NEXT:    [[O:%.*]] = extractvalue { i32, i1 } [[S]], 1
+; CHECK-NEXT:    call void @use(i1 [[O]])
+; CHECK-NEXT:    ret i32 [[V]]
+; CHECK:       [[ELSE]]:
+; CHECK-NEXT:    ret i32 0
+;
+entry:
+  %a.ext = sext i32 %a to i64
+  %c = icmp slt i64 %a.ext, %n
+  br i1 %c, label %then, label %else
+
+then:
+  %s = call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %a, i32 1)
+  %v = extractvalue { i32, i1 } %s, 0
+  %o = extractvalue { i32, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i32 %v
+
+else:
+  ret i32 0
+}

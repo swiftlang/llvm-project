@@ -228,7 +228,8 @@ bool ConstraintSystem::mayHaveSolution() {
 }
 
 std::pair<ConstraintSystem, SmallVector<int64_t, 8>>
-ConstraintSystem::getSubSystem(ArrayRef<int64_t> R) const {
+ConstraintSystem::getSubSystem(ArrayRef<int64_t> R,
+                               SmallVectorImpl<unsigned> *SubToOld) const {
   // Only constraints that share a variable (transitively) with a query R can
   // affect whether system + !R has a solution.
   //
@@ -261,6 +262,10 @@ ConstraintSystem::getSubSystem(ArrayRef<int64_t> R) const {
   unsigned NextIdx = 1;
   for (unsigned Id : InSystem.set_bits())
     OldToNew[Id] = NextIdx++;
+  if (SubToOld) {
+    SubToOld->assign(1, 0);
+    append_range(*SubToOld, InSystem.set_bits());
+  }
 
   // Build new compact set of rows.
   SubSystem.NumVariables = NextIdx;

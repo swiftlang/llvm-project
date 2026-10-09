@@ -146,9 +146,11 @@ public:
 
   /// Build and return a sub-system of constraints connected (transitively) to
   /// query \p R, with variables compacted to a dense index range. Also
-  /// translate \p R's entries to the sub-system.
+  /// translate \p R's entries to the sub-system. If \p SubToOld is set, it
+  /// receives the original index of each sub-system index.
   LLVM_ABI std::pair<ConstraintSystem, SmallVector<int64_t, 8>>
-  getSubSystem(ArrayRef<int64_t> R) const;
+  getSubSystem(ArrayRef<int64_t> R,
+               SmallVectorImpl<unsigned> *SubToOld = nullptr) const;
 
   LLVM_ABI bool isConditionImplied(SmallVector<int64_t, 8> R) const;
   LLVM_ABI bool isConditionImpliedInSubSystem(SmallVector<int64_t, 8> R) const;
