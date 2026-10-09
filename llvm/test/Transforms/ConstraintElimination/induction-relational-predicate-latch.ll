@@ -955,3 +955,111 @@ loop.latch:
 exit:
   ret void
 }
+
+define void @two_ivs_latch_slt(i64 %n) {
+; CHECK-LABEL: define void @two_ivs_latch_slt(
+; CHECK-SAME: i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[PRE:%.*]] = icmp slt i64 0, [[N]]
+; CHECK-NEXT:    br i1 [[PRE]], label %[[LOOP:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[LO:%.*]] = phi i64 [ 0, %[[ENTRY]] ], [ [[LO_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[HI:%.*]] = phi i64 [ [[N]], %[[ENTRY]] ], [ [[HI_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    call void @use(i1 true)
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    [[LO_NEXT]] = add nsw i64 [[LO]], 1
+; CHECK-NEXT:    [[HI_NEXT]] = add nsw i64 [[HI]], -1
+; CHECK-NEXT:    [[EC:%.*]] = icmp slt i64 [[LO_NEXT]], [[HI_NEXT]]
+; CHECK-NEXT:    br i1 [[EC]], label %[[LOOP]], label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %pre = icmp slt i64 0, %n
+  br i1 %pre, label %loop, label %exit
+
+loop:
+  %lo = phi i64 [ 0, %entry ], [ %lo.next, %loop ]
+  %hi = phi i64 [ %n, %entry ], [ %hi.next, %loop ]
+  %c.1 = icmp slt i64 %lo, %hi
+  call void @use(i1 %c.1)
+  %c.2 = icmp sge i64 %lo, %n
+  call void @use(i1 %c.2)
+  %lo.next = add nsw i64 %lo, 1
+  %hi.next = add nsw i64 %hi, -1
+  %ec = icmp slt i64 %lo.next, %hi.next
+  br i1 %ec, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+define void @two_ivs_latch_slt_missing_start_precond(i64 %n) {
+; CHECK-LABEL: define void @two_ivs_latch_slt_missing_start_precond(
+; CHECK-SAME: i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[LO:%.*]] = phi i64 [ 0, %[[ENTRY]] ], [ [[LO_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[HI:%.*]] = phi i64 [ [[N]], %[[ENTRY]] ], [ [[HI_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[C_1:%.*]] = icmp slt i64 [[LO]], [[HI]]
+; CHECK-NEXT:    call void @use(i1 [[C_1]])
+; CHECK-NEXT:    [[LO_NEXT]] = add nsw i64 [[LO]], 1
+; CHECK-NEXT:    [[HI_NEXT]] = add nsw i64 [[HI]], -1
+; CHECK-NEXT:    [[EC:%.*]] = icmp slt i64 [[LO_NEXT]], [[HI_NEXT]]
+; CHECK-NEXT:    br i1 [[EC]], label %[[LOOP]], label %[[EXIT:.*]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  br label %loop
+
+loop:
+  %lo = phi i64 [ 0, %entry ], [ %lo.next, %loop ]
+  %hi = phi i64 [ %n, %entry ], [ %hi.next, %loop ]
+  %c.1 = icmp slt i64 %lo, %hi
+  call void @use(i1 %c.1)
+  %lo.next = add nsw i64 %lo, 1
+  %hi.next = add nsw i64 %hi, -1
+  %ec = icmp slt i64 %lo.next, %hi.next
+  br i1 %ec, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+define void @two_ivs_latch_slt_bound_is_phi(i64 %n) {
+; CHECK-LABEL: define void @two_ivs_latch_slt_bound_is_phi(
+; CHECK-SAME: i64 [[N:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[PRE:%.*]] = icmp slt i64 0, [[N]]
+; CHECK-NEXT:    br i1 [[PRE]], label %[[LOOP:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[LO:%.*]] = phi i64 [ 0, %[[ENTRY]] ], [ [[LO_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[HI:%.*]] = phi i64 [ [[N]], %[[ENTRY]] ], [ [[HI_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[C_1:%.*]] = icmp slt i64 [[LO]], [[HI]]
+; CHECK-NEXT:    call void @use(i1 [[C_1]])
+; CHECK-NEXT:    [[LO_NEXT]] = add nsw i64 [[LO]], 1
+; CHECK-NEXT:    [[HI_NEXT]] = add nsw i64 [[HI]], -1
+; CHECK-NEXT:    [[EC:%.*]] = icmp slt i64 [[LO_NEXT]], [[HI]]
+; CHECK-NEXT:    br i1 [[EC]], label %[[LOOP]], label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %pre = icmp slt i64 0, %n
+  br i1 %pre, label %loop, label %exit
+
+loop:
+  %lo = phi i64 [ 0, %entry ], [ %lo.next, %loop ]
+  %hi = phi i64 [ %n, %entry ], [ %hi.next, %loop ]
+  %c.1 = icmp slt i64 %lo, %hi
+  call void @use(i1 %c.1)
+  %lo.next = add nsw i64 %lo, 1
+  %hi.next = add nsw i64 %hi, -1
+  %ec = icmp slt i64 %lo.next, %hi
+  br i1 %ec, label %loop, label %exit
+
+exit:
+  ret void
+}

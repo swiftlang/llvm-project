@@ -1514,11 +1514,30 @@ void State::addInfoForInductions(BasicBlock &BB) {
     return;
 
   BasicBlock *LoopPred = L->getLoopPredecessor();
-  if (!LoopPred || !L->isLoopInvariant(B))
+  if (!LoopPred)
     return;
 
   auto [StartValue, Backedge] = getStartAndBackedgeValue(*PN, LoopPred);
   DomTreeNode *DTN = DT.getNode(InLoopSucc);
+
+  if (!L->isLoopInvariant(B)) {
+    // If B is the backedge value of another header phi Q, the compare ensures
+    // PN ContinuePred Q in the header on each iteration other than the first.
+    // Together with a precondition on the start values, it holds on all
+    // iterations.
+    if (!ICmpInst::isRelational(ContinuePred) || A != Backedge)
+      return;
+    for (PHINode &Q : Header->phis()) {
+      auto [QStart, QBackedge] = getStartAndBackedgeValue(Q, LoopPred);
+      if (&Q == PN || QBackedge != B)
+        continue;
+      WorkList.push_back(FactOrCheck::getConditionFact(
+          DTN, ContinuePred, PN, &Q,
+          ConditionTy(ContinuePred, StartValue, QStart)));
+      return;
+    }
+    return;
+  }
 
   if (ICmpInst::isRelational(ContinuePred)) {
     if (A != Backedge)
