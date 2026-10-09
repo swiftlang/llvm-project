@@ -1433,6 +1433,13 @@ SwiftExpressionParser::ParseAndImport(
 
   lang_opts.UseDarwinPreStableABIBit = should_use_prestable_abi();
 
+  // The language options above can differ between expressions evaluated in
+  // the same ASTContext. Now that they are final for this expression, discard
+  // the build configuration derived from them so '#if' conditions and macro
+  // expansions see the options of this expression.
+  if (ThreadSafeASTContext ast_context = m_swift_ast_ctx.GetASTContext())
+    ast_context->invalidateStaticBuildConfiguration();
+
   LLDBNameLookup *external_lookup;
   if (m_options.GetPlaygroundTransformEnabled() || m_options.GetREPLEnabled()) {
     external_lookup = new LLDBREPLNameLookup(*source_file, variable_map, m_sc,
