@@ -12052,6 +12052,23 @@ bool ScalarEvolution::isBasicBlockEntryGuardedByCond(const BasicBlock *BB,
     PredBB = BB->getSinglePredecessor();
   for (std::pair<const BasicBlock *, const BasicBlock *> Pair(PredBB, BB);
        Pair.first; Pair = getPredecessorWithUniqueSuccessorForBB(Pair.first)) {
+    // On the default edge of a switch, the condition differs from every case
+    // value. Only look at small switches to bound compile time.
+    if (const auto *SI = dyn_cast<SwitchInst>(Pair.first->getTerminator())) {
+      if (SI->getDefaultDest() != Pair.second || SI->getNumCases() > 4 ||
+          any_of(SI->cases(), [&](const auto &C) {
+            return C.getCaseSuccessor() == Pair.second;
+          }))
+        continue;
+      const SCEV *SwitchCond = getSCEV(SI->getCondition());
+      if (any_of(SI->cases(), [&](const auto &C) {
+            return isImpliedCond(Pred, LHS, RHS, ICmpInst::ICMP_NE, SwitchCond,
+                                 getConstant(C.getCaseValue()->getValue()),
+                                 &BB->front());
+          }))
+        return true;
+      continue;
+    }
     const CondBrInst *BlockEntryPredicate =
         dyn_cast<CondBrInst>(Pair.first->getTerminator());
     if (!BlockEntryPredicate)
