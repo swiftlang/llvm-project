@@ -31,4 +31,5 @@ class TestSwiftWerror(TestBase):
 #       CHECK:     SwiftASTContextForExpressions{{.*}}-DCONFLICT
 #       CHECK-NOT: SwiftASTContextForExpressions{{.*}}-Werror
 #       CHECK:     SwiftASTContextForExpressions{{.*}}-DCONFLICT
+#       CHECK-NOT: SwiftASTContextForExpressions{{.*}}-DCONFLICT
 #       CHECK-NOT: SwiftASTContextForExpressions{{.*}}-Werror

@@ -32,7 +32,8 @@ public:
       : TypeSystemSwiftTypeRefForExpressions(lldb::eLanguageTypeSwift,
                                              *real->GetTargetWP().lock(),
                                              /*repl=*/false,
-                                             /*playground=*/false),
+                                             /*playground=*/false,
+                                             /*track_modules=*/false),
         m_real(std::move(real)) {}
 
   SwiftASTContextSP GetSwiftASTContext(const SymbolContext &sc) const override {

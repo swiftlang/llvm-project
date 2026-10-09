@@ -26,7 +26,10 @@
 #include "clang/APINotes/APINotesManager.h"
 #include "clang/Basic/Module.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
+
+#include <mutex>
 
 namespace swift {
 class DWARFImporterDelegate;
@@ -743,9 +746,12 @@ public:
   static bool classof(const TypeSystem *ts) { return ts->isA(&ID); }
   /// \}
 
+  /// \param track_modules  Whether ModulesDidLoad will be called on this
+  ///                        instance; expression module proxies pass false.
   TypeSystemSwiftTypeRefForExpressions(lldb::LanguageType language,
                                        Target &target, bool repl,
-                                       bool playground);
+                                       bool playground,
+                                       bool track_modules = true);
 
   static TypeSystemSwiftTypeRefForExpressionsSP GetForTarget(Target &target);
   static TypeSystemSwiftTypeRefForExpressionsSP
@@ -765,6 +771,7 @@ public:
   lldb::TargetWP GetTargetWP() const override { return m_target_wp; }
 
   void ModulesDidLoad(ModuleList &module_list);
+  void ModulesDidUnload(ModuleList &module_list);
 
   /// Forwards to SwiftASTContext.
   UserExpression *GetUserExpression(llvm::StringRef expr,
@@ -777,7 +784,7 @@ public:
   /// Forwards to SwiftASTContext.
   PersistentExpressionState *GetPersistentExpressionState() override;
   llvm::Error PerformCompileUnitImports(const SymbolContext &sc);
-  /// Returns how often ModulesDidLoad was called.
+  /// Returns how often ModulesDidLoad was called with a new module.
   unsigned GetGeneration() const { return m_generation; }
   /// Performs a target-wide search.
   /// \param exe_ctx is a hint for where to look first.
@@ -797,6 +804,11 @@ public:
 protected:
   lldb::TargetWP m_target_wp;
   unsigned m_generation = 0;
+  /// IDs of the loaded modules this type system already knows about. A process
+  /// plugin may announce a module again: ProcessGDBRemote::LoadModules passes
+  /// the whole library list to Target::ModulesDidLoad on every library stop.
+  llvm::DenseSet<lldb::user_id_t> m_modules_seen;
+  std::mutex m_modules_seen_mutex;
   bool m_repl = false;
   bool m_playground = false;
   const char *m_compiler_options = nullptr;
