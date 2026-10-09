@@ -9410,6 +9410,40 @@ ScalarEvolution::ExitLimit ScalarEvolution::computeExitLimitFromICmp(
 
   ExitLimit EL = computeExitLimitFromICmp(L, Pred, LHS, RHS, ControlsOnlyExit,
                                           AllowPredicates);
+  if (EL.hasFullInfo())
+    return EL;
+
+  // If an operand is extractvalue(sadd.with.overflow(IV, Inv), 0) with IV an
+  // nsw AddRec of L and all uses of the result on the no-overflow edge, its
+  // AddRec does not sign-wrap on any iteration that reaches this compare. The
+  // nssw predicates on it then hold unconditionally.
+  SmallVector<const SCEV *, 2> GuardedNSW;
+  for (Value *Op : ExitCond->operands()) {
+    const WithOverflowInst *WO;
+    if (AllowPredicates ||
+        !match(Op, m_ExtractValue<0>(m_WithOverflowInst(WO))) ||
+        WO->getIntrinsicID() != Intrinsic::sadd_with_overflow ||
+        !isLoopInvariant(getSCEV(WO->getRHS()), L))
+      continue;
+    auto *IV = dyn_cast<SCEVAddRecExpr>(getSCEV(WO->getLHS()));
+    if (IV && IV->getLoop() == L && IV->hasNoSignedWrap() &&
+        isOverflowIntrinsicNoWrap(WO, DT))
+      GuardedNSW.push_back(getSCEV(Op));
+  }
+  if (!GuardedNSW.empty()) {
+    ExitLimit PEL =
+        computeExitLimitFromICmp(L, Pred, LHS, RHS, ControlsOnlyExit,
+                                 /*AllowPredicates=*/true);
+    if (PEL.hasFullInfo() && all_of(PEL.Predicates, [&](auto *P) {
+          auto *WP = dyn_cast<SCEVWrapPredicate>(P);
+          return WP && WP->getFlags() == SCEVWrapPredicate::IncrementNSSW &&
+                 is_contained(GuardedNSW, WP->getExpr());
+        })) {
+      PEL.Predicates.clear();
+      return PEL;
+    }
+  }
+
   if (EL.hasAnyInfo())
     return EL;
 
