@@ -41,7 +41,6 @@
 #include "lldb/Host/windows/PosixApi.h"
 #endif
 
-#include "clang/Driver/Driver.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CAS/CASConfiguration.h"
 #include "llvm/CAS/ObjectStore.h"
@@ -133,14 +132,9 @@ ModuleListProperties::ModuleListProperties() {
                                            [this] { UpdateSymlinkMappings(); });
 
   llvm::SmallString<128> path;
-  if (clang::driver::Driver::getDefaultModuleCachePath(path)) {
-    lldbassert(SetClangModulesCachePath(FileSpec(path)));
-  }
-
   // BEGIN SWIFT
   SetSwiftModuleLoadingMode(eSwiftModuleLoadingModePreferSerialized);
 
-  path.clear();
   if (llvm::sys::path::cache_directory(path)) {
     llvm::sys::path::append(path, "lldb");
     llvm::sys::path::append(path, "SwiftMetadataCache");
