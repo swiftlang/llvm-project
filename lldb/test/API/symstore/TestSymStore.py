@@ -250,7 +250,7 @@ class SlowHTTPHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass  # suppress server-side output
 
-@skipIfWindows
+
 class SymStoreTests(TestBase):
     TEST_WITH_PDB_DEBUG_INFO = True
     # Build artifacts can't be shared across test functions because
