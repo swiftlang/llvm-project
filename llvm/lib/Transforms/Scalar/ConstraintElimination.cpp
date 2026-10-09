@@ -2884,12 +2884,17 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
   // order in the containing basic block. Also make sure conditions with
   // constant operands come before conditions without constant operands. This
   // increases the effectiveness of the current signed <-> unsigned fact
-  // transfer logic.
+  // transfer logic. Then conditions with fewer instruction operands come
+  // first, so their facts can serve as preconditions when decomposing the
+  // instruction operands of later conditions.
   stable_sort(S.WorkList, [](const FactOrCheck &A, const FactOrCheck &B) {
     auto HasNoConstOp = [](const FactOrCheck &B) {
       Value *V0 = B.isConditionFact() ? B.Cond.Op0 : B.Inst->getOperand(0);
       Value *V1 = B.isConditionFact() ? B.Cond.Op1 : B.Inst->getOperand(1);
       return !isa<ConstantInt>(V0) && !isa<ConstantInt>(V1);
+    };
+    auto NumInstOps = [](const FactOrCheck &B) {
+      return isa<Instruction>(B.Cond.Op0) + isa<Instruction>(B.Cond.Op1);
     };
     // If both entries have the same In numbers, conditional facts come first.
     // Otherwise use the relative order in the basic block.
@@ -2903,7 +2908,9 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
       if (A.isConditionFact() && B.isConditionFact()) {
         bool NoConstOpA = HasNoConstOp(A);
         bool NoConstOpB = HasNoConstOp(B);
-        return NoConstOpA < NoConstOpB;
+        if (NoConstOpA != NoConstOpB)
+          return NoConstOpA < NoConstOpB;
+        return NumInstOps(A) < NumInstOps(B);
       }
       if (A.isConditionFact())
         return true;

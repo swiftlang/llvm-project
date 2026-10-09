@@ -132,3 +132,37 @@ entry:
   %c = icmp sge i8 %add, %a
   ret i1 %c
 }
+
+; The fact on %base is added before the fact on %add, so %base >=s 0 is
+; known when decomposing %add.
+define i1 @or_fact_on_add_after_fact_on_operand(i8 %base, i8 %n) {
+; CHECK-LABEL: @or_fact_on_add_after_fact_on_operand(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[N_NONNEG:%.*]] = icmp sge i8 [[N:%.*]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[N_NONNEG]])
+; CHECK-NEXT:    [[ADD:%.*]] = add i8 [[BASE:%.*]], [[N]]
+; CHECK-NEXT:    [[C_ADD:%.*]] = icmp ult i8 [[N]], [[ADD]]
+; CHECK-NEXT:    [[C_BASE:%.*]] = icmp ult i8 [[N]], [[BASE]]
+; CHECK-NEXT:    [[OR:%.*]] = or i1 [[C_ADD]], [[C_BASE]]
+; CHECK-NEXT:    br i1 [[OR]], label [[EXIT:%.*]], label [[THEN:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    ret i1 true
+; CHECK:       exit:
+; CHECK-NEXT:    ret i1 false
+;
+entry:
+  %n.nonneg = icmp sge i8 %n, 0
+  call void @llvm.assume(i1 %n.nonneg)
+  %add = add i8 %base, %n
+  %c.add = icmp ult i8 %n, %add
+  %c.base = icmp ult i8 %n, %base
+  %or = or i1 %c.add, %c.base
+  br i1 %or, label %exit, label %then
+
+then:
+  %c = icmp ule i8 %base, 0
+  ret i1 %c
+
+exit:
+  ret i1 false
+}
