@@ -87,8 +87,7 @@ define void @ule(i64 %n, i64 %m) {
 ; CHECK-NEXT:    br i1 [[CMP1]], label [[LATCH]], label [[EXIT_LOOPEXIT:%.*]]
 ; CHECK:       latch:
 ; CHECK-NEXT:    call void @side_effect()
-; CHECK-NEXT:    [[CMP2:%.*]] = icmp ult i64 [[IV]], [[M]]
-; CHECK-NEXT:    br i1 [[CMP2]], label [[LOOP]], label [[EXIT_LOOPEXIT]]
+; CHECK-NEXT:    br i1 true, label [[LOOP]], label [[EXIT_LOOPEXIT]]
 ; CHECK:       exit.loopexit:
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:

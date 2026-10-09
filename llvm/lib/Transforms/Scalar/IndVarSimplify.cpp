@@ -1733,6 +1733,8 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
       SkipLastIter = true;
   };
   SmallPtrSet<const SCEV *, 8> DominatingExactExitCounts;
+  // Umin of the exact exit counts of the exits visited so far.
+  const SCEV *MinDominatingExitCount = nullptr;
   for (BasicBlock *ExitingBB : ExitingBlocks) {
     const SCEV *ExactExitCount = SE->getExitCount(L, ExitingBB);
     const SCEV *MaxExitCount = SE->getExitCount(
@@ -1814,12 +1816,20 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
       continue;
     }
 
-    // TODO: There might be another oppurtunity to leverage SCEV's reasoning
-    // here.  If we kept track of the min of dominanting exits so far, we could
-    // discharge exits with EC >= MDEC. This is less powerful than the existing
-    // transform (since later exits aren't considered), but potentially more
-    // powerful for any case where SCEV can prove a >=u b, but neither a == b
-    // or a >u b.  Such a case is not currently known.
+    // A dominating exit is taken no later than this one, so this exit is dead.
+    if (MinDominatingExitCount &&
+        SE->isLoopEntryGuardedByCond(
+            L, CmpInst::ICMP_ULE,
+            SE->getNoopOrZeroExtend(MinDominatingExitCount, WiderType),
+            ExactExitCount)) {
+      foldExit(L, ExitingBB, false, DeadInsts);
+      Changed = true;
+      continue;
+    }
+    MinDominatingExitCount = MinDominatingExitCount
+                                 ? SE->getUMinFromMismatchedTypes(
+                                       MinDominatingExitCount, ExactExitCount)
+                                 : ExactExitCount;
   }
   return Changed;
 }
