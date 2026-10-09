@@ -1351,15 +1351,24 @@ void State::addPointerBoundInfoFromOverflowCheck(Value *Op, DomTreeNode *DTN) {
 
 /// Splits the induction phi \p PN into the start value, coming from the loop
 /// predecessor \p LoopPred, and the backedge value, coming from inside the
-/// loop. Returns {nullptr, nullptr} if \p PN has other incoming values.
+/// loop. Multiple backedges must all carry the same value. Returns
+/// {nullptr, nullptr} otherwise.
 static std::pair<Value *, Value *>
 getStartAndBackedgeValue(const PHINode &PN, const BasicBlock *LoopPred) {
   assert(PN.getBasicBlockIndex(LoopPred) >= 0 &&
          "LoopPred must be a predecessor of the phi's block");
-  if (PN.getNumIncomingValues() != 2)
+  Value *Backedge = nullptr;
+  for (unsigned I = 0, E = PN.getNumIncomingValues(); I != E; ++I) {
+    if (PN.getIncomingBlock(I) == LoopPred)
+      continue;
+    Value *V = PN.getIncomingValue(I);
+    if (Backedge && Backedge != V)
+      return {nullptr, nullptr};
+    Backedge = V;
+  }
+  if (!Backedge)
     return {nullptr, nullptr};
-  unsigned StartIdx = PN.getIncomingBlock(0) == LoopPred ? 0 : 1;
-  return {PN.getIncomingValue(StartIdx), PN.getIncomingValue(1 - StartIdx)};
+  return {PN.getIncomingValueForBlock(LoopPred), Backedge};
 }
 
 /// Matches an increment of \p PhiM by a constant offset, captured in \p Off.
@@ -1486,8 +1495,7 @@ void State::addInfoForInductions(BasicBlock &BB) {
       return;
   }
 
-  if (PN->getParent() != Header || PN->getNumIncomingValues() != 2 ||
-      !SE.isSCEVable(PN->getType()))
+  if (PN->getParent() != Header || !SE.isSCEVable(PN->getType()))
     return;
 
   // For latch conditions, we need to inject the condition that holds for the
@@ -1518,6 +1526,8 @@ void State::addInfoForInductions(BasicBlock &BB) {
     return;
 
   auto [StartValue, Backedge] = getStartAndBackedgeValue(*PN, LoopPred);
+  if (!StartValue)
+    return;
   DomTreeNode *DTN = DT.getNode(InLoopSucc);
 
   if (!L->isLoopInvariant(B)) {
