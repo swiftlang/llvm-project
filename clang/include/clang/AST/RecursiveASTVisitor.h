@@ -1173,6 +1173,8 @@ DEF_TRAVERSE_TYPE(DynamicRangePointerType, {
 
 DEF_TRAVERSE_TYPE(ValueTerminatedType, { TRY_TO(TraverseType(T->desugar())); })
 /* TO_UPSTREAM(BoundsSafety) OFF */
+DEF_TRAVERSE_TYPE(LateParsedAttrType,
+                  { TRY_TO(TraverseType(T->getWrappedType())); })
 
 DEF_TRAVERSE_TYPE(LateParsedAttrType,
                   { TRY_TO(TraverseType(T->getWrappedType())); })
