@@ -156,7 +156,7 @@ std::optional<uint64_t> SwiftLanguageRuntime::GetMemberVariableOffsetRemoteAST(
   // is faster than RemoteMirrors, but can't do dynamic types (checked
   // inside RemoteAST) or incomplete types (checked here).
   bool safe_to_use_remote_ast = true;
-  if (swift::Decl *type_decl = swift_type->getNominalOrBoundGenericNominal())
+  if (swift::Decl *type_decl = swift_type->getNominalDecl())
     safe_to_use_remote_ast &= ASTVerifier::Verify(type_decl);
 
   // Use RemoteAST to determine the member offset.
