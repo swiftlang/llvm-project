@@ -248,7 +248,11 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
     die.GetDWARF()->GetDIEToType()[die.GetDIE()] = DIE_IS_BEING_PARSED;
 
     // Try to import the type from one of the loaded Swift modules.
-    if (SwiftLanguageRuntime::IsSwiftMangledName(mangled_name.GetCString()))
+    // Function linkage names are symbol manglings, not type manglings.
+    bool is_function = die.Tag() == llvm::dwarf::DW_TAG_subprogram ||
+                       die.Tag() == llvm::dwarf::DW_TAG_inlined_subroutine;
+    if (!is_function &&
+        SwiftLanguageRuntime::IsSwiftMangledName(mangled_name.GetCString()))
       compiler_type =
           m_swift_typesystem.GetTypeFromMangledTypename(mangled_name);
   }
