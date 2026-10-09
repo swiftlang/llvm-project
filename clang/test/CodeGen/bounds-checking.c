@@ -1,6 +1,6 @@
 // N.B. The clang driver defaults to -fsanitize-merge but clang_cc1 effectively
 // defaults to -fno-sanitize-merge.
-// RUN: %clang_cc1 -fsanitize=array-bounds -O -fsanitize-trap=array-bounds -emit-llvm -triple x86_64-apple-darwin10 -DNO_DYNAMIC %s -o - |     FileCheck %s
+// RUN: %clang_cc1 -fsanitize=array-bounds -O -fsanitize-trap=array-bounds -emit-llvm -triple x86_64-apple-darwin10 -DNO_DYNAMIC %s -o - |     FileCheck %s --check-prefixes=CHECK,INCDEC
 // RUN: %clang_cc1 -fsanitize=array-bounds -O                              -emit-llvm -triple x86_64-apple-darwin10 %s -o -              | not FileCheck %s
 //
 // RUN: %clang_cc1 -fsanitize=local-bounds    -fsanitize-trap=local-bounds -emit-llvm -triple x86_64-apple-darwin10              %s -o - |     FileCheck %s
@@ -104,5 +104,41 @@ struct S {
 struct S *f9(int i) {
   return &s[i];
 }
+
+// Pre/post inc/dec on an array element must use the same bounds check as a
+// store: index < size, not index <= size. A prior bug allowed the write at
+// index == size (one past the end) to slip through.
+int Arr[5];
+// INCDEC-LABEL: @f10_store
+void f10_store(int i) {
+  // INCDEC: icmp ult i32 %i, 5
+  // INCDEC: call {{.*}} @llvm.{{(ubsan)?trap}}
+  Arr[i] = 1;
+}
+// INCDEC-LABEL: @f10_postinc
+void f10_postinc(int i) {
+  // INCDEC: icmp ult i32 %i, 5
+  // INCDEC: call {{.*}} @llvm.{{(ubsan)?trap}}
+  Arr[i]++;
+}
+// INCDEC-LABEL: @f10_preinc
+void f10_preinc(int i) {
+  // INCDEC: icmp ult i32 %i, 5
+  // INCDEC: call {{.*}} @llvm.{{(ubsan)?trap}}
+  ++Arr[i];
+}
+// INCDEC-LABEL: @f10_postdec
+void f10_postdec(int i) {
+  // INCDEC: icmp ult i32 %i, 5
+  // INCDEC: call {{.*}} @llvm.{{(ubsan)?trap}}
+  Arr[i]--;
+}
+// INCDEC-LABEL: @f10_predec
+void f10_predec(int i) {
+  // INCDEC: icmp ult i32 %i, 5
+  // INCDEC: call {{.*}} @llvm.{{(ubsan)?trap}}
+  --Arr[i];
+}
+
 // NOOPTLOCAL: attributes #[[ATTR1]] = { nomerge noreturn nounwind }
 // NOOPTARRAY: attributes #[[ATTR2]] = { nomerge noreturn nounwind }
