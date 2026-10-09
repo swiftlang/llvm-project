@@ -11721,29 +11721,42 @@ ScalarEvolution::getLoopInvariantExitCondDuringFirstIterationsImpl(
   if (!ICmpInst::isRelational(Pred))
     return std::nullopt;
 
-  // TODO: Support steps other than +/- 1.
-  const SCEV *Step = AR->getStepRecurrence(*this);
-  auto *One = getOne(Step->getType());
-  auto *MinusOne = getNegativeSCEV(One);
-  if (Step != One && Step != MinusOne)
-    return std::nullopt;
-
   // Type mismatch here means that MaxIter is potentially larger than max
   // unsigned value in start type, which mean we cannot prove no wrap for the
   // indvar.
   if (AR->getType() != MaxIter->getType())
     return std::nullopt;
 
+  // TODO: Support other steps for signed predicates.
+  const SCEV *Step = AR->getStepRecurrence(*this);
+  auto *One = getOne(Step->getType());
+  auto *MinusOne = getNegativeSCEV(One);
+  // For an unsigned predicate, MaxIter * Step must not overflow; then
+  // Start u<= Last below rules out a wrap of the IV.
+  if (Step != One && Step != MinusOne) {
+    if (CmpInst::isSigned(Pred))
+      return std::nullopt;
+    auto Guards = LoopGuards::collect(L, *this);
+    ConstantRange MaxIterRange =
+        getUnsignedRange(applyLoopGuards(MaxIter, Guards));
+    ConstantRange StepRange = getUnsignedRange(applyLoopGuards(Step, Guards));
+    if (MaxIterRange.unsignedMulMayOverflow(StepRange) !=
+        ConstantRange::OverflowResult::NeverOverflows)
+      return std::nullopt;
+  }
+
   // Value of IV on suggested last iteration.
   const SCEV *Last = AR->evaluateAtIteration(MaxIter, *this);
-  // Does it still meet the requirement?
-  if (!isLoopBackedgeGuardedByCond(L, Pred, Last, RHS))
+  // Does it still meet the requirement? Last and RHS are loop invariant, so
+  // a guard at loop entry also suffices.
+  if (!isLoopBackedgeGuardedByCond(L, Pred, Last, RHS) &&
+      !isLoopEntryGuardedByCond(L, Pred, Last, RHS))
     return std::nullopt;
-  // Because step is +/- 1 and MaxIter has same type as Start (i.e. it does
-  // not exceed max unsigned value of this type), this effectively proves
-  // that there is no wrap during the iteration. To prove that there is no
-  // signed/unsigned wrap, we need to check that
-  // Start <= Last for step = 1 or Start >= Last for step = -1.
+  // Because step is +/- 1 (or MaxIter * Step does not overflow) and MaxIter
+  // has same type as Start (i.e. it does not exceed max unsigned value of
+  // this type), this effectively proves that there is no wrap during the
+  // iteration. To prove that there is no signed/unsigned wrap, we need to
+  // check that Start <= Last for step != -1 or Start >= Last for step = -1.
   ICmpInst::Predicate NoOverflowPred =
       CmpInst::isSigned(Pred) ? ICmpInst::ICMP_SLE : ICmpInst::ICMP_ULE;
   if (Step == MinusOne)
