@@ -2719,7 +2719,7 @@ FindTaskAddrs(ReflectionContextInterface &reflection_ctx, Process &process) {
 class TaskExplorer {
 public:
   TaskExplorer(ReflectionContextInterface &reflection_ctx, Process &process)
-      : m_reflection_ctx(reflection_ctx) {
+      : m_reflection_ctx(reflection_ctx), m_process(process) {
 
     auto [method, task_addrs] = FindTaskAddrs(reflection_ctx, process);
     m_method = method;
@@ -2756,6 +2756,7 @@ public:
 
   /// Returns the TaskInfo for the task in `task_addr`, if it exists.
   const std::optional<TaskInfo> &FindTask(addr_t task_addr) {
+    task_addr = m_process.FixDataAddress(task_addr);
     int32_t max_nodes = 1000;
     ExploreTask(task_addr, max_nodes);
     auto it = m_known_tasks.find(task_addr);
@@ -2765,12 +2766,15 @@ public:
 
   /// Returns the TaskInfo of the task that `task_addr` is waiting on, if any.
   const TaskInfo *GetDependency(addr_t task_addr) const {
+    task_addr = m_process.FixDataAddress(task_addr);
     auto it = m_blocked_by.find(task_addr);
     return it != m_blocked_by.end() ? it->second : nullptr;
   }
 
 private:
   ReflectionContextInterface &m_reflection_ctx;
+  Process &m_process;
+
   std::map<addr_t, std::optional<TaskInfo>> m_known_tasks;
   /// Maps a task address to the TaskInfo it is waiting on. The pointers are
   /// into m_known_tasks values, which is safe because std::map guarantees
@@ -2782,6 +2786,7 @@ private:
   // Finds all Tasks reachable from the Task represented by `task_addr`.
   // This follows child pointers, parent pointers, "waited by" pointers.
   void ExploreTask(addr_t task_addr, int32_t &max_nodes) {
+    task_addr = m_process.FixDataAddress(task_addr);
     if (m_known_tasks.count(task_addr))
       return;
     if (--max_nodes <= 0) {
@@ -2808,7 +2813,8 @@ private:
     if (it->second->parentTask != 0)
       ExploreTask(it->second->parentTask, max_nodes);
     for (addr_t waited_by_task_addr : it->second->waitingTasks) {
-      m_blocked_by.try_emplace(waited_by_task_addr, &*it->second);
+      m_blocked_by.try_emplace(m_process.FixDataAddress(waited_by_task_addr),
+                               &*it->second);
       ExploreTask(waited_by_task_addr, max_nodes);
     }
   }
