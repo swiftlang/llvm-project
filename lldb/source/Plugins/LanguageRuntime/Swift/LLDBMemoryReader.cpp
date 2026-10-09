@@ -230,7 +230,6 @@ LLDBMemoryReader::resolvePointerAsSymbol(swift::remote::RemoteAddress address) {
   if (!target.GetSwiftUseReflectionSymbols())
     return {};
 
-  auto &triple = m_process.GetTarget().GetArchitecture().GetTriple();
   std::optional<Address> maybeAddr = remoteAddressToLLDBAddress(address);
   // This is not an assert, but should never happen.
   if (!maybeAddr)
@@ -247,12 +246,12 @@ LLDBMemoryReader::resolvePointerAsSymbol(swift::remote::RemoteAddress address) {
   }
 
   if (auto *symbol = addr.CalculateSymbolContextSymbol()) {
-    // Require `addr` to point to the beginning of the symbol since the
-    // COFF export table is sparse and we can inadvertently misattribute
-    // private symbols to the preceding public symbol.
+    // Require `addr` to point to the beginning of the symbol. Symbol tables
+    // can be sparse (COFF export tables, images without local symbols such
+    // as those in the dyld shared cache), so a symbol's extent may cover
+    // private descriptors that must not be attributed to it.
     // See https://github.com/swiftlang/llvm-project/issues/12891
-    if (triple.isOSWindows() &&
-        addr.GetFileAddress() != symbol->GetAddressRef().GetFileAddress())
+    if (addr.GetFileAddress() != symbol->GetAddressRef().GetFileAddress())
       return {};
     auto mangledName = symbol->GetMangled().GetMangledName().GetStringRef();
     // MemoryReader requires this to be a Swift symbol. LLDB can also be
