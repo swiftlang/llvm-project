@@ -422,7 +422,8 @@ static bool initTargetOptions(CompilerInstance &CI, DiagnosticsEngine &Diags,
     Options.BBSectionsFuncListBuf = std::move(*MBOrErr);
   }
 
-  Options.EnableMachineFunctionSplitter = CodeGenOpts.SplitMachineFunctions;
+  if (CodeGenOpts.SplitMachineFunctions)
+    Options.FunctionSplitting = llvm::FunctionSplittingMode::All;
   Options.EnableStaticDataPartitioning =
       CodeGenOpts.PartitionStaticDataSections;
   Options.FunctionSections = CodeGenOpts.FunctionSections;
