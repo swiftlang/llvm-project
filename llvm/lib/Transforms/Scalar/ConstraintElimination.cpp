@@ -694,7 +694,7 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
     // `xor %x, -1` is equivalent to `sub nsw -1, %x`.
     if (match(V, m_Not(m_Value(Op0)))) {
       Decomposition Result(-1);
-      if (!Result.sub(decompose(Op0, Info, IsSigned, DL)))
+      if (!Result.sub(decompose(Op0, Info, IsSigned, State)))
         return Result;
       return V;
     }
