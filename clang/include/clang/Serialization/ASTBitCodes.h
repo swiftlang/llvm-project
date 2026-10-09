@@ -44,7 +44,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 40;
+const unsigned VERSION_MAJOR = 41;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -374,6 +374,10 @@ enum ControlRecordTypes {
   /// Record code for the (optional) include-tree ID for implicit modules
   /// built with the dependency scanner.
   CAS_INCLUDE_TREE_ID,
+
+  /// Record code for the directories this AST file depends on the listing of.
+  /// Only emitted when non-empty.
+  MODULE_DIRECTORY_DEPENDENCIES,
 };
 
 /// Record types that occur within the options block inside

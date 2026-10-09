@@ -20,6 +20,30 @@
 using namespace clang;
 using namespace dependencies;
 
+void ModuleCacheEntries::addInvalidatedPath(StringRef Path) {
+#ifndef NDEBUG
+  SmallString<256> Canonical(Path);
+  assert(llvm::sys::path::is_absolute(Path) &&
+         !llvm::sys::path::remove_dots(Canonical, /*remove_dot_dot=*/true) &&
+         "invalidated paths must be spelled like ModuleDeps::DirectoryDeps");
+#endif
+  {
+    std::lock_guard<std::mutex> Lock(InvalidatedPathsMutex);
+    InvalidatedPaths.insert(Path);
+  }
+  AnyInvalidatedPaths.store(true, std::memory_order_release);
+}
+
+std::optional<bool>
+ModuleCacheEntries::isDirectoryInvalidated(StringRef Directory) const {
+  if (!ValidateAgainstInvalidatedPaths)
+    return std::nullopt;
+  if (!AnyInvalidatedPaths.load(std::memory_order_acquire))
+    return false;
+  std::lock_guard<std::mutex> Lock(InvalidatedPathsMutex);
+  return InvalidatedPaths.contains(Directory);
+}
+
 void ModuleCacheEntries::flush() {
   auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
   for (auto &[Path, Entry] : Map) {
@@ -127,6 +151,10 @@ public:
     auto &Timestamp = getOrCreateEntry(Filename).Timestamp;
 
     Timestamp.store(llvm::sys::toTimeT(std::chrono::system_clock::now()));
+  }
+
+  std::optional<bool> isDirectoryInvalidated(StringRef Directory) override {
+    return Entries.isDirectoryInvalidated(Directory);
   }
 
   void maybePrune(StringRef Path, time_t PruneInterval,
