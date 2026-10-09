@@ -4,8 +4,6 @@
 User Guide for AMDGPU Backend
 =============================
 
-.. contents::
-   :local:
 
 .. toctree::
    :hidden:
@@ -2093,6 +2091,8 @@ The AMDGPU backend implements the following LLVM IR intrinsics.
 .. TODO::
 
    List AMDGPU intrinsics.
+
+.. _amdgpu-av-load-store:
 
 '``llvm.amdgcn.av``' Intrinsics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
