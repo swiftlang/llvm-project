@@ -11747,10 +11747,24 @@ ScalarEvolution::getLoopInvariantExitCondDuringFirstIterationsImpl(
 
   // Value of IV on suggested last iteration.
   const SCEV *Last = AR->evaluateAtIteration(MaxIter, *this);
+  // Last u< RHS also follows from Last + Step u<= RHS for a constant Step if
+  // Last + Step cannot wrap under the loop guards.
+  auto IsLastPlusStepULE = [&]() {
+    const APInt *StepC;
+    if (Pred != ICmpInst::ICMP_ULT || !match(Step, m_scev_APInt(StepC)) ||
+        StepC->isZero())
+      return false;
+    ConstantRange LastRange = getUnsignedRange(applyLoopGuards(Last, L));
+    if (LastRange.unsignedAddMayOverflow(ConstantRange(*StepC)) !=
+        ConstantRange::OverflowResult::NeverOverflows)
+      return false;
+    return isLoopEntryGuardedByCond(L, ICmpInst::ICMP_ULE,
+                                    getAddExpr(Last, Step), RHS);
+  };
   // Does it still meet the requirement? Last and RHS are loop invariant, so
   // a guard at loop entry also suffices.
   if (!isLoopBackedgeGuardedByCond(L, Pred, Last, RHS) &&
-      !isLoopEntryGuardedByCond(L, Pred, Last, RHS))
+      !isLoopEntryGuardedByCond(L, Pred, Last, RHS) && !IsLastPlusStepULE())
     return std::nullopt;
   // Because step is +/- 1 (or MaxIter * Step does not overflow) and MaxIter
   // has same type as Start (i.e. it does not exceed max unsigned value of
