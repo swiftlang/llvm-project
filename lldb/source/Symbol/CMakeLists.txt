@@ -1,4 +1,12 @@
-set(SWIFT_LIBS
+list(APPEND LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
+if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
+  unset(SWIFT_SOURCES)
+  set(PLUGIN_DEPENDENCY_ARG NO_PLUGIN_DEPENDENCIES)
+  set(LLDB_PLUGIN_DEPENDENCIES)
+else()
+  set(PLUGIN_DEPENDENCY_ARG)
+  set(LLDB_PLUGIN_DEPENDENCIES lldbPluginSwiftLanguageRuntime)
+  set(_swift_libs_param SWIFT_LIBS
     swiftAST
     swiftASTSectionImporter
     swiftBasic
@@ -6,16 +14,7 @@ set(SWIFT_LIBS
     swiftFrontend
     swiftSIL
     swiftSerialization
-)
-list(APPEND LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
-if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
-  unset(SWIFT_SOURCES)
-  unset(SWIFT_LIBS)
-  set(PLUGIN_DEPENDENCY_ARG NO_PLUGIN_DEPENDENCIES)
-  set(LLDB_PLUGIN_DEPENDENCIES)
-else()
-  set(PLUGIN_DEPENDENCY_ARG)
-  set(LLDB_PLUGIN_DEPENDENCIES lldbPluginSwiftLanguageRuntime)
+  )
 endif()
 
 add_lldb_library(lldbSymbol ${PLUGIN_DEPENDENCY_ARG}
@@ -75,7 +74,7 @@ add_lldb_library(lldbSymbol ${PLUGIN_DEPENDENCY_ARG}
     lldbValueObject
     ${LLDB_PLUGIN_DEPENDENCIES}
     ## BEGIN SWIFT
-    ${SWIFT_LIBS}
+    ${_swift_libs_param}
     ## END SWIFT
 
   )
