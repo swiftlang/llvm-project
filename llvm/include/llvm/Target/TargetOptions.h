@@ -133,9 +133,8 @@ public:
         EmitAddrsig(false), BBAddrMap(false), EmitCallGraphSection(false),
         EmitCallSiteInfo(false), EnableDebugEntryValues(false),
         ValueTrackingVariableLocations(false), ForceDwarfFrameSection(false),
-        XRayFunctionIndex(true), DebugStrictDwarf(false), Hotpatch(false),
-        JMCInstrument(false), EnableCFIFixup(false), MisExpect(false),
-        XCOFFReadOnlyPointers(false),
+        XRayFunctionIndex(true), DebugStrictDwarf(false), JMCInstrument(false),
+        EnableCFIFixup(false), MisExpect(false), XCOFFReadOnlyPointers(false),
         SupportIndirectSymViaGOTPCRel_AArch64_ELF(true),
         VerifyArgABICompliance(true) {}
 
@@ -283,9 +282,6 @@ public:
   /// When set to true, don't use DWARF extensions in later DWARF versions.
   /// By default, it is set to false.
   unsigned DebugStrictDwarf : 1;
-
-  /// Emit the hotpatch flag in CodeView debug.
-  unsigned Hotpatch : 1;
 
   /// Enable JustMyCode instrumentation.
   unsigned JMCInstrument : 1;
