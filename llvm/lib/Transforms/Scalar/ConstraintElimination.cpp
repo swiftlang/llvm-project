@@ -2832,6 +2832,13 @@ tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
   case Intrinsic::sadd_with_overflow: {
     Value *A = II->getArgOperand(0);
     Value *B = II->getArgOperand(1);
+    // Operands of different signs never overflow.
+    Constant *Zero = ConstantInt::get(A->getType(), 0);
+    if ((Info.isKnownNonNegative(A) &&
+         Info.doesHold(CmpInst::ICMP_SLE, B, Zero)) ||
+        (Info.isKnownNonNegative(B) &&
+         Info.doesHold(CmpInst::ICMP_SLE, A, Zero)))
+      return replaceOverflowUses(II, Instruction::Add, A, B, ToRemove);
     auto *C = dyn_cast<ConstantInt>(B);
     if (!C ||
         !doesHoldInRange(Info, A,

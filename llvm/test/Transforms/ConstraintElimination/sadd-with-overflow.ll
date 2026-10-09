@@ -613,3 +613,78 @@ then:
 else:
   ret i8 0
 }
+
+; Operands of different signs do not overflow.
+define i8 @sadd_nonneg_nonpos_ops(i8 %a, i8 %b) {
+; CHECK-LABEL: define i8 @sadd_nonneg_nonpos_ops(
+; CHECK-SAME: i8 [[A:%.*]], i8 [[B:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[A_NONNEG:%.*]] = icmp sge i8 [[A]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[A_NONNEG]])
+; CHECK-NEXT:    [[B_NONPOS:%.*]] = icmp sle i8 [[B]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[B_NONPOS]])
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i8 [[A]], [[B]]
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    ret i8 [[TMP0]]
+;
+entry:
+  %a.nonneg = icmp sge i8 %a, 0
+  call void @llvm.assume(i1 %a.nonneg)
+  %b.nonpos = icmp sle i8 %b, 0
+  call void @llvm.assume(i1 %b.nonpos)
+  %s = call { i8, i1 } @llvm.sadd.with.overflow.i8(i8 %a, i8 %b)
+  %v = extractvalue { i8, i1 } %s, 0
+  %o = extractvalue { i8, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i8 %v
+}
+
+define i8 @sadd_nonpos_nonneg_ops(i8 %a, i8 %b) {
+; CHECK-LABEL: define i8 @sadd_nonpos_nonneg_ops(
+; CHECK-SAME: i8 [[A:%.*]], i8 [[B:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[A_NONPOS:%.*]] = icmp sle i8 [[A]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[A_NONPOS]])
+; CHECK-NEXT:    [[B_NONNEG:%.*]] = icmp sge i8 [[B]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[B_NONNEG]])
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i8 [[A]], [[B]]
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    ret i8 [[TMP0]]
+;
+entry:
+  %a.nonpos = icmp sle i8 %a, 0
+  call void @llvm.assume(i1 %a.nonpos)
+  %b.nonneg = icmp sge i8 %b, 0
+  call void @llvm.assume(i1 %b.nonneg)
+  %s = call { i8, i1 } @llvm.sadd.with.overflow.i8(i8 %a, i8 %b)
+  %v = extractvalue { i8, i1 } %s, 0
+  %o = extractvalue { i8, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i8 %v
+}
+
+define i8 @sadd_nonneg_ops(i8 %a, i8 %b) {
+; CHECK-LABEL: define i8 @sadd_nonneg_ops(
+; CHECK-SAME: i8 [[A:%.*]], i8 [[B:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[A_NONNEG:%.*]] = icmp sge i8 [[A]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[A_NONNEG]])
+; CHECK-NEXT:    [[B_NONNEG:%.*]] = icmp sge i8 [[B]], 0
+; CHECK-NEXT:    call void @llvm.assume(i1 [[B_NONNEG]])
+; CHECK-NEXT:    [[S:%.*]] = call { i8, i1 } @llvm.sadd.with.overflow.i8(i8 [[A]], i8 [[B]])
+; CHECK-NEXT:    [[V:%.*]] = extractvalue { i8, i1 } [[S]], 0
+; CHECK-NEXT:    [[O:%.*]] = extractvalue { i8, i1 } [[S]], 1
+; CHECK-NEXT:    call void @use(i1 [[O]])
+; CHECK-NEXT:    ret i8 [[V]]
+;
+entry:
+  %a.nonneg = icmp sge i8 %a, 0
+  call void @llvm.assume(i1 %a.nonneg)
+  %b.nonneg = icmp sge i8 %b, 0
+  call void @llvm.assume(i1 %b.nonneg)
+  %s = call { i8, i1 } @llvm.sadd.with.overflow.i8(i8 %a, i8 %b)
+  %v = extractvalue { i8, i1 } %s, 0
+  %o = extractvalue { i8, i1 } %s, 1
+  call void @use(i1 %o)
+  ret i8 %v
+}
