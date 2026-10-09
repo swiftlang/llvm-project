@@ -405,6 +405,15 @@ features cannot lower the translation-unit ABI level;
   and `__builtin___get_unsafe_stack_start` are now deprecated. Use the
   corresponding functions from `<sanitizer/safestack_interface.h>` instead.
 
+- `clang-scan-deps` now reports the directories whose listing a module depends
+  on, such as umbrella directories, via `directory-deps` in its
+  `experimental-full` output. When the listing of one of these directories or
+  their subdirectories changes, for example because a header was added, build
+  systems can pass the reported directory to `-invalidated-path=` in the next
+  incremental scan so that the modules depending on it are rebuilt. Changes can
+  be detected by watching the directories or by comparing their modification
+  times.
+
 ### New Compiler Flags
 
 - New option `-fms-anonymous-structs` / `-fno-ms-anonymous-structs` added
