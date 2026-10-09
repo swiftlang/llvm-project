@@ -108,7 +108,6 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
                 return file.readline()
 
     @skipIfLinux # FIXME: doesn't seem to work on Ubuntu 16.04.
-    @skipIfWindows # rdar://177419646
     @skipIfAsan
     def test_runInTerminal(self):
         """
@@ -285,7 +284,6 @@ class TestDAP_runInTerminal(lldbdap_testcase.DAPTestCaseBase):
 
         self.assertIn("FOO=BAR", stdout)
 
-    @skipIfWindows
     def test_NonAttachedRunInTerminalLauncher(self):
         with fifo(directory=self.getBuildDir()) as (comm_file, pipe):
             proc = subprocess.Popen(
