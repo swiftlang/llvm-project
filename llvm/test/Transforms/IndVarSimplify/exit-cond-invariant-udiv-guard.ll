@@ -218,3 +218,66 @@ latch:
 exit:
   ret void
 }
+
+; Pointer IV loop over n i32 elements: the backedge-taken count is
+; (4 * n - 4) /u 4, which is u<= n - 1.
+define void @ptr_iv_step2_guard_udiv(ptr %p, i64 %n, i64 %len) {
+; CHECK-LABEL: define void @ptr_iv_step2_guard_udiv(
+; CHECK-SAME: ptr [[P:%.*]], i64 [[N:%.*]], i64 [[LEN:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[HALF:%.*]] = lshr i64 [[LEN]], 1
+; CHECK-NEXT:    [[FITS:%.*]] = icmp ule i64 [[N]], [[HALF]]
+; CHECK-NEXT:    br i1 [[FITS]], label %[[GUARD:.*]], label %[[EXIT:.*]]
+; CHECK:       [[GUARD]]:
+; CHECK-NEXT:    [[N_NONZERO:%.*]] = icmp ne i64 [[N]], 0
+; CHECK-NEXT:    br i1 [[N_NONZERO]], label %[[PH:.*]], label %[[EXIT]]
+; CHECK:       [[PH]]:
+; CHECK-NEXT:    [[BYTES:%.*]] = shl nuw nsw i64 [[N]], 2
+; CHECK-NEXT:    [[END:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 [[BYTES]]
+; CHECK-NEXT:    [[IN_BOUNDS_FIRST_ITER:%.*]] = icmp ult i64 0, [[LEN]]
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[J:%.*]] = phi i64 [ 0, %[[PH]] ], [ [[J_NEXT:%.*]], %[[LATCH:.*]] ]
+; CHECK-NEXT:    [[PTR:%.*]] = phi ptr [ [[P]], %[[PH]] ], [ [[PTR_NEXT:%.*]], %[[LATCH]] ]
+; CHECK-NEXT:    br i1 [[IN_BOUNDS_FIRST_ITER]], label %[[LATCH]], label %[[EXIT_LOOPEXIT:.*]]
+; CHECK:       [[LATCH]]:
+; CHECK-NEXT:    call void @use(i64 [[J]])
+; CHECK-NEXT:    [[J_NEXT]] = add nuw i64 [[J]], 2
+; CHECK-NEXT:    [[PTR_NEXT]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+; CHECK-NEXT:    [[DONE:%.*]] = icmp eq ptr [[PTR_NEXT]], [[END]]
+; CHECK-NEXT:    br i1 [[DONE]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
+; CHECK:       [[EXIT_LOOPEXIT]]:
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %half = lshr i64 %len, 1
+  %fits = icmp ule i64 %n, %half
+  br i1 %fits, label %guard, label %exit
+
+guard:
+  %n.nonzero = icmp ne i64 %n, 0
+  br i1 %n.nonzero, label %ph, label %exit
+
+ph:
+  %bytes = shl nuw nsw i64 %n, 2
+  %end = getelementptr inbounds nuw i8, ptr %p, i64 %bytes
+  br label %loop
+
+loop:
+  %j = phi i64 [ 0, %ph ], [ %j.next, %latch ]
+  %ptr = phi ptr [ %p, %ph ], [ %ptr.next, %latch ]
+  %in.bounds = icmp ult i64 %j, %len
+  br i1 %in.bounds, label %latch, label %exit
+
+latch:
+  call void @use(i64 %j)
+  %j.next = add nuw i64 %j, 2
+  %ptr.next = getelementptr inbounds nuw i8, ptr %ptr, i64 4
+  %done = icmp eq ptr %ptr.next, %end
+  br i1 %done, label %exit, label %loop
+
+exit:
+  ret void
+}

@@ -76,6 +76,7 @@
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
+#include "llvm/Analysis/ScalarEvolutionDivision.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ScalarEvolutionPatternMatch.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -11684,6 +11685,17 @@ ScalarEvolution::getLoopInvariantExitCondDuringFirstIterations(
       if (auto LIP = getLoopInvariantExitCondDuringFirstIterationsImpl(
               Pred, LHS, RHS, L, CtxI, Op))
         return LIP;
+  // If MaxIter is X /u C and X == C * Q (mod 2^BW), then MaxIter u<= Q, so
+  // the predicate is also invariant for Q iterations.
+  const SCEV *X, *Q, *R;
+  const APInt *C;
+  if (match(MaxIter, m_scev_UDiv(m_SCEV(X), m_scev_APInt(C))) &&
+      C->isStrictlyPositive()) {
+    SCEVDivision::divide(*this, X, getConstant(*C), &Q, &R);
+    if (R->isZero())
+      return getLoopInvariantExitCondDuringFirstIterationsImpl(Pred, LHS, RHS,
+                                                               L, CtxI, Q);
+  }
   return std::nullopt;
 }
 
