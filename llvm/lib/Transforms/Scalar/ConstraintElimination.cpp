@@ -103,7 +103,9 @@ struct FactOrCheck {
                    /// min/mix intrinsic.
     InstCheck,     /// An instruction to simplify (e.g. an overflow math
                    /// intrinsics).
-    UseCheck       /// An use of a compare instruction to simplify.
+    UseCheck,      /// An use of a compare instruction to simplify.
+    NoOverflowFact /// An overflow intrinsic that does not overflow on entry to
+                   /// a block.
   };
 
   union {
@@ -141,6 +143,10 @@ struct FactOrCheck {
 
   static FactOrCheck getInstFact(DomTreeNode *DTN, Instruction *Inst) {
     return FactOrCheck(EntryTy::InstFact, DTN, Inst);
+  }
+
+  static FactOrCheck getNoOverflowFact(DomTreeNode *DTN, WithOverflowInst *WO) {
+    return FactOrCheck(EntryTy::NoOverflowFact, DTN, WO);
   }
 
   static FactOrCheck getCheck(DomTreeNode *DTN, Use *U) {
@@ -289,6 +295,7 @@ struct State {
 };
 
 class ConstraintInfo;
+struct Decomposition;
 
 struct StackEntry {
   unsigned NumIn;
@@ -390,6 +397,12 @@ public:
   void addFact(CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
                unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack);
 
+  /// Add \p V == \p D to the signed or unsigned system, depending on
+  /// \p IsSigned.
+  void addEqualityFact(Value *V, const Decomposition &D, bool IsSigned,
+                       unsigned NumIn, unsigned NumOut,
+                       SmallVectorImpl<StackEntry> &DFSInStack);
+
   /// Turn a comparison of the form \p Op0 \p Pred \p Op1 into a vector of
   /// constraints, using indices from the corresponding constraint system.
   /// New variables that need to be added to the system are collected in
@@ -416,6 +429,20 @@ public:
                              SmallVectorImpl<StackEntry> &DFSInStack);
 
 private:
+  /// Build the constraint ADec <= BDec (or < for strict \p Pred) using indices
+  /// from the corresponding constraint system, collecting new variables in
+  /// \p NewVariables.
+  ConstraintTy buildConstraint(CmpInst::Predicate Pred, Decomposition ADec,
+                               Decomposition BDec, bool IsSigned, bool IsEq,
+                               bool IsNe,
+                               SmallVectorImpl<Value *> &NewVariables) const;
+
+  /// Add constraint \p R, with its new variables, to the system and queue it
+  /// for removal once it goes out of scope.
+  void addConstraint(ConstraintTy R, ArrayRef<Value *> NewVariables,
+                     unsigned NumIn, unsigned NumOut,
+                     SmallVectorImpl<StackEntry> &DFSInStack);
+
   /// Adds facts into constraint system. \p ForceSignedSystem can be set when
   /// the \p Pred is eq/ne, and signed constraint system is used when it's
   /// specified.
@@ -875,7 +902,6 @@ ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
     return {};
 
   bool IsSigned = ForceSignedSystem || CmpInst::isSigned(Pred);
-  auto &Value2Index = getValue2Index(IsSigned);
   Decomposition ADec = Op0->stripPointerCastsSameRepresentation();
   Decomposition BDec = Op1->stripPointerCastsSameRepresentation();
   if (ShouldDecompose) {
@@ -884,7 +910,16 @@ ConstraintInfo::getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
     BDec = decompose(Op1->stripPointerCastsSameRepresentation(), *this,
                      IsSigned, State);
   }
+  return buildConstraint(Pred, std::move(ADec), std::move(BDec), IsSigned, IsEq,
+                         IsNe, NewVariables);
+}
 
+ConstraintTy
+ConstraintInfo::buildConstraint(CmpInst::Predicate Pred, Decomposition ADec,
+                                Decomposition BDec, bool IsSigned, bool IsEq,
+                                bool IsNe,
+                                SmallVectorImpl<Value *> &NewVariables) const {
+  auto &Value2Index = getValue2Index(IsSigned);
   int64_t Offset1 = ADec.Offset;
   int64_t Offset2 = BDec.Offset;
   if (MulOverflow(Offset1, int64_t(-1), Offset1))
@@ -1926,6 +1961,14 @@ void State::addInfoFor(BasicBlock &BB) {
 
   Value *Cond = Br->getCondition();
 
+  // An overflow intrinsic does not overflow on the false successor of a branch
+  // on its overflow bit.
+  WithOverflowInst *WO;
+  if (match(Cond, m_ExtractValue<1>(m_WithOverflowInst(WO))) &&
+      canAddSuccessor(BB, Br->getSuccessor(1)))
+    WorkList.push_back(
+        FactOrCheck::getNoOverflowFact(DT.getNode(Br->getSuccessor(1)), WO));
+
   // If the condition is a chain of ORs/AND and the successor only has the
   // current block as predecessor, queue conditions for the successor.
   Value *Op0, *Op1;
@@ -2521,6 +2564,13 @@ void ConstraintInfo::addFactImpl(CmpInst::Predicate Pred, Value *A, Value *B,
 
   LLVM_DEBUG(dbgs() << "Adding '"; dumpUnpackedICmp(dbgs(), Pred, A, B);
              dbgs() << "'\n");
+  addConstraint(std::move(R), NewVariables, NumIn, NumOut, DFSInStack);
+}
+
+void ConstraintInfo::addConstraint(ConstraintTy R,
+                                   ArrayRef<Value *> NewVariables,
+                                   unsigned NumIn, unsigned NumOut,
+                                   SmallVectorImpl<StackEntry> &DFSInStack) {
   auto &CSToUse = getCS(R.IsSigned);
   if (R.Coefficients.empty())
     return;
@@ -2567,6 +2617,66 @@ void ConstraintInfo::addFactImpl(CmpInst::Predicate Pred, Value *A, Value *B,
 
     DFSInStack.emplace_back(NumIn, NumOut, R.IsSigned,
                             SmallVector<Value *, 2>());
+  }
+}
+
+void ConstraintInfo::addEqualityFact(Value *V, const Decomposition &D,
+                                     bool IsSigned, unsigned NumIn,
+                                     unsigned NumOut,
+                                     SmallVectorImpl<StackEntry> &DFSInStack) {
+  SmallVector<Value *> NewVariables;
+  ConstraintTy R =
+      buildConstraint(IsSigned ? CmpInst::ICMP_SLE : CmpInst::ICMP_ULE,
+                      Decomposition(V), D, IsSigned, /*IsEq=*/true,
+                      /*IsNe=*/false, NewVariables);
+  if (R.empty())
+    return;
+  addConstraint(std::move(R), NewVariables, NumIn, NumOut, DFSInStack);
+}
+
+/// Returns true if \p Opc on \p Op0 and \p Op1 does not wrap in the signed or
+/// unsigned sense (\p Signed), given that it does not overflow in the sense of
+/// the overflow intrinsic (\p KindSigned).
+static bool isNoWrapGivenOverflowKind(Instruction::BinaryOps Opc, Value *Op0,
+                                      Value *Op1, bool KindSigned,
+                                      const ConstraintInfo &Info, bool Signed) {
+  if (KindSigned == Signed)
+    return true;
+  if (Opc == Instruction::Sub) {
+    // Op0 - Op1 does not wrap unsigned if Op0 >=u Op1.
+    if (!Signed)
+      return Info.doesHold(CmpInst::ICMP_UGE, Op0, Op1);
+    // Op0 - Op1 does not wrap signed if 0 <=s Op1 <=s Op0.
+    return Info.isKnownNonNegative(Op1) &&
+           Info.doesHold(CmpInst::ICMP_SGE, Op0, Op1);
+  }
+  // A signed add of non-negative operands does not wrap unsigned.
+  return !Signed && Info.isKnownNonNegative(Op0) &&
+         Info.isKnownNonNegative(Op1);
+}
+
+/// Add Result == LHS +/- RHS for the result of an add/sub.with.overflow \p WO
+/// that does not overflow, in each system where the operation does not wrap.
+static void addNoOverflowFacts(WithOverflowInst *WO, ConstraintInfo &Info,
+                               State &S, unsigned NumIn, unsigned NumOut,
+                               SmallVectorImpl<StackEntry> &DFSInStack) {
+  Instruction::BinaryOps Opc = WO->getBinaryOp();
+  if (Opc != Instruction::Add && Opc != Instruction::Sub)
+    return;
+  for (User *U : WO->users()) {
+    if (!match(U, m_ExtractValue<0>(m_Value())))
+      continue;
+    for (bool IsSigned : {false, true}) {
+      if (Info.getCS(IsSigned).size() > MaxRows ||
+          !isNoWrapGivenOverflowKind(Opc, WO->getLHS(), WO->getRHS(),
+                                     WO->isSigned(), Info, IsSigned))
+        continue;
+      Decomposition D = decompose(WO->getLHS(), Info, IsSigned, S);
+      Decomposition RHS = decompose(WO->getRHS(), Info, IsSigned, S);
+      if (Opc == Instruction::Add ? D.add(RHS) : D.sub(RHS))
+        continue;
+      Info.addEqualityFact(U, D, IsSigned, NumIn, NumOut, DFSInStack);
+    }
   }
 }
 
@@ -2673,6 +2783,12 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
     // If both entries have the same In numbers, conditional facts come first.
     // Otherwise use the relative order in the basic block.
     if (A.NumIn == B.NumIn) {
+      // No-overflow facts come first, so other facts and checks in the block
+      // can use them.
+      bool NoOverflowA = A.Ty == FactOrCheck::EntryTy::NoOverflowFact;
+      bool NoOverflowB = B.Ty == FactOrCheck::EntryTy::NoOverflowFact;
+      if (NoOverflowA || NoOverflowB)
+        return NoOverflowA && !NoOverflowB;
       if (A.isConditionFact() && B.isConditionFact()) {
         bool NoConstOpA = HasNoConstOp(A);
         bool NoConstOpB = HasNoConstOp(B);
@@ -2713,6 +2829,17 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
       });
       removeEntryFromStack(E, Info, ReproducerModule.get(), ReproducerCondStack,
                            DFSInStack);
+    }
+
+    if (CB.Ty == FactOrCheck::EntryTy::NoOverflowFact) {
+      addNoOverflowFacts(cast<WithOverflowInst>(CB.Inst), Info, S, CB.NumIn,
+                         CB.NumOut, DFSInStack);
+      // Keep the reproducer stack in sync with DFSInStack.
+      if (ReproducerModule)
+        while (ReproducerCondStack.size() < DFSInStack.size())
+          ReproducerCondStack.emplace_back(ICmpInst::BAD_ICMP_PREDICATE,
+                                           nullptr, nullptr);
+      continue;
     }
 
     CmpPredicate Pred;
