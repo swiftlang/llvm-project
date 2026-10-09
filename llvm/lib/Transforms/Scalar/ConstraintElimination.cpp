@@ -394,6 +394,10 @@ public:
   /// signed system implies it or because ValueTracking can prove it.
   bool isKnownNonNegative(Value *V) const;
 
+  /// Returns true if the signed system implies \p V >= 0, using \p V as a
+  /// variable without decomposing it.
+  bool isNonNegativeVariable(Value *V) const;
+
   void addFact(CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
                unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack);
 
@@ -718,6 +722,18 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
       return V;
     }
 
+    // For non-negative operands, an add does not wrap signed iff its result
+    // is non-negative. Check the result as a variable to avoid recursion.
+    if (match(V, m_Add(m_Value(Op0), m_Value(Op1)))) {
+      if (!Info.isNonNegativeVariable(V) ||
+          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0) ||
+          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op1, 0))
+        return V;
+      if (auto Decomp = MergeResults(Op0, Op1, IsSigned))
+        return *Decomp;
+      return V;
+    }
+
     // `xor %x, -1` is equivalent to `sub nsw -1, %x`.
     if (match(V, m_Not(m_Value(Op0)))) {
       Decomposition Result(-1);
@@ -805,9 +821,9 @@ static Decomposition decompose(Value *V, const ConstraintInfo &Info,
     return V;
   }
 
-  if (match(V, m_NSWAdd(m_Value(Op0), m_Value(Op1)))) {
-    // An add nsw only adds without unsigned wrap if both operands are
-    // non-negative.
+  if (match(V, m_Add(m_Value(Op0), m_Value(Op1)))) {
+    // An add does not wrap unsigned if both operands are non-negative, with
+    // or without nsw.
     if ((!isKnownNonNegative(Op0, State.DL) &&
          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0)) ||
         (!isKnownNonNegative(Op1, State.DL) &&
@@ -1071,6 +1087,15 @@ bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A,
 bool ConstraintInfo::isKnownNonNegative(Value *V) const {
   return doesHold(CmpInst::ICMP_SGE, V, ConstantInt::get(V->getType(), 0)) ||
          ::isKnownNonNegative(V, State.DL, /*Depth=*/MaxAnalysisRecursionDepth - 1);
+}
+
+bool ConstraintInfo::isNonNegativeVariable(Value *V) const {
+  SmallVector<Value *> NewVariables;
+  ConstraintTy R =
+      buildConstraint(CmpInst::ICMP_SLE, int64_t(0), V, /*IsSigned=*/true,
+                      /*IsEq=*/false, /*IsNe=*/false, NewVariables);
+  return NewVariables.empty() && !R.empty() &&
+         getCS(true).isConditionImpliedInSubSystem(R.Coefficients);
 }
 
 void ConstraintInfo::transferToOtherSystem(

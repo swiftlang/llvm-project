@@ -296,9 +296,8 @@ define i1 @test_add_zext(i8 %N, i4 %idx) {
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i4 [[IDX]], 3
 ; CHECK-NEXT:    br i1 [[C_1]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
-; CHECK-NEXT:    [[T_1:%.*]] = icmp ule i8 [[ADD]], 4
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp ule i8 [[ADD]], 3
-; CHECK-NEXT:    [[XOR_1:%.*]] = xor i1 [[T_1]], [[C_2]]
+; CHECK-NEXT:    [[XOR_1:%.*]] = xor i1 true, [[C_2]]
 ; CHECK-NEXT:    ret i1 [[XOR_1]]
 ; CHECK:       else:
 ; CHECK-NEXT:    [[C_3:%.*]] = icmp ule i8 [[IDX_EXT]], 4

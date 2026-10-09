@@ -533,8 +533,7 @@ define i1 @test_ult_add_no_nsw_pos_6(i8 %start, i8 %high) {
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ult i16 [[ADD_EXT]], [[HIGH_EXT]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[C_1]])
 ; CHECK-NEXT:    [[ADD_2:%.*]] = add i16 [[START_EXT]], 2
-; CHECK-NEXT:    [[C:%.*]] = icmp ult i16 [[ADD_2]], [[HIGH_EXT]]
-; CHECK-NEXT:    ret i1 [[C]]
+; CHECK-NEXT:    ret i1 true
 ;
 entry:
   %high.ext = zext i8 %high to i16
@@ -557,8 +556,7 @@ define i1 @test_ult_add_no_nsw_pos_6_assume_pos(i8 %start, i8 %high) {
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ult i8 [[ADD]], [[HIGH:%.*]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[C_1]])
 ; CHECK-NEXT:    [[ADD_2:%.*]] = add i8 [[START]], 2
-; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[ADD_2]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C]]
+; CHECK-NEXT:    ret i1 true
 ;
 entry:
   %start.pos = icmp sge i8 %start, 0
@@ -698,8 +696,7 @@ define i1 @test_ult_add_no_nsw_var_8_all_pos(i8 %start, i8 %off.1, i8 %off.2, i8
 ; CHECK-NEXT:    [[OFF_1_ULT:%.*]] = icmp ult i8 [[OFF_1]], [[OFF_2]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[OFF_1_ULT]])
 ; CHECK-NEXT:    [[ADD_OFF_2:%.*]] = add nsw i8 [[START]], [[OFF_1]]
-; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[ADD_OFF_2]], [[HIGH]]
-; CHECK-NEXT:    ret i1 [[C]]
+; CHECK-NEXT:    ret i1 true
 ;
 entry:
   %start.pos = icmp sge i8 %start, 0
