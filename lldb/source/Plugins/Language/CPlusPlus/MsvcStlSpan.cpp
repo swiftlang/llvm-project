@@ -10,6 +10,7 @@
 
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/Scalar.h"
 #include "lldb/ValueObject/ValueObject.h"
 #include "llvm/Support/ErrorExtras.h"
 #include <optional>
@@ -27,7 +28,11 @@ public:
   ~MsvcStlSpanSyntheticFrontEnd() override = default;
 
   llvm::Expected<uint32_t> CalculateNumChildren() override {
-    return m_num_elements;
+    if (!m_num_elements)
+      return llvm::createStringError(
+          "could not determine the size of the span: neither a '_Mysize' "
+          "member nor a '_Mysize' constant in its extent base class");
+    return *m_num_elements;
   }
 
   lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) override;
@@ -39,8 +44,9 @@ public:
 private:
   ValueObject *m_start = nullptr; ///< First element of span. Held, not owned.
   CompilerType m_element_type{};  ///< Type of span elements.
-  size_t m_num_elements = 0;      ///< Number of elements in span.
-  uint32_t m_element_size = 0;    ///< Size in bytes of each span element.
+  /// Number of elements in span, or std::nullopt if it could not be read.
+  std::optional<size_t> m_num_elements;
+  uint32_t m_element_size = 0; ///< Size in bytes of each span element.
 };
 
 lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::
@@ -69,7 +75,7 @@ lldb::ChildCacheState
 lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::Update() {
   m_start = nullptr;
   m_element_type = CompilerType();
-  m_num_elements = 0;
+  m_num_elements = std::nullopt;
   m_element_size = 0;
 
   ValueObjectSP data_sp = m_backend.GetChildMemberWithName("_Mydata");
@@ -93,13 +99,15 @@ lldb_private::formatters::MsvcStlSpanSyntheticFrontEnd::Update() {
     m_start = data_sp.get();
 
   // Get number of elements.
-  if (auto size_sp = m_backend.GetChildMemberWithName("_Mysize"))
+  if (auto size_sp = m_backend.GetChildMemberWithName("_Mysize")) {
     m_num_elements = size_sp->GetValueAsUnsigned(0);
-  else if (auto field =
-               m_backend.GetCompilerType()
-                   .GetDirectBaseClassAtIndex(0, nullptr) // _Span_extent_type
-                   .GetStaticFieldWithName("_Mysize"))
-    m_num_elements = field.GetConstantValue().ULongLong(0);
+  } else if (auto field =
+                 m_backend.GetCompilerType()
+                     .GetDirectBaseClassAtIndex(0, nullptr) // _Span_extent_type
+                     .GetStaticFieldWithName("_Mysize")) {
+    if (Scalar extent = field.GetConstantValue(); extent.IsValid())
+      m_num_elements = extent.ULongLong(0);
+  }
 
   return lldb::ChildCacheState::eRefetch;
 }
