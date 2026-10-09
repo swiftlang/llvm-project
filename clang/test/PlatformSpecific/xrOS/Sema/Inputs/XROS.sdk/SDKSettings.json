@@ -2,6 +2,7 @@
   "DefaultVariant": "xrOS", "DisplayName": "xrOS",
   "Version": "1.0",
   "CanonicalName": "xros1.0",
+  "DefaultDeploymentTarget": "1.0",
   "MaximumDeploymentTarget": "1.0.99",
   "SupportedTargets": {
     "xros": {
