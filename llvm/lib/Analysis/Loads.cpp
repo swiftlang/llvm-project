@@ -13,6 +13,7 @@
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -378,6 +379,36 @@ bool llvm::isDereferenceableAndAlignedInLoop(
   APInt MaxPtrDiff =
       SE.getUnsignedRangeMax(SE.applyLoopGuards(PtrDiff, *LoopGuards));
 
+  Instruction *CtxI = &*L->getHeader()->getFirstNonPHIIt();
+  if (BasicBlock *LoopPred = L->getLoopPredecessor()) {
+    if (isa<UncondBrInst, CondBrInst>(LoopPred->getTerminator()))
+      CtxI = LoopPred->getTerminator();
+  }
+  SimplifyQuery SQ(DL, &DT, AC, CtxI);
+
+  // If AccessStart is not a plain value, the assumptions may be on a GEP of
+  // its pointer base that computes AccessStart.
+  auto *StartBase = dyn_cast<SCEVUnknown>(SE.getPointerBase(AccessStart));
+  if (AC && StartBase && StartBase != AccessStart) {
+    for (User *U : StartBase->getValue()->users()) {
+      if (!isa<GetElementPtrInst>(U) || AC->assumptionsFor(U).empty() ||
+          SE.getSCEV(U) != AccessStart)
+        continue;
+      // InstCombine moves "align" assumptions from a GEP to its base, so also
+      // use the known bits of U for its alignment.
+      unsigned TZ = computeKnownBits(U, SQ).countMinTrailingZeros();
+      Align UAlign = TZ >= Log2(Alignment) ? Align(1) : Alignment;
+      if (isDereferenceableAndAlignedPointerViaAssumption(
+              U, UAlign, SQ, /*IgnoreFree=*/false,
+              [&](const RetainedKnowledge &RK) {
+                return SE.isKnownPredicate(
+                    CmpInst::ICMP_ULE, SE.applyLoopGuards(PtrDiff, *LoopGuards),
+                    SE.applyLoopGuards(SE.getSCEV(RK.IRArgValue), *LoopGuards));
+              }))
+        return true;
+    }
+  }
+
   Value *Base = nullptr;
   APInt AccessSize;
   const SCEV *AccessSizeSCEV = nullptr;
@@ -416,12 +447,6 @@ bool llvm::isDereferenceableAndAlignedInLoop(
   } else
     return false;
 
-  Instruction *CtxI = &*L->getHeader()->getFirstNonPHIIt();
-  if (BasicBlock *LoopPred = L->getLoopPredecessor()) {
-    if (isa<UncondBrInst, CondBrInst>(LoopPred->getTerminator()))
-      CtxI = LoopPred->getTerminator();
-  }
-  SimplifyQuery SQ(DL, &DT, AC, CtxI);
   return isDereferenceableAndAlignedPointerViaAssumption(
              Base, Alignment, SQ, /*IgnoreFree=*/false,
              [&SE, AccessSizeSCEV, &LoopGuards](const RetainedKnowledge &RK) {

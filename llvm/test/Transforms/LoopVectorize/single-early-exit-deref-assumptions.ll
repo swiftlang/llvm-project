@@ -1488,3 +1488,160 @@ loop.end:
   %retval = phi i64 [ %index, %loop ], [ -1, %loop.inc ]
   ret i64 %retval
 }
+
+define i64 @early_exit_deref_assumption_on_gep_of_base(ptr %p) nofree nosync {
+; CHECK-LABEL: define i64 @early_exit_deref_assumption_on_gep_of_base(
+; CHECK-SAME: ptr [[P:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[BASE:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 32
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "align"(ptr [[P]], i64 8) ]
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "dereferenceable"(ptr [[BASE]], i64 1024) ]
+; CHECK-NEXT:    br label %[[VECTOR_PH:.*]]
+; CHECK:       [[VECTOR_PH]]:
+; CHECK-NEXT:    br label %[[VECTOR_BODY:.*]]
+; CHECK:       [[VECTOR_BODY]]:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY_INTERIM:.*]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw [8 x i8], ptr [[BASE]], i64 [[INDEX]]
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <4 x i64>, ptr [[TMP0]], align 8
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <4 x i64> [[WIDE_LOAD]], zeroinitializer
+; CHECK-NEXT:    [[TMP2:%.*]] = freeze <4 x i1> [[TMP1]]
+; CHECK-NEXT:    [[TMP3:%.*]] = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> [[TMP2]])
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
+; CHECK-NEXT:    [[TMP4:%.*]] = icmp eq i64 [[INDEX_NEXT]], 128
+; CHECK-NEXT:    br i1 [[TMP3]], label %[[VECTOR_EARLY_EXIT:.*]], label %[[VECTOR_BODY_INTERIM]]
+; CHECK:       [[VECTOR_BODY_INTERIM]]:
+; CHECK-NEXT:    br i1 [[TMP4]], label %[[MIDDLE_BLOCK:.*]], label %[[VECTOR_BODY]], !llvm.loop [[LOOP18:![0-9]+]]
+; CHECK:       [[MIDDLE_BLOCK]]:
+; CHECK-NEXT:    br label %[[LOOP_END:.*]]
+; CHECK:       [[VECTOR_EARLY_EXIT]]:
+; CHECK-NEXT:    [[TMP5:%.*]] = call i64 @llvm.experimental.cttz.elts.i64.v4i1(<4 x i1> [[TMP1]], i1 false)
+; CHECK-NEXT:    [[TMP6:%.*]] = add i64 [[INDEX]], [[TMP5]]
+; CHECK-NEXT:    br label %[[LOOP_END]]
+; CHECK:       [[LOOP_END]]:
+; CHECK-NEXT:    [[RETVAL:%.*]] = phi i64 [ [[TMP6]], %[[VECTOR_EARLY_EXIT]] ], [ -1, %[[MIDDLE_BLOCK]] ]
+; CHECK-NEXT:    ret i64 [[RETVAL]]
+;
+entry:
+  %base = getelementptr inbounds nuw i8, ptr %p, i64 32
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %base, i64 1024) ]
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop.inc ]
+  %gep = getelementptr inbounds nuw [8 x i8], ptr %base, i64 %iv
+  %ld = load i64, ptr %gep, align 8
+  %c = icmp eq i64 %ld, 0
+  br i1 %c, label %loop.end, label %loop.inc
+
+loop.inc:
+  %iv.next = add nuw nsw i64 %iv, 1
+  %ec = icmp eq i64 %iv.next, 128
+  br i1 %ec, label %loop.end, label %loop
+
+loop.end:
+  %retval = phi i64 [ %iv, %loop ], [ -1, %loop.inc ]
+  ret i64 %retval
+}
+
+define i64 @early_exit_deref_assumption_on_other_gep_of_base(ptr %p) nofree nosync {
+; CHECK-LABEL: define i64 @early_exit_deref_assumption_on_other_gep_of_base(
+; CHECK-SAME: ptr [[P:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[BASE:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 32
+; CHECK-NEXT:    [[OTHER:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 16
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "align"(ptr [[P]], i64 8) ]
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "dereferenceable"(ptr [[OTHER]], i64 1024) ]
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[ENTRY]] ], [ [[IV_NEXT:%.*]], %[[LOOP_INC:.*]] ]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds nuw [8 x i8], ptr [[BASE]], i64 [[IV]]
+; CHECK-NEXT:    [[LD:%.*]] = load i64, ptr [[GEP]], align 8
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i64 [[LD]], 0
+; CHECK-NEXT:    br i1 [[C]], label %[[LOOP_END:.*]], label %[[LOOP_INC]]
+; CHECK:       [[LOOP_INC]]:
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EC:%.*]] = icmp eq i64 [[IV_NEXT]], 128
+; CHECK-NEXT:    br i1 [[EC]], label %[[LOOP_END]], label %[[LOOP]]
+; CHECK:       [[LOOP_END]]:
+; CHECK-NEXT:    [[RETVAL:%.*]] = phi i64 [ [[IV]], %[[LOOP]] ], [ -1, %[[LOOP_INC]] ]
+; CHECK-NEXT:    ret i64 [[RETVAL]]
+;
+entry:
+  %base = getelementptr inbounds nuw i8, ptr %p, i64 32
+  %other = getelementptr inbounds nuw i8, ptr %p, i64 16
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %other, i64 1024) ]
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %loop.inc ]
+  %gep = getelementptr inbounds nuw [8 x i8], ptr %base, i64 %iv
+  %ld = load i64, ptr %gep, align 8
+  %c = icmp eq i64 %ld, 0
+  br i1 %c, label %loop.end, label %loop.inc
+
+loop.inc:
+  %iv.next = add nuw nsw i64 %iv, 1
+  %ec = icmp eq i64 %iv.next, 128
+  br i1 %ec, label %loop.end, label %loop
+
+loop.end:
+  %retval = phi i64 [ %iv, %loop ], [ -1, %loop.inc ]
+  ret i64 %retval
+}
+
+define i64 @early_exit_deref_assumption_on_gep_of_base_not_valid_in_preheader(ptr %p, i1 %c.0) nofree nosync {
+; CHECK-LABEL: define i64 @early_exit_deref_assumption_on_gep_of_base_not_valid_in_preheader(
+; CHECK-SAME: ptr [[P:%.*]], i1 [[C_0:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[BASE:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 32
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "align"(ptr [[P]], i64 8) ]
+; CHECK-NEXT:    br i1 [[C_0]], label %[[THEN:.*]], label %[[PH:.*]]
+; CHECK:       [[THEN]]:
+; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "dereferenceable"(ptr [[BASE]], i64 1024) ]
+; CHECK-NEXT:    br label %[[PH]]
+; CHECK:       [[PH]]:
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[PH]] ], [ [[IV_NEXT:%.*]], %[[LOOP_INC:.*]] ]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds nuw [8 x i8], ptr [[BASE]], i64 [[IV]]
+; CHECK-NEXT:    [[LD:%.*]] = load i64, ptr [[GEP]], align 8
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i64 [[LD]], 0
+; CHECK-NEXT:    br i1 [[C]], label %[[LOOP_END:.*]], label %[[LOOP_INC]]
+; CHECK:       [[LOOP_INC]]:
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EC:%.*]] = icmp eq i64 [[IV_NEXT]], 128
+; CHECK-NEXT:    br i1 [[EC]], label %[[LOOP_END]], label %[[LOOP]]
+; CHECK:       [[LOOP_END]]:
+; CHECK-NEXT:    [[RETVAL:%.*]] = phi i64 [ [[IV]], %[[LOOP]] ], [ -1, %[[LOOP_INC]] ]
+; CHECK-NEXT:    ret i64 [[RETVAL]]
+;
+entry:
+  %base = getelementptr inbounds nuw i8, ptr %p, i64 32
+  call void @llvm.assume(i1 true) [ "align"(ptr %p, i64 8) ]
+  br i1 %c.0, label %then, label %ph
+
+then:
+  call void @llvm.assume(i1 true) [ "dereferenceable"(ptr %base, i64 1024) ]
+  br label %ph
+
+ph:
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %ph ], [ %iv.next, %loop.inc ]
+  %gep = getelementptr inbounds nuw [8 x i8], ptr %base, i64 %iv
+  %ld = load i64, ptr %gep, align 8
+  %c = icmp eq i64 %ld, 0
+  br i1 %c, label %loop.end, label %loop.inc
+
+loop.inc:
+  %iv.next = add nuw nsw i64 %iv, 1
+  %ec = icmp eq i64 %iv.next, 128
+  br i1 %ec, label %loop.end, label %loop
+
+loop.end:
+  %retval = phi i64 [ %iv, %loop ], [ -1, %loop.inc ]
+  ret i64 %retval
+}
