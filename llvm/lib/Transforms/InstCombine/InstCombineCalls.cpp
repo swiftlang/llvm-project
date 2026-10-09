@@ -984,7 +984,31 @@ InstCombinerImpl::foldIntrinsicWithOverflowCommon(IntrinsicInst *II) {
     }
   }
 
-  return nullptr;
+  // With a constant RHS, the operation does not overflow iff the LHS is in the
+  // exact no-wrap region. Check if a dominating condition implies that.
+  const APInt *C;
+  if (!match(WO->getRHS(), m_APInt(C)))
+    return nullptr;
+  ConstantRange NWR = ConstantRange::makeExactNoWrapRegion(
+      WO->getBinaryOp(), *C, WO->getNoWrapKind());
+  CmpInst::Predicate Pred;
+  APInt NWRHS;
+  if (!NWR.getEquivalentICmp(Pred, NWRHS))
+    return nullptr;
+  Value *LHS = WO->getLHS();
+  Constant *NWC = ConstantInt::get(LHS->getType(), NWRHS);
+  if (isImpliedByDomCondition(Pred, LHS, NWC, WO, DL) != true)
+    return nullptr;
+  Value *Result = Builder.CreateBinOp(WO->getBinaryOp(), LHS, WO->getRHS());
+  Result->takeName(WO);
+  if (auto *Inst = dyn_cast<Instruction>(Result)) {
+    if (WO->isSigned())
+      Inst->setHasNoSignedWrap();
+    else
+      Inst->setHasNoUnsignedWrap();
+  }
+  Type *OverflowTy = WO->getType()->getStructElementType(1);
+  return createOverflowTuple(WO, Result, ConstantInt::getFalse(OverflowTy));
 }
 
 static bool inputDenormalIsIEEE(const Function &F, const Type *Ty) {
