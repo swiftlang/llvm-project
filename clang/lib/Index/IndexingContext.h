@@ -101,6 +101,14 @@ public:
                        ArrayRef<SymbolRelation> Relations = {},
                        const Expr *RefE = nullptr);
 
+  /// Reports a reference to the declaration that defines the availability
+  /// domain named \p DomainName, if the domain has one.
+  bool handleAvailabilityDomainReference(StringRef DomainName,
+                                         SourceLocation Loc,
+                                         const NamedDecl *Parent,
+                                         const DeclContext *DC,
+                                         const Expr *RefE = nullptr);
+
   void handleMacroDefined(const IdentifierInfo &Name, SourceLocation Loc,
                           const MacroInfo &MI);
 
@@ -142,6 +150,10 @@ private:
   bool shouldIgnoreIfImplicit(const Decl *D);
 
   bool shouldIndexMacroOccurrence(bool IsRef, SourceLocation Loc);
+
+  /// Reports references to the declarations that define the availability
+  /// domains named by the \c availability(domain:...) attributes on \p D.
+  bool indexDomainAvailabilityAttrs(const Decl *D);
 
   bool handleDeclOccurrence(const Decl *D, SourceLocation Loc,
                             bool IsRef, const Decl *Parent,

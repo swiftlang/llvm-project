@@ -1650,8 +1650,10 @@ void ASTStmtWriter::VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *E)
   Record.AddSourceRange(E->getSourceRange());
   Record.AddVersionTuple(E->getVersion());
   Record.AddVersionTuple(E->getVersionAsWritten());
-  if (E->hasDomainName())
+  if (E->hasDomainName()) {
     Record.AddString(E->getDomainName());
+    Record.AddSourceLocation(E->getDomainLoc());
+  }
   Code = serialization::EXPR_OBJC_AVAILABILITY_CHECK;
 }
 

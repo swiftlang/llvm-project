@@ -1703,15 +1703,18 @@ private:
 
   VersionAsWritten VersionToCheck;
   SourceLocation AtLoc, RParen;
+  /// The location of the domain name, if this expression checks a domain.
+  SourceLocation DomainLoc;
 
   void setHasDomainName(bool V) {
     ObjCAvailabilityCheckExprBits.HasDomainName = V;
   }
 
   ObjCAvailabilityCheckExpr(SourceLocation AtLoc, SourceLocation RParen,
-                            QualType Ty, StringRef DomainName)
+                            QualType Ty, StringRef DomainName,
+                            SourceLocation DomainLoc)
       : Expr(ObjCAvailabilityCheckExprClass, Ty, VK_PRValue, OK_Ordinary),
-        VersionToCheck(), AtLoc(AtLoc), RParen(RParen) {
+        VersionToCheck(), AtLoc(AtLoc), RParen(RParen), DomainLoc(DomainLoc) {
     setDependence(ExprDependence::None);
     setHasDomainName(true);
     strcpy(getTrailingObjects(), DomainName.data());
@@ -1730,7 +1733,7 @@ public:
   static ObjCAvailabilityCheckExpr *
   CreateAvailabilityFeatureCheck(SourceLocation AtLoc, SourceLocation RParen,
                                  QualType Ty, StringRef DomainName,
-                                 const ASTContext &C);
+                                 SourceLocation DomainLoc, const ASTContext &C);
 
   explicit ObjCAvailabilityCheckExpr(EmptyShell Shell)
       : Expr(ObjCAvailabilityCheckExprClass, Shell) {
@@ -1757,6 +1760,10 @@ public:
   StringRef getDomainName() const {
     assert(hasDomainName());
     return getTrailingObjects();
+  }
+  SourceLocation getDomainLoc() const {
+    assert(hasDomainName());
+    return DomainLoc;
   }
 
   child_range children() {
