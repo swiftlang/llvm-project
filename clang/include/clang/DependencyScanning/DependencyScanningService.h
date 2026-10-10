@@ -119,6 +119,10 @@ struct DependencyScanningServiceOptions {
   bool FlushModuleCache = true;
   /// Whether the caching VFS should cache missing filesystem entries.
   bool CacheNegativeStats = shouldCacheNegativeStatsDefault();
+  /// Whether scanning modules validate their directory deps against paths
+  /// reported via \c DependencyScanningService::addInvalidatedPath instead of
+  /// the filesystem.
+  bool ValidateAgainstInvalidatedPaths = false;
   /// Whether the scanner should mimic the behavior of the compilation itself.
   /// This enables generation of dependency files, and emission of full
   /// diagnostics.
@@ -146,6 +150,21 @@ public:
   }
 
   ModuleCacheEntries &getModuleCacheEntries() { return ModCacheEntries; }
+
+  /// Add a path that changed since the previous scan, so that cached scanning
+  /// modules depending on it are rebuilt. Requires
+  /// \c ValidateAgainstInvalidatedPaths.
+  ///
+  /// Only directories are currently checked. \p Path is compared textually
+  /// against \c ModuleDeps::DirectoryDeps, so it must be spelled the same way:
+  /// absolute, with dots removed, and without resolving symlinks. It is never
+  /// accessed on disk. Modules built since \c BuildSessionTimestamp are
+  /// considered up to date with it.
+  void addInvalidatedPath(StringRef Path) {
+    assert(Opts.ValidateAgainstInvalidatedPaths &&
+           "invalidated paths are only checked when validating against them");
+    ModCacheEntries.addInvalidatedPath(Path);
+  }
 
   CASOptions getCASOpts() const;
   std::shared_ptr<cas::ObjectStore> getCAS() const;

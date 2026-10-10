@@ -890,6 +890,7 @@ ModuleDepCollector::handleTopLevelModule(serialization::ModuleFile *MF) {
         MD.ModuleMapFileDeps.emplace_back(*ResolvedFilenameAsRequested);
       });
 
+  MD.DirectoryDeps = MF->DirectoryDependencies;
   if (!MF->IncludeTreeID.empty())
     MD.IncludeTreeID = MF->IncludeTreeID;
 
