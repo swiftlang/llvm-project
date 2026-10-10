@@ -10,7 +10,7 @@ define i1 @add_of_udiv_of_sub(i64 %z, i64 %y, i64 %n) {
 ; CHECK-SAME: i64 [[Z:%.*]], i64 [[Y:%.*]], i64 [[N:%.*]]) {
 ; CHECK-NEXT:    [[GE:%.*]] = icmp uge i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[GE]])
-; CHECK-NEXT:    [[D:%.*]] = sub i64 [[Z]], [[Y]]
+; CHECK-NEXT:    [[D:%.*]] = sub nuw i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    [[Q:%.*]] = udiv i64 [[D]], [[N]]
 ; CHECK-NEXT:    [[A:%.*]] = add i64 [[Q]], [[Y]]
 ; CHECK-NEXT:    ret i1 true
@@ -29,7 +29,7 @@ define i1 @add_of_lshr_of_sub_commuted(i64 %z, i64 %y) {
 ; CHECK-SAME: i64 [[Z:%.*]], i64 [[Y:%.*]]) {
 ; CHECK-NEXT:    [[GE:%.*]] = icmp uge i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[GE]])
-; CHECK-NEXT:    [[D:%.*]] = sub i64 [[Z]], [[Y]]
+; CHECK-NEXT:    [[D:%.*]] = sub nuw i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    [[Q:%.*]] = lshr i64 [[D]], 1
 ; CHECK-NEXT:    [[A:%.*]] = add i64 [[Y]], [[Q]]
 ; CHECK-NEXT:    ret i1 true
@@ -66,7 +66,7 @@ define i1 @add_of_udiv_of_sub_other_operand(i64 %z, i64 %y, i64 %x, i64 %n) {
 ; CHECK-SAME: i64 [[Z:%.*]], i64 [[Y:%.*]], i64 [[X:%.*]], i64 [[N:%.*]]) {
 ; CHECK-NEXT:    [[GE:%.*]] = icmp uge i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[GE]])
-; CHECK-NEXT:    [[D:%.*]] = sub i64 [[Z]], [[Y]]
+; CHECK-NEXT:    [[D:%.*]] = sub nuw i64 [[Z]], [[Y]]
 ; CHECK-NEXT:    [[Q:%.*]] = udiv i64 [[D]], [[N]]
 ; CHECK-NEXT:    [[A:%.*]] = add i64 [[Q]], [[X]]
 ; CHECK-NEXT:    [[C:%.*]] = icmp ule i64 [[A]], [[Z]]

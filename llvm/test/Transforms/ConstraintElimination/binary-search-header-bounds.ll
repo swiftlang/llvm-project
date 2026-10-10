@@ -19,11 +19,10 @@ define void @binary_search_sdiv(i64 %n) {
 ; CHECK-NEXT:    [[HI:%.*]] = phi i64 [ [[N]], %[[ENTRY]] ], [ [[HI_NEXT:%.*]], %[[LOOP]] ]
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    call void @use(i1 true)
-; CHECK-NEXT:    [[D:%.*]] = sub i64 [[HI]], [[LO]]
+; CHECK-NEXT:    [[D:%.*]] = sub nuw nsw i64 [[HI]], [[LO]]
 ; CHECK-NEXT:    [[Q:%.*]] = sdiv i64 [[D]], 2
 ; CHECK-NEXT:    [[MID:%.*]] = add i64 [[Q]], [[LO]]
-; CHECK-NEXT:    [[IN_BOUNDS:%.*]] = icmp ult i64 [[MID]], [[N]]
-; CHECK-NEXT:    call void @use(i1 [[IN_BOUNDS]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C:%.*]] = call i1 @cond(i64 [[MID]])
 ; CHECK-NEXT:    [[MID_1:%.*]] = add i64 [[MID]], 1
 ; CHECK-NEXT:    [[HI_NEXT]] = select i1 [[C]], i64 [[HI]], i64 [[MID]]
@@ -71,7 +70,7 @@ define void @binary_search_lshr(i64 %n) {
 ; CHECK-NEXT:    [[LO:%.*]] = phi i64 [ 0, %[[ENTRY]] ], [ [[LO_NEXT:%.*]], %[[LOOP]] ]
 ; CHECK-NEXT:    [[HI:%.*]] = phi i64 [ [[N]], %[[ENTRY]] ], [ [[HI_NEXT:%.*]], %[[LOOP]] ]
 ; CHECK-NEXT:    call void @use(i1 true)
-; CHECK-NEXT:    [[D:%.*]] = sub i64 [[HI]], [[LO]]
+; CHECK-NEXT:    [[D:%.*]] = sub nuw nsw i64 [[HI]], [[LO]]
 ; CHECK-NEXT:    [[Q:%.*]] = lshr i64 [[D]], 1
 ; CHECK-NEXT:    [[MID:%.*]] = add i64 [[LO]], [[Q]]
 ; CHECK-NEXT:    [[C:%.*]] = call i1 @cond(i64 [[MID]])

@@ -165,7 +165,7 @@ define i1 @latch_samesign_ult(i1 %d) {
 ; CHECK-NEXT:    br i1 [[D]], label %[[LATCH]], label %[[EXIT:.*]]
 ; CHECK:       [[LATCH]]:
 ; CHECK-NEXT:    [[LO_NEXT]] = add i8 [[LO]], 1
-; CHECK-NEXT:    [[HI_NEXT]] = add i8 [[HI]], 0
+; CHECK-NEXT:    [[HI_NEXT]] = add nuw nsw i8 [[HI]], 0
 ; CHECK-NEXT:    [[CONT:%.*]] = icmp samesign ult i8 [[LO_NEXT]], [[HI_NEXT]]
 ; CHECK-NEXT:    br i1 [[CONT]], label %[[LOOP]], label %[[EXIT]]
 ; CHECK:       [[EXIT]]:
