@@ -18,7 +18,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Support/Discriminator.h"
-#include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include <memory>
 #include <string>
 
@@ -27,10 +27,6 @@ class AnalysisUsage;
 class MachineBlockFrequencyInfo;
 class MachineFunction;
 class Module;
-
-namespace vfs {
-class FileSystem;
-} // namespace vfs
 
 using namespace sampleprof;
 
