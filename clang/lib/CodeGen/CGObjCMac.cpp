@@ -5355,7 +5355,7 @@ void FragileHazards::emitHazardsInNewBlocks() {
       // call.  If the call throws, then this is sufficient to
       // guarantee correctness as long as it doesn't also write to any
       // locals.
-      Builder.SetInsertPoint(&BB, BI);
+      Builder.SetInsertPoint(BI);
       emitReadHazard(Builder);
     }
   }
@@ -8770,9 +8770,10 @@ CGObjCNonFragileABIMac::GetInterfaceEHType(const ObjCInterfaceDecl *ID,
       VTableGV->setDLLStorageClass(getStorage(CGM, VTableName));
   }
 
-  llvm::Value *VTableIdx = llvm::ConstantInt::get(CGM.Int32Ty, 2);
-  llvm::Constant *VTablePtr = llvm::ConstantExpr::getInBoundsGetElementPtr(
-      VTableGV->getValueType(), VTableGV, VTableIdx);
+  llvm::Constant *VTableIdx = llvm::ConstantInt::get(CGM.Int32Ty, 2);
+  llvm::Constant *VTablePtr = llvm::ConstantExpr::getGetElementPtr(
+      CGM.getDataLayout(), VTableGV->getValueType(), VTableGV, VTableIdx,
+      llvm::GEPNoWrapFlags::inBounds());
 
   ConstantInitBuilder builder(CGM);
   auto values = builder.beginStruct(ObjCTypes.EHTypeTy);

@@ -1738,7 +1738,7 @@ void llvm::SplitBlockAndInsertForEachLane(
     ElementCount EC, Type *IndexTy, BasicBlock::iterator InsertBefore,
     std::function<void(IRBuilderBase &, Value *)> Func) {
 
-  IRBuilder<> IRB(InsertBefore->getParent(), InsertBefore);
+  IRBuilder<> IRB(InsertBefore);
 
   if (EC.isScalable()) {
     Value *NumElements = IRB.CreateElementCount(IndexTy, EC);
@@ -1762,7 +1762,7 @@ void llvm::SplitBlockAndInsertForEachLane(
     Value *EVL, BasicBlock::iterator InsertBefore,
     std::function<void(IRBuilderBase &, Value *)> Func) {
 
-  IRBuilder<> IRB(InsertBefore->getParent(), InsertBefore);
+  IRBuilder<> IRB(InsertBefore);
   Type *Ty = EVL->getType();
 
   if (!isa<ConstantInt>(EVL)) {

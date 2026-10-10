@@ -1076,6 +1076,10 @@ features cannot lower the translation-unit ABI level;
 - On AArch64 Windows targets, `-mbranch-protection=standard` and `-mbranch-protection=pac-ret`
   now uses the B-key by default.
 
+- Added support for pointer authentication discrimination of C++ virtual table
+  pointers stored in VTTs via the `-fptrauth-vtt-vtable-pointer-discrimination`
+  option.
+
 #### Android Support
 
 #### Windows Support
@@ -1154,6 +1158,11 @@ features cannot lower the translation-unit ABI level;
   for POWER9 targets (requires including `bcd.h`):
   `__builtin_bcdshift`, `__builtin_bcdshiftround`, `__builtin_bcdtruncate`,
   `__builtin_bcdunsignedtruncate`, and `__builtin_bcdunsignedshift`.
+
+- Clang now provides device-side definitions of `__cxa_pure_virtual()` and
+  `__cxa_deleted_virtual()`; previously, any (potential) call to a pure/deleted
+  virtual function that could not be optimised out would cause the program to
+  fail to assemble. This is now fixed. (#GH49183) (#GH67533)
 
 #### AIX Support
 

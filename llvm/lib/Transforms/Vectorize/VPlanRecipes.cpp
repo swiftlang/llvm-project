@@ -2009,7 +2009,7 @@ void VPIRInstruction::execute(VPTransformState &State) {
          "PHINodes must be handled by VPIRPhi");
   // Advance the insert point after the wrapped IR instruction. This allows
   // interleaving VPIRInstructions and other recipes.
-  State.Builder.SetInsertPoint(I.getParent(), std::next(I.getIterator()));
+  State.Builder.SetInsertPoint(std::next(I.getIterator()));
 }
 
 InstructionCost VPIRInstruction::computeCost(ElementCount VF,
@@ -2050,7 +2050,7 @@ void VPIRPhi::execute(VPTransformState &State) {
 
   // Advance the insert point after the wrapped IR instruction. This allows
   // interleaving VPIRInstructions and other recipes.
-  State.Builder.SetInsertPoint(Phi->getParent(), std::next(Phi->getIterator()));
+  State.Builder.SetInsertPoint(std::next(Phi->getIterator()));
 }
 
 void VPPhiAccessors::removeIncomingValueFor(VPBlockBase *IncomingBlock) const {
@@ -3189,9 +3189,8 @@ void VPVectorEndPointerRecipe::materializeOffset(unsigned Part) {
   Type *IndexTy = DL.getIndexType(this->getScalarType());
   VPValue *Stride =
       Plan.getConstantInt(IndexTy, getStride(), /*IsSigned=*/true);
-  Type *VFTy = VFVal->getScalarType();
-  VPValue *VF = Builder.createScalarZExtOrTrunc(VFVal, IndexTy, VFTy,
-                                                DebugLoc::getUnknown());
+  VPValue *VF =
+      Builder.createScalarZExtOrTrunc(VFVal, IndexTy, DebugLoc::getUnknown());
 
   // Offset for Part0 = Offset0 = Stride * (VF - 1).
   VPInstruction *VFMinusOne =

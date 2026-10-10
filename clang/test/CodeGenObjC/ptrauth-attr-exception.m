@@ -13,4 +13,4 @@ __attribute__((objc_exception))
 @implementation A
 @end
 
-// CHECK: @"OBJC_EHTYPE_$_A" = global %struct._objc_typeinfo { ptr ptrauth (ptr getelementptr inbounds (ptr, ptr @objc_ehtype_vtable, i32 2), i32 2), ptr @OBJC_CLASS_NAME_, ptr @"OBJC_CLASS_$_A" }
+// CHECK: @"OBJC_EHTYPE_$_A" = global %struct._objc_typeinfo { ptr ptrauth (ptr getelementptr inbounds (i8, ptr @objc_ehtype_vtable, i64 16), i32 2), ptr @OBJC_CLASS_NAME_, ptr @"OBJC_CLASS_$_A" }
