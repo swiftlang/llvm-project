@@ -2978,21 +2978,7 @@ bool SwiftASTContext::SetupFileSystemFromCacheKey(llvm::StringRef cache_key) {
     return false;
   }
 
-  std::string includeTreeFileList;
-  auto err = swift::iterateCommandLine(
-      *m_cas, *ref, [&](llvm::StringRef cmd) -> llvm::Error {
-        if (cmd.consume_front("-clang-include-tree-filelist "))
-          includeTreeFileList = cmd;
-
-        return llvm::Error::success();
-      });
-  if (err) {
-    LLDB_LOG_ERROR(GetLog(LLDBLog::Types), std::move(err),
-                   "failed to extract cas fs from file system: {0}");
-    return false;
-  }
-
-  auto fs = swift::createCASFileSystem(*m_cas, "", includeTreeFileList);
+  auto fs = swift::createCASFileSystemFromCacheKey(*m_cas, *ref);
   if (!fs) {
     LLDB_LOG_ERROR(GetLog(LLDBLog::Types), fs.takeError(),
                    "failed to create CAS file sytem from cache key: {0}");
