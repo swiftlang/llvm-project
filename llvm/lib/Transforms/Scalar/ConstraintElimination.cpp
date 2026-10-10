@@ -646,22 +646,6 @@ static Value *getSubOfOperand(Value *X, Value *Y) {
   return XI->getOperand(0);
 }
 
-/// Returns true if \p Op0 + \p Op1 does not wrap unsigned because one operand
-/// X satisfies X <=u D for D = Z - Y with Z >=u Y, where D is X's first
-/// operand and Y is the other operand of the add.
-static bool isAddBoundedBySub(Value *Op0, Value *Op1,
-                              ConstraintInfo &Info) {
-  for (auto [X, Y] : {std::pair(Op0, Op1), std::pair(Op1, Op0)}) {
-    Value *D = getSubOfOperand(X, Y);
-    if (D &&
-        Info.doesHold(CmpInst::ICMP_UGE, cast<Instruction>(D)->getOperand(0),
-                      Y) &&
-        Info.doesHold(CmpInst::ICMP_ULE, X, D))
-      return true;
-  }
-  return false;
-}
-
 /// Returns true if the signed system implies \p Op s<= SMAX - \p K if \p Upper
 /// is set and \p Op s>= SMIN + \p K otherwise, using that each integer
 /// variable no wider than \p Op is in [SMIN, SMAX]. SMAX does not fit a row,
@@ -751,6 +735,18 @@ static bool isKnownNoWrap(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
 
   if (NoWrapFlags & (Signed ? OBO::NoSignedWrap : OBO::NoUnsignedWrap))
     return true;
+
+  // X + Y does not wrap unsigned if X <=u D for D = Z - Y with Z >=u Y.
+  if (Opcode == Instruction::Add && !Signed) {
+    for (auto [X, Y] : {std::pair(Op0, Op1), std::pair(Op1, Op0)}) {
+      Value *D = getSubOfOperand(X, Y);
+      if (D &&
+          Info.doesHold(CmpInst::ICMP_UGE, cast<Instruction>(D)->getOperand(0),
+                        Y) &&
+          Info.doesHold(CmpInst::ICMP_ULE, X, D))
+        return true;
+    }
+  }
 
   if (Opcode == Instruction::Sub) {
     // Op0 - Op1 does not wrap unsigned if Op0 >=u Op1.
@@ -1030,12 +1026,11 @@ static Decomposition decomposeImpl(Value *V, ConstraintInfo &Info,
     }
   } else if (match(V, m_Add(m_Value(Op0), m_Value(Op1)))) {
     // An add does not wrap unsigned if both operands are non-negative, with
-    // or without nsw, or if it is bounded by a sub.
-    if (((!isKnownNonNegative(Op0, State.DL) &&
-          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0)) ||
-         (!isKnownNonNegative(Op1, State.DL) &&
-          !preconditionHolds(Info, CmpInst::ICMP_SGE, Op1, 0))) &&
-        !isAddBoundedBySub(Op0, Op1, Info))
+    // or without nsw.
+    if ((!isKnownNonNegative(Op0, State.DL) &&
+         !preconditionHolds(Info, CmpInst::ICMP_SGE, Op0, 0)) ||
+        (!isKnownNonNegative(Op1, State.DL) &&
+         !preconditionHolds(Info, CmpInst::ICMP_SGE, Op1, 0)))
       return V;
 
     if (auto Decomp = MergeResults(Op0, Op1, IsSigned))
@@ -2135,7 +2130,10 @@ static bool canStrengthenFlags(Instruction *I) {
     // With a constant second operand, we can use bounds on the first operand to
     // refine no-wrap flags. Independently, nuw can be added for nsw if the
     // operands are non-negative.
-    return isa<ConstantInt>(BO->getOperand(1)) || BO->hasNoSignedWrap();
+    return isa<ConstantInt>(BO->getOperand(1)) || BO->hasNoSignedWrap() ||
+           (BO->getOpcode() == Instruction::Add &&
+            (getSubOfOperand(BO->getOperand(0), BO->getOperand(1)) ||
+             getSubOfOperand(BO->getOperand(1), BO->getOperand(0))));
   default:
     return false;
   }

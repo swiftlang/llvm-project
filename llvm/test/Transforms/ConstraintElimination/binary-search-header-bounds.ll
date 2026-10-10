@@ -21,7 +21,7 @@ define void @binary_search_sdiv(i64 %n) {
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[D:%.*]] = sub nuw nsw i64 [[HI]], [[LO]]
 ; CHECK-NEXT:    [[Q:%.*]] = sdiv i64 [[D]], 2
-; CHECK-NEXT:    [[MID:%.*]] = add i64 [[Q]], [[LO]]
+; CHECK-NEXT:    [[MID:%.*]] = add nuw i64 [[Q]], [[LO]]
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C:%.*]] = call i1 @cond(i64 [[MID]])
 ; CHECK-NEXT:    [[MID_1:%.*]] = add i64 [[MID]], 1
@@ -72,7 +72,7 @@ define void @binary_search_lshr(i64 %n) {
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[D:%.*]] = sub nuw nsw i64 [[HI]], [[LO]]
 ; CHECK-NEXT:    [[Q:%.*]] = lshr i64 [[D]], 1
-; CHECK-NEXT:    [[MID:%.*]] = add i64 [[LO]], [[Q]]
+; CHECK-NEXT:    [[MID:%.*]] = add nuw i64 [[LO]], [[Q]]
 ; CHECK-NEXT:    [[C:%.*]] = call i1 @cond(i64 [[MID]])
 ; CHECK-NEXT:    [[MID_1:%.*]] = add i64 [[MID]], 1
 ; CHECK-NEXT:    [[HI_NEXT]] = select i1 [[C]], i64 [[MID]], i64 [[HI]]
