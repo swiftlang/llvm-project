@@ -625,6 +625,11 @@ public:
   // this ValueObject represents something that validly conforms
   // to the magic ErrorType protocol.
   bool IsValidErrorValue(ValueObject &in_value);
+
+  /// Top-level code reports an error that nothing caught to
+  /// swift_errorInMain, which would otherwise end the process.
+  lldb::BreakpointSP CreateErrorBackstopBreakpoint() override;
+  lldb::ValueObjectSP GetErrorValueAtBackstop(StackFrame &frame) override;
   /// \}
 
   static const char *GetErrorBackstopName();

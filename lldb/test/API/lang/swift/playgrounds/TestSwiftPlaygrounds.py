@@ -100,6 +100,16 @@ class TestSwiftPlaygrounds(TestBase):
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipIf(debug_info=decorators.no_match("dsym"))
+    def test_uncaught_error(self):
+        """Test that an uncaught error becomes the playground's result"""
+        self.launch(True)
+        self.do_uncaught_error_test()
+
+    @requireNotEmbeddedSwift
+    @requireDarwin
+    @swiftTest
+    @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
+    @skipIf(debug_info=decorators.no_match("dsym"))
     def test_import(self):
         """Test that a dylib can be imported in playgrounds"""
         self.launch(True)
@@ -195,6 +205,23 @@ class TestSwiftPlaygrounds(TestBase):
     def do_concurrency_test(self):
         playground_output = self.execute_code('Concurrency.swift')
         self.assertIn("=\\'23\\'", playground_output)
+
+    def do_uncaught_error_test(self):
+        with open('UncaughtError.swift', 'r') as contents_file:
+            contents = contents_file.read()
+
+        options = lldb.SBExpressionOptions()
+        options.SetLanguage(lldb.eLanguageTypeSwift)
+        options.SetPlaygroundTransformEnabled()
+        res = self.frame().EvaluateExpression(contents, options)
+
+        # The error becomes the result, and the process survives it.
+        self.assertSuccess(res.GetError())
+        self.assertState(self.process().GetState(), lldb.eStateStopped)
+        self.assertTrue(res.GetName().startswith("$E"), res.GetName())
+        lldbutil.check_variable(
+            self, res, use_dynamic=True, value="SomethingWentWrong"
+        )
 
     def do_import_test(self):
         # Test importing a library that adds new Clang options.

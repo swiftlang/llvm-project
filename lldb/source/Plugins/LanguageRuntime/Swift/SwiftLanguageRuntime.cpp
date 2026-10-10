@@ -1748,6 +1748,46 @@ void SwiftLanguageRuntime::RegisterGlobalError(Target &target, ConstString name,
   }
 }
 
+lldb::BreakpointSP SwiftLanguageRuntime::CreateErrorBackstopBreakpoint() {
+  FileSpecList stdlib_module_list;
+  stdlib_module_list.Append(FileSpec(GetStandardLibraryName().GetStringRef()));
+  const LazyBool skip_prologue = eLazyBoolNo;
+  const bool is_internal = true;
+  const bool is_hardware = false;
+  const bool offset_is_insn_count = false;
+  return GetProcess().GetTarget().CreateBreakpoint(
+      &stdlib_module_list, /*containingSourceFiles=*/nullptr,
+      GetErrorBackstopName(), eFunctionNameTypeFull, eLanguageTypeUnknown,
+      /*offset=*/0, offset_is_insn_count, skip_prologue, is_internal,
+      is_hardware);
+}
+
+lldb::ValueObjectSP
+SwiftLanguageRuntime::GetErrorValueAtBackstop(StackFrame &frame) {
+  Target &target = GetProcess().GetTarget();
+  PersistentExpressionState *persistent_state =
+      target.GetPersistentExpressionStateForLanguage(eLanguageTypeSwift);
+  if (!persistent_state)
+    return {};
+
+  ConstString persistent_variable_name(
+      persistent_state->GetNextPersistentVariableName(/*is_error=*/true));
+  ValueObjectSP error_sp =
+      CalculateErrorValue(frame.shared_from_this(), persistent_variable_name);
+  if (!error_sp)
+    return {};
+
+  DataExtractor data;
+  Status data_error;
+  uint64_t data_size = error_sp->GetStaticValue()->GetData(data, data_error);
+  if (data_size == data.GetAddressByteSize()) {
+    lldb::offset_t offset = 0;
+    lldb::addr_t addr = data.GetAddress(&offset);
+    RegisterGlobalError(target, persistent_variable_name, addr);
+  }
+  return error_sp;
+}
+
 lldb::BreakpointPreconditionSP
 SwiftLanguageRuntime::GetBreakpointExceptionPrecondition(LanguageType language,
                                                          bool throw_bp) {

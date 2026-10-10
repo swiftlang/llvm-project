@@ -238,23 +238,13 @@ LLVMUserExpression::DoExecute(DiagnosticManager &diagnostic_manager,
           "evaluation.");
       return execution_result;
     }
-    
-    if (execution_result == lldb::eExpressionCompleted) {
-      if (user_expression_plan->HitErrorBackstop()) {
-        // This should only happen in Playground & REPL.  The code threw an
-        // uncaught error, so we already rolled up
-        // the stack past our execution point.  We're not going to be able to
-        // get any or our expression variables
-        // since they've already gone out of scope.  But at least we can
-        // gather the error result...
-        if (user_expression_plan->GetReturnValueObject() &&
-            user_expression_plan->GetReturnValueObject()
-                ->GetError()
-                .Success()) {
-          error_backstop_result_sp =
-              user_expression_plan->GetReturnValueObject();
-        }
-      }
+
+    if (execution_result == lldb::eExpressionCompleted &&
+        user_expression_plan->HitErrorBackstop()) {
+      lldb::ValueObjectSP error_sp =
+          user_expression_plan->GetReturnValueObject();
+      if (error_sp && error_sp->GetError().Success())
+        error_backstop_result_sp = error_sp;
     }
 
     if (execution_result == lldb::eExpressionThreadVanished) {
@@ -275,18 +265,13 @@ LLVMUserExpression::DoExecute(DiagnosticManager &diagnostic_manager,
   }
 
   if (error_backstop_result_sp) {
-    // This should only happen in Playground & REPL.  The code threw an
-    // uncaught error, so we already rolled up
-    // the stack past our execution point.  We're not going to be able to get
-    // any or our expression variables
-    // since they've already gone out of scope.  But at least we can gather
-    // the error result...
     Target *target = exe_ctx.GetTargetPtr();
     PersistentExpressionState *expression_state =
-        target->GetPersistentExpressionStateForLanguage(LanguageType());
+        target->GetPersistentExpressionStateForLanguage(
+            Language().AsLanguageType());
     if (expression_state)
-      result_sp = expression_state->CreatePersistentVariable(
-          error_backstop_result_sp);
+      result_sp =
+          expression_state->CreatePersistentVariable(error_backstop_result_sp);
 
     return lldb::eExpressionCompleted;
   }
