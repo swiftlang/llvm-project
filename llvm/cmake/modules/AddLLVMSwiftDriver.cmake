@@ -88,6 +88,7 @@ function(llvm_add_swift_driver_external_project root)
     -DCMAKE_Swift_COMPILER=${_host_swiftc}
     -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
     -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
   )
   if(APPLE AND _sdk_path)
     list(APPEND _common -DCMAKE_OSX_SYSROOT=${_sdk_path})
