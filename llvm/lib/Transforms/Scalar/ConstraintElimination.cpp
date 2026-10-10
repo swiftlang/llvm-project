@@ -1758,6 +1758,15 @@ void State::addLatchConditionFacts(BasicBlock &BB, Loop *L,
     return;
   PHINode *Lo = getPhiWithBackedgeValue(L, LoNext);
   PHINode *Hi = getPhiWithBackedgeValue(L, HiNext);
+  DomTreeNode *DTN = DT.getNode(&BB);
+  // A compare of a backedge value with a loop-invariant value: Pred holds for
+  // the phi if it holds for its start value.
+  if (Lo && !Hi && L->isLoopInvariant(HiNext)) {
+    Value *LoStart = Lo->getIncomingValueForBlock(LoopPred);
+    WorkList.push_back(FactOrCheck::getConditionFact(
+        DTN, Pred, Lo, HiNext, ConditionTy(Pred, LoStart, HiNext)));
+    return;
+  }
   if (!Lo || !Hi || Lo == Hi)
     return;
 
@@ -1767,7 +1776,6 @@ void State::addLatchConditionFacts(BasicBlock &BB, Loop *L,
   Value *LoStart = Lo->getIncomingValueForBlock(LoopPred);
   Value *HiStart = Hi->getIncomingValueForBlock(LoopPred);
   ConditionTy StartsHold(Pred, LoStart, HiStart);
-  DomTreeNode *DTN = DT.getNode(&BB);
   WorkList.push_back(
       FactOrCheck::getConditionFact(DTN, Pred, Lo, Hi, StartsHold));
 
