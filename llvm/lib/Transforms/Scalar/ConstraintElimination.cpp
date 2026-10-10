@@ -520,6 +520,18 @@ public:
                        unsigned NumIn, unsigned NumOut,
                        SmallVectorImpl<StackEntry> &DFSInStack);
 
+  /// Returns true if the system implies \p A <= \p B (< for strict \p Pred)
+  /// for decompositions \p A and \p B, without adding variables.
+  bool doesHold(CmpInst::Predicate Pred, const Decomposition &A,
+                const Decomposition &B) const;
+
+  /// Add \p A <= \p B (< for strict \p Pred) for decompositions \p A and
+  /// \p B to the signed or unsigned system, depending on \p Pred.
+  void addDecompositionFact(CmpInst::Predicate Pred, const Decomposition &A,
+                            const Decomposition &B, unsigned NumIn,
+                            unsigned NumOut,
+                            SmallVectorImpl<StackEntry> &DFSInStack);
+
   /// Turn a comparison of the form \p Op0 \p Pred \p Op1 into a vector of
   /// constraints, using indices from the corresponding constraint system.
   /// New variables that need to be added to the system are collected in
@@ -1689,6 +1701,48 @@ MonotonicInfo State::getMonotonicityInfo(PHINode &PN, Value *Step) {
   return Info;
 }
 
+/// Match \p V = lshr X, K or and (lshr X, K), M for K >= 1, so 2 * V <=u X.
+static bool matchHalf(Value *V, Value *&X) {
+  const APInt *K;
+  auto Shr = m_LShr(m_Value(X), m_APInt(K));
+  return match(V, m_CombineOr(Shr, m_And(Shr, m_Value()))) && !K->isZero() &&
+         K->ult(K->getBitWidth());
+}
+
+/// Match a search over a halving range: header phis \p S and \p R of \p L
+/// with backedge values S + R, or a select of S + R and S, and
+/// lshr R, K or and (lshr R, K), M for K >= 1. \p N is a loop-invariant bound
+/// of an in-loop check \p Sum u< N for Sum = S + R.
+static bool matchHalvingSearch(PHINode &S, Loop *L, PHINode *&R, Value *&Sum,
+                               Value *&N) {
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Latch || !S.getType()->isIntegerTy() || S.getNumIncomingValues() != 2)
+    return false;
+  Value *SNext = S.getIncomingValueForBlock(Latch);
+  Sum = SNext;
+  if (!match(SNext, m_c_Select(m_Specific(&S), m_Value(Sum))))
+    Sum = SNext;
+  Value *RV;
+  if (!match(Sum, m_c_Add(m_Specific(&S), m_Value(RV))))
+    return false;
+  R = dyn_cast<PHINode>(RV);
+  if (!R || R == &S || R->getParent() != S.getParent() ||
+      R->getNumIncomingValues() != 2)
+    return false;
+  Value *X;
+  if (!matchHalf(R->getIncomingValueForBlock(Latch), X) || X != R)
+    return false;
+  for (User *U : Sum->users()) {
+    auto *Cmp = dyn_cast<ICmpInst>(U);
+    if (Cmp && L->contains(Cmp) &&
+        match(Cmp,
+              m_SpecificICmp(CmpInst::ICMP_ULT, m_Specific(Sum), m_Value(N))) &&
+        L->isLoopInvariant(N))
+      return true;
+  }
+  return false;
+}
+
 void State::addBoundsForHeaderInductions(BasicBlock &BB) {
   Loop *L = LI.getLoopFor(&BB);
   if (!L || L->getHeader() != &BB)
@@ -1722,6 +1776,13 @@ void State::addBoundsForHeaderInductions(BasicBlock &BB) {
     CmpPredicate Pred(Info.Unsigned ? CmpInst::ICMP_UGE : CmpInst::ICMP_SGE,
                       /*HasSameSign=*/Info.Unsigned && Info.Signed);
     WorkList.push_back(FactOrCheck::getConditionFact(DTN, Pred, LHS, RHS));
+  }
+
+  for (PHINode &PN : BB.phis()) {
+    PHINode *R;
+    Value *Sum, *N;
+    if (matchHalvingSearch(PN, L, R, Sum, N))
+      WorkList.push_back(FactOrCheck::getInstFact(DTN, &PN));
   }
 
   addLatchConditionFacts(BB, L, LoopPred);
@@ -3167,6 +3228,64 @@ void ConstraintInfo::addEqualityFact(Value *V, const Decomposition &D,
   addConstraint(std::move(R), NewVariables, NumIn, NumOut, DFSInStack);
 }
 
+bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, const Decomposition &A,
+                              const Decomposition &B) const {
+  SmallVector<Value *> NewVariables;
+  ConstraintTy R =
+      buildConstraint(Pred, A, B, CmpInst::isSigned(Pred),
+                      /*IsEq=*/false, /*IsNe=*/false, NewVariables);
+  return NewVariables.empty() && !R.empty() &&
+         getCS(R.IsSigned).isConditionImpliedInSubSystem(R.Coefficients);
+}
+
+void ConstraintInfo::addDecompositionFact(
+    CmpInst::Predicate Pred, const Decomposition &A, const Decomposition &B,
+    unsigned NumIn, unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack) {
+  SmallVector<Value *> NewVariables;
+  ConstraintTy R =
+      buildConstraint(Pred, A, B, CmpInst::isSigned(Pred),
+                      /*IsEq=*/false, /*IsNe=*/false, NewVariables);
+  if (R.empty())
+    return;
+  addConstraint(std::move(R), NewVariables, NumIn, NumOut, DFSInStack);
+}
+
+/// For a search over a halving range S, R with bound N (see
+/// matchHalvingSearch), add S + 2 * R <=u N in the header if it holds for the
+/// start values. It is preserved by each iteration: S + R <= S + 2 * R <= N
+/// does not wrap, so S.next <= S + R, and 2 * R.next <= R. As S + R does not
+/// wrap, also add Sum == S + R.
+static void addHalvingSearchFacts(PHINode &S, ConstraintInfo &Info, State &St,
+                                  unsigned NumIn, unsigned NumOut,
+                                  SmallVectorImpl<StackEntry> &DFSInStack) {
+  Loop *L = St.LI.getLoopFor(S.getParent());
+  BasicBlock *LoopPred = L ? L->getLoopPredecessor() : nullptr;
+  PHINode *R;
+  Value *Sum, *N;
+  if (!LoopPred || S.getType()->getScalarSizeInBits() > 64 ||
+      !matchHalvingSearch(S, L, R, Sum, N))
+    return;
+  // Check S.start + 2 * R.start <= N, using X for 2 * R.start if R.start
+  // halves X.
+  Value *RStart = R->getIncomingValueForBlock(LoopPred);
+  Value *X;
+  bool IsHalf = matchHalf(RStart, X);
+  Decomposition Start =
+      decompose(S.getIncomingValueForBlock(LoopPred), Info, false, St);
+  Decomposition TwoRStart = decompose(IsHalf ? X : RStart, Info, false, St);
+  Decomposition Bound = decompose(N, Info, false, St);
+  if ((!IsHalf && TwoRStart.mul(2)) || Start.add(TwoRStart) ||
+      !Info.doesHold(CmpInst::ICMP_ULE, Start, Bound))
+    return;
+  Info.addDecompositionFact(
+      CmpInst::ICMP_ULE,
+      Decomposition(0, {DecompEntry(1, &S), DecompEntry(2, R)}), Bound, NumIn,
+      NumOut, DFSInStack);
+  Info.addEqualityFact(
+      Sum, Decomposition(0, {DecompEntry(1, &S), DecompEntry(1, R)}),
+      /*IsSigned=*/false, NumIn, NumOut, DFSInStack);
+}
+
 /// Returns true if \p Opc on \p Op0 and \p Op1 does not wrap in the signed or
 /// unsigned sense (\p Signed), given that it does not overflow in the sense of
 /// the overflow intrinsic (\p KindSigned).
@@ -3487,6 +3606,16 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
           AddFact(CmpInst::ICMP_SGE, CB.Inst,
                   ConstantInt::get(CB.Inst->getType(), 0));
         AddFact(CmpInst::ICMP_SGE, CB.Inst, X);
+        continue;
+      }
+
+      if (auto *PN = dyn_cast<PHINode>(CB.Inst)) {
+        addHalvingSearchFacts(*PN, Info, S, CB.NumIn, CB.NumOut, DFSInStack);
+        // Keep the reproducer stack in sync with DFSInStack.
+        if (ReproducerModule)
+          while (ReproducerCondStack.size() < DFSInStack.size())
+            ReproducerCondStack.emplace_back(ICmpInst::BAD_ICMP_PREDICATE,
+                                             nullptr, nullptr);
         continue;
       }
 
