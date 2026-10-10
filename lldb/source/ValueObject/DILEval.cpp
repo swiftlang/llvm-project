@@ -82,7 +82,7 @@ llvm::Expected<lldb::TypeSystemSP> Interpreter::GetTypeSystemFromCU() {
   lldb::LanguageType language = symbol_context->comp_unit->GetLanguage();
   // BEGIN SWIFT
   if (language == lldb::eLanguageTypeSwift) {
-    lldb::TargetSP target_sp = ctx.CalculateTarget();
+    lldb::TargetSP target_sp = m_exe_ctx.GetTargetSP();
     if (!target_sp)
       return llvm::createStringError("no target in this context");
     return target_sp->GetScratchTypeSystemForLanguage(language);
@@ -572,11 +572,12 @@ Interpreter::Visit(const IdentifierNode &node) {
     // BEGIN SWIFT
     // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
     // rdar://152321823
-    if (std::string message =
-            m_stack_frame.GetVariableNotCapturedDiagnostic(node.GetName());
-        !message.empty())
-      return llvm::make_error<DILDiagnosticError>(
-          m_expr, message, node.GetLocation(), node.GetName().size());
+    if (auto frame_sp = m_exe_ctx.GetFrameSP())
+      if (std::string message =
+              frame_sp->GetVariableNotCapturedDiagnostic(node.GetName());
+          !message.empty())
+        return llvm::make_error<DILDiagnosticError>(
+            m_expr, message, node.GetLocation(), node.GetName().size());
     // END SWIFT
     std::string errMsg =
         llvm::formatv("use of undeclared identifier '{0}'", node.GetName());
