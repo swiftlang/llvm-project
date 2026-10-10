@@ -43,6 +43,7 @@ if (LLVM_TARGET_IS_CROSSCOMPILE_HOST)
 endif()
 option(LLDB_ENABLE_SWIFT_SUPPORT "Enable swift support" ${DEFAULT_LLDB_SWIFT_SUPPORT})
 option(LLDB_LINK_SWIFT_COMPILER_DYLIB "Link against SwiftCompilerShared" OFF)
+set(LLDB_SWIFT_COMPILER_DYLIB_PATH "" CACHE FILEPATH "Path to SwiftCompilerShared external shared library")
 # END SWIFT MOD
 
 if(LLDB_BUILT_STANDALONE)
@@ -67,8 +68,17 @@ if (LLDB_LINK_SWIFT_COMPILER_DYLIB)
   if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
     message(FATAL_ERROR "Cannot link swift compiler dylib if swift support is disabled.")
   endif()
-  if (NOT TARGET SwiftCompilerShared)
-    message(FATAL_ERROR "Cannot find target SwiftCompilerShared for LLDB_LINK_SWIFT_COMPILER_DYLIB")
+
+  set(LLDB_SWIFT_COMPILER_DYLIB_TARGET SwiftCompilerShared)
+
+  if (LLDB_SWIFT_COMPILER_DYLIB_PATH)
+    add_library(SwiftCompilerShared_Imported SHARED IMPORTED)
+    set_target_properties(SwiftCompilerShared_Imported PROPERTIES
+      IMPORTED_LOCATION "${LLDB_SWIFT_COMPILER_DYLIB_PATH}")
+    set(LLDB_SWIFT_COMPILER_DYLIB_TARGET SwiftCompilerShared_Imported)
+  endif()
+  if (NOT TARGET ${LLDB_SWIFT_COMPILER_DYLIB_TARGET})
+    message(FATAL_ERROR "Cannot find target SwiftCompilerShared for LLDB_LINK_SWIFT_COMPILER_DYLIB nor LLDB_SWIFT_COMPILER_DYLIB_PATH")
   endif()
 endif()
 
