@@ -29,7 +29,7 @@ define void @_Z3fn1v(ptr %r, ptr %a) #0 {
 ; CHECK:       [[FOR_COND_LOOPEXIT_LOOPEXIT:.*]]:
 ; CHECK-NEXT:    [[ADD_PTR_LCSSA:%.*]] = phi ptr [ [[ADD_PTR_LCSSA_UNR:%.*]], %[[FOR_BODY3_PROL_LOOPEXIT:.*]] ], [ [[ADD_PTR_1:%.*]], %[[FOR_INC_1:.*]] ]
 ; CHECK-NEXT:    [[SCEVGEP:%.*]] = getelementptr i8, ptr [[A_021:%.*]], i64 1
-; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[T2:%.*]], -1
+; CHECK-NEXT:    [[TMP0:%.*]] = add nsw i32 [[T2:%.*]], -1
 ; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[TMP0]] to i64
 ; CHECK-NEXT:    [[SCEVGEP1:%.*]] = getelementptr i8, ptr [[SCEVGEP]], i64 [[TMP1]]
 ; CHECK-NEXT:    [[T1_PRE:%.*]] = load i32, ptr @b, align 4
