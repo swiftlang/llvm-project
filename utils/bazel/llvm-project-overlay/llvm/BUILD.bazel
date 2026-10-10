@@ -1982,10 +1982,22 @@ cc_library(
     ],
 )
 
+gentbl_cc_library(
+    name = "ScalarOptionsTableGen",
+    strip_include_prefix = "lib/Transforms/Scalar",
+    tbl_outs = {
+        "lib/Transforms/Scalar/ScalarOptions.inc": ["-gen-opt-parser-defs"],
+    },
+    tblgen = ":llvm-min-tblgen",
+    td_file = "lib/Transforms/Scalar/ScalarOptions.td",
+    deps = [":OptParserTdFiles"],
+)
+
 cc_library(
     name = "Scalar",
     srcs = glob([
         "lib/Transforms/Scalar/*.cpp",
+        "lib/Transforms/Scalar/*.h",
     ]),
     hdrs = glob(["include/llvm/Transforms/Scalar/*.h"]) + [
         "include/llvm/Transforms/Scalar.h",
@@ -1999,8 +2011,10 @@ cc_library(
         ":BitWriter",
         ":Core",
         ":InstCombine",
+        ":Option",
         ":ProfileData",
         ":Remarks",
+        ":ScalarOptionsTableGen",
         ":Support",
         ":Target",
         ":TransformUtils",
