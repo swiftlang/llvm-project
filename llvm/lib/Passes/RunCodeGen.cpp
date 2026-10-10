@@ -26,12 +26,12 @@
 
 using namespace llvm;
 
-static Error
-runCodeGenPipelineLegacy(TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
-                         std::unique_ptr<ToolOutputFile> &DwoOS,
-                         raw_pwrite_stream *CasIDOS, CodeGenFileType CGFT,
-                         bool PrintPipelinePasses, bool DisableVerify,
-                         bool DisableSimplifyLibCalls) {
+static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
+                                      raw_pwrite_stream &OS,
+                                      std::unique_ptr<ToolOutputFile> &DwoOS,
+                                      raw_pwrite_stream *CasIDOS,
+                                      CodeGenFileType CGFT, bool DisableVerify,
+                                      bool DisableSimplifyLibCalls) {
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
@@ -94,8 +94,7 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                raw_pwrite_stream &OS,
                                std::unique_ptr<ToolOutputFile> &DwoOS,
                                raw_pwrite_stream *CasIDOS, CodeGenFileType CGFT,
-                               bool PrintPipelinePasses, bool DisableVerify,
-                               bool DisableSimplifyLibCalls,
+                               bool DisableVerify, bool DisableSimplifyLibCalls,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
   if (valueOr(PassesOptions::Global.force_new_pm_codegen,
               TM.shouldDefaultToNewPM())) {
@@ -103,6 +102,5 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
   }
 
   return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CasIDOS, CGFT,
-                                  PrintPipelinePasses, DisableVerify,
-                                  DisableSimplifyLibCalls);
+                                  DisableVerify, DisableSimplifyLibCalls);
 }
