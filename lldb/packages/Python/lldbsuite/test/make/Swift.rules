@@ -228,7 +228,12 @@ ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
 			SWIFTFLAGS += -target $(ARCH)-apple-macos14
 			SWIFT_EMBEDDED_TRIPLE = $(ARCH)-apple-macos
 		endif
+	else ifneq "$(OS)" "Windows_NT"
+		# Elsewhere, the directory under lib/swift/embedded/ is named after the
+		# module triple (e.g. x86_64-unknown-linux-gnu).
+		SWIFT_EMBEDDED_TRIPLE := $(shell $(SWIFTC_PATH) -print-target-info $(TARGET_SWIFTFLAGS) | sed -n -E 's/.*"moduleTriple": "([^"]+)".*/\1/p')
 	endif
+	SWIFT_EMBEDDED_LIB_DIR = $(dir $(SWIFTC_PATH))../lib/swift/embedded/$(SWIFT_EMBEDDED_TRIPLE)
 	SWIFT_WMO = 1
 endif
 
@@ -247,7 +252,6 @@ ifneq "$(SWIFT_CONCURRENCY)" ""
   # except WASI. We inject it via the swift flags so the tests that compile in
   # both variants can stay unchanged.
 	SWIFTFLAGS += -Xfrontend -import-module -Xfrontend _Concurrency
-	SWIFT_EMBEDDED_LIB_DIR = $(dir $(SWIFTC_PATH))../lib/swift/embedded/$(SWIFT_EMBEDDED_TRIPLE)
 	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswift_Concurrency.a
 	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswift_ConcurrencyDefaultExecutor.a
 	ifeq "$(OS)" "Darwin"
@@ -257,6 +261,26 @@ ifneq "$(SWIFT_CONCURRENCY)" ""
 	endif
 	LD_EXTRAS += -lc++
 	LD_EXTRAS += -Xlinker -dead_strip
+endif
+endif
+
+#----------------------------------------------------------------------
+# Link the embedded Swift platform abstraction layer.
+#
+# The embedded standard library calls the hooks declared in
+# swift/EmbeddedPlatform.h (allocation, standard output, error reporting,
+# randomness, locking), and the driver doesn't link an implementation of them
+# by default. Link the POSIX implementation along with a threading shim; the
+# concurrency support above has already selected the threading shim it needs.
+# The threading shim comes first because it calls into the POSIX
+# implementation's allocation hooks.
+#----------------------------------------------------------------------
+ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
+ifneq "$(OS)" "Windows_NT"
+ifeq "$(SWIFT_CONCURRENCY)" ""
+	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswiftEmbeddedPlatformSingleThreaded.a
+endif
+	LD_EXTRAS +=  -Xlinker $(SWIFT_EMBEDDED_LIB_DIR)/libswiftEmbeddedPlatformPOSIX.a
 endif
 endif
 
