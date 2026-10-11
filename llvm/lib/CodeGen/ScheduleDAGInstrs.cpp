@@ -1274,7 +1274,7 @@ public:
 
   /// Sets each node's subtree ID to the representative ID and record
   /// connections between trees.
-  void finalize() {
+  void finalize(ArrayRef<SUnit> SUnits) {
     SubtreeClasses.compress();
     R.DFSTreeData.resize(SubtreeClasses.getNumClasses());
     assert(SubtreeClasses.getNumClasses() == RootSet.size()
@@ -1294,7 +1294,7 @@ public:
     LLVM_DEBUG(dbgs() << R.getNumSubtrees() << " subtrees:\n");
     for (unsigned Idx = 0, End = R.DFSNodeData.size(); Idx != End; ++Idx) {
       R.DFSNodeData[Idx].SubtreeID = SubtreeClasses[Idx];
-      LLVM_DEBUG(dbgs() << "  SU(" << Idx << ") in tree "
+      LLVM_DEBUG(dbgs() << "  " << SUnits[Idx] << " in tree "
                         << R.DFSNodeData[Idx].SubtreeID << '\n');
     }
     for (const auto &[Pred, Succ] : ConnectionPairs) {
@@ -1440,7 +1440,7 @@ void SchedDFSResult::compute(ArrayRef<SUnit> SUnits) {
         break;
     }
   }
-  Impl.finalize();
+  Impl.finalize(SUnits);
 }
 
 /// The root of the given SubtreeID was just scheduled. For all subtrees
