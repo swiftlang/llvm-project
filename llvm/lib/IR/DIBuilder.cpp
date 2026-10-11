@@ -701,8 +701,7 @@ DIBuilder::createVariantPart(DIScope *Scope, StringRef Name, DIFile *File,
   auto *R = DICompositeType::get(
       VMContext, dwarf::DW_TAG_variant_part, Name, File, LineNumber,
       getNonCompileUnitScope(Scope), nullptr, SizeInBits, AlignInBits, 0, Flags,
-      Elements, 0, /*EnumKind=*/std::nullopt, nullptr, nullptr, UniqueIdentifier, nullptr, 0,
-      Discriminator, nullptr, nullptr, nullptr, {}, {});
+      Elements, 0, /*EnumKind=*/std::nullopt, nullptr, nullptr, UniqueIdentifier, Discriminator);
   trackIfUnresolved(R);
   return R;
 }
