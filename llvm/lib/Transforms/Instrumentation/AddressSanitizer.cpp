@@ -2368,7 +2368,7 @@ void ModuleAddressSanitizer::InstrumentGlobalsWithMetadataArray(
       M, ArrayOfGlobalStructTy, false, GlobalVariable::InternalLinkage,
       ConstantArray::get(ArrayOfGlobalStructTy, MetadataInitializers), "");
   if (Mapping.Scale > 3)
-    AllGlobals->setAlignment(Align(1ULL << Mapping.Scale));
+    AllGlobals->setAlignment(Align::fromLog2(Mapping.Scale));
 
   if (ConstructorKind == AsanCtorKind::Global)
     IRB.CreateCall(AsanRegisterGlobals,
