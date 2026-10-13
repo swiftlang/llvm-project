@@ -1,0 +1,4 @@
+module counted_by_incomplete_pointee {
+  header "counted-by-incomplete-pointee.h"
+  export *
+}
