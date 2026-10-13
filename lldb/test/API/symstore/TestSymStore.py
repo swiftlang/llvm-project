@@ -252,7 +252,6 @@ class SlowHTTPHandler(http.server.BaseHTTPRequestHandler):
 
 @skipIfWindows
 class SymStoreTests(TestBase):
-    TEST_WITH_PDB_DEBUG_INFO = True
     # Build artifacts can't be shared across test functions because
     # MockedSymStore moves the built PDB out of the build directory to simulate
     # it being absent from the normal lookup path.

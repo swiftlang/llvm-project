@@ -218,7 +218,6 @@ def MakeInlineTest(
     decorators=None,
     name=None,
     build_dict=None,
-    test_with_pdb_debug_info=False,
 ):
     # Adjust the filename if it ends in .pyc.  We want filenames to
     # reflect the source python file, not the compiled variant.
@@ -242,7 +241,6 @@ def MakeInlineTest(
             test=test_func,
             name=name,
             _build_dict=build_dict,
-            TEST_WITH_PDB_DEBUG_INFO=test_with_pdb_debug_info,
         ),
     )
 

@@ -10,7 +10,6 @@ from lldbsuite.test import lldbutil
 
 @skipIfWindows  # doesn't work with the CI's version of MSVC
 class StdSpanDataFormatterTestCase(TestBase):
-    TEST_WITH_PDB_DEBUG_INFO = True
     SHARED_BUILD_TESTCASE = False
 
     def findVariable(self, name):
