@@ -2147,8 +2147,8 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       for (const SDep &Succ : SUa->Succs) {
         if (Succ.getSUnit() == SUb)
           continue;
-        LLVM_DEBUG(dbgs() << "  Copy Succ SU(" << Succ.getSUnit()->NodeNum
-                          << ")\n");
+        LLVM_DEBUG(dbgs() << "  Copy Succ ";
+                   DAG->dumpNodeName(*Succ.getSUnit()); dbgs() << "\n");
         DAG->addEdge(Succ.getSUnit(), SDep(SUb, SDep::Artificial));
       }
     } else {
