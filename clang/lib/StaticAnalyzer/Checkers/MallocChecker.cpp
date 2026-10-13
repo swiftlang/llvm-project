@@ -2156,6 +2156,13 @@ ProgramStateRef MallocChecker::FreeMemAttr(CheckerContext &C,
   bool IsKnownToBeAllocated = false;
 
   for (const auto &Arg : Att->args()) {
+    // TODO: Support ownership_takes/ownership_holds applied to the implicit
+    // C++ 'this' parameter (a self-freeing method). Such an index has no AST
+    // argument index, so modeling it would require fetching the value via
+    // CXXInstanceCall::getCXXThisVal() instead of Call.getArgExpr(). Skip it
+    // for now; calling Arg.getASTIndex() on a 'this' index would assert.
+    if (Arg.isThis())
+      continue;
     ProgramStateRef StateI =
         FreeMemAux(C, Call, State, Arg.getASTIndex(),
                    Att->getOwnKind() == OwnershipAttr::Holds,

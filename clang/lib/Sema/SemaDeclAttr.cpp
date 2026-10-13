@@ -1620,11 +1620,15 @@ static void handleOwnershipAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   for (unsigned i = 1; i < AL.getNumArgs(); ++i) {
     Expr *Ex = AL.getArgAsExpr(i);
     ParamIdx Idx;
-    if (!S.checkFunctionOrMethodParameterIndex(D, AL, i, Ex, Idx))
+    if (!S.checkFunctionOrMethodParameterIndex(D, AL, i, Ex, Idx,
+                                               /*CanIndexImplicitThis=*/true))
       return;
 
-    // Is the function argument a pointer type?
-    QualType T = getFunctionOrMethodParamType(D, Idx.getASTIndex());
+    // Is the function argument a pointer type? The implicit 'this' parameter is
+    // always a pointer type, so it is accepted by ownership_takes/holds and
+    // rejected by ownership_returns (which requires an integer).
+    QualType T = Idx.isThis() ? cast<CXXMethodDecl>(D)->getThisType()
+                              : getFunctionOrMethodParamType(D, Idx.getASTIndex());
     int Err = -1;  // No error
     switch (K) {
       case OwnershipAttr::Takes:

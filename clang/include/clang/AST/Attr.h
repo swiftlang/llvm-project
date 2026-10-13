@@ -344,6 +344,16 @@ public:
   /// Is this parameter index valid?
   bool isValid() const { return IsValid; }
 
+  /// Does this parameter index refer to the C++ implicit 'this' parameter?
+  ///
+  /// Such an index has no AST-level encoding (\c getASTIndex excludes the
+  /// implicit object parameter), so callers that need the AST index must check
+  /// this first and handle the implicit object argument specially.
+  bool isThis() const {
+    assert(isValid() && "ParamIdx must be valid");
+    return HasThis && Idx == 1;
+  }
+
   /// Get the parameter index as it would normally be encoded for attributes at
   /// the source level of representation: one-origin including any C++ implicit
   /// this parameter.

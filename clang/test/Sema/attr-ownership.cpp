@@ -7,6 +7,6 @@ class C {
 };
 
 struct OwnershipTaker {
-  OwnershipTaker(int *) __attribute__((ownership_takes(foo, 1))); // expected-error {{'ownership_takes' attribute is invalid for the implicit this argument}}
+  OwnershipTaker(int *) __attribute__((ownership_takes(foo, 1))); // 'this' (the object being constructed) is accepted.
   OwnershipTaker(int *, int) __attribute__((ownership_takes(foo, 2)));
 };
