@@ -864,6 +864,11 @@ ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
         MDC.addFileDep(MD, IFI.UnresolvedImportedFilename);
       });
 
+  MD.DirectoryDeps = MF->DirectoryDependencies;
+  llvm::sort(MD.DirectoryDeps);
+  MD.DirectoryDeps.erase(llvm::unique(MD.DirectoryDeps),
+                         MD.DirectoryDeps.end());
+
   llvm::DenseSet<const Module *> SeenDeps;
   addAllSubmodulePrebuiltDeps(M, MD, SeenDeps);
   addAllSubmoduleDeps(M, MD, SeenDeps);
