@@ -5,6 +5,8 @@ set(SWIFT_SOURCES
 )
 set(SWIFT_LIBS
   lldbPluginTypeSystemSwift
+  lldbPluginSwiftLanguageRuntime
+  lldbPluginExpressionParserSwift
 )
 set(LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)

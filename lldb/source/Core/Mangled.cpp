@@ -26,8 +26,6 @@
 #include "llvm/Support/Compiler.h"
 
 #ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "swift/Demangling/Demangle.h"
 #include "llvm/ADT/DenseMap.h"
 #endif // LLDB_ENABLE_SWIFT
 // BEGIN SWIFT
@@ -152,17 +150,6 @@ void Mangled::SetValue(ConstString name) {
 
 // BEGIN SWIFT
 #ifdef LLDB_ENABLE_SWIFT
-static SwiftLanguageRuntime::DemangleMode
-GetSwiftDemangleMode(Mangled::NameFormatPreference preference) {
-  switch (preference) {
-  case Mangled::eFullName:
-    return SwiftLanguageRuntime::DemangleMode::eTypeName;
-  case Mangled::eCompactName:
-    return SwiftLanguageRuntime::DemangleMode::eSimplified;
-  }
-  llvm_unreachable("Fully covered switch above!");
-}
-
 std::pair<ConstString, DemangledNameInfo>
 GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
                      ConstString &m_demangled,
@@ -170,8 +157,11 @@ GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
   const char *mangled_name = m_mangled.AsCString("");
   Log *log = GetLog(LLDBLog::Demangle);
   LLDB_LOGF(log, "demangle swift: %s", mangled_name);
-  auto [demangled, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
-      mangled_name, GetSwiftDemangleMode(preference), sc);
+  Language *swift_language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+  if (!swift_language)
+    return {};
+  auto [demangled, info] =
+      swift_language->DemangleSymbol(mangled_name, preference, sc);
 
   // Don't cache the demangled name if the function isn't available yet.
   // Only cache eFullName demangled functions to keep the cache consistent.
@@ -417,8 +407,11 @@ std::optional<DemangledNameInfo> Mangled::ComputeDemangledInfo(
       m_mangled.GetMangledCounterpart(cached);
     if (!cached.IsNull())
       preference = eFullName;
-    return SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
-               m_mangled.GetStringRef(), GetSwiftDemangleMode(preference))
+    Language *swift_language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+    if (!swift_language)
+      return std::nullopt;
+    return swift_language
+        ->DemangleSymbol(m_mangled.GetStringRef(), preference, nullptr)
         .second;
   }
 #endif // LLDB_ENABLE_SWIFT
@@ -439,10 +432,13 @@ ConstString Mangled::GetDisplayDemangledName(
     // BEGIN SWIFT
     const SymbolContext *sc) const {
 #ifdef LLDB_ENABLE_SWIFT
-  if (m_mangled &&
-      SwiftLanguageRuntime::IsSwiftMangledName(m_mangled.GetStringRef()))
-    return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
-        m_mangled.GetStringRef(), SwiftLanguageRuntime::eSimplified, sc));
+  Language *swift_language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+  if (m_mangled && swift_language &&
+      swift_language->SymbolNameFitsToLanguage(*this)) {
+    auto [demangled, info] = swift_language->DemangleSymbol(
+        m_mangled.GetStringRef(), eCompactName, sc);
+    return ConstString(demangled);
+  }
 #endif // LLDB_ENABLE_SWIFT
        // END SWIFT
 

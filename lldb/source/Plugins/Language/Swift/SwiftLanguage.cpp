@@ -114,6 +114,40 @@ bool SwiftLanguage::SymbolNameFitsToLanguage(const Mangled &mangled) const {
       mangled.GetMangledName().GetStringRef());
 }
 
+std::pair<std::string, DemangledNameInfo>
+SwiftLanguage::DemangleSymbol(llvm::StringRef mangled,
+                              Mangled::NameFormatPreference preference,
+                              const SymbolContext *sc) const {
+  SwiftLanguageRuntime::DemangleMode mode;
+  switch (preference) {
+  case Mangled::eFullName:
+    mode = SwiftLanguageRuntime::eTypeName;
+    break;
+  case Mangled::eCompactName:
+    mode = SwiftLanguageRuntime::eSimplified;
+    break;
+  }
+  return SwiftLanguageRuntime::TrackedDemangleSymbolAsString(mangled, mode, sc);
+}
+
+bool SwiftLanguage::GetFunctionBasenameFromMangled(ConstString mangled,
+                                                   ConstString &basename,
+                                                   bool &is_method) const {
+  return SwiftLanguageRuntime::IsSwiftMangledName(mangled.GetStringRef()) &&
+         SwiftLanguageRuntime::MethodName::ExtractFunctionBasenameFromMangled(
+             mangled, basename, is_method);
+}
+
+bool SwiftLanguage::IsAsyncFunctionSymbol(llvm::StringRef mangled) const {
+  return SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(mangled);
+}
+
+bool SwiftLanguage::IsAsyncResumePartialFunctionSymbol(
+    llvm::StringRef mangled) const {
+  return SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
+      mangled);
+}
+
 bool SwiftLanguage::IsTopLevelFunction(Function &function) {
   static ConstString g_main("main");
 

@@ -136,6 +136,20 @@ public:
 
   bool SymbolNameFitsToLanguage(const Mangled &mangled) const override;
 
+  std::pair<std::string, DemangledNameInfo>
+  DemangleSymbol(llvm::StringRef mangled,
+                 Mangled::NameFormatPreference preference,
+                 const SymbolContext *sc) const override;
+
+  bool GetFunctionBasenameFromMangled(ConstString mangled,
+                                      ConstString &basename,
+                                      bool &is_method) const override;
+
+  bool IsAsyncFunctionSymbol(llvm::StringRef mangled) const override;
+
+  bool
+  IsAsyncResumePartialFunctionSymbol(llvm::StringRef mangled) const override;
+
   llvm::StringRef GetInstanceName() override { return "self"; }
 
   bool HandleFrameFormatVariable(const SymbolContext &sc,

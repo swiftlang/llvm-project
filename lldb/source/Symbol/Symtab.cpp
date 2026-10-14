@@ -28,10 +28,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DJB.h"
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#endif // LLDB_ENABLE_SWIFT
-
 using namespace lldb;
 using namespace lldb_private;
 
@@ -294,6 +290,9 @@ void Symtab::InitNameIndexes() {
     languages.push_back(l);
     return IterationAction::Continue;
   });
+#ifdef LLDB_ENABLE_SWIFT
+  Language *swift_language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+#endif // LLDB_ENABLE_SWIFT
 
   auto &name_to_index = GetNameToSymbolIndexMap(lldb::eFunctionNameTypeNone);
   auto &basename_to_index =
@@ -348,14 +347,12 @@ void Symtab::InitNameIndexes() {
           continue;
         }
 #ifdef LLDB_ENABLE_SWIFT
-        else if (SwiftLanguageRuntime::IsSwiftMangledName(name.GetStringRef())) {
-          lldb_private::ConstString basename;
+        else if (swift_language) {
+          ConstString basename;
           bool is_method = false;
-          ConstString mangled_name = mangled.GetMangledName();
-          if (SwiftLanguageRuntime::MethodName::
-                  ExtractFunctionBasenameFromMangled(mangled_name, basename,
-                                                     is_method)) {
-            if (basename && basename != mangled_name) {
+          if (swift_language->GetFunctionBasenameFromMangled(name, basename,
+                                                             is_method)) {
+            if (basename && basename != name) {
               if (is_method)
                 method_to_index.Append(basename, value);
               else

@@ -17,6 +17,9 @@
 
 #include "lldb/Core/FormatEntity.h"
 #include "lldb/Core/Highlighter.h"
+// BEGIN SWIFT
+#include "lldb/Core/Mangled.h"
+// END SWIFT
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/DataFormatters/DumpValueObjectOptions.h"
 #include "lldb/DataFormatters/FormatClasses.h"
@@ -530,6 +533,35 @@ public:
   /// not make sense for this language.
   Function *FindParentOfClosureWithVariable(llvm::StringRef variable_name,
                                             const SymbolContext &sc) const;
+
+  /// Demangle `mangled`, a symbol in this language's mangling scheme, and
+  /// return the demangled name with the ranges of its parts. Returns an empty
+  /// name if this language does not demangle `mangled`.
+  virtual std::pair<std::string, DemangledNameInfo>
+  DemangleSymbol(llvm::StringRef mangled,
+                 Mangled::NameFormatPreference preference,
+                 const SymbolContext *sc) const {
+    return {};
+  }
+
+  /// If `mangled` is a function symbol of this language, store its basename in
+  /// `basename`, set `is_method` if it is a method and return true.
+  virtual bool GetFunctionBasenameFromMangled(ConstString mangled,
+                                              ConstString &basename,
+                                              bool &is_method) const {
+    return false;
+  }
+
+  /// Returns true if `mangled` is an async function or one of its funclets.
+  virtual bool IsAsyncFunctionSymbol(llvm::StringRef mangled) const {
+    return false;
+  }
+
+  /// Returns true if `mangled` is an async funclet that resumes after an await.
+  virtual bool
+  IsAsyncResumePartialFunctionSymbol(llvm::StringRef mangled) const {
+    return false;
+  }
   // END SWIFT
 
 protected:
