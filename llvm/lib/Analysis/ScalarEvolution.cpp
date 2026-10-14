@@ -13862,6 +13862,14 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
       !isa<SCEVCouldNotCompute>(BECount))
     ConstantMaxBECount = getConstant(getUnsignedRangeMax(BECount));
 
+  // Tighten the max by applying loop guards
+  if (!isa<SCEVCouldNotCompute>(ConstantMaxBECount) &&
+      !isa<SCEVCouldNotCompute>(BECount)) {
+    APInt MaxWithGuards = getUnsignedRangeMax(applyLoopGuards(BECount, Guards));
+    ConstantMaxBECount = getConstant(
+        APIntOps::umin(MaxWithGuards, getUnsignedRangeMax(ConstantMaxBECount)));
+  }
+
   const SCEV *SymbolicMaxBECount =
       isa<SCEVCouldNotCompute>(BECount) ? ConstantMaxBECount : BECount;
   return ExitLimit(BECount, ConstantMaxBECount, SymbolicMaxBECount, MaxOrZero,
