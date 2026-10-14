@@ -2093,7 +2093,7 @@ bool PluginManager::UnregisterPlugin(
   return GetScriptedInterfaceInstances().UnregisterPlugin(create_callback);
 }
 
-uint32_t PluginManager::GetNumScriptedInterfaces() {
+size_t PluginManager::GetNumScriptedInterfaces() {
   return GetScriptedInterfaceInstances().GetSnapshot().size();
 }
 
