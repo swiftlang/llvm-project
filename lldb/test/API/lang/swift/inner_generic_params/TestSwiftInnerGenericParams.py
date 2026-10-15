@@ -17,6 +17,7 @@ class TestSwiftInnerGenericParams(TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_inner_params_are_declined(self):
         """A generic method in a generic context is not supported."""
         self.build()

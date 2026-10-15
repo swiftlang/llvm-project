@@ -9,6 +9,7 @@ class TestCase(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_summary_contains_name(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

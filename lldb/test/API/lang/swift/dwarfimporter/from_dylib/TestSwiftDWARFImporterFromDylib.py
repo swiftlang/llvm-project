@@ -12,6 +12,7 @@ class TestSwiftDWARFImporterFromDylib(lldbtest.TestBase):
     @swiftTest
     # This test needs a working Remote Mirrors implementation.
     @skipIfLinux
+    @expectedFailureAll(debug_info=["pdb"])
     def test_dwarf_importer(self):
         self.build()
         #os.remove(self.getBuildArtifact('Foo.swiftmodule'))

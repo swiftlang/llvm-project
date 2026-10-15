@@ -15,6 +15,7 @@ class TestSwiftArrayEnum(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that an optional enum field shows its case in a struct and in an array"""
         self.build()

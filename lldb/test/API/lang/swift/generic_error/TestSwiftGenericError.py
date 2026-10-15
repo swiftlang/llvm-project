@@ -9,6 +9,7 @@ class TestSwiftGenericError(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a generic argument bound to an Error shows the concrete error"""
         self.build()

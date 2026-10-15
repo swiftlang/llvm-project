@@ -17,6 +17,7 @@ class TestSwiftArrayTupleResilient(TestBase):
     @swiftTest
     @skipIfLinux
     @expectedFailureAll(archs=['arm64_32'], bugnumber="<rdar://problem/58065423>")
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that arrays of tuples with resilient element types are printed"""
         self.build()

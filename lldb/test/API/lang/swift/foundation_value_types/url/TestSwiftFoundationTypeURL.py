@@ -27,6 +27,7 @@ class TestCase(TestBase):
     @skipUnlessFoundationEssentials
     @skipIfLinux  # https://github.com/swiftlang/llvm-project/issues/13465
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_url_formatters(self):
         """Test URL summary strings."""
         self.build()

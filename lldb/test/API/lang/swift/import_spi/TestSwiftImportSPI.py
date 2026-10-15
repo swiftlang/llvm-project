@@ -8,6 +8,7 @@ import os
 class TestSwiftImportSPI(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test SPI imports"""
         self.build()

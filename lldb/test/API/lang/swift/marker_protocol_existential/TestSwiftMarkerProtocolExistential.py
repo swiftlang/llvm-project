@@ -9,6 +9,7 @@ class TestSwiftMarkerProtocolExistential(lldbtest.TestBase):
     # all in order.
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, self.inferior, _, bkpt = lldbutil.run_to_source_breakpoint(

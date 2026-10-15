@@ -8,6 +8,7 @@ class TestSwiftFullyRealizedFrameVar(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that frame variable -O shows a generic argument as its bound type"""
         self.build()

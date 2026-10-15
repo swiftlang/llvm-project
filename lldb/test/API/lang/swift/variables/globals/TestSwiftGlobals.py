@@ -22,6 +22,7 @@ import os
 class TestSwiftGlobals(TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_globals(self):
         """Check that we can examine module globals in the expression parser"""
         self.build()

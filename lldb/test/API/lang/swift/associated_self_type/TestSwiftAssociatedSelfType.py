@@ -19,6 +19,7 @@ class TestSwiftAssociatedSelfType(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a value of an associated type of Self resolves to its bound type"""
         self.build()

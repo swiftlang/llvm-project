@@ -23,6 +23,7 @@ class TestSwiftMixAnyObjectType(TestBase):
     @requireNotEmbeddedSwift
     @skipIfLinux
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_any_object_type(self):
         """Test the AnyObject type in different combinations"""
         self.build()

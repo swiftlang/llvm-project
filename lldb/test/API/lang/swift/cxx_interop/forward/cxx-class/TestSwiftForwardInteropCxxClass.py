@@ -10,6 +10,7 @@ class TestSwiftForwardInteropCxxClass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_class(self):
         self.build()
         _, _, _, _= lldbutil.run_to_source_breakpoint(

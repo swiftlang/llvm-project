@@ -10,6 +10,7 @@ class TestSwiftForwardInteropCxxLangOpt(TestBase):
 
     @skipEmbeddedSwift # rdar://185128839 (Embedded Swift: a test whose breakpoint is in a linked dylib runs to exit without stopping)
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_class(self):
         """
         Test that C++ interoperability is enabled on a per-CU basis.

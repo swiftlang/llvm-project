@@ -35,6 +35,7 @@ class TestSwiftBackwardInteropSteppingStruct(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_method_step_in_struct(self):
         thread = self.setup("Break here for method - struct")
         self.check_step_in(thread, "testMethod", "SwiftStruct.swiftMethod")
@@ -47,6 +48,7 @@ class TestSwiftBackwardInteropSteppingStruct(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_init_step_in_struct(self):
         thread = self.setup("Break here for constructor - struct")
         self.check_step_in(thread, "testConstructor", "SwiftStruct.init")

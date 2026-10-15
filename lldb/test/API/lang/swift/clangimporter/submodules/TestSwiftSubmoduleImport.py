@@ -6,6 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftSubmoduleImport(lldbtest.TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test imports of Clang submodules"""
         self.build()

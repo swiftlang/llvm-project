@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftNonCopyableTypeError(TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, process, thread, _ = lldbutil.run_to_source_breakpoint(

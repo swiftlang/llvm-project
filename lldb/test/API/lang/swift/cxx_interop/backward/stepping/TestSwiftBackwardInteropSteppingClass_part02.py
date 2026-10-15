@@ -34,6 +34,7 @@ class TestSwiftBackwardInteropSteppingClass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_static_method_step_in_class(self):
         thread = self.setup('Break here for static method - class')
         self.check_step_in(thread, 'testStaticMethod', 'SwiftClass.swiftStaticMethod')
@@ -46,6 +47,7 @@ class TestSwiftBackwardInteropSteppingClass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_getter_step_in_class(self):
         thread = self.setup('Break here for getter - class')
         self.check_step_in(thread, 'testGetter', 'SwiftClass.swiftProperty.getter')

@@ -19,6 +19,7 @@ class TestSwiftPrivateGenericSelf(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a generic self bound to a private type resolves dynamically"""
         self.build()

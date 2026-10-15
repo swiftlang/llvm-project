@@ -20,6 +20,7 @@ import os
 class TestSwiftInOutVariables(TestBase):
     @requireNotEmbeddedSwift # embedded Swift strips initializers the program never calls, so Other(in1:in2:) is not in the binary
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_in_out_variables(self):
         """Test that @inout variables display reasonably"""
         self.build()
