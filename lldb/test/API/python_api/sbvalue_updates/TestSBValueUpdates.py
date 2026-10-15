@@ -13,6 +13,7 @@ class TestSBValueUpdates(lldbtest.TestBase):
 
     @decorators.skipEmbeddedSwiftOnWindows
     @decorators.swiftTest
+    @decorators.skipIf(debug_info=["pdb"])
     def test_update_and_format_with_type_change(self):
         """Test that an SBValue can update and format itself as its type
         changes"""

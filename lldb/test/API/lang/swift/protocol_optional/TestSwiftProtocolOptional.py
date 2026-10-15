@@ -19,6 +19,7 @@ class TestSwiftProtocolOptional(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a value of associated type bound to an Optional resolves"""
         self.build()

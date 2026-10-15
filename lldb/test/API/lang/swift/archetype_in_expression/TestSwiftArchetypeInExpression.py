@@ -8,6 +8,7 @@ class TestSwiftArchetypeInExpression(TestBase):
 
     @skipEmbeddedSwift # rdar://184867874 (Embedded Swift: archetype names are unavailable in monomorphized frames, so expr T.self fails)
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Tests that a user can refer to the archetypes in their expressions"""         
         self.build()

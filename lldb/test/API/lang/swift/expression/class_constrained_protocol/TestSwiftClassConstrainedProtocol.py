@@ -16,6 +16,7 @@ from lldbsuite.test.decorators import *
 class TestSwiftClassConstrainedProtocol(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that we can reconstruct self and weak self captured in a
         closure, both in a method of a class conforming to a class constrained

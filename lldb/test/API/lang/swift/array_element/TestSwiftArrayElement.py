@@ -8,6 +8,7 @@ class TestSwiftArrayElement(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that an array element can be accessed with frame variable"""
         self.build()

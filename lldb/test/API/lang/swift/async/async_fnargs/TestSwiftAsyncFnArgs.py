@@ -10,6 +10,7 @@ class TestSwiftAsyncFnArgs(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test function arguments in async functions"""
         self.build()

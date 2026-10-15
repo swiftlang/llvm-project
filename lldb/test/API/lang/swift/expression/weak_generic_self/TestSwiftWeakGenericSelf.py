@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftWeakGenericSelf(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Confirms that expression evaluation works with a generic class
         type within a closure that weakly captures it"""

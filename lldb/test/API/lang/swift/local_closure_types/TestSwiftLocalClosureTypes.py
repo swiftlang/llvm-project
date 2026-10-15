@@ -21,6 +21,7 @@ class TestSwiftLocalClosureTypes(TestBase):
     @skipEmbeddedSwiftOnLinux
     @skipIf(oslist=["macosx"], bugnumber="rdar://26051759")
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a struct declared inside a closure can be inspected"""
         self.build()

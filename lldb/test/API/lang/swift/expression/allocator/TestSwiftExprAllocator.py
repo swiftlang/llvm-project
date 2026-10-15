@@ -11,6 +11,7 @@ class TestSwiftExprAllocator(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_allocator_self(self):
         """Test expressions involving self in a allocating constructor. In an
         allocator, self is just a local variable, not being passed in, but

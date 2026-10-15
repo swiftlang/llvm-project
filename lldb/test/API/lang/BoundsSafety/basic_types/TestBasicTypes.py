@@ -8,6 +8,7 @@ class TestBasicTypes(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
 

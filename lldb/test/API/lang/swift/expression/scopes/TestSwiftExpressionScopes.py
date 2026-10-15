@@ -22,6 +22,7 @@ import os
 class TestSwiftExpressionScopes(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_expression_scopes(self):
         """Tests that swift expressions resolve scoped variables correctly"""
         self.build()

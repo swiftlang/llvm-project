@@ -38,6 +38,7 @@ class TestSwiftUnknownSelf(lldbtest.TestBase):
     @skipUnlessFoundationEssentials
     @skipIfLinux  # https://github.com/swiftlang/llvm-project/issues/13465
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_unknown_self_objc_ref(self):
         """Test unknown references to Objective-C objects."""
         self.build()

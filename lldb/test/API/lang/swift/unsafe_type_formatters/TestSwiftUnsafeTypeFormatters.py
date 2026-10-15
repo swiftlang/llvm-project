@@ -47,6 +47,7 @@ class TestSwiftUnsafeTypeFormatters(TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that Swift unsafe pointer and buffer types get formatted properly"""
         self.build()

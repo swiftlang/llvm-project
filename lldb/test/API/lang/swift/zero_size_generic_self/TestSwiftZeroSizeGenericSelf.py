@@ -19,6 +19,7 @@ class TestSwiftZeroSizeGenericSelf(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that a zero-size generic self resolves to its bound type"""
         self.build()

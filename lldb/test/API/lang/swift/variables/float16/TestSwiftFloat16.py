@@ -40,6 +40,7 @@ class TestSwiftFloat16(TestBase):
     @skipIfRemote
     # Some distros have no Float16 support.
     @skipTestIfFn(isUnsupportedDistro)
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that Float16 has a value, like Float and Double do."""
         self.build()

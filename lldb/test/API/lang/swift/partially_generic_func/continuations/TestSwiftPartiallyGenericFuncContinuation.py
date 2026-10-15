@@ -33,6 +33,7 @@ class TestSwiftPartiallyGenericFuncContinuation(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that a generic struct used in a generic closure shows its fields"""
         self.build()

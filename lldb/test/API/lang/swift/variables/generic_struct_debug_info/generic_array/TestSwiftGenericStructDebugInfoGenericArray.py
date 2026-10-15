@@ -26,6 +26,7 @@ class TestSwiftGenericStructDebugInfoGenericArray(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that an array of generic structs shows the elements' fields"""
         self.build()

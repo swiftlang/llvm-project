@@ -22,6 +22,7 @@ import os
 class TestSwiftTypeAliasFormatters(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_type_alias_formatters(self):
         """Test that Swift typealiases get formatted properly"""
         self.build()

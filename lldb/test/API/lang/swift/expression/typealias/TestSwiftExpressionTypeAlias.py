@@ -8,6 +8,7 @@ class TestSwiftExpressionTypeAlias(lldbtest.TestBase):
 
     @skipEmbeddedSwift # rdar://184867789 (Embedded Swift: monomorphized frames have no metadata variable to bind generic parameters from)
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

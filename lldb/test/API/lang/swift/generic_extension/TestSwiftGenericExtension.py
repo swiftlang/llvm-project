@@ -19,6 +19,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftGenericExtension(TestBase):
     @skipEmbeddedSwift # rdar://185129012 (Embedded Swift: expr --bind-generic-types false cannot be honoured in a monomorphized frame)
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

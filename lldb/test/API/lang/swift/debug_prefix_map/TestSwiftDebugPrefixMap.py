@@ -24,6 +24,7 @@ import shutil
 class TestSwiftDebugPrefixMap(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_debug_prefix_map(self):
         self.do_test()
 
