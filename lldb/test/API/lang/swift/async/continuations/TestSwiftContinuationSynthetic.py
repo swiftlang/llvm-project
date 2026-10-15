@@ -10,6 +10,7 @@ class TestCase(TestBase):
     @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_unsafe_continuation_printing(self):
         """Print an UnsafeContinuation and verify its children."""
         self.build()

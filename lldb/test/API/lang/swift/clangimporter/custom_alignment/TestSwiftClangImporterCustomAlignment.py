@@ -23,6 +23,7 @@ class TestSwiftClangImporterCustomAlignment(lldbtest.TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

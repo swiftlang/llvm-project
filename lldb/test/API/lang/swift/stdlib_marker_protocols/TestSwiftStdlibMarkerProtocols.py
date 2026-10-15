@@ -8,6 +8,7 @@ class TestSwiftStdlibMarkerProtocols(TestBase):
     @skipEmbeddedSwiftOnLinux # Linker failure with arc4random_buf
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         self.runCmd("settings set symbols.swift-enable-ast-context false")

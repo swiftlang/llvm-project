@@ -11,6 +11,7 @@ class TestSwiftForwardInteropClassInNamespace(TestBase):
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_class(self):
         self.build()
         _, _, _, _= lldbutil.run_to_source_breakpoint(

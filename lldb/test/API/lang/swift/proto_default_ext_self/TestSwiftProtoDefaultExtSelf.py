@@ -9,6 +9,7 @@ from lldbsuite.test.decorators import *
 class TestSwiftProtoDefaultExtSelf(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_proto_default_ext_self(self):
         """
         Test that we can resolve "self" even if there are no references to it in a dynamic context

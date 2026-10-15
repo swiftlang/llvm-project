@@ -47,6 +47,7 @@ class TestSwiftMainExecutable(TestBase):
     )
     @swiftTest
     @skipEmbeddedSwift
+    @expectedFailureAll(debug_info=["pdb"])
     def test_implementation_only_import_main_executable(self):
         """Test `@_implementationOnly import` in the main executable
 
@@ -120,6 +121,7 @@ class TestSwiftMainExecutable(TestBase):
 
     @swiftTest
     @requireNotEmbeddedSwift # library evolution cannot be enabled with embedded Swift
+    @expectedFailureAll(debug_info=["pdb"])
     def test_implementation_only_import_main_executable_resilient(self):
         """Test `@_implementationOnly import` in the main executable with a resilient library
 

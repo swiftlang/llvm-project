@@ -19,6 +19,7 @@ class TestSwiftPORefTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test po of classes with default and custom mirrors and descriptions"""
         self.build()

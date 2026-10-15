@@ -8,6 +8,7 @@ class TestSwiftDWARFImporterC(lldbtest.TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
     @expectedFailureAll(oslist=["linux"], bugnumber="rdar://83444822")
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

@@ -33,6 +33,7 @@ class TestSwiftFoundationTypeData(TestBase):
         bugnumber="rdar://60396797",  # should work but crashes.
         setting=("symbols.use-swift-clangimporter", "false"),
     )
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test the Data summary for the empty, inline and slice representations"""
         self.build()

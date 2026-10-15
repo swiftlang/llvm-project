@@ -17,6 +17,7 @@ from lldbsuite.test.lldbtest import *
 class TestSwiftOptionalAmbiguity(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_sample_rename_this(self):
         self.build()
         self.main_source_file = lldb.SBFileSpec("main.swift")

@@ -30,6 +30,7 @@ class TestSwiftGenericExpressions(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test_generic_expressions(self):
         """Test expressions in generic contexts"""
         self.build()

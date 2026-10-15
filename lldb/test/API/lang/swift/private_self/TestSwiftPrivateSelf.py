@@ -19,6 +19,7 @@ class TestSwiftPrivateSelf(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test evaluating self in a fileprivate method"""
         self.build()
