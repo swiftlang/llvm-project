@@ -531,7 +531,7 @@ private:
     /// previously deleted registers.
     MachineInstr *DefMI;
 
-    LLVM_ABI DeadReg(RegisterIdx Idx, const Rematerializer &Remater)
+    DeadReg(RegisterIdx Idx, const Rematerializer &Remater)
         : Idx(Idx), DefReg(Remater.getReg(Idx).getDefReg()),
           DefMI(Remater.getReg(Idx).DefMI) {}
   };
