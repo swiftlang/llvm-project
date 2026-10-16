@@ -10,9 +10,7 @@ func testMethod() {
 }
 
 func testContructor() {
-  //FIXME: remove this statement rdar://105569287
-  print(1) // Break here for constructor
-  var classWithConstructor = ClassWithConstructor(4, true, 5.7); 
+  var classWithConstructor = ClassWithConstructor(4, true, 5.7); // Break here for constructor
 }
 
 protocol P {

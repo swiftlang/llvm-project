@@ -17,9 +17,6 @@ class TestSwiftForwardInteropSteppingHeaderOnly(TestBase):
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
             self, 'Break here for constructor', lldb.SBFileSpec('main.swift'))
 
-        # FIXME: this step over shouldn't be necessary (rdar://105569287)
-        thread.StepOver()
-
         name = thread.frames[0].GetFunctionName()
         self.assertIn('testContructor', name)
         thread.StepInto()
@@ -37,9 +34,6 @@ class TestSwiftForwardInteropSteppingHeaderOnly(TestBase):
         
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
             self, 'Break here for constructor', lldb.SBFileSpec('main.swift'))
-
-        # FIXME: this step over shouldn't be necessary (rdar://105569287)
-        thread.StepOver()
 
         name = thread.frames[0].GetFunctionName()
         self.assertIn('testContructor', name)
