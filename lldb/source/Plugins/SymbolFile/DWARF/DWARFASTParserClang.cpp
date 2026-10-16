@@ -1837,10 +1837,15 @@ void DWARFASTParserClang::GetUniqueTypeNameAndDeclaration(
 
 // BEGIN SWIFT
 bool DWARFASTParserClang::IsSwiftInteropType(const DWARFDIE &die) {
-  for (DWARFDIE die : die.children())
-    if (die.Tag() == llvm::dwarf::DW_TAG_member &&
-        llvm::StringRef(die.GetName()) == "__swift_mangled_name")
+  // __swift_mangled_name is a static data member, which DWARF 5 describes
+  // with DW_TAG_variable instead of DW_TAG_member.
+  for (DWARFDIE child : die.children()) {
+    dw_tag_t tag = child.Tag();
+    if ((tag == llvm::dwarf::DW_TAG_member ||
+         tag == llvm::dwarf::DW_TAG_variable) &&
+        llvm::StringRef(child.GetName()) == "__swift_mangled_name")
       return true;
+  }
   return false;
 }
 // END SWIFT
