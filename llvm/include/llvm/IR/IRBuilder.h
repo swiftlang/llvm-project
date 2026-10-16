@@ -213,7 +213,7 @@ public:
   /// instructions that are at the start.
   void SetInsertPointPastAllocas(Function *F) {
     BB = &F->getEntryBlock();
-    InsertPt = BB->getFirstNonPHIOrDbgOrAlloca();
+    InsertPt = BB->getFirstNonPHIOrAlloca();
   }
 
   /// Set location information used by debugging information.

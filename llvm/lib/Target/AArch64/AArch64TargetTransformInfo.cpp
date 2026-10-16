@@ -3171,7 +3171,7 @@ static std::optional<Instruction *> instCombineDMB(InstCombiner &IC,
     NI = NI->getNextNode();
     if (!NI) {
       if (auto *SuccBB = NIBB->getUniqueSuccessor())
-        NI = &*SuccBB->getFirstNonPHIOrDbgOrLifetime();
+        NI = &*SuccBB->getFirstNonPHIOrLifetime();
       else
         break;
     }

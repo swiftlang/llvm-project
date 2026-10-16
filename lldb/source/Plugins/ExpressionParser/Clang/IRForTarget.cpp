@@ -69,7 +69,7 @@ static llvm::Value *FindEntryInstruction(llvm::Function *function) {
   if (function->empty())
     return nullptr;
 
-  return &*function->getEntryBlock().getFirstNonPHIOrDbg();
+  return &*function->getEntryBlock().getFirstNonPHIOrPseudoProbe();
 }
 
 IRForTarget::IRForTarget(lldb_private::ClangExpressionDeclMap *decl_map,
@@ -369,7 +369,8 @@ bool IRForTarget::CreateResultVariable(llvm::Function &llvm_function) {
     // there's nothing to put into its equivalent persistent variable.
 
     BasicBlock &entry_block(llvm_function.getEntryBlock());
-    Instruction *first_entry_instruction(&*entry_block.getFirstNonPHIOrDbg());
+    Instruction *first_entry_instruction(
+        &*entry_block.getFirstNonPHIOrPseudoProbe());
 
     if (!first_entry_instruction)
       return false;
@@ -1546,7 +1547,8 @@ bool IRForTarget::ReplaceVariables(Function &llvm_function) {
   LLDB_LOG(log, "Arg: \"{0}\"", PrintValue(argument));
 
   BasicBlock &entry_block(llvm_function.getEntryBlock());
-  Instruction *FirstEntryInstruction(&*entry_block.getFirstNonPHIOrDbg());
+  Instruction *FirstEntryInstruction(
+      &*entry_block.getFirstNonPHIOrPseudoProbe());
 
   if (!FirstEntryInstruction) {
     m_error_stream.Printf("Internal error [IRForTarget]: Couldn't find the "

@@ -4699,7 +4699,7 @@ TEST_F(OpenMPIRBuilderTest, CreateTeamsWithThreadLimit) {
       dyn_cast<UncondBrInst>(PushNumTeamsCallInst->getNextNode());
   ASSERT_NE(BrInst, nullptr);
   BasicBlock::iterator NextInstruction =
-      BrInst->getSuccessor(0)->getFirstNonPHIOrDbgOrLifetime();
+      BrInst->getSuccessor(0)->getFirstNonPHIOrLifetime();
   CallInst *ForkTeamsCI = nullptr;
   if (NextInstruction != BrInst->getSuccessor()->end())
     ForkTeamsCI = dyn_cast_if_present<CallInst>(NextInstruction);
@@ -4756,7 +4756,7 @@ TEST_F(OpenMPIRBuilderTest, CreateTeamsWithNumTeamsUpper) {
       dyn_cast<UncondBrInst>(PushNumTeamsCallInst->getNextNode());
   ASSERT_NE(BrInst, nullptr);
   BasicBlock::iterator NextInstruction =
-      BrInst->getSuccessor()->getFirstNonPHIOrDbgOrLifetime();
+      BrInst->getSuccessor()->getFirstNonPHIOrLifetime();
   CallInst *ForkTeamsCI = nullptr;
   if (NextInstruction != BrInst->getSuccessor()->end())
     ForkTeamsCI = dyn_cast_if_present<CallInst>(NextInstruction);
@@ -4816,7 +4816,7 @@ TEST_F(OpenMPIRBuilderTest, CreateTeamsWithNumTeamsBoth) {
       dyn_cast<UncondBrInst>(PushNumTeamsCallInst->getNextNode());
   ASSERT_NE(BrInst, nullptr);
   BasicBlock::iterator NextInstruction =
-      BrInst->getSuccessor()->getFirstNonPHIOrDbgOrLifetime();
+      BrInst->getSuccessor()->getFirstNonPHIOrLifetime();
   CallInst *ForkTeamsCI = nullptr;
   if (NextInstruction != BrInst->getSuccessor()->end())
     ForkTeamsCI = dyn_cast_if_present<CallInst>(NextInstruction);
@@ -4881,7 +4881,7 @@ TEST_F(OpenMPIRBuilderTest, CreateTeamsWithNumTeamsAndThreadLimit) {
       dyn_cast<UncondBrInst>(PushNumTeamsCallInst->getNextNode());
   ASSERT_NE(BrInst, nullptr);
   BasicBlock::iterator NextInstruction =
-      BrInst->getSuccessor()->getFirstNonPHIOrDbgOrLifetime();
+      BrInst->getSuccessor()->getFirstNonPHIOrLifetime();
   CallInst *ForkTeamsCI = nullptr;
   if (NextInstruction != BrInst->getSuccessor()->end())
     ForkTeamsCI = dyn_cast_if_present<CallInst>(NextInstruction);
