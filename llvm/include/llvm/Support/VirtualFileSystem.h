@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/VirtualCachedDirectoryEntry.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -221,8 +222,6 @@ public:
     return !(*this == RHS);
   }
 };
-
-class FileSystem;
 
 namespace detail {
 
