@@ -427,6 +427,11 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
       "Swift.[Mutable]Span", ConstString("^Swift\\.(Mutable)?Span<.+>?"),
       synth_flags, true);
 
+  AddCXXSynthetic(swift_category_sp,
+                  lldb_private::formatters::swift::RefSyntheticFrontEndCreator,
+                  "Swift.Ref synthetic children",
+                  ConstString("^Swift\\.Ref<.+>$"), synth_flags, true);
+
   DictionaryConfig::Get().RegisterSyntheticChildrenCreators(swift_category_sp,
                                                             synth_flags);
   SetConfig::Get().RegisterSyntheticChildrenCreators(swift_category_sp,

@@ -140,6 +140,9 @@ SyntheticChildrenFrontEnd *EnumSyntheticFrontEndCreator(CXXSyntheticChildren *,
 SyntheticChildrenFrontEnd *TaskSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                                         lldb::ValueObjectSP);
 
+SyntheticChildrenFrontEnd *RefSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                                       lldb::ValueObjectSP);
+
 SyntheticChildrenFrontEnd *
 UnsafeContinuationSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                            lldb::ValueObjectSP);

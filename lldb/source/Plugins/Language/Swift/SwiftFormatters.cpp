@@ -30,6 +30,7 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Timer.h"
 #include "lldb/ValueObject/ValueObject.h"
+#include "lldb/ValueObject/ValueObjectMemory.h"
 #include "lldb/lldb-enumerations.h"
 #include "swift/ABI/Task.h"
 #include "swift/AST/Types.h"
@@ -1153,6 +1154,78 @@ private:
   ValueObjectSP m_task_sp;
 };
 
+/// Presents the value a `Ref` borrows as a single `value` child, mirroring
+/// `Ref.value`, whether the underlying `Builtin.Borrow` holds an inline copy
+/// of the referent or a pointer to it.
+class RefSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
+public:
+  RefSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
+      : SyntheticChildrenFrontEnd(*valobj_sp.get()) {}
+
+  llvm::Expected<uint32_t> CalculateNumChildren() override {
+    if (!m_value_sp)
+      return m_backend.GetNumChildren();
+    return 1;
+  }
+
+  bool MightHaveChildren() override { return true; }
+
+  lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) override {
+    if (!m_value_sp)
+      return m_backend.GetChildAtIndex(idx);
+    if (idx == 0)
+      return m_value_sp;
+    return {};
+  }
+
+  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+    if (!m_value_sp)
+      return m_backend.GetIndexOfChildWithName(name);
+    if (name == "value")
+      return 0;
+    return llvm::createStringError("Type has no child named '%s'",
+                                   name.AsCString(""));
+  }
+
+  lldb::ChildCacheState Update() override {
+    m_value_sp.reset();
+    ValueObjectSP borrow_sp = m_backend.GetChildMemberWithName("builtin");
+    if (!borrow_sp)
+      return ChildCacheState::eRefetch;
+    ValueObjectSP representation_sp = borrow_sp->GetChildAtIndex(0);
+    if (!representation_sp)
+      return ChildCacheState::eRefetch;
+
+    if (representation_sp->GetName() == "targetValue") {
+      m_value_sp = representation_sp->Clone("value");
+      return ChildCacheState::eRefetch;
+    }
+
+    if (representation_sp->GetName() != "targetPointer")
+      return ChildCacheState::eRefetch;
+    CompilerType type = m_backend.GetCompilerType();
+    auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
+    if (!ts)
+      return ChildCacheState::eRefetch;
+    CompilerType referent_type =
+        ts->GetGenericArgumentType(type.GetOpaqueQualType(), 0);
+    addr_t address =
+        representation_sp->GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
+    if (!referent_type || address == LLDB_INVALID_ADDRESS)
+      return ChildCacheState::eRefetch;
+    ExecutionContext exe_ctx(m_backend.GetExecutionContextRef());
+    m_value_sp = ValueObjectMemory::Create(
+        exe_ctx.GetBestExecutionContextScope(), "value", Address(address),
+        referent_type, &m_backend);
+    if (m_value_sp)
+      m_value_sp->SetSyntheticChildrenGenerated(true);
+    return ChildCacheState::eRefetch;
+  }
+
+private:
+  ValueObjectSP m_value_sp;
+};
+
 class CheckedContinuationSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
 public:
   CheckedContinuationSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
@@ -1742,6 +1815,14 @@ lldb_private::formatters::swift::TaskSyntheticFrontEndCreator(
   if (!valobj_sp)
     return NULL;
   return new TaskSyntheticFrontEnd(valobj_sp);
+}
+
+SyntheticChildrenFrontEnd *
+lldb_private::formatters::swift::RefSyntheticFrontEndCreator(
+    CXXSyntheticChildren *, lldb::ValueObjectSP valobj_sp) {
+  if (!valobj_sp)
+    return nullptr;
+  return new RefSyntheticFrontEnd(valobj_sp);
 }
 
 SyntheticChildrenFrontEnd *

@@ -6919,7 +6919,7 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
     // Don't recurse into the array *element* type.
     return swift_flags;
   case swift::TypeKind::BuiltinBorrow:
-    swift_flags |= eTypeIsBuiltIn;
+    swift_flags |= eTypeIsBuiltIn | eTypeHasChildren;
     return swift_flags;
   case swift::TypeKind::BuiltinVector:
     // TODO: OR in eTypeIsFloat or eTypeIsInteger as needed
