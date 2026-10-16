@@ -64,6 +64,11 @@ FileHeader:
       llvm::sys::fs::createUniqueDirectory("lldb-ast-files", directory));
   auto cleanup =
       llvm::scope_exit([&] { llvm::sys::fs::remove_directories(directory); });
+  // Keep absolute paths and getcwd spellings consistent on hosts where the
+  // temporary directory has a symlinked parent (for example /var on macOS).
+  llvm::SmallString<128> real_directory;
+  ASSERT_NO_ERROR(llvm::sys::fs::real_path(directory, real_directory));
+  directory = real_directory;
   auto file_path = [&](llvm::StringRef parent) {
     llvm::SmallString<128> path(directory);
     llvm::sys::path::append(path, parent, "Shared.swiftmodule");
@@ -95,7 +100,7 @@ FileHeader:
     SymbolFileDWARFDebugMap provider(
         module->GetObjectFile()->shared_from_this());
     return static_cast<SymbolFile &>(provider).GetASTData(eLanguageTypeSwift,
-                                                        loaded);
+                                                          loaded);
   };
   auto contents = [](const DataBufferSP &buffer) {
     return llvm::StringRef(reinterpret_cast<const char *>(buffer->GetBytes()),

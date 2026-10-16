@@ -35,8 +35,8 @@
 #include "llvm/ADT/StableHashing.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
-#include <optional>
 #include "llvm/Support/Chrono.h"
+#include <optional>
 
 #include <atomic>
 #include <cstddef>
