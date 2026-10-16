@@ -18,6 +18,7 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -628,6 +629,83 @@ ParseGlobals(DataExtractor &data) {
   return globals;
 }
 
+static void AddGlobalSymbol(std::vector<Symbol> &symbols, llvm::StringRef name,
+                            uint32_t index, const SectionSP &global_section_sp,
+                            uint32_t num_imported_globals, size_t num_globals) {
+  // An imported global has no entry in the global section, and so no value to
+  // bound a read with.
+  if (index < num_imported_globals ||
+      index - num_imported_globals >= num_globals)
+    return;
+
+  // The section is indexed rather than byte addressed, so a global spans the
+  // one index it occupies. Bounding a read by the size of the value is the
+  // section's business.
+  symbols.emplace_back(symbols.size(), name, lldb::eSymbolTypeData,
+                       /*external=*/true, /*is_debug=*/false,
+                       /*is_trampoline=*/false, /*is_artificial=*/false,
+                       global_section_sp, /*offset=*/index,
+                       /*size=*/1,
+                       /*size_is_valid=*/true,
+                       /*contains_linker_annotations=*/false,
+                       /*flags=*/0);
+}
+
+struct WasmGlobalExport {
+  std::string name;
+  uint32_t index = 0;
+};
+
+static llvm::Expected<std::vector<WasmGlobalExport>>
+ParseGlobalExports(DataExtractor &export_data) {
+  llvm::DataExtractor data = export_data.GetAsLLVM();
+  llvm::DataExtractor::Cursor c(0);
+
+  llvm::Expected<uint32_t> count = GetULEB32(data, c);
+  if (!count)
+    return count.takeError();
+
+  std::vector<WasmGlobalExport> exports;
+  for (uint32_t i = 0; c && i < *count; ++i) {
+    llvm::Expected<std::string> name = GetWasmString(data, c);
+    if (!name)
+      return name.takeError();
+    const uint8_t kind = data.getU8(c);
+    llvm::Expected<uint32_t> index = GetULEB32(data, c);
+    if (!index)
+      return index.takeError();
+    if (kind == llvm::wasm::WASM_EXTERNAL_GLOBAL)
+      exports.push_back({std::move(*name), *index});
+  }
+
+  if (!c)
+    return c.takeError();
+
+  return exports;
+}
+
+static void AddGlobalExportSymbols(std::vector<Symbol> &symbols,
+                                   llvm::ArrayRef<WasmGlobalExport> exports,
+                                   const SectionSP &global_section_sp,
+                                   uint32_t num_imported_globals,
+                                   size_t num_globals) {
+  llvm::DenseMap<lldb::addr_t, ConstString> names;
+  for (const Symbol &symbol : symbols) {
+    const Address &addr = symbol.GetAddressRef();
+    if (addr.GetSection() == global_section_sp)
+      names.try_emplace(addr.GetOffset(),
+                        symbol.GetMangled().GetName(Mangled::ePreferMangled));
+  }
+
+  for (const WasmGlobalExport &global_export : exports) {
+    auto it = names.find(global_export.index);
+    if (it != names.end() && it->second.GetStringRef() == global_export.name)
+      continue;
+    AddGlobalSymbol(symbols, global_export.name, global_export.index,
+                    global_section_sp, num_imported_globals, num_globals);
+  }
+}
+
 static llvm::Expected<std::vector<Symbol>>
 ParseNames(SectionSP code_section_sp, SectionSP global_section_sp,
            DataExtractor &name_data, const std::vector<WasmFunction> &functions,
@@ -715,26 +793,8 @@ ParseNames(SectionSP code_section_sp, SectionSP global_section_sp,
         llvm::Expected<std::string> name = GetWasmString(data, c);
         if (!name)
           return name.takeError();
-
-        // An imported global has no entry in the global section, and so no
-        // value to bound a read with.
-        if (*idx < num_imported_globals)
-          continue;
-        const uint32_t global_idx = *idx - num_imported_globals;
-        if (global_idx >= globals.size())
-          continue;
-
-        // The section is indexed rather than byte addressed, so a global spans
-        // the one index it occupies. Bounding a read by the size of the value
-        // is the section's business.
-        symbols.emplace_back(symbols.size(), *name, lldb::eSymbolTypeData,
-                             /*external=*/true, /*is_debug=*/false,
-                             /*is_trampoline=*/false, /*is_artificial=*/false,
-                             global_section_sp, /*offset=*/*idx,
-                             /*size=*/1,
-                             /*size_is_valid=*/true,
-                             /*contains_linker_annotations=*/false,
-                             /*flags=*/0);
+        AddGlobalSymbol(symbols, *name, *idx, global_section_sp,
+                        num_imported_globals, globals.size());
       }
     } break;
     case llvm::wasm::WASM_NAMES_LOCAL:
@@ -944,6 +1004,24 @@ void ObjectFileWasm::CreateSections(SectionList &unified_section_list) {
                      "Failed to parse Wasm names: {0}");
     } else {
       m_symbols = *symbols;
+    }
+  }
+
+  // wasm-ld names the global it creates for an exported data symbol only in the
+  // export section.
+  if (global_section_sp) {
+    if (std::optional<section_info> info =
+            GetSectionInfo(llvm::wasm::WASM_SEC_EXPORT)) {
+      DataExtractor export_data = ReadImageData(info->offset, info->size);
+      llvm::Expected<std::vector<WasmGlobalExport>> exports =
+          ParseGlobalExports(export_data);
+      if (!exports) {
+        LLDB_LOG_ERROR(log, exports.takeError(),
+                       "Failed to parse Wasm export section: {0}");
+      } else {
+        AddGlobalExportSymbols(m_symbols, *exports, global_section_sp,
+                               m_num_imported_globals, m_globals.size());
+      }
     }
   }
 
