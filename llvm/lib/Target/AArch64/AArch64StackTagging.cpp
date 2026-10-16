@@ -549,8 +549,19 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
     AllocaInst *AI = Info.AI;
     unsigned int Tag = NextTag;
     NextTag = (NextTag + 1) % 16;
+    Instruction *PreTagInstr = AI->getNextNode();
+    // LLDB has Swift memset alloca's to zero (in order to prevent reading
+    // garbage values from uninited vars) - defer tagging until after this.
+    // Note: ensuring that the memset uses the untagged pointer is not enough
+    // on its own, as a later pass will replace it with the tagged pointer;
+    // this does not happen if the tagp occurs after the memset.
+    Instruction *LLDBMemset = nullptr;
+    if (PreTagInstr && PreTagInstr->hasMetadata("Swift.isSwiftLLDBpreinit")) {
+      LLDBMemset = PreTagInstr;
+      PreTagInstr = PreTagInstr->getNextNode();
+    }
+    IRBuilder<> IRB(PreTagInstr);
     // Replace alloca with tagp(alloca).
-    IRBuilder<> IRB(Info.AI->getNextNode());
     Instruction *TagPCall = IRB.CreateIntrinsicWithoutFolding(
         Intrinsic::aarch64_tagp, {Info.AI->getType()},
         {Constant::getNullValue(Info.AI->getType()), Base,
@@ -559,7 +570,12 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       TagPCall->setName(Info.AI->getName() + ".tag");
     // Does not replace metadata, so we don't have to handle DbgVariableRecords.
     Info.AI->replaceUsesWithIf(TagPCall, [&](const Use &U) {
-      return !isa<LifetimeIntrinsic>(U.getUser());
+      if (isa<LifetimeIntrinsic>(U.getUser()))
+        return false;
+      // The Swift LLDB pre-init memset must use the untagged pointer
+      if (U.getUser() == LLDBMemset)
+        return false;
+      return true;
     });
     TagPCall->setOperand(0, Info.AI);
 
