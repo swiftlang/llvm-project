@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnwindWasm.h"
-#include "Plugins/Process/gdb-remote/ThreadGDBRemote.h"
 #include "ProcessWasm.h"
 #include "RegisterContextWasm.h"
 #include "ThreadWasm.h"
@@ -16,7 +15,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-using namespace process_gdb_remote;
 using namespace wasm;
 
 /// Base for synthesized Wasm frame call frame addresses. It sits above any
@@ -29,12 +27,12 @@ UnwindWasm::DoCreateRegisterContextForFrame(lldb_private::StackFrame *frame) {
   if (m_frames.size() <= frame->GetFrameIndex())
     return lldb::RegisterContextSP();
 
-  ThreadSP thread = frame->GetThread();
-  ThreadGDBRemote *gdb_thread = static_cast<ThreadGDBRemote *>(thread.get());
+  // The frame can belong to an operating system thread that this thread backs.
+  ThreadWasm &wasm_thread = static_cast<ThreadWasm &>(GetThread());
   ProcessWasm *wasm_process =
-      static_cast<ProcessWasm *>(thread->GetProcess().get());
+      static_cast<ProcessWasm *>(wasm_thread.GetProcess().get());
 
-  return std::make_shared<RegisterContextWasm>(*gdb_thread,
+  return std::make_shared<RegisterContextWasm>(wasm_thread,
                                                frame->GetConcreteFrameIndex(),
                                                wasm_process->GetRegisterInfo());
 }
