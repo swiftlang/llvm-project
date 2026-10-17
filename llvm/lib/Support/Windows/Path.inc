@@ -1146,6 +1146,11 @@ static bool isEXE(StringRef Magic) {
 
 void mapped_file_region::unmapImpl() {
   if (Mapping) {
+    // Flush sparse files to avoid data loss.
+    BY_HANDLE_FILE_INFORMATION FI;
+    if (::GetFileInformationByHandle(FileHandle, &FI) &&
+        (FI.dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+      ::FlushViewOfFile(Mapping, Size);
 
     bool Exe = isEXE(StringRef((char *)Mapping, Size));
 
