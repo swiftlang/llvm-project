@@ -378,6 +378,8 @@ defm : BoolField<"use-bounds-safety-traps-only", "false",
   "We only check for -fbounds-safety traps if the flag is false we can check for any hoistable traps.">;
 defm : BoolField<"use-new-trap-semantics", "false",
   "Assume that traps are using the new trap semantics logic.">;
+defm : BoolField<"loop-trap-analysis-explain", "false",
+  "Emit the per-trap-edge explain analysis: one LoopTrapEdge remark per conditional branch to a trap block. Off by default, so the base remark output is unchanged.">;
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
 // LoopUnrollAndJamPass.cpp

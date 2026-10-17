@@ -188,7 +188,6 @@ exit:
   ret void
 }
 
-declare void @llvm.ubsantrap(i8 immarg) 
 
 !1 = !{!"bounds-safety-check-ptr-lt-upper-bound"}
 !2 = !{!"bounds-safety-check-ptr-ge-lower-bound"}
