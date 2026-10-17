@@ -17,7 +17,7 @@ debug_info_categories = {
     "dwarf": True,
     "dwo": True,
     "dsym": True,
-    "pdb": False,
+    "pdb": True,
     "gmodules": False,
 }
 
