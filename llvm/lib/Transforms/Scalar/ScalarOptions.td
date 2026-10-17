@@ -380,6 +380,8 @@ defm : BoolField<"use-new-trap-semantics", "false",
   "Assume that traps are using the new trap semantics logic.">;
 defm : BoolField<"loop-trap-analysis-explain", "false",
   "Emit the per-trap-edge explain analysis: one LoopTrapEdge remark per conditional branch to a trap block. Off by default, so the base remark output is unchanged.">;
+defm : ValueField<"loop-trap-entry-proximity-depth", "unsigned", "3",
+  "Maximum dominator depth from function entry at which a trap edge is classified IsEntryProximate (default 3).">;
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
 // LoopUnrollAndJamPass.cpp

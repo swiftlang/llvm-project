@@ -35,6 +35,8 @@ define void @counted_trap(ptr %0, i32 %1) {
 attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 
 ; The complete LoopTrapEdge record; the block labels are numeric slots.
+
+; Full LoopTrapEdge record(s), pinned line-by-line.
 ; CHECK:      Name:{{ +}}LoopTrapEdge
 ; CHECK-NEXT: Function:{{ +}}counted_trap
 ; CHECK-NEXT: Args:
@@ -54,6 +56,28 @@ attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 ; CHECK-NEXT:   - IsLoopExit:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' num_leaf_operands='
 ; CHECK-NEXT:   - NumLeafOperands:{{ +}}'2'
+; CHECK-NEXT:   - String:{{ +}}' is_affine='
+; CHECK-NEXT:   - IsAffine:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' has_in_loop_unknown='
+; CHECK-NEXT:   - HasInLoopUnknown:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_non_unit_stride_for_l_addrec='
+; CHECK-NEXT:   - HasNonUnitStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_non_constant_stride_for_l_addrec='
+; CHECK-NEXT:   - HasNonConstantStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' not_proven_monotonic='
+; CHECK-NEXT:   - NotProvenMonotonic:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_negative_stride_for_l_addrec='
+; CHECK-NEXT:   - HasNegativeStrideForLAddRec:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' edge_btc_computable='
+; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
+; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
 ; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
+; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
+; CHECK-NEXT:   - IsEntryProximate:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' dominates_latch='
+; CHECK-NEXT:   - DominatesLatch:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' loop_latch_btc_computable='
+; CHECK-NEXT:   - LoopLatchBTCComputable:{{ +}}'true'
 ; CHECK-NEXT: ...
