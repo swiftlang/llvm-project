@@ -382,6 +382,8 @@ defm : BoolField<"loop-trap-analysis-explain", "false",
   "Emit the per-trap-edge explain analysis: one LoopTrapEdge remark per conditional branch to a trap block. Off by default, so the base remark output is unchanged.">;
 defm : ValueField<"loop-trap-entry-proximity-depth", "unsigned", "3",
   "Maximum dominator depth from function entry at which a trap edge is classified IsEntryProximate (default 3).">;
+defm : BoolField<"loop-load-alias", "false",
+  "Opt-in: for each load in an INNERMOST loop that is may-clobbered by an in-loop writer (store / memcpy / call), emit a LoopLoadAlias record naming the first such writer. Clobbered loads only (hoistable loads are omitted). Off by default; enable selectively as it emits one record per clobbered load.">;
 /* TO_UPSTREAM(BoundsSafety) OFF */
 
 // LoopUnrollAndJamPass.cpp
