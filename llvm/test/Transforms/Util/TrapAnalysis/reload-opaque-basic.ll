@@ -2,11 +2,10 @@
 ; RUN:   -pass-remarks-output=%t.yaml %s
 ; RUN: FileCheck --input-file=%t.yaml %s
 
-; Exercises the reload/alias + opaque-operand operand classification: the
-; Opaque-* TrapClass classes and their operand NV fields (HasStoreReload,
-; HasInLoopPhiOperand, HasOtherInLoopUnknownOperand, ...). All three loops
-; have a non-computable per-edge trip count (EdgeBTCComputable=false), so the
-; blocker classes are what selects the TrapClass.
+; Exercises the reload/alias + opaque-operand classification via the operand NV
+; fields (HasStoreReload, HasInLoopPhiOperand, HasOtherInLoopUnknownOperand, ...).
+; All three loops have a non-computable per-edge trip count
+; (EdgeBTCComputable=false), so these blocker fields are what a consumer keys on.
 
 declare i32 @opaque()
 
@@ -126,6 +125,8 @@ exit:
 ; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'true'
+; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
+; CHECK-NEXT:   - LoopHasOtherUnknownBTCTrap:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
 ; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
@@ -166,6 +167,8 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
+; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
 ;
 ; CHECK:      Name:{{ +}}LoopTrapEdge
@@ -203,6 +206,8 @@ exit:
 ; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
+; CHECK-NEXT:   - LoopHasOtherUnknownBTCTrap:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
 ; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
@@ -243,6 +248,8 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
+; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
 ;
 ; CHECK:      Name:{{ +}}LoopTrapEdge
@@ -280,6 +287,8 @@ exit:
 ; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
+; CHECK-NEXT:   - LoopHasOtherUnknownBTCTrap:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
 ; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
@@ -320,4 +329,6 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
+; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...

@@ -72,6 +72,8 @@ attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 ; CHECK-NEXT:   - EdgeBTCComputable:{{ +}}'true'
 ; CHECK-NEXT:   - String:{{ +}}' edge_btc_symbolic='
 ; CHECK-NEXT:   - EdgeBTCSymbolic:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' loop_has_other_unknown_btc_trap='
+; CHECK-NEXT:   - LoopHasOtherUnknownBTCTrap:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' predicate_shape='
 ; CHECK-NEXT:   - PredicateShape:{{ +}}SingleICmp
 ; CHECK-NEXT:   - String:{{ +}}' is_entry_proximate='
@@ -112,4 +114,6 @@ attributes #0 = { cold noreturn nounwind memory(inaccessiblemem: write) }
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
+; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
