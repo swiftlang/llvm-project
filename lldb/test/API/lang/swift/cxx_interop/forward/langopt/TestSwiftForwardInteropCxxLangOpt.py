@@ -27,6 +27,9 @@ class TestSwiftForwardInteropCxxLangOpt(TestBase):
         lldbutil.continue_to_breakpoint(process, dylib_bkpt)
         self.expect('expr 1')
         self.filecheck_log(log, __file__)
+        # The bridging header imports no Clang modules, so opt out of the
+        # check that noclang is only used for programs that need it.
+        self.runCmd("settings set symbols.swift-validate-typesystem false")
 #       CHECK: SwiftASTContextForExpressions(module: "a", cu: "main.swift")::LogConfiguration(){{.*}}Swift/C++ interop : on
 #       CHECK:  SwiftASTContextForExpressions(module: "Dylib", cu: "Dylib.swift")::LogConfiguration(){{.*}}Swift/C++ interop : off
 

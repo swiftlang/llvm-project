@@ -35,6 +35,8 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.assertEqual(found, 1)
         self.assertEqual(precise, expect_precise)
 
+    # No Clang modules are imported, noclang is redundant.
+    @skipIf(swift_module_importer="noclang")
     @swiftTest
     @requireDarwin
     @skipIfDarwinEmbedded
@@ -49,6 +51,8 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.expect("expression 1")
         self.check_log(log, "MacOSX", True)
 
+    # No Clang modules are imported, noclang is redundant.
+    @skipIf(swift_module_importer="noclang")
     @swiftTest
     @requireDarwin
     @skipIfDarwinEmbedded
@@ -68,6 +72,8 @@ class TestSwiftXcodeSDK(lldbtest.TestBase):
         self.expect("expression 1")
         self.check_log(log, "iPhoneSimulator", True)
 
+    # No Clang modules are imported, noclang is redundant.
+    @skipIf(swift_module_importer="noclang")
     @swiftTest
     @requireDarwin
     @skipIfDarwinEmbedded
