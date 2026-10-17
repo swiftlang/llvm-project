@@ -167,6 +167,8 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_overflow_bit_leaf='
+; CHECK-NEXT:   - HasOverflowBitLeaf:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
 ; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
@@ -248,6 +250,8 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_overflow_bit_leaf='
+; CHECK-NEXT:   - HasOverflowBitLeaf:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
 ; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
@@ -329,6 +333,8 @@ exit:
 ; CHECK-NEXT:   - HasOpaqueOperandNoInLoopUnknown:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' has_outer_loop_addrec_operand='
 ; CHECK-NEXT:   - HasOuterLoopAddRecOperand:{{ +}}'false'
+; CHECK-NEXT:   - String:{{ +}}' has_overflow_bit_leaf='
+; CHECK-NEXT:   - HasOverflowBitLeaf:{{ +}}'false'
 ; CHECK-NEXT:   - String:{{ +}}' invocation_seq='
 ; CHECK-NEXT:   - InvocationSeq:{{ +}}'1'
 ; CHECK-NEXT: ...
