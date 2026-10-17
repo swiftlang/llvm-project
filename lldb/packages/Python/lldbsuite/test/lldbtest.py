@@ -33,8 +33,9 @@ from __future__ import annotations
 # System modules
 import abc
 import errno
-from functools import wraps
+from functools import lru_cache, wraps
 import gc
+import inspect
 import io
 import json
 import os.path
@@ -2032,7 +2033,13 @@ class TestVariant:
     """
 
     def __init__(
-        self, name, values, predicate=None, setup_fn=None, attrs_to_preserve=()
+        self,
+        name,
+        values,
+        predicate=None,
+        setup_fn=None,
+        attrs_to_preserve=(),
+        value_predicate=None,
     ):
         """Create a new test variant dimension.
 
@@ -2055,12 +2062,16 @@ class TestVariant:
                 from the source method to each expanded copy (e.g.
                 `("debug_info",)` so that a second-pass variant preserves
                 the debug-info value set by the first pass).
+            value_predicate: Optional callable `(test_method, value_name) ->
+                bool`.  When given, only the enabled values for which it
+                returns `True` are expanded for a method.
         """
         self.name = name
         self.values = values
         self.predicate = predicate
         self.setup_fn = setup_fn
         self.attrs_to_preserve = attrs_to_preserve
+        self.value_predicate = value_predicate
 
     def should_expand(self, test_method):
         """Return True if *test_method* should be expanded by this variant."""
@@ -2068,9 +2079,14 @@ class TestVariant:
             return True
         return self.predicate(test_method)
 
-    def get_enabled_values(self):
-        """Return the list of value names whose entry is True."""
-        return [n for n, enabled in self.values.items() if enabled]
+    def get_enabled_values(self, test_method):
+        """Return the list of value names to expand *test_method* into."""
+        return [
+            n
+            for n, enabled in self.values.items()
+            if enabled
+            and (self.value_predicate is None or self.value_predicate(test_method, n))
+        ]
 
     def apply_settings(self, test_instance, variant_value):
         """Configure *test_instance* for *variant_value* via the setup_fn."""
@@ -2115,7 +2131,7 @@ def _expand_test_variants(attrname, methods, variant, xfail_fns, skip_fns):
         if method_name != attrname and not method_name.startswith(attrname + "_"):
             expanded[method_name] = method
             continue
-        for value_name in variant.get_enabled_values():
+        for value_name in variant.get_enabled_values(method):
             if _is_excluded_variant_combination(method, variant.name, value_name):
                 continue
             new_name = method_name + "_" + value_name
@@ -2150,6 +2166,44 @@ def _swift_module_importer_setup(test_instance, variant_value):
     elif variant_value == "clang":
         test_instance.runCmd("settings set symbols.use-swift-clangimporter true")
 
+
+_CLANG_FILE_SUFFIXES = (".h", ".hpp", ".c", ".cc", ".cpp", ".m", ".mm", ".modulemap")
+# Imports of Clang modules or Swift overlays of them, outside of comments, and
+# C++ interoperability.
+_CLANG_USE_RE = re.compile(
+    r"^[^#/\n]*\bimport\s+(?:Foundation|FoundationEssentials|Darwin|Glibc|Musl|"
+    r"Android|WinSDK|ucrt|ObjectiveC|Dispatch|CoreFoundation|CoreGraphics|"
+    r"AppKit|Cocoa|UIKit|SwiftUI|Combine|XCTest|simd|Cxx|CxxStdlib)\b"
+    r"|cxx-interop|SWIFT_CXX_INTEROP",
+    re.M,
+)
+
+
+@lru_cache(maxsize=None)
+def _test_uses_clang_importer(test_file):
+    """Return True if the test in *test_file* builds or imports Clang code."""
+    sources = [test_file]
+    for root, _, files in os.walk(os.path.dirname(test_file)):
+        for name in files:
+            if name.endswith(_CLANG_FILE_SUFFIXES):
+                return True
+            if name.startswith("Makefile") or name.endswith((".mk", ".swift")):
+                sources.append(os.path.join(root, name))
+    for path in sources:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            if _CLANG_USE_RE.search(f.read()):
+                return True
+    return False
+
+
+def _swift_module_importer_applies(test_method, variant_value):
+    # Disabling the ClangImporter only makes a difference for programs that
+    # use Clang modules.
+    if variant_value != "noclang":
+        return True
+    return _test_uses_clang_importer(inspect.getfile(inspect.unwrap(test_method)))
+
+
 def _embedded_swift_setup(test_instance, variant_value):
     if variant_value == "swiftembed":
         test_instance.extra_make_flags["SWIFT_EMBEDDED_MODE"] = "1"
@@ -2166,6 +2220,7 @@ _test_variants = [
         predicate=lambda m: getattr(m, "__swift_test__", False),
         setup_fn=_swift_module_importer_setup,
         attrs_to_preserve=("debug_info",),
+        value_predicate=_swift_module_importer_applies,
     ),
     TestVariant(
         name="swift_embedded",

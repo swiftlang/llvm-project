@@ -5,6 +5,8 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftLateDylib(TestBase):
     @requireNotEmbeddedSwift
     @skipUnlessDarwin
+    # Pure Swift dylib, noclang is redundant.
+    @skipIf(swift_module_importer="noclang")
     @swiftTest
     @skipIfDarwinEmbedded 
     def test(self):

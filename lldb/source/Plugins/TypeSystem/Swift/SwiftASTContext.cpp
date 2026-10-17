@@ -1142,6 +1142,33 @@ SwiftASTContext::~SwiftASTContext() {
     // to be destroyed before the swift::ASTContext is destroyed.
     assert(!GetASTMap().Lookup(ctx) && "ast context still in global map");
   m_ast_context_mutex.unlock();
+
+  // The test suite runs every Swift test a second time with the ClangImporter
+  // disabled, which is pointless for programs that don't import any Clang
+  // modules. Heuristically check that every context that loaded user code
+  // also loaded a Clang module other than the Swift runtime's shims.
+  if (ModuleList::GetGlobalModuleListProperties()
+          .GetSwiftValidateTypeSystem() &&
+      m_compiler_invocation_up->getClangImporterOptions().DisableSourceImport &&
+      m_ast_context_up && !HasFatalErrors()) {
+    bool user_module = false;
+    bool clang_module = false;
+    for (auto &entry : m_ast_context_up->getLoadedModules()) {
+      llvm::StringRef name = entry.second->getName().str();
+      // Implicit stdlib imports and expressions don't count as user code.
+      if (!entry.second->isNonSwiftModule()) {
+        user_module |= name != "Swift" && name != "SwiftOnoneSupport" &&
+                       !name.starts_with("_");
+        // A Clang module is registered under the name of its Swift overlay.
+        clang_module |= entry.second->getUnderlyingModuleIfOverlay() != nullptr;
+      } else
+        clang_module |= !name.ends_with("Shims");
+    }
+    assert(
+        (!user_module || clang_module) &&
+        "symbols.use-swift-clangimporter is disabled, but no Clang module "
+        "was imported; skip with @skipIf(swift_module_importer=\"noclang\")");
+  }
 #endif
 }
 

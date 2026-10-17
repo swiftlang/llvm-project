@@ -57,6 +57,9 @@ class TestSwiftDWARFImporterBridgingHeader(lldbtest.TestBase):
                         # FIXME: This doesn't even work with the original bridging header!
                         #"point", "x = 3", "y = 4",
                         "swift struct c member"])
+        # The bridging header imports no Clang modules, so opt out of the
+        # check that noclang is only used for programs that need it.
+        self.runCmd("settings set symbols.swift-validate-typesystem false")
         process.Clear()
         target.Clear()
         lldb.SBDebugger.MemoryPressureDetected()
