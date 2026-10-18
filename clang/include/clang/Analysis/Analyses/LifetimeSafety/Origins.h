@@ -158,6 +158,14 @@ public:
   /// can refer to a single level of an existing OriginList.
   OriginList *createSingleOriginList(OriginID OID);
 
+  /// Gets or creates the shared OriginList for a field access `Base.Field` on a
+  /// concrete named variable. Keyed by (base variable, field) so that every
+  /// occurrence of the same `var.field` shares origins (letting loans flow
+  /// between an assignment and a later read), while distinct base objects
+  /// (`w1.field` vs `w2.field`) stay distinct.
+  OriginList *getOrCreateMemberList(const ValueDecl *Base,
+                                    const FieldDecl *Field);
+
   /// Returns the OriginList for the implicit 'this' parameter if the current
   /// declaration is an instance method.
   std::optional<OriginList *> getThisOrigins() const { return ThisOrigins; }
@@ -226,6 +234,11 @@ private:
   llvm::BumpPtrAllocator ListAllocator;
   llvm::DenseMap<const clang::ValueDecl *, OriginList *> DeclToList;
   llvm::DenseMap<const clang::Expr *, OriginList *> ExprToList;
+  /// Shared origin lists for `var.field` accesses, keyed by (base variable,
+  /// field). See getOrCreateMemberList.
+  llvm::DenseMap<std::pair<const clang::ValueDecl *, const clang::FieldDecl *>,
+                 OriginList *>
+      MemberToList;
   std::optional<OriginList *> ThisOrigins;
   /// Types that are not inherently pointer-like but require origin tracking
   /// because of lifetime annotations (currently [[clang::lifetimebound]]) on

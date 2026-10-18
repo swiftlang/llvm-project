@@ -233,6 +233,20 @@ OriginList *OriginManager::createSingleOriginList(OriginID OID) {
   return new (ListAllocator.Allocate<OriginList>()) OriginList(OID);
 }
 
+OriginList *OriginManager::getOrCreateMemberList(const ValueDecl *Base,
+                                                 const FieldDecl *Field) {
+  auto Key = std::make_pair(Base, Field);
+  auto It = MemberToList.find(Key);
+  if (It != MemberToList.end())
+    return It->second;
+  // Use the base variable (not the field) as the origin's node so the field of
+  // a *local* object is treated as local storage rather than a persistent field
+  // of `*this`: it must not trigger the dangling-field escape check (keyed on
+  // FieldDecl-noded origins), and a field of a global object still escapes
+  // globally (keyed on VarDecl-noded origins with global storage).
+  return MemberToList[Key] = buildListForType(Field->getType(), Base);
+}
+
 template <typename T>
 OriginList *OriginManager::buildListForType(QualType QT, const T *Node,
                                             bool NamesDeclStorage) {
@@ -283,6 +297,21 @@ static bool isSubobjectOfThis(const MemberExpr *ME) {
       return isSubobjectOfThis(BaseAsME);
   }
   return false;
+}
+
+/// If \p ME is a dot field access `var.field` whose base denotes a concrete,
+/// named variable with its own storage (not `this`, not through a pointer, not
+/// a reference), returns that base variable. Such an access names a stable
+/// storage location, so the field's origins can be shared across occurrences
+/// keyed by (base variable, field).
+static const ValueDecl *getNamedMemberBase(const MemberExpr *ME) {
+  if (ME->isArrow())
+    return nullptr;
+  const Expr *Base = ME->getBase()->IgnoreParenImpCasts();
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(Base))
+    if (const ValueDecl *VD = DRE->getDecl(); doesDeclHaveStorage(VD))
+      return VD;
+  return nullptr;
 }
 
 OriginList *OriginManager::getOrCreateList(const Expr *E) {
@@ -349,6 +378,20 @@ OriginList *OriginManager::getOrCreateList(const Expr *E) {
     }
     return ExprToList[E] = Head;
   }
+
+  // A dot field access `var.field` on a concrete named variable (not `this`)
+  // denotes a stable storage location. Share the field's origins across all
+  // occurrences keyed by (base variable, field) so that loans flow between an
+  // assignment to the field and a later read of it (mirroring how `this->field`
+  // shares origins by field decl). Distinct base objects keep distinct origins.
+  if (const auto *ME = dyn_cast<MemberExpr>(E))
+    if (const auto *Field = dyn_cast<FieldDecl>(ME->getMemberDecl());
+        Field && doesDeclHaveStorage(Field) && hasOrigins(Field->getType()))
+      if (const ValueDecl *Base = getNamedMemberBase(ME)) {
+        OriginList *Head = createNode(E, QualType{});
+        Head->setInnerOriginList(getOrCreateMemberList(Base, Field));
+        return ExprToList[E] = Head;
+      }
 
   // If E is an lvalue , it refers to storage. We model this storage as the
   // first level of origin list, as if it were a reference, because l-values are

@@ -73,11 +73,10 @@ void struct_pointer_field(void) {
   {
     int i;
     struct PointerField holder;
-    // FIXME: Track origins stored in struct pointer fields.
-    holder.ptr = &i;
+    holder.ptr = &i; // expected-warning {{local variable 'i' does not live long enough}}
     p = holder.ptr;
-  }
-  (void)*p;
+  }                   // expected-note {{local variable 'i' is destroyed here}}
+  (void)*p;           // expected-note {{later used here}}
 }
 
 void struct_address_of_field(void) {

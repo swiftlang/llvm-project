@@ -1145,6 +1145,44 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundRawPointerParameter) {
   EXPECT_THAT(Origin("v2"), HasLoansTo({"c"}, "p3"));
 }
 
+TEST_F(LifetimeAnalysisTest, LoanThroughLocalObjectField) {
+  SetupTest(R"(
+    struct Wrapper { MyObj* ptr; };
+    void target() {
+      MyObj a;
+      Wrapper w;
+      w.ptr = &a;
+      MyObj* p = w.ptr;
+      POINT(p1);
+    }
+  )");
+  // A pointer read out of a field of a concrete local object (`w.ptr`) must
+  // carry the loan that was stored into that field, so `p` borrows `a`. This
+  // requires origins to be shared across occurrences of `w.ptr`.
+  EXPECT_THAT(Origin("p"), HasLoansTo({"a"}, "p1"));
+}
+
+TEST_F(LifetimeAnalysisTest, LoanThroughLocalObjectFieldDistinctObjects) {
+  SetupTest(R"(
+    struct Wrapper { MyObj* ptr; };
+    void target() {
+      MyObj a;
+      MyObj b;
+      Wrapper w1;
+      Wrapper w2;
+      w1.ptr = &a;
+      w2.ptr = &b;
+      MyObj* p1 = w1.ptr;
+      MyObj* p2 = w2.ptr;
+      POINT(p1);
+    }
+  )");
+  // Distinct base objects must not share field origins: `w1.ptr` and `w2.ptr`
+  // carry different loans even though they name the same field.
+  EXPECT_THAT(Origin("p1"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("p2"), HasLoansTo({"b"}, "p1"));
+}
+
 TEST_F(LifetimeAnalysisTest, LifetimeboundConstRefViewParameter) {
   SetupTest(R"(
     View Identity(const View& v [[clang::lifetimebound]]);
