@@ -1169,9 +1169,12 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
   if (auto err = ts_or_err.takeError())
     return nullptr;
   auto ts = *ts_or_err;
+  std::string var_name = name.str();
   if (ts) {
-    if (PdbAstBuilder *ast_builder = ts->GetNativePDBParser())
+    if (PdbAstBuilder *ast_builder = ts->GetNativePDBParser()) {
       ast_builder->EnsureVariable(var_id);
+      var_name = ast_builder->GetQualifiedName(name);
+    }
   }
 
   DWARFExpressionList location(module_sp, location_expr, nullptr);
@@ -1184,7 +1187,7 @@ VariableSP SymbolFileNativePDB::CreateGlobalVariable(PdbGlobalSymId var_id) {
   bool static_member = false;
   bool is_constant = false;
   VariableSP var_sp = std::make_shared<Variable>(
-      toOpaqueUid(var_id), name.str().c_str(), mangled_name.str().c_str(),
+      toOpaqueUid(var_id), var_name.c_str(), mangled_name.str().c_str(),
       type_sp, scope, comp_unit.get(), ranges, &decl, location, is_external,
       artificial, location_is_constant_data, static_member, is_constant);
 
@@ -1203,8 +1206,6 @@ SymbolFileNativePDB::CreateConstantSymbol(PdbGlobalSymId var_id,
                    "Failed to deserialize ConstantSym record: {0}");
     return nullptr;
   }
-  std::string global_name("::");
-  global_name += constant.Name;
   PdbTypeSymId tid(constant.Type, false);
   SymbolFileTypeSP type_sp =
       std::make_shared<SymbolFileType>(*this, toOpaqueUid(tid));
@@ -1222,16 +1223,26 @@ SymbolFileNativePDB::CreateConstantSymbol(PdbGlobalSymId var_id,
   }
   DWARFExpressionList location(module, std::move(*location_or_err), nullptr);
 
+  std::string var_name = constant.Name.str();
+  auto ts_or_err = GetTypeSystemForLanguage(lldb::eLanguageTypeC_plus_plus);
+  if (auto err = ts_or_err.takeError()) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Symbols), std::move(err),
+                   "Failed to get type system for {1}: {0}", constant.Name);
+  } else if (auto ts = *ts_or_err) {
+    if (PdbAstBuilder *ast_builder = ts->GetNativePDBParser())
+      var_name = ast_builder->GetQualifiedName(constant.Name);
+  }
+
   bool external = false;
   bool artificial = false;
   bool location_is_constant_data = true;
   bool static_member = false;
   bool is_constant = true;
   VariableSP var_sp = std::make_shared<Variable>(
-      toOpaqueUid(var_id), constant.Name.str().c_str(), global_name.c_str(),
-      type_sp, eValueTypeVariableGlobal, module.get(), ranges, &decl, location,
-      external, artificial, location_is_constant_data, static_member,
-      is_constant);
+      toOpaqueUid(var_id), var_name.c_str(),
+      /*mangled=*/nullptr, type_sp, eValueTypeVariableGlobal, module.get(),
+      ranges, &decl, location, external, artificial, location_is_constant_data,
+      static_member, is_constant);
   return var_sp;
 }
 
@@ -2266,11 +2277,16 @@ void SymbolFileNativePDB::FindGlobalVariables(
 
   CacheGlobalBaseNames();
 
+  // A leading "::" requests a variable from the global namespace.
+  llvm::StringRef lookup_name = name.GetStringRef();
+  bool is_rooted = lookup_name.consume_front("::");
+
   llvm::StringRef context;
   llvm::StringRef basename;
-  if (!CPlusPlusLanguage::ExtractContextAndIdentifier(name.GetStringRef(),
-                                                      context, basename))
-    basename = name.GetStringRef();
+  if (!CPlusPlusLanguage::ExtractContextAndIdentifier(lookup_name, context,
+                                                      basename))
+    basename = lookup_name;
+  std::string scoped_suffix = ("::" + lookup_name).str();
 
   std::vector<uint32_t> results;
   m_global_variable_base_names.GetValues(ConstString(basename), results);
@@ -2286,9 +2302,12 @@ void SymbolFileNativePDB::FindGlobalVariables(
     VariableSP var = GetOrCreateGlobalVariable(global);
     if (!var)
       continue;
-    if (!context.empty() &&
-        !var->GetName().GetStringRef().contains(name.GetStringRef()))
-      continue;
+    if (is_rooted || !context.empty()) {
+      llvm::StringRef var_name = var->GetName().GetStringRef();
+      if (var_name != lookup_name &&
+          (is_rooted || !var_name.ends_with(scoped_suffix)))
+        continue;
+    }
     variables.AddVariable(var);
 
     if (++n_matches >= max_matches)
