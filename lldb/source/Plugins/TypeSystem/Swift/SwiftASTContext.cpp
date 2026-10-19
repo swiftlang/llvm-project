@@ -1416,6 +1416,8 @@ static bool DeserializeAllCompilerFlags(
       StringRef moduleData = buf.substr(0, info.bytes);
 
       auto remap = [&](const std::string &path) {
+        if (path.empty())
+          return path;
         ConstString remapped;
         if (path_map.RemapPath(ConstString(path), remapped))
           return remapped.GetStringRef().str();
@@ -1478,7 +1480,7 @@ static bool DeserializeAllCompilerFlags(
         for (auto &opt : extended_validation_info.getPluginSearchOptions()) {
           switch (opt.first) {
           case swift::PluginSearchOption::Kind::PluginPath: {
-            StringRef path = opt.second;
+            std::string path = remap(opt.second.str());
             // System plugins shipping with the compiler.
             // Rewrite them to go through an ABI-compatible swift-plugin-server.
             if (known_plugin_search_paths.insert(path).second) {
@@ -1493,7 +1495,7 @@ static bool DeserializeAllCompilerFlags(
                   continue;
                 if (exists(path))
                   plugin_search_options.emplace_back(
-                      swift::PluginSearchOption::ExternalPluginPath{path.str(),
+                      swift::PluginSearchOption::ExternalPluginPath{path,
                                                                     server});
               }
             }
@@ -1501,24 +1503,24 @@ static bool DeserializeAllCompilerFlags(
           }
           case swift::PluginSearchOption::Kind::ExternalPluginPath: {
             // Sandboxed system plugins shipping with some compiler.
-            // Keep the original plugin server path, it needs to be ABI
+            // Keep the recorded choice of plugin server; it needs to be ABI
             // compatible with the version of SwiftSyntax used by the plugin.
             auto plugin_server = opt.second.split('#');
-            llvm::StringRef plugin = plugin_server.first;
+            std::string plugin = remap(plugin_server.first.str());
             std::string server = get_plugin_server(
-                plugin, [&]() { return plugin_server.second.str(); });
+                plugin, [&]() { return remap(plugin_server.second.str()); });
             if (server.empty())
               continue;
             if (known_external_plugin_search_paths.insert(plugin).second)
               if (exists(plugin))
                 plugin_search_options.emplace_back(
-                    swift::PluginSearchOption::ExternalPluginPath{plugin.str(),
+                    swift::PluginSearchOption::ExternalPluginPath{plugin,
                                                                   server});
             continue;
           }
           case swift::PluginSearchOption::Kind::LoadPluginLibrary: {
             // Compiler plugin libraries.
-            StringRef dylib = opt.second;
+            std::string dylib = remap(opt.second.str());
             if (known_compiler_plugin_library_paths.insert(dylib).second)
               if (exists(dylib)) {
                 // We never want to directly load any plugins, since a crash in
@@ -1547,19 +1549,20 @@ static bool DeserializeAllCompilerFlags(
           case swift::PluginSearchOption::Kind::LoadPluginExecutable: {
             // Compiler plugin executables.
             auto plugin_modules = opt.second.split('#');
-            llvm::StringRef plugin = plugin_modules.first;
+            std::string plugin = remap(plugin_modules.first.str());
             llvm::StringRef modules_list = plugin_modules.second;
             llvm::SmallVector<llvm::StringRef, 0> modules;
             modules_list.split(modules, ",");
             std::vector<std::string> modules_vec;
             for (auto m : modules)
               modules_vec.push_back(m.str());
-            if (known_compiler_plugin_executable_paths.insert(opt.second)
+            if (known_compiler_plugin_executable_paths
+                    .insert(plugin + "#" + modules_list.str())
                     .second)
               if (exists(plugin))
                 plugin_search_options.emplace_back(
                     swift::PluginSearchOption::LoadPluginExecutable{
-                        plugin.str(), modules_vec});
+                        plugin, modules_vec});
             continue;
           }
           case swift::PluginSearchOption::Kind::ResolvedPluginConfig: {
@@ -1569,16 +1572,20 @@ static bool DeserializeAllCompilerFlags(
             StringRef modules_list;
             std::tie(lib_path, exe_path) = opt.second.split('#');
             std::tie(exe_path, modules_list) = exe_path.split('#');
+            std::string library = remap(lib_path.str());
+            std::string executable = remap(exe_path.str());
             std::vector<std::string> modules_vec;
             for (auto name : llvm::split(modules_list, ','))
               modules_vec.emplace_back(name);
-            if (known_resolved_plugin_configs.insert(opt.second).second)
-              if ((lib_path.empty() || exists(lib_path)) &&
-                  (exe_path.empty() || exists(exe_path)))
+            if (known_resolved_plugin_configs
+                    .insert(library + "#" + executable + "#" +
+                            modules_list.str())
+                    .second)
+              if ((library.empty() || exists(library)) &&
+                  (executable.empty() || exists(executable)))
                 plugin_search_options.emplace_back(
                     swift::PluginSearchOption::ResolvedPluginConfig{
-                        lib_path.str(), exe_path.str(),
-                        std::move(modules_vec)});
+                        library, executable, std::move(modules_vec)});
             continue;
           }
           }
@@ -2418,7 +2425,7 @@ static bool IsSerializedAST(const swift::ModuleDecl &module) {
 /// Scan a newly added lldb::Module for Swift modules and report any errors in
 /// its module SwiftASTContext to Target.
 static void
-ProcessModule(Module &module, std::string m_description,
+ProcessModule(Module &module, Target *target, std::string m_description,
               bool discover_implicit_search_paths, bool use_all_compiler_flags,
               bool is_main_executable, StringRef module_filter,
               llvm::Triple triple,
@@ -2537,12 +2544,18 @@ ProcessModule(Module &module, std::string m_description,
   std::vector<llvm::StringRef> buffers =
       GetASTBuffersFromModule(m_description, ast_file_datas, module_name);
 
+  PathMappingList path_map;
+  // Prefer user mappings to mappings supplied by the dSYM.
+  if (target)
+    path_map.Append(target->GetSourcePathMap(), /*notify=*/false);
+  path_map.Append(module.GetSourceMappingList(), /*notify=*/false);
+
   // If no N_AST symbols exist, this is not an error.
   if (!buffers.empty())
     if (DeserializeAllCompilerFlags(
-            invocation, module_name, module_filter, buffers,
-            module.GetSourceMappingList(), discover_implicit_search_paths,
-            m_description, errs, got_serialized_options, found_swift_modules)) {
+            invocation, module_name, module_filter, buffers, path_map,
+            discover_implicit_search_paths, m_description, errs,
+            got_serialized_options, found_swift_modules)) {
       // TODO: After removing DeserializeAllCompilerFlags from
       //       CreateInstance(per-Module), errs will need to be
       //       collected here and surfaced.
@@ -2757,10 +2770,11 @@ SwiftASTContext::CreateInstance(lldb::LanguageType language, Module &module,
   std::vector<std::string> extra_clang_args = swift_ast_sp->GetClangArguments();
   swift_ast_sp->GetClangImporterOptions().ExtraArgs.clear();
 
-  ProcessModule(module, m_description, discover_implicit_search_paths,
-                use_all_compiler_flags, is_target_module, module_filter, triple,
-                plugin_search_options, module_search_paths,
-                framework_search_paths, extra_clang_args, error);
+  ProcessModule(module, target.get(), m_description,
+                discover_implicit_search_paths, use_all_compiler_flags,
+                is_target_module, module_filter, triple, plugin_search_options,
+                module_search_paths, framework_search_paths, extra_clang_args,
+                error);
   if (!error.empty())
     swift_ast_sp->AddDiagnostic(eSeverityError, error);
 
@@ -3028,6 +3042,9 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
 
   bool discover_implicit_search_paths = false;
   PathMappingList path_remap;
+  if (auto target = GetTargetWP().lock())
+    path_remap.Append(target->GetSourcePathMap(), /*notify=*/false);
+  path_remap.Append(image.GetSourceMappingList(), /*notify=*/false);
   std::string error;
   bool found_swift_modules = false;
   bool got_serialized_options = false;
@@ -3055,9 +3072,9 @@ bool SwiftASTContext::DiscoverExplicitMainModule(const SymbolContext &sc,
   m_explicit_clang_module_map =
       std::make_unique<swift::ExplicitClangModuleMap>();
   bool found_errors = DeserializeAllCompilerFlags(
-      fresh_invocation, module_name, {}, {buffer->getBuffer()},
-      image.GetSourceMappingList(), discover_implicit_search_paths,
-      m_description, errs, got_serialized_options, found_swift_modules,
+      fresh_invocation, module_name, {}, {buffer->getBuffer()}, path_remap,
+      discover_implicit_search_paths, m_description, errs,
+      got_serialized_options, found_swift_modules,
       /*search_paths_only=*/false, m_explicit_swift_module_map.get(),
       m_explicit_clang_module_map.get());
   if (found_errors || !error.empty()) {
@@ -3569,7 +3586,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
             target_sp
                 ? (target_sp->GetExecutableModulePointer() == module_sp.get())
                 : true;
-        ProcessModule(*module_sp, m_description, discover_implicit_search_paths,
+        ProcessModule(*module_sp, target_sp.get(), m_description,
+                      discover_implicit_search_paths,
                       /*use_all_compiler_flags*/ true, is_main_executable,
                       module_filter, triple, plugin_search_options,
                       module_search_paths, framework_search_paths,
@@ -6059,8 +6077,8 @@ void SwiftASTContextForExpressions::ModulesDidLoad(ModuleList &module_list) {
       continue;
     std::string error;
     StringRef module_filter;
-    ProcessModule(*module_sp, m_description, discover_implicit_search_paths,
-                  use_all_compiler_flags,
+    ProcessModule(*module_sp, target_sp.get(), m_description,
+                  discover_implicit_search_paths, use_all_compiler_flags,
                   target_sp->GetExecutableModulePointer() == module_sp.get(),
                   module_filter, GetTriple(), plugin_search_options,
                   module_search_paths, framework_search_paths, extra_clang_args,
@@ -9904,6 +9922,8 @@ llvm::Error SwiftASTContextForExpressions::CacheUserImports(
         continue;
       }
       PathMappingList path_remap;
+      if (auto target = GetTargetWP().lock())
+        path_remap.Append(target->GetSourcePathMap(), /*notify=*/false);
       llvm::SmallString<0> error;
       bool found_swift_modules = false;
       bool got_serialized_options = false;
