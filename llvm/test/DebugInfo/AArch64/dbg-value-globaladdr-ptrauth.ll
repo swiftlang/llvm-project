@@ -3,7 +3,7 @@
 
 ; RUN: llc -O2 -mtriple=arm64e-apple-macosx -stop-after=finalize-isel < %s \
 ; RUN:   | FileCheck %s --check-prefix=SDAG --implicit-check-not='DBG_VALUE @'
-; RUN: llc -O2 -mtriple=arm64e-apple-macosx -global-isel -stop-after=irtranslator \
+; RUN: llc -O2 -mtriple=arm64e-apple-macosx -global-isel -stop-after=ir-translator \
 ; RUN:   < %s | FileCheck %s --check-prefix=GISEL --implicit-check-not='DBG_VALUE @'
 ; RUN: llc -O2 -mtriple=arm64e-apple-macosx -filetype=obj < %s \
 ; RUN:   | llvm-objdump -r - | FileCheck %s --check-prefix=RELOC \
