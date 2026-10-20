@@ -380,11 +380,10 @@ void test3(void) {
 
 void test4(struct S0 *s0) { // expected-error {{cannot use 'S0' because feature 'feature1' is unavailable in this context}}
   // expected-note@-1 {{annotate 'test4' with the 'feature1' domain availability attribute to silence this error}}
-  g11.i0 = 0; // expected-error {{cannot use 'g11' because feature 'feature1' is unavailable in this context}} expected-error {{cannot use 'i0' because feature 'feature1' is unavailable in this context}}
+  g11.i0 = 0; // expected-error {{cannot use 'g11' because feature 'feature1' is unavailable in this context}}
   // expected-note@-1 {{enclose 'g11' in a __builtin_available}}
-  // expected-note@-2 {{enclose 'i0' in a __builtin_available}}
-  // CHECK: fix-it:"{{.*}}feature-availability.c":{[[@LINE-3]]:3-[[@LINE-3]]:3}:"if (__builtin_available(domain:feature1)) {"
-  // CHECK: fix-it:"{{.*}}feature-availability.c":{[[@LINE-4]]:14-[[@LINE-4]]:14}:"} else {}"
+  // CHECK: fix-it:"{{.*}}feature-availability.c":{[[@LINE-2]]:3-[[@LINE-2]]:3}:"if (__builtin_available(domain:feature1)) {"
+  // CHECK: fix-it:"{{.*}}feature-availability.c":{[[@LINE-3]]:14-[[@LINE-3]]:14}:"} else {}"
 }
 
 void test5(int c) {
@@ -593,4 +592,13 @@ int test_domain_check_not_condition(int x) {
       return;
   };
   return b + c;
+}
+
+// Members of a struct annotated with a disabled domain must not be dropped
+// from the record layout (this used to crash in constant evaluation).
+struct __attribute__((availability(domain:feature2, AVAIL))) SDisabled { int value; };
+
+__attribute__((availability(domain:feature2, AVAIL)))
+int test_disabled_domain_struct_member(struct SDisabled l) {
+  return l.value + 1;
 }
