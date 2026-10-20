@@ -21003,7 +21003,6 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
   if (D) {
     // FIXME: The current scope is almost... but not entirely... correct here.
     ProcessDeclAttributes(getCurScope(), NewFD, *D);
-    copyFeatureAvailabilityCheck(NewFD, Record);
 
     if (NewFD->hasAttrs())
       CheckAlignasUnderalignment(NewFD);
