@@ -4645,6 +4645,16 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
     return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
                                          Op2Info, Args, CxtI);
 
+  if (CtxI && CtxI->getOpcode() == Opcode && CtxI->hasOneUse() &&
+      useNeonVector(Ty)) {
+    // The Ands of a bit select are folded into the BSL that the Or becomes.
+    Instruction *MainAnd, *OtherAnd;
+    Value *A, *B;
+    if (Opcode == Instruction::And &&
+        matchBSL(CtxI->user_back(), MainAnd, OtherAnd, A, B))
+      return 0;
+  }
+
   // Legalize the type.
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
