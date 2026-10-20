@@ -38,6 +38,9 @@ void SARIFDiagnosticPrinter::BeginSourceFile(const LangOptions &LO,
 
 void SARIFDiagnosticPrinter::EndSourceFile() {
   assert(SARIFDiag && "SARIFDiagnostic has not been set.");
+  // Emit the last buffered result with its trailing notes folded into the code
+  // flow; nothing after this point produces further diagnostics.
+  SARIFDiag->flush();
   Writer->endRun();
   llvm::json::Value Value(Writer->createDocument());
   OS << llvm::formatv("\n{0:2}\n\n", Value);

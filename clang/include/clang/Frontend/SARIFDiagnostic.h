@@ -16,7 +16,9 @@
 
 #include "clang/Basic/Sarif.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 namespace clang {
 
@@ -31,6 +33,12 @@ public:
   SARIFDiagnostic(SARIFDiagnostic &&) = delete;
   SARIFDiagnostic &operator=(const SARIFDiagnostic &) = delete;
   SARIFDiagnostic(const SARIFDiagnostic &) = delete;
+
+  /// Emit the buffered primary result, if any, with the notes that followed it
+  /// folded into its code flow. Must be called once the run of notes belonging
+  /// to a primary diagnostic has ended -- both when the next primary arrives
+  /// and when the source file ends -- so no buffered result is lost.
+  void flush();
 
 protected:
   void emitDiagnosticMessage(FullSourceLoc Loc, PresumedLoc PLoc,
@@ -57,6 +65,14 @@ protected:
 private:
   // Shared between SARIFDiagnosticPrinter and this renderer.
   SarifDocumentWriter *Writer;
+
+  // The most recent non-note result, held back so that the notes that follow it
+  // can be folded into its code flow rather than emitted as sibling results.
+  // Emitted by flush().
+  std::optional<SarifResult> BufferedResult;
+  // The notes seen since BufferedResult, as ordered analysis steps to attach to
+  // it as a code flow.
+  llvm::SmallVector<ThreadFlow> PendingSteps;
 
   SarifResult addLocationToResult(SarifResult Result, FullSourceLoc Loc,
                                   PresumedLoc PLoc,

@@ -46,6 +46,24 @@ void SARIFDiagnostic::emitDiagnosticMessage(
   if (!Diag)
     return;
 
+  // A note explains the diagnostic that precedes it. When a primary result is
+  // buffered, fold the note into its code flow as an ordered step instead of
+  // emitting a sibling result. A note with no primary to attach to falls
+  // through to the ordinary path, so nothing is lost.
+  if (Level == DiagnosticsEngine::Note && BufferedResult) {
+    if (Loc.isValid())
+      PendingSteps.push_back(
+          ThreadFlow::create()
+              .setRange(CharSourceRange::getCharRange(Loc, Loc))
+              .setMessage(Message)
+              .setImportance(ThreadFlowImportance::Important));
+    return;
+  }
+
+  // Any non-note diagnostic ends the previous primary's run of notes, so emit
+  // that primary before starting a new one.
+  flush();
+
   const auto &DiagnosticIDs = *(Diag->getDiags()->getDiagnosticIDs());
   std::string StableID = DiagnosticIDs.getStableID(Diag->getID());
   auto LegacyStableIDs = DiagnosticIDs.getLegacyStableIDs(Diag->getID());
@@ -66,6 +84,33 @@ void SARIFDiagnostic::emitDiagnosticMessage(
     Result = addRelatedLocationToResult(Result, RelLoc, RelPLoc);
   RelatedLocationsCache.clear();
 
+  // Seed the code flow with the finding itself (essential step), so stepping
+  // through the analysis starts at the reported location and proceeds into the
+  // notes that explain it. flush() drops this lone step when no notes follow,
+  // so a note-less diagnostic gets no code flow.
+  PendingSteps.clear();
+  if (Loc.isValid())
+    PendingSteps.push_back(
+        ThreadFlow::create()
+            .setRange(CharSourceRange::getCharRange(Loc, Loc))
+            .setMessage(Message)
+            .setImportance(ThreadFlowImportance::Essential));
+
+  // Hold the result back so trailing notes can attach to it; flush() appends it
+  // once its run of notes has ended.
+  BufferedResult = std::move(Result);
+}
+
+void SARIFDiagnostic::flush() {
+  if (!BufferedResult)
+    return;
+  SarifResult Result = std::move(*BufferedResult);
+  BufferedResult.reset();
+  // Attach a code flow only when there are explanatory steps beyond the finding
+  // itself; a lone finding-step would just repeat the result's own location.
+  if (PendingSteps.size() > 1)
+    Result = Result.setThreadFlows(PendingSteps);
+  PendingSteps.clear();
   Writer->appendResult(Result);
 }
 

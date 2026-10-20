@@ -103,6 +103,54 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
           "ruleIndex": 2
         },
         {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "message": {
+                          "text": "misleading indentation; statement is not part of the previous 'if'"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "index": 0,
+                            "uri": "file:///[...]/sarif-diagnostics.cpp"
+                          },
+                          "region": {
+                            "endColumn": 5,
+                            "startColumn": 5,
+                            "startLine": 19
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "importance": "important",
+                      "location": {
+                        "message": {
+                          "text": "previous statement is here"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "index": 0,
+                            "uri": "file:///[...]/sarif-diagnostics.cpp"
+                          },
+                          "region": {
+                            "endColumn": 3,
+                            "startColumn": 3,
+                            "startLine": 17
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
           "level": "warning",
           "locations": [
             {
@@ -124,29 +172,6 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
           },
           "ruleId": "warn_misleading_indentation",
           "ruleIndex": 3
-        },
-        {
-          "level": "note",
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "index": 0,
-                  "uri": "file:///[...]/sarif-diagnostics.cpp"
-                },
-                "region": {
-                  "endColumn": 3,
-                  "startColumn": 3,
-                  "startLine": 17
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "previous statement is here"
-          },
-          "ruleId": "note_previous_statement",
-          "ruleIndex": 4
         },
         {
           "level": "warning",
@@ -183,7 +208,7 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
             "text": "unused variable 'Yes'"
           },
           "ruleId": "warn_unused_variable",
-          "ruleIndex": 5
+          "ruleIndex": 4
         },
         {
           "level": "error",
@@ -220,7 +245,7 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
             "text": "use of undeclared identifier 'hi'"
           },
           "ruleId": "err_undeclared_var_use",
-          "ruleIndex": 6
+          "ruleIndex": 5
         },
         {
           "level": "error",
@@ -243,7 +268,7 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
             "text": "extraneous closing brace ('}')"
           },
           "ruleId": "err_extraneous_closing_brace",
-          "ruleIndex": 7
+          "ruleIndex": 6
         },
         {
           "level": "error",
@@ -294,7 +319,7 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
             "text": "invalid operands to binary expression ('t1' and 't1')"
           },
           "ruleId": "err_typecheck_invalid_operands",
-          "ruleIndex": 8
+          "ruleIndex": 7
         },
         {
           "level": "error",
@@ -317,7 +342,7 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
             "text": "expected expression"
           },
           "ruleId": "err_expected_expression",
-          "ruleIndex": 9
+          "ruleIndex": 8
         }
       ],
       "tool": {
@@ -373,18 +398,6 @@ clang: warning: diagnostic formatting in SARIF mode is currently unstable [-Wsar
                 "text": ""
               },
               "id": "warn_misleading_indentation",
-              "name": ""
-            },
-            {
-              "defaultConfiguration": {
-                "enabled": true,
-                "level": "note",
-                "rank": -1
-              },
-              "fullDescription": {
-                "text": ""
-              },
-              "id": "note_previous_statement",
               "name": ""
             },
             {
