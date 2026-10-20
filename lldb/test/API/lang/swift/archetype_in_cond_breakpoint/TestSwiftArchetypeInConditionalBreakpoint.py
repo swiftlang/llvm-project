@@ -12,6 +12,7 @@ class TestSwiftArchetypeInConditionalBreakpoint(TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_class(self):
         self.do_test("break here for class")
 

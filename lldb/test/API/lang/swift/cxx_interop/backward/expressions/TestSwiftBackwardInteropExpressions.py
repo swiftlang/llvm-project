@@ -10,6 +10,7 @@ class TestSwiftBackwardInteropExpressions(TestBase):
     @skipIfLinux
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_func_step_in(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

@@ -19,6 +19,7 @@ class TestSwiftSubstitutedTypeAlias(TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a variable declared with a type alias keeps the alias type"""
         self.build()

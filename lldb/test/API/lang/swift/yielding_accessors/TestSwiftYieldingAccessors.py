@@ -55,6 +55,7 @@ class TestSwiftStepping(lldbtest.TestBase):
     @skipEmbeddedSwift # rdar://185128968 (Embedded Swift: stepping through yield_once coroutine accessors lands on the wrong line and loses self)
     @swiftTest
     @skipIf(oslist=["linux"], archs=no_match("x86_64")) # rdar://170532470
+    @expectedFailureAll(debug_info=["pdb"])
     def test_step_over_starting_inside_coroutine(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

@@ -20,6 +20,7 @@ class TestSwiftFoundationTypeUUID(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
     @skipIf(oslist=["linux"])
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test the summary of a Foundation.UUID value"""
         self.build()

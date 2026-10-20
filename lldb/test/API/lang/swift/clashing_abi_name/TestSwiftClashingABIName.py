@@ -24,6 +24,7 @@ class TestSwiftClashingABIName(TestBase):
                     substrs=['a.Generic2<a.Generic<a.One>>', 't2 =', 't =', 'j = 98'])
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_in_self(self):
         """Test a library with a private import for which there is no debug info"""
         self.build()

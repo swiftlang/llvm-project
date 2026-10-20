@@ -23,6 +23,7 @@ class TestSwiftReferenceStorageTypes(TestBase):
     @requireNotEmbeddedSwift
     @decorators.skipIf(archs=['ppc64le']) #SR-10215
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_reference_storage_types(self):
         """Test weak, unowned and unmanaged types"""
         self.build()

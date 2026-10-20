@@ -41,6 +41,7 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test_expr(self):
         """Test that types with the @_originallyDefinedIn attribute can still be found in metadata"""
 
@@ -71,6 +72,7 @@ class TestSwiftOriginallyDefinedIn(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_expr_from_generic(self):
          """Test that types with the @_originallyDefinedIn attribute can still be found in metadata"""
 

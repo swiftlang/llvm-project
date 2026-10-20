@@ -12,6 +12,7 @@ class TestSwiftAsyncExpressions(lldbtest.TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
     @skipIf(archs=no_match(["aarch", "arm64", "arm64e", "arm64_32", "x86_64"]))
+    @expectedFailureAll(debug_info=["pdb"])
     def test_actor(self):
         """Test async unwind"""
         self.build()

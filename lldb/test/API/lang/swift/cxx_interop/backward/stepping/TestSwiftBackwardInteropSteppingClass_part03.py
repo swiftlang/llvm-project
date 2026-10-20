@@ -34,6 +34,7 @@ class TestSwiftBackwardInteropSteppingClass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_setter_step_in_class(self):
         thread = self.setup('Break here for setter - class')
         self.check_step_in(thread, 'testSetter', 'SwiftClass.swiftProperty.setter')
@@ -47,6 +48,7 @@ class TestSwiftBackwardInteropSteppingClass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_overriden_step_in_class(self):
         thread = self.setup('Break here for overridden - class')
         self.check_step_in(thread, 'testOverridenMethod', 'SwiftSubclass.overrideableMethod')

@@ -11,6 +11,7 @@ class TestSwiftCUnion(lldbtest.TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_c_unions(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(

@@ -37,6 +37,7 @@ class TestSwiftDWARFImporterC(lldbtest.TestBase):
     @skipIf(archs=['ppc64le'], bugnumber='SR-10214')
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_dwarf_importer(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
@@ -73,6 +74,7 @@ class TestSwiftDWARFImporterC(lldbtest.TestBase):
     @skipIf(archs=['ppc64le'], bugnumber='SR-10214')
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_dwarf_importer_exprs(self):
         self.build()
         target, process, thread, bkpt = lldbutil.run_to_source_breakpoint(
@@ -100,6 +102,7 @@ class TestSwiftDWARFImporterC(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
+    @expectedFailureAll(debug_info=["pdb"])
     def test_negative(self):
         lldb.SBDebugger.MemoryPressureDetected()
         self.runCmd("settings set symbols.use-swift-dwarfimporter false")

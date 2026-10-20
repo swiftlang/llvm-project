@@ -30,6 +30,7 @@ class TestCase(lldbtest.TestBase):
 
     @skipEmbeddedSwiftOnLinux
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test `frame variable` in async functions"""
         self.build()

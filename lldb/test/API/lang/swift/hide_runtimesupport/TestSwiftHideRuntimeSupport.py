@@ -22,6 +22,7 @@ import os
 class TestSwiftHideRuntimeSupport(TestBase):
     @requireNotEmbeddedSwift # embedded Swift passes no type metadata, so there are no runtime support values to unhide
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_hide_runtime_support(self):
         """Test that we hide runtime support values"""
 

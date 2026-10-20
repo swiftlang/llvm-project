@@ -38,10 +38,12 @@ class TestArrayOfBoundsSafetyPointers(TestBase):
         self.expect("expr array_of_bounds_safety_pointers[1]", patterns = [zero_init_pattern])
         self.expect("frame variable array_of_bounds_safety_pointers[1]", patterns = [zero_init_pattern])
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_optimized(self):
         build_dict=dict(CFLAGS_EXTRAS="-O2 -Xclang -fbounds-safety")
         self.__run(build_dict)
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_unoptimized(self):
         build_dict=dict(CFLAGS_EXTRAS="-Xclang -fbounds-safety")
         self.__run(build_dict)

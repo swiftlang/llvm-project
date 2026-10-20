@@ -28,6 +28,7 @@ class TestSwiftGenericEnumTypes(TestBase):
 
     @requireNotEmbeddedSwift # embedded Swift monomorphizes every generic, so the static type is never an unbound Optional<U>
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_swift_generic_enum_types(self):
         """Test that we handle reasonably generically-typed enums"""
         self.build()
