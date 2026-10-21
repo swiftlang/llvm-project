@@ -74,6 +74,7 @@ class CompileUnitAPITestCase(TestBase):
 
     # DW_AT_APPLE_optimized is only emitted when tuning for LLDB, which is
     # not the default outside of Darwin.
+    @expectedFailureAll(debug_info=["pdb"], bugnumber="llvm.org/pr149498")
     def test_is_optimized(self):
         """A compile unit built with optimization reports it."""
         self.build(dictionary={"CFLAGS_EXTRAS": "-O1 -glldb"})
