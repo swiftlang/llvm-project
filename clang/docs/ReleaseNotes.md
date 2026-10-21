@@ -199,6 +199,11 @@ features cannot lower the translation-unit ABI level;
   That warning can be disabled with `-Wno-coroutines-unsupported-target`. (see #GH59382)
 - Templight support has been removed.
 
+- Clang no longer searches all subdirectories of header search paths
+  for module maps by default when resolving a module import. The previous
+  behavior can be restored with `-fmodulemap-allow-subdirectory-search`,
+  which will be removed in a future release.
+
 ### Clang Python Bindings Potentially Breaking Changes
 
 - Remove `CompletionString.Availability`. No libclang interfaces returned instances of it.
