@@ -65,23 +65,23 @@ public:
   ///
   /// \pre \p Path is not a reference into \p NewPath.
   /// \returns true if \c NewPath was mapped.
-  bool map(StringRef Path, SmallVectorImpl<char> &NewPath);
+  bool map(StringRef Path, SmallVectorImpl<char> &NewPath) const;
   /// Map \p Path, and saving the new (or existing) path in \p NewPath.
   ///
   /// \pre \p Path is not a reference into \p NewPath.
   /// \returns true if \c NewPath was mapped.
-  bool map(StringRef Path, std::string &NewPath);
+  bool map(StringRef Path, std::string &NewPath) const;
 
   /// Map \p Path, returning \a std::string.
-  std::string mapToString(StringRef Path);
+  std::string mapToString(StringRef Path) const;
 
   /// Map \p Path in place.
   /// \returns true if the path was modified.
-  bool mapInPlace(SmallVectorImpl<char> &Path);
+  bool mapInPlace(SmallVectorImpl<char> &Path) const;
 
   /// Map \p Path in place.
   /// \returns true if the path was modified.
-  bool mapInPlace(std::string &Path);
+  bool mapInPlace(std::string &Path) const;
 
 protected:
   /// Map (or unmap) \p Path. On a match, fills \p Storage with the mapped path
@@ -89,7 +89,7 @@ protected:
   ///
   /// \pre \p Path is not a reference into \p Storage.
   virtual std::optional<StringRef> mapImpl(StringRef Path,
-                                      SmallVectorImpl<char> &Storage);
+                                      SmallVectorImpl<char> &Storage) const;
 
 public:
   virtual void add(const MappedPrefix &MP) { Mappings.push_back(MP); }
@@ -165,19 +165,19 @@ private:
 class TreePathPrefixMapper : public PrefixMapper {
 private:
   std::optional<StringRef> mapImpl(StringRef Path,
-                              SmallVectorImpl<char> &Storage) override;
+                              SmallVectorImpl<char> &Storage) const override;
 
   /// Find the tree path for \p Path, getting the real path for its parent
   /// directory but not following symlinks in \a sys::path::filename().
   ///
   /// \returns The tree path, or none if there are any errors.
-  std::optional<StringRef> getTreePath(StringRef Path);
+  std::optional<StringRef> getTreePath(StringRef Path) const;
 
 public:
   void add(const MappedPrefix &Mapping) override;
 
   StringRef mapDirEntry(const vfs::CachedDirectoryEntry &Entry,
-                        SmallVectorImpl<char> &Storage);
+                        SmallVectorImpl<char> &Storage) const;
 
   TreePathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
                        sys::path::Style PathStyle = sys::path::Style::native);
