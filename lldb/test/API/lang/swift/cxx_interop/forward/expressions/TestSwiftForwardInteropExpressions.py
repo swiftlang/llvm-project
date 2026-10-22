@@ -19,7 +19,6 @@ class TestSwiftForwardInteropExpressions(TestBase):
     @skipIfLinux  # rdar://106871422"
     @skipIfWindows  # MSVC exception ABI: no type_info vftable in the target.
     @skipIf(setting=("symbols.use-swift-clangimporter", "false"))  # rdar://106871275
-    @skipEmbeddedSwift  # Hangs in CI; `po` also has no reflection to fall back on.
     @swiftClangImporterTest
     def test(self):
         self.setup("Break here")
@@ -55,14 +54,21 @@ class TestSwiftForwardInteropExpressions(TestBase):
         # Check that we can call methods on the persistent variable.
         self.expect('expr $cxxClass.sum()', substrs=['CInt', '201'])
 
-        # Check that po prints the fields of a base class
-        self.expect('po cxxClass', substrs=['CxxClass', 'a : 100', 'b : 101'])
-
         self.filecheck_log(types_log, __file__)
         # CHECK: [CheckFlagInCU] Found flag -enable-experimental-cxx-interop in CU:
 
+    @skipIfLinux  # rdar://106871422"
+    @skipIfWindows  # MSVC exception ABI: no type_info vftable in the target.
+    @skipIf(setting=("symbols.use-swift-clangimporter", "false"))  # rdar://106871275
+    @skipEmbeddedSwift # rdar://185128962 (Embedded Swift: po falls back to p, so object-description output is unavailable)
+    @swiftClangImporterTest
+    def test_po_base_class_fields(self):
+        self.setup("Break here")
+
+        # Check that po prints the fields of a base class
+        self.expect('po cxxClass', substrs=['CxxClass', 'a : 100', 'b : 101'])
+
     @expectedFailureAll(bugnumber="rdar://106216567")
-    @skipEmbeddedSwift  # Hangs in CI.
     @swiftClangImporterTest
     def test_po_subclass(self):
         self.setup('Break here')
