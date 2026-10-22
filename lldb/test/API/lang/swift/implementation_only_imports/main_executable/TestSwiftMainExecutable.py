@@ -42,7 +42,7 @@ class TestSwiftMainExecutable(TestBase):
         return info
 
     @swiftTest
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # builds the library as a dylib
     @expectedFailureAll(debug_info=["pdb"])
     def test_implementation_only_import_main_executable(self):
         """Test `@_implementationOnly import` in the main executable
@@ -70,7 +70,7 @@ class TestSwiftMainExecutable(TestBase):
         self.expect("expr TwoInts(4, 5)", substrs=["(SomeLibrary.TwoInts)", "= (first = 4, second = 5)"])
 
     @swiftTest
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # builds the library as a dylib
     @skipIfLinux # rdar://problem/67348391
     # On Windows lldb resolves the type via DWARFImporter even with the
     # swiftmodule removed, so the expected "<could not resolve type>" recovery
