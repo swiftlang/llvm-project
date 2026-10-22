@@ -6,8 +6,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftDesignatedInitializerSelf(TestBase):
 
-    # rdar://185128962 (Embedded Swift: po falls back to p, so object-description output is unavailable)
-    @skipEmbeddedSwift
+    @skipEmbeddedSwift # rdar://185128962 (Embedded Swift: po falls back to p, so object-description output is unavailable)
     @swiftTest
     def test(self):
         """Test that self can be printed in a convenience init after self.init()"""
