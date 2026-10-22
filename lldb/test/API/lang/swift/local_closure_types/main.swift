@@ -17,4 +17,41 @@ let foo: () -> () = {
   print(s.i) // break here
 }
 
+// Two closures in the same function declaring types with the same name.
+func twoClosures() {
+  let first = {
+    struct S {
+      let i: Int
+    }
+    let s = S(i: 1)
+    print(s.i) // break in first closure
+  }
+  let second = {
+    struct S {
+      let a: Int
+      let b: Int
+    }
+    let s = S(a: 2, b: 3)
+    print(s.b) // break in second closure
+  }
+  first()
+  second()
+}
+
+func nestedClosures() {
+  let outer = {
+    let inner = {
+      struct T {
+        let k: Int
+      }
+      let t = T(k: 4)
+      print(t.k) // break in nested closure
+    }
+    inner()
+  }
+  outer()
+}
+
 foo()
+twoClosures()
+nestedClosures()
