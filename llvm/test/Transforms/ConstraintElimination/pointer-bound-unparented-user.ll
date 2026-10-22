@@ -189,7 +189,8 @@ define i1 @checked_index_from_invoke(ptr %src, i16 %n) personality ptr @__gxx_pe
 ; CHECK-NEXT:            to label %[[CONT:.*]] unwind label %[[LPAD:.*]]
 ; CHECK:       [[CONT]]:
 ; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX]], [[N_EXT]]
-; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX]]
+; CHECK-NEXT:    [[SRC_IDX_IDX:%.*]] = sext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_IDX]]
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label %[[THEN:.*]], label %[[ELSE:.*]]
 ; CHECK:       [[THEN]]:
 ; CHECK-NEXT:    ret i1 true
@@ -210,7 +211,8 @@ entry:
 
 cont:
   %cmp.idx = icmp ult i32 %idx, %n.ext
-  %src.idx = getelementptr i32, ptr %src, i32 %idx
+  %src.idx.idx = sext i32 %idx to i64
+  %src.idx = getelementptr i32, ptr %src, i64 %src.idx.idx
   br i1 %cmp.idx, label %then, label %else
 
 then:
@@ -286,7 +288,8 @@ define i1 @checked_index_from_callbr(ptr %src, i16 %n) {
 ; CHECK-NEXT:            to label %[[CONT:.*]] [label %[[INDIRECT:.*]]]
 ; CHECK:       [[CONT]]:
 ; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX]], [[N_EXT]]
-; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX]]
+; CHECK-NEXT:    [[SRC_IDX_IDX:%.*]] = sext i32 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_IDX]]
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label %[[THEN:.*]], label %[[ELSE:.*]]
 ; CHECK:       [[THEN]]:
 ; CHECK-NEXT:    ret i1 true
@@ -305,7 +308,8 @@ entry:
 
 cont:
   %cmp.idx = icmp ult i32 %idx, %n.ext
-  %src.idx = getelementptr i32, ptr %src, i32 %idx
+  %src.idx.idx = sext i32 %idx to i64
+  %src.idx = getelementptr i32, ptr %src, i64 %src.idx.idx
   br i1 %cmp.idx, label %then, label %else
 
 then:
