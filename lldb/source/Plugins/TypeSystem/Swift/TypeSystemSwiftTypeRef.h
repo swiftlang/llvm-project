@@ -561,10 +561,12 @@ protected:
   void DiagnoseSwiftASTContextFallback(const char *func_name,
                                        lldb::opaque_compiler_type_t type);
 
-  /// Looks for the type using the provided compiler context.
+  /// Looks for the type using the provided compiler context. If several types
+  /// match the context, prefers the one named \p mangled_name.
   lldb::TypeSP FindTypeInModule(std::vector<CompilerContext> context,
                                 lldb_private::Module *M,
-                                swift::Mangle::ManglingFlavor flavor);
+                                swift::Mangle::ManglingFlavor flavor,
+                                ConstString mangled_name);
 
   /// Helper that creates an AST type from \p type.
   ///

@@ -953,6 +953,15 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
 
     return true;
   }
+  case Node::Kind::ExplicitClosure:
+  case Node::Kind::ImplicitClosure: {
+    // The debug info doesn't use a closure as the scope of the types declared
+    // inside it; it nests them under the closure's enclosing context. Skip the
+    // closure when building the decl context.
+    if (!node->hasChildren())
+      return false;
+    return BuildDeclContext(node->getFirstChild(), context);
+  }
   case Node::Kind::LocalDeclName: {
     std::optional<llvm::StringRef> identifier =
         ExtractIdentifierFromLocalDeclName(node);
@@ -3096,7 +3105,8 @@ npdb::PdbAstBuilder *TypeSystemSwiftTypeRef::GetNativePDBParser() {
 TypeSP
 TypeSystemSwiftTypeRef::FindTypeInModule(std::vector<CompilerContext> context,
                                          lldb_private::Module *M,
-                                         swift::Mangle::ManglingFlavor flavor) {
+                                         swift::Mangle::ManglingFlavor flavor,
+                                         ConstString mangled_name) {
   // DW_AT_linkage_name is not part of the accelerator table, so
   // we need to search by decl context.
   auto options =
@@ -3108,16 +3118,38 @@ TypeSystemSwiftTypeRef::FindTypeInModule(std::vector<CompilerContext> context,
     context.erase(context.begin());
     options = TypeQueryOptions::e_find_one;
   }
-  TypeQuery query(context, options);
-  query.SetLanguages(TypeSystemSwift::GetSupportedLanguagesForTypes());
+  auto has_mangled_name = [&](const TypeSP &type_sp) {
+    return type_sp &&
+           type_sp->GetForwardCompilerType().GetMangledTypeName() ==
+               mangled_name;
+  };
 
-  TypeResults results;
-  if (M)
-    M->FindTypes(query, results);
-
-  if (results.Done(query))
-    return results.GetFirstType();
-  return {};
+  // If the mangled name matches exactly we know we found the right type. If it
+  // doesn't match, we probably found a different type with the same context.
+  // For example, closures are not part of the decl context hierarchy, which
+  // means that two types with the exact same name declared in two closures
+  // which share the same context cannot be distinguished via a decl context
+  // query.
+  // In this case, don't stop at the first match, go through every match until
+  // the one with the matching mangled name is found.
+  TypeSP first;
+  for (auto query_options :
+       {options, options & ~TypeQueryOptions::e_find_one}) {
+    TypeQuery query(context, query_options);
+    query.SetLanguages(TypeSystemSwift::GetSupportedLanguagesForTypes());
+    TypeResults results;
+    if (M)
+      M->FindTypes(query, results);
+    for (const TypeSP &type_sp : results.GetTypeMap().Types()) {
+      if (!first)
+        first = type_sp;
+      if (!mangled_name || has_mangled_name(type_sp))
+        return type_sp;
+    }
+    if (!first)
+      return {};
+  }
+  return first;
 }
 
 TypeSP
@@ -3144,8 +3176,9 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
 
   swift::Mangle::ManglingFlavor flavor =
       SwiftLanguageRuntime::GetManglingFlavor(AsMangledName(opaque_type));
+  ConstString mangled_name = GetMangledTypeName(opaque_type);
   auto context = *maybe_context;
-  if (auto result = FindTypeInModule(context, M, flavor))
+  if (auto result = FindTypeInModule(context, M, flavor, mangled_name))
     return result;
 
   // Types with "Swift" as their module might actually belong to the
@@ -3154,7 +3187,7 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
       context[0].kind != CompilerContextKind::Module)
     return {};
   context[0].name = ConstString("_Concurrency");
-  return FindTypeInModule(context, M, flavor);
+  return FindTypeInModule(context, M, flavor, mangled_name);
 }
 
 TypeSP
