@@ -305,6 +305,9 @@ private:
     /// Set to 'true' if this field is DW_AT_artificial.
     bool is_artificial = false;
 
+    const char *name = nullptr;
+    dw_offset_t type_die_offset = DW_INVALID_OFFSET;
+
     FieldInfo() = default;
 
     void SetIsBitfield(bool flag) { is_bitfield = flag; }
