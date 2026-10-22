@@ -3107,8 +3107,6 @@ TypeSystemSwiftTypeRef::FindTypeInModule(std::vector<CompilerContext> context,
                                          lldb_private::Module *M,
                                          swift::Mangle::ManglingFlavor flavor,
                                          ConstString mangled_name) {
-  // DW_AT_linkage_name is not part of the accelerator table, so
-  // we need to search by decl context.
   auto options =
       TypeQueryOptions::e_find_one | TypeQueryOptions::e_module_search;
   // FIXME: It would be nice to not need this.
@@ -3163,6 +3161,27 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
     }
   }
 
+  ConstString mangled_name = GetMangledTypeName(opaque_type);
+
+  // Mangled names are unique, so try looking the type up by its mangled name
+  // first. If that fails (e.g. the type has no linkage name in the debug
+  // info), fall back to the less precise decl context lookup. Imported Clang
+  // types always take the decl context lookup, since the type they stand for
+  // is the one in the Clang module, not the Swift wrapper DIE that carries
+  // their mangled name.
+  if (M && !IsImportedType(opaque_type, nullptr)) {
+    std::vector<CompilerContext> mangled_context = {
+        {CompilerContextKind::AnyType, mangled_name}};
+    TypeQuery query(mangled_context,
+                    TypeQueryOptions::e_find_one |
+                        TypeQueryOptions::e_search_by_mangled_name);
+    query.SetLanguages(TypeSystemSwift::GetSupportedLanguagesForTypes());
+    TypeResults results;
+    M->FindTypes(query, results);
+    if (results.Done(query))
+      return results.GetFirstType();
+  }
+
   swift::Demangle::Demangler dem;
   auto maybe_context = BuildDeclContext(AsMangledName(opaque_type), dem);
   if (!maybe_context || maybe_context->empty()) {
@@ -3176,7 +3195,6 @@ TypeSystemSwiftTypeRef::FindTypeInModule(opaque_compiler_type_t opaque_type) {
 
   swift::Mangle::ManglingFlavor flavor =
       SwiftLanguageRuntime::GetManglingFlavor(AsMangledName(opaque_type));
-  ConstString mangled_name = GetMangledTypeName(opaque_type);
   auto context = *maybe_context;
   if (auto result = FindTypeInModule(context, M, flavor, mangled_name))
     return result;
