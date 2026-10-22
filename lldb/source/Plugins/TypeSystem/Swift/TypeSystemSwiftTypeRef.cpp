@@ -890,16 +890,10 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
     auto *first = node->getChild(0);
     if (!first)
       return false;
-    if (first->getKind() == Node::Kind::Module) {
-      assert(first->hasText() && "Module node should have text!");
-      context.push_back(
-          {CompilerContextKind::Module, ConstString(first->getText())});
-    } else {
-      // If the node's kind is not a module, this is probably a nested type, so
-      // build the decl context for the parent type first.
-      if (!BuildDeclContext(first, context))
-        return false;
-    }
+    // If the node's kind is not a module, this is probably a nested type, so
+    // build the decl context for the parent type first.
+    if (!BuildDeclContext(first, context))
+      return false;
 
     auto *second = node->getChild(1);
     if (!second)
@@ -914,6 +908,15 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
     // If the second child is not an identifier, it could be a private decl
     // name or a local decl name.
     return BuildDeclContext(second, context);
+  }
+  case Node::Kind::Module: {
+    if (!node->hasText()) {
+      assert(false && "Module should have text!");
+      return false;
+    }
+    context.push_back(
+        {CompilerContextKind::Module, ConstString(node->getText())});
+    return true;
   }
   case Node::Kind::BoundGenericClass:
   case Node::Kind::BoundGenericEnum:
@@ -935,14 +938,7 @@ static bool BuildDeclContext(swift::Demangle::NodePointer node,
     auto *first = node->getChild(0);
     auto *second = node->getChild(1);
 
-    if (first->getKind() == Node::Kind::Module) {
-      if (!first->hasText()) {
-        assert(false && "Module should have text!");
-        return false;
-      }
-      context.push_back(
-          {CompilerContextKind::Module, ConstString(first->getText())});
-    } else if (!BuildDeclContext(first, context))
+    if (!BuildDeclContext(first, context))
       return false;
 
     if (second->getKind() == Node::Kind::Identifier) {
