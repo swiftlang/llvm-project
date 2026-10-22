@@ -53,19 +53,12 @@ void foo(int *__counted_by(count) x, unsigned count) {
 // CHECK-NEXT:    [[ADD_PTR_IDX:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META8]]
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds i8, ptr [[X]], i64 [[ADD_PTR_IDX]], !annotation [[META5]]
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[X]], i64 4
-// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META5]]
-// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ugt ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META5]]
-// CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META5]]
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[LAND_RHS:.*]], !annotation [[META5]]
-// CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[SUB:%.*]] = add nsw i32 [[COUNT]], -1, !annotation [[META11:![0-9]+]]
-// CHECK-NEXT:    [[CONV:%.*]] = sext i32 [[SUB]] to i64, !annotation [[META5]]
-// CHECK-NEXT:    [[GEPDIFF:%.*]] = add nsw i64 [[ADD_PTR_IDX]], -4, !annotation [[META8]]
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = ashr exact i64 [[GEPDIFF]], 2, !annotation [[META5]]
-// CHECK-NEXT:    [[CMP26:%.*]] = icmp sge i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
+// CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], !annotation [[META5]]
+// CHECK-NEXT:    [[CMP15_NOT:%.*]] = icmp ule ptr [[X]], [[BOUND_PTR_ARITH]], !annotation [[META5]]
+// CHECK-NEXT:    [[OR_COND_NOT41:%.*]] = and i1 [[CMP15_NOT]], [[CMP_NOT]], !annotation [[META5]]
 // CHECK-NEXT:    [[CMP29:%.*]] = icmp sgt i32 [[COUNT]], 0, !annotation [[META5]]
-// CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP29]], [[CMP26]]
-// CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META5]]
+// CHECK-NEXT:    [[OR_COND40:%.*]] = and i1 [[OR_COND_NOT41]], [[CMP29]], !annotation [[META5]]
+// CHECK-NEXT:    br i1 [[OR_COND40]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
@@ -102,7 +95,6 @@ void bar(int *__counted_by(count) x, int count) {
 // CHECK: [[META8]] = !{!"bounds-safety-generic", [[META9:![0-9]+]]}
 // CHECK: [[META9]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
 // CHECK: [[TBAA1]] = !{[[META2]], [[META2]], i64 0}
-// CHECK: [[META11]] = !{[[META9]]}
 //.
 // WITHOUT: [[ERRNO_TBAA:![0-9]+]] = !{[[META_ERRNO:![0-9]+]], [[META2:![0-9]+]], i64 0}
 // WITHOUT: [[META_ERRNO]] = !{!"__libc_errno", [[META2]], i64 0}
