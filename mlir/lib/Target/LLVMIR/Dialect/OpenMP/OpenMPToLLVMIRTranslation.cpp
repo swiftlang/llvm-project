@@ -1029,13 +1029,18 @@ static LogicalResult inlineConvertOmpRegions(
   // Special case for single-block regions that don't create additional blocks:
   // insert operations without creating additional blocks.
   if (region.hasOneBlock()) {
+    llvm::BasicBlock *insertBlock = builder.GetInsertBlock();
     llvm::Instruction *potentialTerminator =
-        builder.GetInsertBlock()->empty() ? nullptr
-                                          : &builder.GetInsertBlock()->back();
+        insertBlock->empty() ? nullptr : &insertBlock->back();
 
-    if (potentialTerminator && potentialTerminator->isTerminator())
+    if (potentialTerminator && potentialTerminator->isTerminator()) {
+      assert(builder.GetInsertPoint() == potentialTerminator->getIterator() &&
+             "Insertion point should be the terminator");
       potentialTerminator->removeFromParent();
-    moduleTranslation.mapBlock(&region.front(), builder.GetInsertBlock());
+      // Reset insertion point to the end of the block.
+      builder.SetInsertPoint(insertBlock);
+    }
+    moduleTranslation.mapBlock(&region.front(), insertBlock);
 
     if (failed(moduleTranslation.convertBlock(
             region.front(), /*ignoreArguments=*/true, builder)))

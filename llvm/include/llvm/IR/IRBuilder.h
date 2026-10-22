@@ -117,9 +117,6 @@ class IRBuilderBase {
   DebugLoc StoredDL;
 
 protected:
-  // TODO: Remove this in favor of InsertPt.getNodeParent(), so they cannot
-  // go out of sync.
-  BasicBlock *BB;
   BasicBlock::iterator InsertPt;
   LLVMContext &Context;
   const IRBuilderFolder &Folder;
@@ -167,28 +164,37 @@ public:
 
   /// Clear the insertion point: created instructions will not be
   /// inserted into a block.
-  void ClearInsertionPoint() {
-    BB = nullptr;
-    InsertPt = BasicBlock::iterator();
-  }
+  void ClearInsertionPoint() { InsertPt = BasicBlock::iterator(); }
 
-  BasicBlock *GetInsertBlock() const { return BB; }
+  BasicBlock *GetInsertBlock() const {
+    return InsertPt.isValid() ? InsertPt.getNodeParent() : nullptr;
+  }
   BasicBlock::iterator GetInsertPoint() const { return InsertPt; }
   LLVMContext &getContext() const { return Context; }
 
+  /// Get data layout. Requires that an insertion point is set and connected
+  /// to a module.
+  const DataLayout &getDataLayout() const {
+    assert(InsertPt.isValid() &&
+           "Must have insertion point to get data layout");
+    return InsertPt.getNodeParent()->getDataLayout();
+  }
+
+  /// Get the module. Requires that an insertion point is set and connected
+  /// to a module.
+  Module *getModule() const {
+    assert(InsertPt.isValid() && "Must have insertion point to get module");
+    return InsertPt.getNodeParent()->getModule();
+  }
+
   /// This specifies that created instructions should be appended to the
   /// end of the specified block.
-  void SetInsertPoint(BasicBlock *TheBB) {
-    BB = TheBB;
-    InsertPt = BB->end();
-  }
+  void SetInsertPoint(BasicBlock *TheBB) { InsertPt = TheBB->end(); }
 
   /// This specifies that created instructions should be inserted before
   /// the specified instruction.
   void SetInsertPoint(Instruction *I) {
-    BB = I->getParent();
     InsertPt = I->getIterator();
-    assert(InsertPt != BB->end() && "Can't read debug loc from end()");
     SetCurrentDebugLocation(I->getStableDebugLoc());
   }
 
@@ -202,9 +208,8 @@ public:
   /// This specifies that created instructions should be inserted at
   /// the specified point.
   void SetInsertPoint(BasicBlock::iterator IP) {
-    BB = IP.getNodeParent();
     InsertPt = IP;
-    if (IP != BB->end())
+    if (IP != IP.getNodeParent()->end())
       SetCurrentDebugLocation(IP->getStableDebugLoc());
   }
 
@@ -212,8 +217,7 @@ public:
   /// end of the specified function, but after already existing static alloca
   /// instructions that are at the start.
   void SetInsertPointPastAllocas(Function *F) {
-    BB = &F->getEntryBlock();
-    InsertPt = BB->getFirstNonPHIOrAlloca();
+    InsertPt = F->getEntryBlock().getFirstNonPHIOrAlloca();
   }
 
   /// Set location information used by debugging information.
@@ -319,6 +323,7 @@ public:
   }
 
   void setConstrainedFPFunctionAttr() {
+    BasicBlock *BB = GetInsertBlock();
     assert(BB && "Must have a basic block to set any function attributes!");
 
     Function *F = BB->getParent();
@@ -1117,7 +1122,7 @@ public:
 
   /// Create a call to llvm.stacksave
   CallInst *CreateStackSave(const Twine &Name = "") {
-    const DataLayout &DL = BB->getDataLayout();
+    const DataLayout &DL = getDataLayout();
     return CreateIntrinsicWithoutFolding(Intrinsic::stacksave,
                                          {DL.getAllocaPtrType(Context)}, {},
                                          nullptr, Name);
@@ -1857,21 +1862,21 @@ public:
 
   AllocaInst *CreateAlloca(Type *Ty, unsigned AddrSpace,
                            Value *ArraySize = nullptr, const Twine &Name = "") {
-    const DataLayout &DL = BB->getDataLayout();
+    const DataLayout &DL = getDataLayout();
     Align AllocaAlign = DL.getPrefTypeAlign(Ty);
     return Insert(new AllocaInst(Ty, AddrSpace, ArraySize, AllocaAlign), Name);
   }
 
   AllocaInst *CreateAlloca(Type *Ty, Value *ArraySize = nullptr,
                            const Twine &Name = "") {
-    const DataLayout &DL = BB->getDataLayout();
+    const DataLayout &DL = getDataLayout();
     Align AllocaAlign = DL.getPrefTypeAlign(Ty);
     unsigned AddrSpace = DL.getAllocaAddrSpace();
     return Insert(new AllocaInst(Ty, AddrSpace, ArraySize, AllocaAlign), Name);
   }
 
   CallInst *CreateStructuredAlloca(Type *BaseType, const Twine &Name = "") {
-    const DataLayout &DL = BB->getDataLayout();
+    const DataLayout &DL = getDataLayout();
     PointerType *PtrTy = DL.getAllocaPtrType(Context);
     auto *Output = CreateIntrinsicWithoutFolding(Intrinsic::structured_alloca,
                                                  {PtrTy}, {}, {}, Name);
@@ -1923,7 +1928,7 @@ public:
   LoadInst *CreateAlignedLoad(Type *Ty, Value *Ptr, MaybeAlign Align,
                               bool isVolatile, const Twine &Name = "") {
     if (!Align) {
-      const DataLayout &DL = BB->getDataLayout();
+      const DataLayout &DL = getDataLayout();
       Align = DL.getABITypeAlign(Ty);
     }
     return Insert(new LoadInst(Ty, Ptr, Twine(), isVolatile, *Align), Name);
@@ -1932,7 +1937,7 @@ public:
   StoreInst *CreateAlignedStore(Value *Val, Value *Ptr, MaybeAlign Align,
                                 bool isVolatile = false) {
     if (!Align) {
-      const DataLayout &DL = BB->getDataLayout();
+      const DataLayout &DL = getDataLayout();
       Align = DL.getABITypeAlign(Val->getType());
     }
     return Insert(new StoreInst(Val, Ptr, isVolatile, *Align));
@@ -1949,7 +1954,7 @@ public:
                       AtomicOrdering FailureOrdering,
                       SyncScope::ID SSID = SyncScope::System) {
     if (!Align) {
-      const DataLayout &DL = BB->getDataLayout();
+      const DataLayout &DL = getDataLayout();
       Align = llvm::Align(DL.getTypeStoreSize(New->getType()));
     }
 
@@ -1963,7 +1968,7 @@ public:
                                  SyncScope::ID SSID = SyncScope::System,
                                  bool Elementwise = false) {
     if (!Align) {
-      const DataLayout &DL = BB->getDataLayout();
+      const DataLayout &DL = getDataLayout();
       Align = llvm::Align(DL.getTypeStoreSize(Val->getType()));
     }
 
@@ -1990,7 +1995,7 @@ public:
   Value *CreateGEP(Type *Ty, Value *Ptr, ArrayRef<Value *> IdxList,
                    const Twine &Name = "",
                    GEPNoWrapFlags NW = GEPNoWrapFlags::none()) {
-    if (auto *V = Folder.FoldGEP(BB->getDataLayout(), Ty, Ptr, IdxList, NW))
+    if (auto *V = Folder.FoldGEP(getDataLayout(), Ty, Ptr, IdxList, NW))
       return V;
     return Insert(GetElementPtrInst::Create(Ty, Ptr, IdxList, NW), Name);
   }
@@ -2207,7 +2212,7 @@ public:
   }
   Value *CreatePtrToAddr(Value *V, const Twine &Name = "") {
     return CreateCast(Instruction::PtrToAddr, V,
-                      BB->getDataLayout().getAddressType(V->getType()), Name);
+                      getDataLayout().getAddressType(V->getType()), Name);
   }
   Value *CreatePtrToInt(Value *V, Type *DestTy,
                         const Twine &Name = "") {
