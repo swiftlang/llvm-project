@@ -178,7 +178,7 @@ public:
       CAS,
       PluginCAS,
       RemoteService,
-    } Type;
+    } Type = CacheType::CacheDirectory;
     std::shared_ptr<cas::ObjectStore> CAS;
     std::shared_ptr<cas::ActionCache> Cache;
     std::optional<cas::remote::ClientServices> Service;
