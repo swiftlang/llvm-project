@@ -45,7 +45,6 @@ class TestSwiftUnsafeTypeFormatters(TestBase):
         for i, value in enumerate(values):
             lldbutil.check_variable(self, buf.GetChildAtIndex(i), value=value)
 
-    @skipEmbeddedSwift
     @swiftTest
     @expectedFailureAll(debug_info=["pdb"])
     def test(self):
