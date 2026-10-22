@@ -2035,6 +2035,7 @@ void ThinLTOCodeGenerator::run() {
           });
 
           LLVMContext Context;
+          Context.getLibraryOptions().assign(LibraryOptions);
           Context.setDiscardValueNames(LTODiscardValueNames);
           Context.enableDebugTypeODRUniquing();
           auto DiagFileOrErr = lto::setupLLVMOptimizationRemarks(
