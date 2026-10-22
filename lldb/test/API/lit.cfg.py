@@ -391,8 +391,13 @@ if is_configured("dotest_lit_args_str"):
     dotest_cmd.extend(shlex.split(config.dotest_lit_args_str))
 
 # Load LLDB test format.
+sys.path.append(os.path.join(config.lldb_src_root, "test"))
 sys.path.append(os.path.join(config.lldb_src_root, "test", "API"))
 import lldbtest
+
+import lldbprewarm
+
+lldbprewarm.prewarm(lit_config, config)
 
 # testFormat: The test format to use to interpret tests.
 config.test_format = lldbtest.LLDBTest(dotest_cmd)
