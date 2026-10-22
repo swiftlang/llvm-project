@@ -25,6 +25,20 @@
 
 namespace clang::lifetimes {
 
+/// Returns true if the user explicitly enabled \p DiagID, e.g. via
+/// -W<group> or a pragma, as opposed to it being implied by -Weverything.
+/// See rdar://190622221.
+inline bool IsDiagExplicitlyEnabled(const DiagnosticsEngine &Diags,
+                                    unsigned DiagID) {
+  for (const auto &[ID, Mapping] : Diags.getDiagnosticMappings()) {
+    if (ID == DiagID) {
+      return Mapping.isUser() &&
+             Mapping.getSeverity() != diag::Severity::Ignored;
+    }
+  }
+  return false;
+}
+
 inline bool ShouldCheckSafety(Sema &S, const Decl *D) {
   DiagnosticsEngine &Diags = S.getDiagnostics();
   constexpr unsigned DiagIDs[] = {
