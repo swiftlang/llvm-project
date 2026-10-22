@@ -458,7 +458,7 @@ bool llvm::runPassPipeline(
   PTO.LoopUnrolling = !DisableLoopUnrolling;
   PTO.UnifiedLTO = UnifiedLTO;
   PTO.LoopFusion = EnableLoopFusion;
-  PassBuilder PB(TM, PTO, P, &PIC);
+  PassBuilder PB(M.getContext(), TM, PTO, P, &PIC);
   registerEPCallbacks(PB);
 
   // For any loaded plugins, let them register pass builder callbacks.
@@ -606,7 +606,7 @@ bool llvm::runPassPipeline(
   return true;
 }
 
-void llvm::printPasses(raw_ostream &OS) {
-  PassBuilder PB;
+void llvm::printPasses(LLVMContext &Context, raw_ostream &OS) {
+  PassBuilder PB(Context);
   PB.printPassNames(OS);
 }

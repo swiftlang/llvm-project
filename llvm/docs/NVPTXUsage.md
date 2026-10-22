@@ -3684,7 +3684,7 @@ pass manager:
 
 ```c++
 std::unique_ptr<TargetMachine> TM = ...;
-PassBuilder PB(TM);
+PassBuilder PB(Context, TM.get());
 ModulePassManager MPM;
 PB.parsePassPipeline(MPM, ...);
 ```

@@ -457,15 +457,14 @@ parsePollyCustomOptions(StringRef Params) {
 /// @param EnableForOpt Whether to add Polly IR transformations. If False, only
 ///                     the analysis passes are added, skipping Polly itself.
 ///                     The IR may still be modified.
-static void buildCommonPollyPipeline(FunctionPassManager &PM,
+static void buildCommonPollyPipeline(LLVMContext &Context,
+                                     FunctionPassManager &PM,
                                      OptimizationLevel Level,
                                      IntrusiveRefCntPtr<vfs::FileSystem> FS,
                                      bool EnableForOpt) {
-  PassBuilder PB(
-      /*TM=*/nullptr,
-      /*PipelineTuningOptions=*/{},
-      /*PGOOpt=*/{},
-      /*PIC=*/nullptr, std::move(FS));
+  PassBuilder PB(Context, /*TM=*/nullptr, /*PTO=*/std::nullopt,
+                 /*PGOOpt=*/{},
+                 /*PIC=*/nullptr, std::move(FS));
 
   ExitOnError Err("Inconsistent Polly configuration: ");
   PollyPassOptions &&Opts =
@@ -479,7 +478,8 @@ static void buildCommonPollyPipeline(FunctionPassManager &PM,
     PM.addPass(llvm::CFGPrinterPass());
 }
 
-static void buildEarlyPollyPipeline(llvm::ModulePassManager &MPM,
+static void buildEarlyPollyPipeline(LLVMContext &Context,
+                                    llvm::ModulePassManager &MPM,
                                     llvm::OptimizationLevel Level,
                                     IntrusiveRefCntPtr<vfs::FileSystem> FS) {
   bool EnableForOpt =
@@ -500,7 +500,7 @@ static void buildEarlyPollyPipeline(llvm::ModulePassManager &MPM,
     FPM = FunctionPassManager();
   }
 
-  buildCommonPollyPipeline(FPM, Level, std::move(FS), EnableForOpt);
+  buildCommonPollyPipeline(Context, FPM, Level, std::move(FS), EnableForOpt);
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   if (DumpAfter)
@@ -509,7 +509,8 @@ static void buildEarlyPollyPipeline(llvm::ModulePassManager &MPM,
     MPM.addPass(DumpModulePass(Filename, false));
 }
 
-static void buildLatePollyPipeline(FunctionPassManager &PM,
+static void buildLatePollyPipeline(LLVMContext &Context,
+                                   FunctionPassManager &PM,
                                    llvm::OptimizationLevel Level,
                                    IntrusiveRefCntPtr<vfs::FileSystem> FS) {
   bool EnableForOpt =
@@ -525,7 +526,7 @@ static void buildLatePollyPipeline(FunctionPassManager &PM,
         "not supported with NPM",
         false);
 
-  buildCommonPollyPipeline(PM, Level, std::move(FS), EnableForOpt);
+  buildCommonPollyPipeline(Context, PM, Level, std::move(FS), EnableForOpt);
 
   if (DumpAfter)
     PM.addPass(DumpFunctionPass("-after"));
@@ -633,6 +634,7 @@ parseModulePipeline(StringRef Name, llvm::ModulePassManager &MPM,
 void registerPollyPasses(PassBuilder &PB) {
   PassInstrumentationCallbacks *PIC = PB.getPassInstrumentationCallbacks();
   IntrusiveRefCntPtr<vfs::FileSystem> FS = PB.getVirtualFileSystemPtr();
+  LLVMContext &Context = PB.getContext();
 
 #define MODULE_PASS(NAME, CREATE_PASS, PARSER)                                 \
   {                                                                            \
@@ -676,14 +678,14 @@ void registerPollyPasses(PassBuilder &PB) {
   switch (PassPosition) {
   case POSITION_EARLY:
     PB.registerPipelineStartEPCallback(
-        [FS](ModulePassManager &MPM, OptimizationLevel Level) {
-          buildEarlyPollyPipeline(MPM, Level, FS);
+        [FS, &Context](ModulePassManager &MPM, OptimizationLevel Level) {
+          buildEarlyPollyPipeline(Context, MPM, Level, FS);
         });
     break;
   case POSITION_BEFORE_VECTORIZER:
     PB.registerVectorizerStartEPCallback(
-        [FS](FunctionPassManager &FPM, OptimizationLevel Level) {
-          buildLatePollyPipeline(FPM, Level, FS);
+        [FS, &Context](FunctionPassManager &FPM, OptimizationLevel Level) {
+          buildLatePollyPipeline(Context, FPM, Level, FS);
         });
     break;
   }

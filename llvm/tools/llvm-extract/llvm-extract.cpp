@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
     CGSCCAnalysisManager CGAM;
     ModuleAnalysisManager MAM;
 
-    PassBuilder PB;
+    PassBuilder PB(Context);
 
     PB.registerModuleAnalyses(MAM);
     PB.registerCGSCCAnalyses(CGAM);
@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
     CGSCCAnalysisManager CGAM;
     ModuleAnalysisManager MAM;
 
-    PassBuilder PB;
+    PassBuilder PB(Context);
 
     PB.registerModuleAnalyses(MAM);
     PB.registerCGSCCAnalyses(CGAM);
@@ -388,7 +388,7 @@ int main(int argc, char **argv) {
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
 
-  PassBuilder PB;
+  PassBuilder PB(Context);
 
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
