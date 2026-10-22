@@ -2851,6 +2851,9 @@ TypeSystemSwiftTypeRefForExpressions::GetFrameBoundExecutionContext(
 CompilerType
 TypeSystemSwiftTypeRefForExpressions::ImportType(CompilerType type,
                                                  ExecutionContextRef exe_ctx) {
+  // A frame-bound type must name a Swift mangled type, or Verify() fails.
+  if (!type.GetTypeSystem().isa_and_nonnull<TypeSystemSwift>())
+    return {};
   ConstString mangled_name = type.GetMangledTypeName();
   if (mangled_name.IsEmpty())
     return {};

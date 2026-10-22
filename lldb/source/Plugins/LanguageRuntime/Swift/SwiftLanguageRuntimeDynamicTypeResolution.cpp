@@ -3242,16 +3242,19 @@ SwiftLanguageRuntime::GetTypeMetadataForTypeNameAndFrame(StringRef mdvar_name,
       frame.GetValueObjectForFrameVariable(var_sp, lldb::eNoDynamicValues));
   if (!metadata_ptr_var_sp)
     return {};
-  ExecutionContext exe_ctx(frame);
-  auto scratch_type =
-      llvm::expectedToOptional(SwiftLanguageRuntime::GetScratchTypeSystemType(
-          metadata_ptr_var_sp->GetCompilerType(), exe_ctx));
-  if (!scratch_type)
-    return {};
-  metadata_ptr_var_sp = ValueObjectCast::Create(
-      *metadata_ptr_var_sp, ConstString(mdvar_name), *scratch_type);
-  if (!metadata_ptr_var_sp)
-    return {};
+
+  CompilerType var_type = metadata_ptr_var_sp->GetCompilerType();
+  if (var_type.GetTypeSystem().isa_and_nonnull<TypeSystemSwiftTypeRef>()) {
+    ExecutionContext exe_ctx(frame);
+    auto scratch_type = llvm::expectedToOptional(
+        SwiftLanguageRuntime::GetScratchTypeSystemType(var_type, exe_ctx));
+    if (!scratch_type)
+      return {};
+    metadata_ptr_var_sp = ValueObjectCast::Create(
+        *metadata_ptr_var_sp, ConstString(mdvar_name), *scratch_type);
+    if (!metadata_ptr_var_sp)
+      return {};
+  }
 
   if (!metadata_ptr_var_sp->UpdateValueIfNeeded())
     return {};
