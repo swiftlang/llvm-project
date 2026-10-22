@@ -89,8 +89,13 @@ inline bool ShouldCheckInapplicableLifetimebound(Sema &S, const Decl *D) {
 }
 
 inline bool ShouldCheckFieldOriginEscape(Sema &S, const Decl *D) {
-  return !S.getDiagnostics().isIgnored(
-      diag::warn_lifetime_safety_field_origin_escape, D->getBeginLoc());
+  // Don't enable this via -Weverything - see rdar://190623069.
+  const DiagnosticsEngine &Diags = S.getDiagnostics();
+  unsigned DiagID = diag::warn_lifetime_safety_field_origin_escape;
+  if (Diags.isIgnored(DiagID, D->getBeginLoc()))
+    return false;
+  return !Diags.getEnableAllWarnings() ||
+         IsDiagExplicitlyEnabled(Diags, DiagID);
 }
 
 inline bool ShouldCheckDestructorUses(Sema &S, const Decl *D) {
