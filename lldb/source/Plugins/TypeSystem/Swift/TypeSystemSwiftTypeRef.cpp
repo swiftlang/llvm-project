@@ -2477,13 +2477,18 @@ TypeSystemSwiftTypeRef::TypeSystemSwiftTypeRef(Module &module) {
 }
 
 TypeSystemSwiftTypeRefForExpressions::TypeSystemSwiftTypeRefForExpressions(
-    lldb::LanguageType language, Target &target, bool repl, bool playground)
+    lldb::LanguageType language, Target &target, bool repl, bool playground,
+    bool track_modules)
     : m_target_wp(target.shared_from_this()),
       m_persistent_state_up(new SwiftPersistentExpressionState) {
   m_description = "TypeSystemSwiftTypeRefForExpressions";
   LLDB_LOGF(GetLog(LLDBLog::Types),
             "%s::TypeSystemSwiftTypeRefForExpressions()",
             m_description.c_str());
+  if (track_modules)
+    for (const ModuleSP &module_sp : target.GetImages().Modules())
+      if (module_sp)
+        m_modules_seen.insert(module_sp->GetID());
   if (repl || playground) {
     SymbolContext global_sc(target.shared_from_this(),
                             target.GetExecutableModule());
@@ -2531,13 +2536,39 @@ void TypeSystemSwiftTypeRef::NotifyAllTypeSystems(
 
 void TypeSystemSwiftTypeRefForExpressions::ModulesDidLoad(
     ModuleList &module_list) {
+  std::vector<ModuleSP> modules;
+  for (const ModuleSP &module_sp : module_list.Modules())
+    if (module_sp)
+      modules.push_back(module_sp);
+  ModuleList new_modules;
+  {
+    std::lock_guard<std::mutex> guard(m_modules_seen_mutex);
+    for (const ModuleSP &module_sp : modules)
+      if (m_modules_seen.insert(module_sp->GetID()).second)
+        new_modules.Append(module_sp);
+  }
+  if (new_modules.IsEmpty())
+    return;
+
   ++m_generation;
   m_clang_type_cache.Clear();
   NotifyAllTypeSystems([&](TypeSystemSP ts_sp) {
     if (auto swift_ast_ctx =
             llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(ts_sp.get()))
-      swift_ast_ctx->ModulesDidLoad(module_list);
+      swift_ast_ctx->ModulesDidLoad(new_modules);
   });
+}
+
+void TypeSystemSwiftTypeRefForExpressions::ModulesDidUnload(
+    ModuleList &module_list) {
+  // The shared module cache hands the same Module back if it is loaded again.
+  std::vector<lldb::user_id_t> ids;
+  for (const ModuleSP &module_sp : module_list.Modules())
+    if (module_sp)
+      ids.push_back(module_sp->GetID());
+  std::lock_guard<std::mutex> guard(m_modules_seen_mutex);
+  for (lldb::user_id_t id : ids)
+    m_modules_seen.erase(id);
 }
 
 llvm::Error TypeSystemSwiftTypeRefForExpressions::PerformCompileUnitImports(
