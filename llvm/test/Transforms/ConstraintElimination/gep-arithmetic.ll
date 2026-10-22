@@ -827,7 +827,8 @@ define i1 @test_gep_add_nuw_zext_1_i8_upper(i8* %ptr, i8 %idx, i8 %N) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[N_POS:%.*]] = icmp sge i8 [[N:%.*]], 0
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[N_POS]])
-; CHECK-NEXT:    [[PTR_10:%.*]] = getelementptr inbounds i8, ptr [[PTR:%.*]], i8 [[N]]
+; CHECK-NEXT:    [[PTR_10_IDX:%.*]] = sext i8 [[N]] to i64
+; CHECK-NEXT:    [[PTR_10:%.*]] = getelementptr inbounds i8, ptr [[PTR:%.*]], i64 [[PTR_10_IDX]]
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i8 [[IDX:%.*]] to i64
 ; CHECK-NEXT:    [[ADD_1:%.*]] = add nuw nsw i64 [[IDX_EXT]], 1
 ; CHECK-NEXT:    [[PTR_IDX_1:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 [[ADD_1]]
@@ -848,7 +849,8 @@ define i1 @test_gep_add_nuw_zext_1_i8_upper(i8* %ptr, i8 %idx, i8 %N) {
 entry:
   %N.pos = icmp sge i8 %N, 0
   call void @llvm.assume(i1 %N.pos)
-  %ptr.10 = getelementptr inbounds i8, i8* %ptr, i8 %N
+  %ptr.10.idx = sext i8 %N to i64
+  %ptr.10 = getelementptr inbounds i8, i8* %ptr, i64 %ptr.10.idx
   %idx.ext = zext i8 %idx to i64
   %add.1 = add nuw nsw i64 %idx.ext, 1
   %ptr.idx.1 = getelementptr inbounds i8, i8* %ptr, i64 %add.1

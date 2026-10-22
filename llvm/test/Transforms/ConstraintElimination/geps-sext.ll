@@ -16,9 +16,11 @@ define i1 @test_gep_sext_known_positive_part_1(i16* readonly %src, i16* readnone
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i16 [[IDX_EXT]], 5
 ; CHECK-NEXT:    br i1 [[CMP]], label [[CHECK_MAX:%.*]], label [[TRAP]]
 ; CHECK:       check.max:
-; CHECK-NEXT:    [[GEP_IDX:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_EXT]]
+; CHECK-NEXT:    [[GEP_IDX_IDX:%.*]] = sext i8 [[IDX]] to i64
+; CHECK-NEXT:    [[GEP_IDX:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_IDX]]
 ; CHECK-NEXT:    [[IDX_1:%.*]] = add nuw nsw i16 [[IDX_EXT]], 1
-; CHECK-NEXT:    [[GEP_IDX_1:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_1]]
+; CHECK-NEXT:    [[GEP_IDX_1_IDX:%.*]] = sext i16 [[IDX_1]] to i64
+; CHECK-NEXT:    [[GEP_IDX_1:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_1_IDX]]
 ; CHECK-NEXT:    [[R_1:%.*]] = xor i1 true, true
 ; CHECK-NEXT:    ret i1 [[R_1]]
 ;
@@ -38,11 +40,13 @@ check.idx:
   br i1 %cmp, label %check.max, label %trap
 
 check.max:
-  %gep.idx = getelementptr inbounds i16, i16* %src, i16 %idx.ext
+  %gep.idx.idx = sext i8 %idx to i64
+  %gep.idx = getelementptr inbounds i16, i16* %src, i64 %gep.idx.idx
   %c.max.0 = icmp ult i16* %gep.idx, %max
 
   %idx.1 = add nuw nsw i16 %idx.ext, 1
-  %gep.idx.1 = getelementptr inbounds i16, i16* %src, i16 %idx.1
+  %gep.idx.1.idx = sext i16 %idx.1 to i64
+  %gep.idx.1 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.1.idx
   %c.max.1 = icmp ult i16* %gep.idx.1, %max
 
   %r.1 = xor i1 %c.max.0, %c.max.1
@@ -65,12 +69,15 @@ define i1 @test_gep_sext_known_positive_part_2(i16* readonly %src, i16* readnone
 ; CHECK-NEXT:    br i1 [[CMP]], label [[CHECK_MAX:%.*]], label [[TRAP]]
 ; CHECK:       check.max:
 ; CHECK-NEXT:    [[IDX_5:%.*]] = add nuw nsw i16 [[IDX_EXT]], 5
-; CHECK-NEXT:    [[GEP_IDX_5:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_5]]
+; CHECK-NEXT:    [[GEP_IDX_5_IDX:%.*]] = sext i16 [[IDX_5]] to i64
+; CHECK-NEXT:    [[GEP_IDX_5:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_5_IDX]]
 ; CHECK-NEXT:    [[IDX_6:%.*]] = add nuw nsw i16 [[IDX_EXT]], 6
-; CHECK-NEXT:    [[GEP_IDX_6:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_6]]
+; CHECK-NEXT:    [[GEP_IDX_6_IDX:%.*]] = sext i16 [[IDX_6]] to i64
+; CHECK-NEXT:    [[GEP_IDX_6:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_6_IDX]]
 ; CHECK-NEXT:    [[R_3:%.*]] = xor i1 true, true
 ; CHECK-NEXT:    [[IDX_10:%.*]] = add nuw nsw i16 [[IDX_EXT]], 10
-; CHECK-NEXT:    [[GEP_IDX_10:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_10]]
+; CHECK-NEXT:    [[GEP_IDX_10_IDX:%.*]] = sext i16 [[IDX_10]] to i64
+; CHECK-NEXT:    [[GEP_IDX_10:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_10_IDX]]
 ; CHECK-NEXT:    [[C_MAX_10:%.*]] = icmp ult ptr [[GEP_IDX_10]], [[MAX]]
 ; CHECK-NEXT:    [[R_4:%.*]] = xor i1 [[R_3]], [[C_MAX_10]]
 ; CHECK-NEXT:    ret i1 [[R_4]]
@@ -92,17 +99,20 @@ check.idx:
 
 check.max:
   %idx.5 = add nuw nsw i16 %idx.ext, 5
-  %gep.idx.5 = getelementptr inbounds i16, i16* %src, i16 %idx.5
+  %gep.idx.5.idx = sext i16 %idx.5 to i64
+  %gep.idx.5 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.5.idx
   %c.max.5 = icmp ult i16* %gep.idx.5, %max
 
   %idx.6 = add nuw nsw i16 %idx.ext, 6
-  %gep.idx.6 = getelementptr inbounds i16, i16* %src, i16 %idx.6
+  %gep.idx.6.idx = sext i16 %idx.6 to i64
+  %gep.idx.6 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.6.idx
   %c.max.6 = icmp ult i16* %gep.idx.6, %max
 
   %r.3 = xor i1 %c.max.5, %c.max.6
 
   %idx.10 = add nuw nsw i16 %idx.ext, 10
-  %gep.idx.10 = getelementptr inbounds i16, i16* %src, i16 %idx.10
+  %gep.idx.10.idx = sext i16 %idx.10 to i64
+  %gep.idx.10 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.10.idx
   %c.max.10 = icmp ult i16* %gep.idx.10, %max
 
   %r.4 = xor i1 %r.3, %c.max.10
@@ -122,23 +132,28 @@ define void @test_gep_sext_not_known_positive(i16* readonly %src, i16* readnone 
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i16 [[IDX_EXT]], 5
 ; CHECK-NEXT:    br i1 [[CMP]], label [[CHECK_MAX:%.*]], label [[TRAP]]
 ; CHECK:       check.max:
-; CHECK-NEXT:    [[GEP_IDX:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_EXT]]
+; CHECK-NEXT:    [[GEP_IDX_IDX:%.*]] = sext i8 [[IDX]] to i64
+; CHECK-NEXT:    [[GEP_IDX:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_IDX]]
 ; CHECK-NEXT:    [[C_MAX_0:%.*]] = icmp ult ptr [[GEP_IDX]], [[MAX]]
 ; CHECK-NEXT:    call void @use(i1 [[C_MAX_0]])
 ; CHECK-NEXT:    [[IDX_1:%.*]] = add nuw nsw i16 [[IDX_EXT]], 1
-; CHECK-NEXT:    [[GEP_IDX_1:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_1]]
+; CHECK-NEXT:    [[GEP_IDX_1_IDX:%.*]] = sext i16 [[IDX_1]] to i64
+; CHECK-NEXT:    [[GEP_IDX_1:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_1_IDX]]
 ; CHECK-NEXT:    [[C_MAX_1:%.*]] = icmp ult ptr [[GEP_IDX_1]], [[MAX]]
 ; CHECK-NEXT:    call void @use(i1 [[C_MAX_1]])
 ; CHECK-NEXT:    [[IDX_5:%.*]] = add nuw nsw i16 [[IDX_EXT]], 5
-; CHECK-NEXT:    [[GEP_IDX_5:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_5]]
+; CHECK-NEXT:    [[GEP_IDX_5_IDX:%.*]] = sext i16 [[IDX_5]] to i64
+; CHECK-NEXT:    [[GEP_IDX_5:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_5_IDX]]
 ; CHECK-NEXT:    [[C_MAX_5:%.*]] = icmp ult ptr [[GEP_IDX_5]], [[MAX]]
 ; CHECK-NEXT:    call void @use(i1 [[C_MAX_5]])
 ; CHECK-NEXT:    [[IDX_6:%.*]] = add nuw nsw i16 [[IDX_EXT]], 6
-; CHECK-NEXT:    [[GEP_IDX_6:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_6]]
+; CHECK-NEXT:    [[GEP_IDX_6_IDX:%.*]] = sext i16 [[IDX_6]] to i64
+; CHECK-NEXT:    [[GEP_IDX_6:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_6_IDX]]
 ; CHECK-NEXT:    [[C_MAX_6:%.*]] = icmp ult ptr [[GEP_IDX_6]], [[MAX]]
 ; CHECK-NEXT:    call void @use(i1 [[C_MAX_6]])
 ; CHECK-NEXT:    [[IDX_10:%.*]] = add nuw nsw i16 [[IDX_EXT]], 10
-; CHECK-NEXT:    [[GEP_IDX_10:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i16 [[IDX_10]]
+; CHECK-NEXT:    [[GEP_IDX_10_IDX:%.*]] = sext i16 [[IDX_10]] to i64
+; CHECK-NEXT:    [[GEP_IDX_10:%.*]] = getelementptr inbounds i16, ptr [[SRC]], i64 [[GEP_IDX_10_IDX]]
 ; CHECK-NEXT:    [[C_MAX_10:%.*]] = icmp ult ptr [[GEP_IDX_10]], [[MAX]]
 ; CHECK-NEXT:    call void @use(i1 [[C_MAX_10]])
 ; CHECK-NEXT:    ret void
@@ -157,27 +172,32 @@ check.idx:
   br i1 %cmp, label %check.max, label %trap
 
 check.max:
-  %gep.idx = getelementptr inbounds i16, i16* %src, i16 %idx.ext
+  %gep.idx.idx = sext i8 %idx to i64
+  %gep.idx = getelementptr inbounds i16, i16* %src, i64 %gep.idx.idx
   %c.max.0 = icmp ult i16* %gep.idx, %max
   call void @use(i1 %c.max.0)
 
   %idx.1 = add nuw nsw i16 %idx.ext, 1
-  %gep.idx.1 = getelementptr inbounds i16, i16* %src, i16 %idx.1
+  %gep.idx.1.idx = sext i16 %idx.1 to i64
+  %gep.idx.1 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.1.idx
   %c.max.1 = icmp ult i16* %gep.idx.1, %max
   call void @use(i1 %c.max.1)
 
   %idx.5 = add nuw nsw i16 %idx.ext, 5
-  %gep.idx.5 = getelementptr inbounds i16, i16* %src, i16 %idx.5
+  %gep.idx.5.idx = sext i16 %idx.5 to i64
+  %gep.idx.5 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.5.idx
   %c.max.5 = icmp ult i16* %gep.idx.5, %max
   call void @use(i1 %c.max.5)
 
   %idx.6 = add nuw nsw i16 %idx.ext, 6
-  %gep.idx.6 = getelementptr inbounds i16, i16* %src, i16 %idx.6
+  %gep.idx.6.idx = sext i16 %idx.6 to i64
+  %gep.idx.6 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.6.idx
   %c.max.6 = icmp ult i16* %gep.idx.6, %max
   call void @use(i1 %c.max.6)
 
   %idx.10 = add nuw nsw i16 %idx.ext, 10
-  %gep.idx.10 = getelementptr inbounds i16, i16* %src, i16 %idx.10
+  %gep.idx.10.idx = sext i16 %idx.10 to i64
+  %gep.idx.10 = getelementptr inbounds i16, i16* %src, i64 %gep.idx.10.idx
   %c.max.10 = icmp ult i16* %gep.idx.10, %max
   call void @use(i1 %c.max.10)
 

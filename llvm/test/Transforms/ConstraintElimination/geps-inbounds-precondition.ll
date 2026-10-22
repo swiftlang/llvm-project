@@ -132,14 +132,18 @@ define i1 @inbounds_poison_is_ub4(ptr %src, i8 %n, i8 %idx) {
 ; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i16 [[IDX_EXT]], [[N_EXT]]
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
-; CHECK-NEXT:    [[UPPER_1:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i16 [[N_EXT]]
+; CHECK-NEXT:    [[UPPER_1_IDX:%.*]] = zext i16 [[N_EXT]] to i64
+; CHECK-NEXT:    [[UPPER_1:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i64 [[UPPER_1_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER_1]])
-; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_1_IDX:%.*]] = zext i16 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_1_IDX]]
 ; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
-; CHECK-NEXT:    [[UPPER_2:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i16 [[N_EXT]]
+; CHECK-NEXT:    [[UPPER_2_IDX:%.*]] = zext i16 [[N_EXT]] to i64
+; CHECK-NEXT:    [[UPPER_2:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i64 [[UPPER_2_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER_2]])
-; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_2_IDX:%.*]] = zext i16 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_2_IDX]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER_2]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
 ;
@@ -150,16 +154,20 @@ entry:
   br i1 %cmp.idx, label %then, label %else
 
 then:
-  %upper.1 = getelementptr inbounds i32, ptr %src, i16 %n.ext
+  %upper.1.idx = zext i16 %n.ext to i64
+  %upper.1 = getelementptr inbounds i32, ptr %src, i64 %upper.1.idx
   call void @noundef(ptr %upper.1)
-  %src.idx.1 = getelementptr i32, ptr %src, i16 %idx.ext
+  %src.idx.1.idx = zext i16 %idx.ext to i64
+  %src.idx.1 = getelementptr i32, ptr %src, i64 %src.idx.1.idx
   %cmp.upper.1 = icmp ule ptr %src.idx.1, %upper.1
   ret i1 %cmp.upper.1
 
 else:
-  %upper.2 = getelementptr inbounds i32, ptr %src, i16 %n.ext
+  %upper.2.idx = zext i16 %n.ext to i64
+  %upper.2 = getelementptr inbounds i32, ptr %src, i64 %upper.2.idx
   call void @noundef(ptr %upper.2)
-  %src.idx.2 = getelementptr i32, ptr %src, i16 %idx.ext
+  %src.idx.2.idx = zext i16 %idx.ext to i64
+  %src.idx.2 = getelementptr i32, ptr %src, i64 %src.idx.2.idx
   %cmp.upper.2 = icmp ule ptr %src.idx.2, %upper.2
   ret i1 %cmp.upper.2
 }
@@ -390,7 +398,8 @@ define i1 @inbounds_poison_is_ub_idx_known_non_negative_via_constraint_system(pt
 ; CHECK-NEXT:    [[AND:%.*]] = and i1 [[N_POS]], [[IDX_POS]]
 ; CHECK-NEXT:    br i1 [[AND]], label [[N_POS_BLOCK:%.*]], label [[EXIT:%.*]]
 ; CHECK:       n.pos.block:
-; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i32 [[N]]
+; CHECK-NEXT:    [[UPPER_IDX:%.*]] = sext i32 [[N]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i64 [[UPPER_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER]])
 ; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX]], [[N]]
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
@@ -411,7 +420,8 @@ entry:
   br i1 %and, label %n.pos.block, label %exit
 
 n.pos.block:
-  %upper = getelementptr inbounds i32, ptr %src, i32 %n
+  %upper.idx = sext i32 %n to i64
+  %upper = getelementptr inbounds i32, ptr %src, i64 %upper.idx
   call void @noundef(ptr %upper)
   %cmp.idx = icmp ult i32 %idx, %n
   %idx.ext = zext i32 %idx to i64
@@ -435,7 +445,8 @@ define i1 @inbounds_poison_is_ub_idx_not_known_non_negative_via_constraint_syste
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 true, label [[N_POS_BLOCK:%.*]], label [[EXIT:%.*]]
 ; CHECK:       n.pos.block:
-; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i32 [[N:%.*]]
+; CHECK-NEXT:    [[UPPER_IDX:%.*]] = sext i32 [[N:%.*]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i64 [[UPPER_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER]])
 ; CHECK-NEXT:    [[CMP_IDX:%.*]] = icmp ult i32 [[IDX:%.*]], [[N]]
 ; CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[IDX]] to i64
@@ -455,7 +466,8 @@ entry:
   br i1 %n.pos, label %n.pos.block, label %exit
 
 n.pos.block:
-  %upper = getelementptr inbounds i32, ptr %src, i32 %n
+  %upper.idx = sext i32 %n to i64
+  %upper = getelementptr inbounds i32, ptr %src, i64 %upper.idx
   call void @noundef(ptr %upper)
   %cmp.idx = icmp ult i32 %idx, %n
   %idx.ext = zext i32 %idx to i64

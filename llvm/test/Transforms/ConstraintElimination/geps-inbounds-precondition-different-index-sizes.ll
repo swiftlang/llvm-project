@@ -21,11 +21,13 @@ define i1 @inbounds_poison_is_ub_different_index_types_1(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER]])
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
-; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_1_IDX:%.*]] = zext i32 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_1_IDX]]
 ; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
 ; CHECK-NEXT:    [[UPPER_2:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i64 [[N_EXT_64]]
-; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_2_IDX:%.*]] = zext i32 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_2_IDX]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
 ;
@@ -43,13 +45,15 @@ entry:
   br i1 %cmp.idx, label %then, label %else
 
 then:
-  %src.idx.1 = getelementptr i32, ptr %src, i32 %idx.ext
+  %src.idx.1.idx = zext i32 %idx.ext to i64
+  %src.idx.1 = getelementptr i32, ptr %src, i64 %src.idx.1.idx
   %cmp.upper.1 = icmp ule ptr %src.idx.1, %upper
   ret i1 %cmp.upper.1
 
 else:
   %upper.2 = getelementptr inbounds i32, ptr %src, i64 %n.ext.64
-  %src.idx.2 = getelementptr i32, ptr %src, i32 %idx.ext
+  %src.idx.2.idx = zext i32 %idx.ext to i64
+  %src.idx.2 = getelementptr i32, ptr %src, i64 %src.idx.2.idx
   %cmp.upper.2 = icmp ule ptr %src.idx.2, %upper
   ret i1 %cmp.upper.2
 }
@@ -63,16 +67,19 @@ define i1 @inbounds_poison_is_ub_different_index_types_2(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    [[N_POS:%.*]] = icmp sge i16 [[N]], 0
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[IDX_POS]])
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[N_POS]])
-; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i32 [[N_EXT]]
+; CHECK-NEXT:    [[UPPER_IDX:%.*]] = zext i32 [[N_EXT]] to i64
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i64 [[UPPER_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER]])
 ; CHECK-NEXT:    [[UPPER_1:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i32 1
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER_1]])
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
-; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX]]
+; CHECK-NEXT:    [[SRC_IDX_1_IDX:%.*]] = sext i16 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_1_IDX]]
 ; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
-; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX]]
+; CHECK-NEXT:    [[SRC_IDX_2_IDX:%.*]] = sext i16 [[IDX]] to i64
+; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_2_IDX]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
 ;
@@ -83,19 +90,22 @@ entry:
   %n.pos = icmp sge i16 %n, 0
   call void @llvm.assume(i1 %idx.pos)
   call void @llvm.assume(i1 %n.pos)
-  %upper = getelementptr inbounds i32, ptr %src, i32 %n.ext
+  %upper.idx = zext i32 %n.ext to i64
+  %upper = getelementptr inbounds i32, ptr %src, i64 %upper.idx
   call void @noundef(ptr %upper)
   %upper.1 = getelementptr inbounds i32, ptr %src, i32 1
   call void @noundef(ptr %upper.1)
   br i1 %cmp.idx, label %then, label %else
 
 then:
-  %src.idx.1 = getelementptr i32, ptr %src, i16 %idx
+  %src.idx.1.idx = sext i16 %idx to i64
+  %src.idx.1 = getelementptr i32, ptr %src, i64 %src.idx.1.idx
   %cmp.upper.1 = icmp ule ptr %src.idx.1, %upper
   ret i1 %cmp.upper.1
 
 else:
-  %src.idx.2 = getelementptr i32, ptr %src, i16 %idx
+  %src.idx.2.idx = sext i16 %idx to i64
+  %src.idx.2 = getelementptr i32, ptr %src, i64 %src.idx.2.idx
   %cmp.upper.2 = icmp ule ptr %src.idx.2, %upper
   ret i1 %cmp.upper.2
 }
@@ -111,14 +121,17 @@ define i1 @inbounds_poison_is_ub_different_index_types_3(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[N_POS]])
 ; CHECK-NEXT:    [[UPPER_1:%.*]] = getelementptr inbounds i32, ptr [[SRC:%.*]], i32 1
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER_1]])
-; CHECK-NEXT:    [[UPPER_N:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i16 [[N]]
+; CHECK-NEXT:    [[UPPER_N_IDX:%.*]] = sext i16 [[N]] to i64
+; CHECK-NEXT:    [[UPPER_N:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i64 [[UPPER_N_IDX]]
 ; CHECK-NEXT:    call void @noundef(ptr [[UPPER_N]])
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
-; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_1_IDX:%.*]] = zext i32 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_1_IDX]]
 ; CHECK-NEXT:    ret i1 true
 ; CHECK:       else:
-; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
+; CHECK-NEXT:    [[SRC_IDX_2_IDX:%.*]] = zext i32 [[IDX_EXT]] to i64
+; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i64 [[SRC_IDX_2_IDX]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER_N]]
 ; CHECK-NEXT:    ret i1 [[CMP_UPPER_2]]
 ;
@@ -131,17 +144,20 @@ entry:
   call void @llvm.assume(i1 %n.pos)
   %upper.1 = getelementptr inbounds i32, ptr %src, i32 1
   call void @noundef(ptr %upper.1)
-  %upper.n = getelementptr inbounds i32, ptr %src, i16 %n
+  %upper.n.idx = sext i16 %n to i64
+  %upper.n = getelementptr inbounds i32, ptr %src, i64 %upper.n.idx
   call void @noundef(ptr %upper.n)
   br i1 %cmp.idx, label %then, label %else
 
 then:
-  %src.idx.1 = getelementptr i32, ptr %src, i32 %idx.ext
+  %src.idx.1.idx = zext i32 %idx.ext to i64
+  %src.idx.1 = getelementptr i32, ptr %src, i64 %src.idx.1.idx
   %cmp.upper.1 = icmp ule ptr %src.idx.1, %upper.n
   ret i1 %cmp.upper.1
 
 else:
-  %src.idx.2 = getelementptr i32, ptr %src, i32 %idx.ext
+  %src.idx.2.idx = zext i32 %idx.ext to i64
+  %src.idx.2 = getelementptr i32, ptr %src, i64 %src.idx.2.idx
   %cmp.upper.2 = icmp ule ptr %src.idx.2, %upper.n
   ret i1 %cmp.upper.2
 }
