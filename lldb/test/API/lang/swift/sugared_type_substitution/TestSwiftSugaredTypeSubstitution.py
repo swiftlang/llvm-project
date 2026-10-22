@@ -5,7 +5,6 @@ import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.lldbtest import ValueCheck
 
 class TestCase(lldbtest.TestBase):
-    @skipEmbeddedSwift
     @swiftTest
     def test(self):
         """Canonicalizing a sugared type must yield a canonical mangled name"""

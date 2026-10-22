@@ -8,7 +8,7 @@ func f() -> [Int] {
   }
   let kp = \S.values
   let s = S()
-  print(s[keyPath: kp]) // break here
+  print(s[keyPath: kp].count) // break here
   return [0]
 }
 

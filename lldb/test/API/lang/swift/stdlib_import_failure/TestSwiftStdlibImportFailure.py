@@ -31,7 +31,6 @@ class TestSwiftStdlibImportFailure(TestBase):
         )
 
     @swiftTest
-    @skipEmbeddedSwift
     def test_expr(self):
         self.expect(
             "expression c.x",
@@ -40,7 +39,6 @@ class TestSwiftStdlibImportFailure(TestBase):
         )
 
     @swiftTest
-    @skipEmbeddedSwift
     def test_po(self):
         # po falls back to p, which doesn't need the expression evaluator.
         self.expect("po c", substrs=["x = 42"])
