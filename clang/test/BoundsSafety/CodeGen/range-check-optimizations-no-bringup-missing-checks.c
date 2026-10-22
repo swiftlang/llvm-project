@@ -593,26 +593,20 @@ void elim_consecutive_writes2(int* __counted_by(n) dst, unsigned n, unsigned idx
 // CHECK-SAME: ptr nofree noundef writeonly captures(none) [[ARG:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[N]], 0
-// CHECK-NEXT:    br i1 [[CMP]], label %[[RETURN:.*]], label %[[LAND_RHS:.*]]
-// CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[N]], -1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARG]], i64 4
-// CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
-// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP0:%.*]] = add nuw nsw i64 [[IDX_EXT]], 4611686018427387903
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = and i64 [[TMP0]], 4611686018427387903
-// CHECK-NEXT:    [[CMP27_NOT:%.*]] = icmp samesign ult i64 [[SUB_PTR_DIV]], [[CONV]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[CMP27_NOT]], label %[[TRAP:.*]], label %[[CONT59:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK:       [[TRAP]]:
+// CHECK-NEXT:    br i1 [[CMP]], label %[[RETURN:.*]], label %[[CONT59:.*]]
+// CHECK:       [[TRAP:.*]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT59]]:
+// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[N]], -1
 // CHECK-NEXT:    store i32 0, ptr [[ARG]], align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX53:%.*]] = getelementptr [4 x i8], ptr [[ARG]], i64 [[CONV]]
 // CHECK-NEXT:    store i32 0, ptr [[ARRAYIDX53]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp eq i32 [[SUB]], 0, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP]], label %[[CONT85:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT85]]:
+// CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARG]], i64 4
 // CHECK-NEXT:    store i32 1, ptr [[BOUND_PTR_ARITH]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[SUB77:%.*]] = add i32 [[N]], -2
 // CHECK-NEXT:    [[IDXPROM78:%.*]] = zext i32 [[SUB77]] to i64

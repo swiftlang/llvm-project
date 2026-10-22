@@ -644,40 +644,34 @@ void elim_consecutive_writes2(int* __counted_by(n) dst, unsigned n, unsigned idx
 // CHECK-SAME: ptr nofree noundef writeonly captures(address) [[ARG:%.*]], i32 noundef [[N:%.*]]) local_unnamed_addr #[[ATTR7]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[N]], 0
-// CHECK-NEXT:    br i1 [[CMP]], label %[[RETURN:.*]], label %[[LAND_RHS:.*]]
-// CHECK:       [[LAND_RHS]]:
-// CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARG]], i64 4
-// CHECK-NEXT:    [[IDX_EXT:%.*]] = zext i32 [[N]] to i64
-// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[N]], -1, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP0:%.*]] = add nuw nsw i64 [[IDX_EXT]], 4611686018427387903
-// CHECK-NEXT:    [[SUB_PTR_DIV:%.*]] = and i64 [[TMP0]], 4611686018427387903
-// CHECK-NEXT:    [[CMP27_NOT:%.*]] = icmp samesign ult i64 [[SUB_PTR_DIV]], [[CONV]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[CMP27_NOT]], label %[[TRAP:.*]], label %[[CONT61:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
-// CHECK:       [[TRAP]]:
+// CHECK-NEXT:    br i1 [[CMP]], label %[[RETURN:.*]], label %[[CONT61:.*]]
+// CHECK:       [[TRAP:.*]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT61]]:
+// CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARG]], i64 4
 // CHECK-NEXT:    store i32 0, ptr [[ARG]], align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[SUB:%.*]] = add i32 [[N]], -1, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CONV:%.*]] = zext i32 [[SUB]] to i64, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[ARRAYIDX54:%.*]] = getelementptr [4 x i8], ptr [[ARG]], i64 [[CONV]]
 // CHECK-NEXT:    store i32 0, ptr [[ARRAYIDX54]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ADD_PTR64:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[BOUND_PTR_ARITH]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[ARG]], i64 8, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[TMP1]], [[ADD_PTR64]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP3:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[TMP1]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND93:%.*]] = and i1 [[TMP3]], [[TMP2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[ARG]], i64 8, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[ADD_PTR64]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[TMP0]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND93:%.*]] = and i1 [[TMP2]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND93]], label %[[CONT74:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT74]]:
 // CHECK-NEXT:    store i32 1, ptr [[BOUND_PTR_ARITH]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[SUB80:%.*]] = add i32 [[N]], -2, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[IDXPROM81:%.*]] = zext i32 [[SUB80]] to i64
 // CHECK-NEXT:    [[ARRAYIDX82:%.*]] = getelementptr [4 x i8], ptr [[BOUND_PTR_ARITH]], i64 [[IDXPROM81]]
-// CHECK-NEXT:    [[TMP4:%.*]] = getelementptr i8, ptr [[ARRAYIDX82]], i64 4, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[ADD_PTR64]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX82]], [[TMP4]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND95:%.*]] = and i1 [[TMP5]], [[TMP6]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX82]], [[BOUND_PTR_ARITH]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND96:%.*]] = and i1 [[TMP7]], [[OR_COND95]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP3:%.*]] = getelementptr i8, ptr [[ARRAYIDX82]], i64 4, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP4:%.*]] = icmp ule ptr [[TMP3]], [[ADD_PTR64]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[ARRAYIDX82]], [[TMP3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND95:%.*]] = and i1 [[TMP4]], [[TMP5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[TMP6:%.*]] = icmp uge ptr [[ARRAYIDX82]], [[BOUND_PTR_ARITH]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[OR_COND96:%.*]] = and i1 [[TMP6]], [[OR_COND95]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND96]], label %[[CONT89:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT89]]:
 // CHECK-NEXT:    store i32 1, ptr [[ARRAYIDX82]], align 4, {{!tbaa ![0-9]+}}
