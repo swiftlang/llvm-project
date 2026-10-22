@@ -113,9 +113,13 @@ inline bool ShouldSuggestLifetimeAnnotations(Sema &S, const Decl *D) {
       diag::warn_lifetime_safety_cross_tu_ctor_param_suggestion,
       diag::warn_lifetime_safety_intra_tu_this_suggestion,
       diag::warn_lifetime_safety_cross_tu_this_suggestion};
-  for (unsigned DiagID : DiagIDs)
-    if (!Diags.isIgnored(DiagID, D->getBeginLoc()))
+  // Don't enable these via -Weverything - see rdar://190709787.
+  for (unsigned DiagID : DiagIDs) {
+    if (Diags.isIgnored(DiagID, D->getBeginLoc()))
+      continue;
+    if (!Diags.getEnableAllWarnings() || IsDiagExplicitlyEnabled(Diags, DiagID))
       return true;
+  }
   return false;
 }
 
