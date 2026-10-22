@@ -40,7 +40,7 @@ class TestSwiftToolchainMismatch(TestBase):
         self.dbg.DeleteTarget(target)
         return messages
 
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # clang can't read back the IR the test edits
     @swiftTest
     def test_toolchain_mismatch(self):
         self.build()

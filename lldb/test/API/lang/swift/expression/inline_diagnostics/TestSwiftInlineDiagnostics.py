@@ -18,7 +18,7 @@ class TestSwiftInlineDiagnostics(lldbpexpect.PExpectTest):
     # The rendering doesn't depend on how the expression was compiled or on
     # how its types were imported, so the embedded variant exercises nothing
     # new.
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift
     @swiftTest
     def test_inline_diagnostics(self):
         self.build()

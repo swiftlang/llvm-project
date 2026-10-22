@@ -40,7 +40,7 @@ class TestSwiftRewriteClangPaths(TestBase):
     def testWithoutRemap(self):
         self.dotest(False)
 
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # uses Objective-C and Foundation
     # Don't run ClangImporter tests if Clangimporter is disabled.
     @skipIf(setting=('symbols.use-swift-clangimporter', 'false'))
     @skipUnlessDarwin

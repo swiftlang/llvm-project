@@ -7,7 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftMaterializeUnreadableVariable(lldbtest.TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # needs library evolution and reflection metadata
     @swiftTest
     def test_unreadable_variable(self):
         """A frame with two locals: `p`, which reads fine, and `unreadable`, a

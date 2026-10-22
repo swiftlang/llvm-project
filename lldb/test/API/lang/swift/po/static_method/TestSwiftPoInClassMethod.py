@@ -10,7 +10,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestCase(TestBase):
     @swiftTest
-    @skipEmbeddedSwift
+    @requireNotEmbeddedSwift # the embedded stdlib has no stringForPrintObject
     def test(self):
         """Context-free po should not emit extension $__lldb_context when
         stopped in a static method, since the frame's method context is
