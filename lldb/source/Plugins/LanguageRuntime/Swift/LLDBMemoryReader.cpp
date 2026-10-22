@@ -113,6 +113,23 @@ LLDBMemoryReader::getSymbolAddress(const std::string &name) {
       }
     }
   }
+
+  const Symbol *picked = PickVariableSymbol(sc_list, [](const Symbol &symbol) {
+    return symbol.GetType() != lldb::eSymbolTypeUndefined;
+  });
+  SectionSP picked_section =
+      picked ? picked->GetAddressRef().GetSection() : SectionSP();
+  if (picked_section && picked_section->GetType() == eSectionTypeWasmGlobal) {
+    llvm::Expected<addr_t> addr =
+        GetVariableLoadAddress(m_process.GetTarget(), *picked);
+    if (!addr) {
+      LLDB_LOG_ERROR(log, addr.takeError(), "[MemoryReader] {0}");
+      return swift::remote::RemoteAddress();
+    }
+    LLDB_LOG_VERBOSE(log, "[MemoryReader] symbol resolved to {0:x}", *addr);
+    return swift::remote::RemoteAddress(
+        *addr, swift::remote::RemoteAddress::DefaultAddressSpace);
+  }
   if (sc_list.GetSize() == 1 && sc_list.GetContextAtIndex(0, sym_ctx)) {
     if (sym_ctx.symbol) {
       auto load_addr = sym_ctx.symbol->GetLoadAddress(&m_process.GetTarget());

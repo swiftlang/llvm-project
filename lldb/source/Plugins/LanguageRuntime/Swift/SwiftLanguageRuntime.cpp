@@ -69,6 +69,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
 
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/Error.h"
@@ -225,6 +226,90 @@ ModuleSP SwiftLanguageRuntime::FindConcurrencyModule(Process &process) {
   return concurrency_module;
 }
 
+const Symbol *
+PickVariableSymbol(SymbolContextList &symbols,
+                   llvm::function_ref<bool(const Symbol &)> accept) {
+  const Symbol *found = nullptr;
+  for (const SymbolContext &context : symbols.SymbolContexts()) {
+    if (!context.symbol || !accept(*context.symbol))
+      continue;
+    // A Wasm module's DWARF can give a variable a second symbol, in a code
+    // section that shares file addresses with linear memory.
+    SectionSP section = context.symbol->GetAddressRef().GetSection();
+    if (section && section->GetType() == eSectionTypeWasmGlobal)
+      return context.symbol;
+    if (!found)
+      found = context.symbol;
+  }
+  return found;
+}
+
+static const Symbol *FindConcurrencySymbol(Module &module, StringRef name) {
+  SymbolContextList symbols;
+  module.FindSymbolsWithNameAndType(ConstString(name), eSymbolTypeAny, symbols);
+  return PickVariableSymbol(symbols, [](const Symbol &) { return true; });
+}
+
+llvm::Expected<addr_t> GetVariableLoadAddress(Target &target,
+                                              const Symbol &symbol) {
+  Address address = symbol.GetAddress();
+  SectionSP section = address.GetSection();
+  if (section && section->GetType() == eSectionTypeWasmGlobal) {
+    ObjectFile *object_file = section->GetObjectFile();
+    uint32_t address_size = object_file->GetAddressByteSize();
+    uint8_t bytes[sizeof(addr_t)];
+    if (address_size > sizeof(bytes) ||
+        object_file->ReadSectionData(section.get(), address.GetOffset(), bytes,
+                                     address_size) != address_size)
+      return llvm::createStringErrorV("{0} has no constant address",
+                                      symbol.GetName());
+    DataExtractor data(bytes, address_size, object_file->GetByteOrder(),
+                       address_size);
+    lldb::offset_t offset = 0;
+    addr_t file_addr = data.GetAddress(&offset);
+
+    // Code sections share file addresses with linear memory.
+    SectionList *sections = object_file->GetSectionList();
+    SectionSP data_section;
+    for (size_t index = 0; sections && index < sections->GetSize(); ++index) {
+      SectionSP candidate = sections->GetSectionAtIndex(index);
+      SectionType type = candidate->GetType();
+      if ((type == eSectionTypeData || type == eSectionTypeZeroFill) &&
+          candidate->ContainsFileAddress(file_addr)) {
+        data_section = candidate;
+        break;
+      }
+    }
+    if (!data_section)
+      return llvm::createStringErrorV(
+          "{0} holds {1:x}, outside every data section", symbol.GetName(),
+          file_addr);
+    address = Address(data_section, file_addr - data_section->GetFileAddress());
+  }
+
+  addr_t load_addr = address.GetLoadAddress(&target);
+  if (load_addr == LLDB_INVALID_ADDRESS)
+    return llvm::createStringErrorV("{0} has no load address",
+                                    symbol.GetName());
+  return load_addr;
+}
+
+static llvm::Expected<uint64_t>
+ReadConcurrencyABIConfiguration(Process &process, const Symbol &symbol,
+                                uint32_t width) {
+  llvm::Expected<addr_t> symbol_addr =
+      GetVariableLoadAddress(process.GetTarget(), symbol);
+  if (!symbol_addr)
+    return symbol_addr.takeError();
+
+  Status status;
+  uint64_t value = process.ReadUnsignedIntegerFromMemory(
+      *symbol_addr, width, /*fail_value=*/0, status);
+  if (!status.Success())
+    return status.takeError();
+  return value;
+}
+
 // _swift_concurrency_debug_internal_layout_version packs the current-task
 // storage kind in its top 8 bits; the low 24 bits are the layout version. See
 // swift/stdlib/public/Concurrency/Debug.h.
@@ -234,21 +319,19 @@ static constexpr uint8_t g_concurrency_storage_kind_deferred_mask = 0x80;
 
 static std::optional<uint32_t>
 FindConcurrencyVersionWord(Process &process, Module &concurrency_module) {
-  const Symbol *version_symbol =
-      concurrency_module.FindFirstSymbolWithNameAndType(
-          ConstString("_swift_concurrency_debug_internal_layout_version"));
+  const Symbol *version_symbol = FindConcurrencySymbol(
+      concurrency_module, "_swift_concurrency_debug_internal_layout_version");
   if (!version_symbol)
     return 0;
 
-  addr_t symbol_addr = version_symbol->GetLoadAddress(&process.GetTarget());
-  if (symbol_addr == LLDB_INVALID_ADDRESS)
+  llvm::Expected<uint64_t> version_word =
+      ReadConcurrencyABIConfiguration(process, *version_symbol, /*width=*/4);
+  if (!version_word) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), version_word.takeError(),
+                   "could not read the concurrency layout version: {0}");
     return {};
-  Status error;
-  uint64_t version_word = process.ReadUnsignedIntegerFromMemory(
-      symbol_addr, /*width*/ 4, /*fail_value=*/0, error);
-  if (error.Fail())
-    return {};
-  return version_word;
+  }
+  return *version_word;
 }
 
 /// Reads the pointer-sized value of the concurrency debug variable `name`.
@@ -259,23 +342,17 @@ ReadConcurrencyABIConfiguration(Process &process, StringRef name) {
   if (!concurrency_module)
     return llvm::createStringError("could not load _Concurrency module");
 
-  const Symbol *symbol =
-      concurrency_module->FindFirstSymbolWithNameAndType(ConstString(name));
+  const Symbol *symbol = FindConcurrencySymbol(*concurrency_module, name);
   if (!symbol)
     return llvm::createStringErrorV("{0} symbol not found", name);
 
-  addr_t symbol_addr = symbol->GetLoadAddress(&process.GetTarget());
-  if (symbol_addr == LLDB_INVALID_ADDRESS)
-    return llvm::createStringErrorV("{0} has no load address", name);
-
-  Status status;
-  uint64_t value = process.ReadUnsignedIntegerFromMemory(
-      symbol_addr, process.GetAddressByteSize(), /*fail_value=*/0, status);
-  if (!status.Success())
-    return status.takeError();
-  if (value == 0)
+  llvm::Expected<uint64_t> value = ReadConcurrencyABIConfiguration(
+      process, *symbol, process.GetAddressByteSize());
+  if (!value)
+    return value.takeError();
+  if (*value == 0)
     return llvm::createStringErrorV("{0} is 0", name);
-  return value;
+  return *value;
 }
 
 /// Like ReadConcurrencyABIConfiguration, caching the value in `cache`. Failures
@@ -397,42 +474,36 @@ DeriveStorageKind(uint32_t concurrency_version, uint8_t storage_kind_raw) {
   return CurrentTaskStorageKind{storage_kind_raw};
 }
 
-/// The load address of the symbol `name`, looked up in every image loaded in
-/// the target.
-static std::optional<addr_t> FindSymbolLoadAddress(Target &target,
-                                                   StringRef name) {
+static const Symbol *FindLoadedSymbol(Target &target, StringRef name) {
   SymbolContextList symbols;
   target.GetImages().FindSymbolsWithNameAndType(ConstString(name),
                                                 eSymbolTypeAny, symbols);
 
-  SymbolContext context;
-  for (size_t index = 0; index < symbols.GetSize(); ++index) {
-    if (!symbols.GetContextAtIndex(index, context) || !context.symbol ||
-        context.symbol->GetType() == eSymbolTypeUndefined)
-      continue;
-
-    addr_t symbol_addr = context.symbol->GetLoadAddress(&target);
-    if (symbol_addr != LLDB_INVALID_ADDRESS)
-      return symbol_addr;
-  }
-  return std::nullopt;
+  return PickVariableSymbol(symbols, [&](const Symbol &symbol) {
+    return symbol.GetType() != eSymbolTypeUndefined &&
+           symbol.GetLoadAddress(&target) != LLDB_INVALID_ADDRESS;
+  });
 }
 
 static std::optional<CurrentTaskStorageKind>
 FindDeferredStorageKind(Process &process, uint32_t concurrency_version) {
-  std::optional<addr_t> kind_addr = FindSymbolLoadAddress(
-      process.GetTarget(),
-      "_swift_concurrency_debug_current_task_storage_kind");
-  if (!kind_addr)
+  const Symbol *kind_symbol =
+      FindLoadedSymbol(process.GetTarget(),
+                       "_swift_concurrency_debug_current_task_storage_kind");
+  if (!kind_symbol)
     return std::nullopt;
 
-  Status error;
-  uint64_t storage_kind_raw = process.ReadUnsignedIntegerFromMemory(
-      *kind_addr, /*width=*/4, /*fail_value=*/0, error);
-  if (error.Fail() || storage_kind_raw > std::numeric_limits<uint8_t>::max())
+  llvm::Expected<uint64_t> storage_kind_raw =
+      ReadConcurrencyABIConfiguration(process, *kind_symbol, /*width=*/4);
+  if (!storage_kind_raw) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), storage_kind_raw.takeError(),
+                   "could not read the current-task storage kind: {0}");
+    return std::nullopt;
+  }
+  if (*storage_kind_raw > std::numeric_limits<uint8_t>::max())
     return std::nullopt;
 
-  uint8_t concrete_storage_kind = static_cast<uint8_t>(storage_kind_raw);
+  uint8_t concrete_storage_kind = static_cast<uint8_t>(*storage_kind_raw);
   if (concrete_storage_kind & g_concurrency_storage_kind_deferred_mask)
     return std::nullopt;
   return DeriveStorageKind(concurrency_version, concrete_storage_kind);
@@ -4216,8 +4287,8 @@ FindCurrentTaskSymbol(Module *concurrency_module) {
     return llvm::createStringError(
         "FindCurrentTaskSymbol given a null concurrency_module");
   constexpr llvm::StringLiteral symbol_name = "_swift_concurrency_currentTask";
-  const Symbol *symbol = concurrency_module->FindFirstSymbolWithNameAndType(
-      ConstString(symbol_name));
+  const Symbol *symbol =
+      FindConcurrencySymbol(*concurrency_module, symbol_name);
   if (!symbol)
     return llvm::createStringErrorV(
         "TaskFinder: could not find current-task symbol {0}", symbol_name);
@@ -4300,9 +4371,16 @@ private:
                                      Process &process) {
     llvm::Expected<Symbol> task_sym =
         FindCurrentTaskSymbol(concurrency_module.get());
-    if (task_sym)
-      return task_sym->GetLoadAddress(&process.GetTarget());
-    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), task_sym.takeError(),
+    if (!task_sym) {
+      LLDB_LOG_ERROR(GetLog(LLDBLog::OS), task_sym.takeError(),
+                     "GlobalVarTaskFinder: {0}");
+      return LLDB_INVALID_ADDRESS;
+    }
+    llvm::Expected<addr_t> task_addr =
+        GetVariableLoadAddress(process.GetTarget(), *task_sym);
+    if (task_addr)
+      return *task_addr;
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), task_addr.takeError(),
                    "GlobalVarTaskFinder: {0}");
     return LLDB_INVALID_ADDRESS;
   }
@@ -4315,13 +4393,22 @@ static std::optional<addr_t> FindTaskTLSSlotAddr(Process &process) {
   // swift/Runtime/ConcurrencyDebug.h.
   constexpr uint64_t concurrency_task_tls_key = 3;
 
-  if (std::optional<addr_t> addr = FindSymbolLoadAddress(
-          process.GetTarget(), "_swift_concurrency_debug_global_tls_array"))
-    return *addr + concurrency_task_tls_key * process.GetAddressByteSize();
+  const Symbol *array_symbol = FindLoadedSymbol(
+      process.GetTarget(), "_swift_concurrency_debug_global_tls_array");
+  if (!array_symbol) {
+    LLDB_LOG(GetLog(LLDBLog::OS),
+             "GlobalTLSArrayTaskFinder: could not find TLS array symbol");
+    return {};
+  }
 
-  LLDB_LOG(GetLog(LLDBLog::OS),
-           "GlobalTLSArrayTaskFinder: could not find TLS array symbol");
-  return {};
+  llvm::Expected<addr_t> array_addr =
+      GetVariableLoadAddress(process.GetTarget(), *array_symbol);
+  if (!array_addr) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::OS), array_addr.takeError(),
+                   "GlobalTLSArrayTaskFinder: {0}");
+    return {};
+  }
+  return *array_addr + concurrency_task_tls_key * process.GetAddressByteSize();
 }
 
 /// Finds tasks on runtimes whose platform library backs the whole of

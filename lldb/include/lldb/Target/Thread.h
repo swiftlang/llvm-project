@@ -499,6 +499,8 @@ public:
 
   virtual void ClearStackFrames();
 
+  virtual Unwind &GetUnwinder();
+
   /// Sets the thread that is backed by this thread.
   /// If backed_thread.GetBackedThread() is null, this method also calls
   /// backed_thread.SetBackingThread(this).
@@ -1417,8 +1419,6 @@ protected:
   void DiscardPlan();
 
   ThreadPlan *GetPreviousPlan(ThreadPlan *plan) const;
-
-  virtual Unwind &GetUnwinder();
 
   // Check to see whether the thread is still at the last breakpoint hit that
   // stopped it.

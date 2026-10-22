@@ -66,6 +66,13 @@ public:
     return m_task_name.c_str();
   }
 
+  Unwind &GetUnwinder() override {
+    // The inherited unwinder cannot walk a Wasm stack.
+    if (ThreadSP backing_thread = GetBackingThread())
+      return backing_thread->GetUnwinder();
+    return ThreadMemory::GetUnwinder();
+  }
+
 private:
   uint64_t GetTaskID() const {
     auto thread_id = GetID();
