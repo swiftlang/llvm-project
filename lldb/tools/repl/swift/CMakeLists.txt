@@ -58,7 +58,7 @@ if(APPLE)
     set(lldb_installtree Swift/macosx) # repl_swift is installed to framework Resources
   endif()
 
-  lldb_setup_rpaths(repl_swift
+  lldb_add_rpaths(repl_swift
     BUILD_RPATH
       ${swift_buildtree}
       ${lldb_buildtree}
