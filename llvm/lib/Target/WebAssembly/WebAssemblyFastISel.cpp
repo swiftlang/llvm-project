@@ -35,6 +35,7 @@
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/Operator.h"
 
@@ -716,7 +717,8 @@ bool WebAssemblyFastISel::fastLowerArguments() {
   if (F->isVarArg())
     return false;
 
-  if (FuncInfo.Fn->getCallingConv() == CallingConv::Swift)
+  if (FuncInfo.Fn->getCallingConv() == CallingConv::Swift ||
+      FuncInfo.Fn->getCallingConv() == CallingConv::SwiftTail)
     return false;
 
   unsigned I = 0;
@@ -725,6 +727,7 @@ bool WebAssemblyFastISel::fastLowerArguments() {
     if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
         Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
         Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftAsync) ||
         Attrs.hasParamAttr(I, Attribute::InAlloca) ||
         Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
@@ -841,7 +844,8 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   if (Func && Func->isIntrinsic())
     return false;
 
-  if (Call->getCallingConv() == CallingConv::Swift)
+  if (Call->getCallingConv() == CallingConv::Swift ||
+      Call->getCallingConv() == CallingConv::SwiftTail)
     return false;
 
   bool IsDirect = Func != nullptr;
@@ -912,10 +916,12 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     if (ArgTy == MVT::INVALID_SIMPLE_VALUE_TYPE)
       return false;
 
+    // The attribute of the callee counts too, see computeSignatureVTs.
     const AttributeList &Attrs = Call->getAttributes();
     if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
         Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
         Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Call->paramHasAttr(I, Attribute::SwiftAsync) ||
         Attrs.hasParamAttr(I, Attribute::InAlloca) ||
         Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
@@ -1632,9 +1638,16 @@ bool WebAssemblyFastISel::tryToFoldLoadIntoMI(MachineInstr *MI, unsigned OpNo,
   return true;
 }
 
+// SelectionDAG lowers llvm.swift.async.context.addr together with the loads
+// and stores that use it.
+static bool isSwiftAsyncContextAddr(const Value *V) {
+  const auto *II = dyn_cast<IntrinsicInst>(V);
+  return II && II->getIntrinsicID() == Intrinsic::swift_async_context_addr;
+}
+
 bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
   const auto *Load = cast<LoadInst>(I);
-  if (Load->isAtomic())
+  if (Load->isAtomic() || isSwiftAsyncContextAddr(Load->getPointerOperand()))
     return false;
   if (!WebAssembly::isDefaultAddressSpace(Load->getPointerAddressSpace()))
     return false;
@@ -1686,7 +1699,7 @@ bool WebAssemblyFastISel::selectLoad(const Instruction *I) {
 
 bool WebAssemblyFastISel::selectStore(const Instruction *I) {
   const auto *Store = cast<StoreInst>(I);
-  if (Store->isAtomic())
+  if (Store->isAtomic() || isSwiftAsyncContextAddr(Store->getPointerOperand()))
     return false;
   if (!WebAssembly::isDefaultAddressSpace(Store->getPointerAddressSpace()))
     return false;
