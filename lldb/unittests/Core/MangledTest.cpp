@@ -54,6 +54,7 @@ struct TrackingOutputBufferDeleter {
 };
 
 TEST(MangledTest, ResultForValidName) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   ConstString MangledName("_ZN1a1b1cIiiiEEvm");
   Mangled TheMangled(MangledName);
   ConstString TheDemangled = TheMangled.GetDemangledName();
@@ -63,6 +64,7 @@ TEST(MangledTest, ResultForValidName) {
 }
 
 TEST(MangledTest, ResultForBlockInvocation) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   ConstString MangledName("___Z1fU13block_pointerFviE_block_invoke");
   Mangled TheMangled(MangledName);
   ConstString TheDemangled = TheMangled.GetDemangledName();
@@ -73,6 +75,7 @@ TEST(MangledTest, ResultForBlockInvocation) {
 }
 
 TEST(MangledTest, EmptyForInvalidName) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   ConstString MangledName("_ZN1a1b1cmxktpEEvm");
   Mangled TheMangled(MangledName);
   ConstString TheDemangled = TheMangled.GetDemangledName();
@@ -378,6 +381,7 @@ static bool NameInfoEquals(const DemangledNameInfo &lhs,
 }
 
 TEST(MangledTest, DemangledNameInfo_SetMangled) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   Mangled mangled;
   EXPECT_EQ(mangled.ComputeDemangledInfo(), std::nullopt);
 
@@ -401,6 +405,7 @@ TEST(MangledTest, DemangledNameInfo_SetMangled) {
 }
 
 TEST(MangledTest, DemangledNameInfo_SetDemangled) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   Mangled mangled("_Z3foov");
   ASSERT_TRUE(mangled);
 
@@ -416,6 +421,7 @@ TEST(MangledTest, DemangledNameInfo_SetDemangled) {
 }
 
 TEST(MangledTest, DemangledNameInfo_Clear) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   Mangled mangled("_Z3foov");
   ASSERT_TRUE(mangled);
   EXPECT_NE(mangled.ComputeDemangledInfo(), std::nullopt);
@@ -426,6 +432,7 @@ TEST(MangledTest, DemangledNameInfo_Clear) {
 }
 
 TEST(MangledTest, DemangledNameInfo_SetValue) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   Mangled mangled("_Z4funcv");
   ASSERT_TRUE(mangled);
 
@@ -464,6 +471,7 @@ static Mangled MakeUniqueFunctionName(unsigned i) {
 }
 
 TEST(MangledTest, DemangledNameInfoCache_Get) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   DemangledNameInfoCache cache;
 
   Mangled func("_Z4funcv");
@@ -494,6 +502,7 @@ TEST(MangledTest, DemangledNameInfoCache_Get) {
 }
 
 TEST(MangledTest, DemangledNameInfoCache_MaxEntries) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   DemangledNameInfoCache cache;
   cache.SetMaxEntries(4);
 
@@ -520,6 +529,7 @@ TEST(MangledTest, DemangledNameInfoCache_MaxEntries) {
 }
 
 TEST(MangledTest, DemangledNameInfoCache_SetMaxEntries) {
+  SubsystemRAII<CPlusPlusLanguage> subsystems;
   DemangledNameInfoCache cache;
   cache.SetMaxEntries(4);
 
