@@ -5290,7 +5290,8 @@ void SwiftASTContext::RegisterSectionModules(
     return;
 
   // Grab all the AST blobs from the symbol vendor.
-  auto ast_file_datas = module.GetASTData(eLanguageTypeSwift);
+  auto ast_file_datas =
+      module.GetASTData(eLanguageTypeSwift, &m_loaded_ast_files);
   if (ast_file_datas.size())
     LOG_PRINTF(GetLog(LLDBLog::Types),
                "(\"%s\") retrieved %zu AST Data blobs from the symbol vendor "

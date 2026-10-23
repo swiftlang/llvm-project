@@ -1753,7 +1753,9 @@ void Module::ClearModuleDependentCaches() {
 #endif // LLDB_ENABLE_SWIFT
 }
 
-std::vector<DataBufferSP> Module::GetASTData(lldb::LanguageType language) {
+std::vector<DataBufferSP>
+Module::GetASTData(lldb::LanguageType language,
+                   llvm::StringSet<> *loaded_ast_files) {
   std::vector<DataBufferSP> ast_datas;
 
   if (language != eLanguageTypeSwift)
@@ -1781,7 +1783,7 @@ std::vector<DataBufferSP> Module::GetASTData(lldb::LanguageType language) {
   // If we couldn't find it in the Module, then look for it in the SymbolFile:
   SymbolFile *sym_file = GetSymbolFile();
   if (sym_file)
-    ast_datas = sym_file->GetASTData(language);
+    ast_datas = sym_file->GetASTData(language, loaded_ast_files);
 
   return ast_datas;
 }

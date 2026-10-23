@@ -406,7 +406,8 @@ protected:
                        DWARFDebugAranges *debug_aranges);
 
   std::vector<lldb::DataBufferSP>
-  GetASTData(lldb::LanguageType language) override;
+  GetASTData(lldb::LanguageType language,
+             llvm::StringSet<> *loaded_ast_files = nullptr) override;
 };
 } // namespace dwarf
 } // namespace lldb_private::plugin
