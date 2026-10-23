@@ -1,0 +1,9 @@
+add_clang_unittest(APINotesTests
+  APINotesManagerTest.cpp
+  CLANG_LIBS
+  clangAPINotes
+  clangBasic
+  clangLex
+  LLVM_COMPONENTS
+  Support
+  )

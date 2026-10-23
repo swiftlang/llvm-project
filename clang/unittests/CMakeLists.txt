@@ -76,6 +76,7 @@ function(add_clang_unittest test_name)
 endfunction()
 
 add_subdirectory(Basic)
+add_subdirectory(APINotes)
 add_subdirectory(CAS)
 add_subdirectory(Lex)
 add_subdirectory(Parse)
