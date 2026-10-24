@@ -836,13 +836,15 @@ define i1 @test_gep_add_nuw_zext_1_i8_upper(i8* %ptr, i8 %idx, i8 %N) {
 ; CHECK-NEXT:    [[C_0:%.*]] = icmp ult i8 [[IDX]], [[N]]
 ; CHECK-NEXT:    br i1 [[C_0]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
+; CHECK-NEXT:    [[T_1:%.*]] = icmp ule ptr [[PTR_IDX_1]], [[PTR_10]]
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ule ptr [[PTR_IDX_2]], [[PTR_10]]
-; CHECK-NEXT:    [[XOR_1:%.*]] = xor i1 true, [[C_1]]
+; CHECK-NEXT:    [[XOR_1:%.*]] = xor i1 [[T_1]], [[C_1]]
 ; CHECK-NEXT:    ret i1 [[XOR_1]]
 ; CHECK:       else:
 ; CHECK-NEXT:    [[PTR_IDX_0:%.*]] = getelementptr inbounds i8, ptr [[PTR]], i64 [[IDX_EXT]]
+; CHECK-NEXT:    [[F_1:%.*]] = icmp ule ptr [[PTR_IDX_1]], [[PTR_10]]
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp ule ptr [[PTR_IDX_0]], [[PTR_10]]
-; CHECK-NEXT:    [[XOR_2:%.*]] = xor i1 false, [[C_2]]
+; CHECK-NEXT:    [[XOR_2:%.*]] = xor i1 [[F_1]], [[C_2]]
 ; CHECK-NEXT:    ret i1 [[XOR_2]]
 ;
 entry:

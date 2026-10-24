@@ -22,7 +22,8 @@ define i1 @inbounds_poison_is_ub_different_index_types_1(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule ptr [[SRC_IDX_1]], [[UPPER]]
+; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
 ; CHECK:       else:
 ; CHECK-NEXT:    [[UPPER_2:%.*]] = getelementptr inbounds i32, ptr [[SRC]], i64 [[N_EXT_64]]
 ; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
@@ -70,7 +71,8 @@ define i1 @inbounds_poison_is_ub_different_index_types_2(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX]]
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule ptr [[SRC_IDX_1]], [[UPPER]]
+; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
 ; CHECK:       else:
 ; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i16 [[IDX]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER]]
@@ -116,7 +118,8 @@ define i1 @inbounds_poison_is_ub_different_index_types_3(ptr %src, i16 %n, i16 %
 ; CHECK-NEXT:    br i1 [[CMP_IDX]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[SRC_IDX_1:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[CMP_UPPER_1:%.*]] = icmp ule ptr [[SRC_IDX_1]], [[UPPER_N]]
+; CHECK-NEXT:    ret i1 [[CMP_UPPER_1]]
 ; CHECK:       else:
 ; CHECK-NEXT:    [[SRC_IDX_2:%.*]] = getelementptr i32, ptr [[SRC]], i32 [[IDX_EXT]]
 ; CHECK-NEXT:    [[CMP_UPPER_2:%.*]] = icmp ule ptr [[SRC_IDX_2]], [[UPPER_N]]
