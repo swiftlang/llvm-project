@@ -1,0 +1,4 @@
+module Types {
+  header "types.h"
+  requires cplusplus
+}
