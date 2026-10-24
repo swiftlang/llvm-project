@@ -134,11 +134,11 @@ define void @no_narrowing_if_all_lanes_used(ptr noalias %A, ptr noalias %B) {
 ; CHECK-NEXT:      vp<[[VP4:%[0-9]+]]> = DERIVED-IV ir<0> + vp<[[VP3]]> * ir<1>
 ; CHECK-NEXT:      vp<[[VP5:%[0-9]+]]> = SCALAR-STEPS vp<[[VP4]]>, ir<1>, vp<[[VP0]]>
 ; CHECK-NEXT:      CLONE ir<%gep.ld> = getelementptr inbounds ir<%A>, vp<[[VP5]]>
-; CHECK-NEXT:      vp<[[VP6:%[0-9]+]]> = vector-pointer inbounds ir<%gep.ld>, ir<1>
+; CHECK-NEXT:      vp<[[VP6:%[0-9]+]]> = vector-pointer inbounds i64, ir<%gep.ld>, ir<1>
 ; CHECK-NEXT:      WIDEN ir<%ld> = load vp<[[VP6]]>
 ; CHECK-NEXT:      WIDEN ir<%calc> = add nsw ir<%ld>, ir<42>
 ; CHECK-NEXT:      CLONE ir<%gep.st> = getelementptr inbounds ir<%B>, vp<[[VP5]]>
-; CHECK-NEXT:      vp<[[VP7:%[0-9]+]]> = vector-pointer inbounds ir<%gep.st>, ir<1>
+; CHECK-NEXT:      vp<[[VP7:%[0-9]+]]> = vector-pointer inbounds i64, ir<%gep.st>, ir<1>
 ; CHECK-NEXT:      WIDEN store vp<[[VP7]]>, ir<%calc>
 ; CHECK-NEXT:      EMIT vp<%index.next> = add nuw vp<[[VP3]]>, vp<[[VP1]]>
 ; CHECK-NEXT:      EMIT branch-on-count vp<%index.next>, vp<[[VP2]]>
