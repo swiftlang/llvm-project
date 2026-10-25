@@ -14,8 +14,7 @@
 namespace lldb_private {
 namespace wasm {
 
-/// ProcessWasm provides the access to the Wasm program state
-/// retrieved from the Wasm engine.
+/// A thread of a Wasm process, whose call stack comes from the Wasm engine.
 class ThreadWasm : public process_gdb_remote::ThreadGDBRemote {
 public:
   ThreadWasm(Process &process, lldb::tid_t tid)
@@ -32,10 +31,10 @@ public:
   lldb::RegisterContextSP
   CreateRegisterContextForFrame(StackFrame *frame) override;
 
-protected:
   Unwind &GetUnwinder() override;
 
-  ThreadWasm(const ThreadWasm &);
+protected:
+  ThreadWasm(const ThreadWasm &) = delete;
   const ThreadWasm &operator=(const ThreadWasm &) = delete;
 };
 

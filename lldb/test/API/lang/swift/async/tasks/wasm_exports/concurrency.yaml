@@ -1,0 +1,116 @@
+# Functions 1 to 3 take the names of three exported variables, as the
+# code-section DWARF symbols of a real runtime do.
+--- !WASM
+FileHeader:
+  Version: 0x1
+Sections:
+  - Type: TYPE
+    Signatures:
+      - Index: 0
+        ParamTypes: []
+        ReturnTypes: []
+  - Type: FUNCTION
+    FunctionTypes: [ 0, 0, 0, 0 ]
+  - Type: MEMORY
+    Memories:
+      - Minimum: 0x1
+  - Type: GLOBAL
+    Globals:
+      - Index: 0
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 16
+      - Index: 1
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 32
+      - Index: 2
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 20
+      - Index: 3
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 64
+      - Index: 4
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 24
+      - Index: 5
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 768
+  - Type: EXPORT
+    Exports:
+      - Name: memory
+        Kind: MEMORY
+        Index: 0
+      - Name: swift_task_switch
+        Kind: FUNCTION
+        Index: 0
+      - Name: _swift_concurrency_debug_internal_layout_version
+        Kind: GLOBAL
+        Index: 0
+      - Name: _swift_concurrency_currentTask
+        Kind: GLOBAL
+        Index: 1
+      - Name: _swift_concurrency_debug_current_task_storage_kind
+        Kind: GLOBAL
+        Index: 2
+      - Name: _swift_concurrency_debug_global_tls_array
+        Kind: GLOBAL
+        Index: 3
+      - Name: _swift_concurrency_debug_asyncTaskNameOffset
+        Kind: GLOBAL
+        Index: 4
+      - Name: _swift_concurrency_debug_supportsPriorityEscalation
+        Kind: GLOBAL
+        Index: 5
+  - Type: CODE
+    Functions:
+      - Index: 0
+        Locals: []
+        Body: 0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010B
+      - Index: 1
+        Locals: []
+        Body: 0B
+      - Index: 2
+        Locals: []
+        Body: 0B
+      - Index: 3
+        Locals: []
+        Body: 0B
+  - Type: DATA
+    Segments:
+      - InitFlags: 0
+        Offset:
+          Opcode: I32_CONST
+          Value: 16
+        Content: '03000002'
+  - Type: CUSTOM
+    Name: name
+    FunctionNames:
+      - Index: 0
+        Name: swift_task_switch
+      - Index: 1
+        Name: _swift_concurrency_debug_internal_layout_version
+      - Index: 2
+        Name: _swift_concurrency_debug_global_tls_array
+      - Index: 3
+        Name: _swift_concurrency_debug_supportsPriorityEscalation
+    DataSegmentNames:
+      - Index: 0
+        Name: .data
+...

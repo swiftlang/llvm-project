@@ -25,6 +25,7 @@
 #include "swift/Demangling/ManglingFlavor.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Casting.h"
 #include <optional>
@@ -1159,6 +1160,17 @@ llvm::Expected<lldb::offset_t> GetChildFragmentOffset(Process &process,
 /// Names are immutable and specified with `Task(name:)` during initialization.
 llvm::Expected<std::optional<std::string>> GetTaskName(lldb::addr_t task,
                                                        Process &process);
+
+/// Returns the first symbol in `symbols` that `accept` takes, preferring one in
+/// a Wasm global section.
+const Symbol *
+PickVariableSymbol(SymbolContextList &symbols,
+                   llvm::function_ref<bool(const Symbol &)> accept);
+
+/// Returns the load address of the variable `symbol` names. A symbol in a Wasm
+/// global section names a global holding the variable's linear-memory address.
+llvm::Expected<lldb::addr_t> GetVariableLoadAddress(Target &target,
+                                                    const Symbol &symbol);
 
 /// Finds the function for which `load_address` belongs, and returns its
 /// prologue size.

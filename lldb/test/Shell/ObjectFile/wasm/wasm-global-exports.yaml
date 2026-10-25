@@ -1,0 +1,133 @@
+# REQUIRES: webassembly
+
+# wasm-ld gives a data symbol with an export_name a global that only the export
+# section names.
+
+# RUN: yaml2obj %s --docnum=1 -o %t.wasm
+# RUN: %lldb %t.wasm \
+# RUN:   -o "target modules dump symtab" \
+# RUN:   -o "image lookup -s g_named" \
+# RUN:   -o "image lookup -s g_exported" \
+# RUN:   -o "image lookup -s f" \
+# RUN:   -o exit 2>&1 | FileCheck %s
+
+# CHECK: Dumping symbol table
+# CHECK: Data 0x8000000000000001 0x0000000000000001 {{.*}}g_named
+# CHECK: Data 0x8000000000000001 0x0000000000000001 {{.*}}g_alias
+# CHECK: Data 0x8000000000000002 0x0000000000000001 {{.*}}g_exported
+
+# CHECK: 1 symbols match 'g_named'
+# CHECK: 1 symbols match 'g_exported'
+# CHECK: (wasm-global-exports.yaml.tmp.wasm.global + 2)
+# CHECK: 1 symbols match 'f'
+
+# RUN: %lldb %t.wasm -o "image lookup -s g_imported_export" -o exit 2>&1 \
+# RUN:   | FileCheck --check-prefix=NOSYMBOL %s
+# RUN: %lldb %t.wasm -o "image lookup -s g_out_of_range" -o exit 2>&1 \
+# RUN:   | FileCheck --check-prefix=NOSYMBOL %s
+# NOSYMBOL-NOT: symbols match
+
+# RUN: yaml2obj %s --docnum=2 -o %t.nonames.wasm
+# RUN: %lldb %t.nonames.wasm -o "target modules dump symtab" -o exit 2>&1 \
+# RUN:   | FileCheck --check-prefix=NONAMES %s
+# NONAMES: Data 0x8000000000000000 0x0000000000000001 {{.*}}g_exported
+
+--- !WASM
+FileHeader:
+  Version: 0x1
+Sections:
+  - Type: TYPE
+    Signatures:
+      - Index: 0
+        ParamTypes: []
+        ReturnTypes: []
+  - Type: IMPORT
+    Imports:
+      - Module: env
+        Field: g_imported
+        Kind: GLOBAL
+        GlobalType: I32
+        GlobalMutable: false
+  - Type: FUNCTION
+    FunctionTypes: [ 0, 0 ]
+  - Type: MEMORY
+    Memories:
+      - Minimum: 0x2
+  - Type: GLOBAL
+    Globals:
+      - Index: 1
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 65536
+      - Index: 2
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 65540
+  - Type: EXPORT
+    Exports:
+      - Name: memory
+        Kind: MEMORY
+        Index: 0
+      - Name: g_named
+        Kind: GLOBAL
+        Index: 1
+      - Name: g_alias
+        Kind: GLOBAL
+        Index: 1
+      - Name: g_exported
+        Kind: GLOBAL
+        Index: 2
+      - Name: g_imported_export
+        Kind: GLOBAL
+        Index: 0
+      - Name: g_out_of_range
+        Kind: GLOBAL
+        Index: 3
+      - Name: f
+        Kind: FUNCTION
+        Index: 1
+  - Type: CODE
+    Functions:
+      - Index: 0
+        Locals: []
+        Body: 0B
+      - Index: 1
+        Locals: []
+        Body: 0B
+  - Type: CUSTOM
+    Name: name
+    FunctionNames:
+      - Index: 0
+        Name: e
+      - Index: 1
+        Name: f
+    GlobalNames:
+      - Index: 1
+        Name: g_named
+...
+
+--- !WASM
+FileHeader:
+  Version: 0x1
+Sections:
+  - Type: MEMORY
+    Memories:
+      - Minimum: 0x1
+  - Type: GLOBAL
+    Globals:
+      - Index: 0
+        Type: I32
+        Mutable: false
+        InitExpr:
+          Opcode: I32_CONST
+          Value: 1024
+  - Type: EXPORT
+    Exports:
+      - Name: g_exported
+        Kind: GLOBAL
+        Index: 0
+...
