@@ -5112,8 +5112,7 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
   std::string library_fullname;
 
   if (platform_sp) {
-    library_fullname =
-        platform_sp->GetFullNameForDylib(ConstString(library_name)).AsCString(nullptr);
+    library_fullname = platform_sp->GetFullNameForDylib(library_name);
   } else // This is the old way, and we shouldn't use it except on Mac OS
   {
 #ifdef __APPLE__

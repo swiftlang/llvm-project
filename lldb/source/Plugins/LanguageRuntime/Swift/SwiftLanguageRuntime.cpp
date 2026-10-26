@@ -110,16 +110,16 @@ static ConstString GetStandardLibraryName(Process &process) {
   // This result needs to be stored in the constructor.
   PlatformSP platform_sp(process.GetTarget().GetPlatform());
   if (platform_sp)
-    return platform_sp->GetFullNameForDylib(
-        ConstString(SwiftLanguageRuntime::GetStandardLibraryBaseName()));
+    return ConstString(platform_sp->GetFullNameForDylib(
+        SwiftLanguageRuntime::GetStandardLibraryBaseName()));
   return {};
 }
 
 static ConstString GetConcurrencyLibraryName(Process &process) {
   PlatformSP platform_sp = process.GetTarget().GetPlatform();
   if (platform_sp)
-    return platform_sp->GetFullNameForDylib(
-        ConstString(SwiftLanguageRuntime::GetConcurrencyLibraryBaseName()));
+    return ConstString(platform_sp->GetFullNameForDylib(
+        SwiftLanguageRuntime::GetConcurrencyLibraryBaseName()));
   return {};
 }
 
