@@ -1024,7 +1024,7 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
     if (obj_file->GetType() != ObjectFile::eTypeJIT)
       LLDB_LOG(GetLog(LLDBLog::Types),
                "{0}: failed to get start address for \"{1}\".", __FUNCTION__,
-               module_sp->GetObjectName()
+               !module_sp->GetObjectName().empty()
                    ? module_sp->GetObjectName()
                    : obj_file->GetFileSpec().GetFilename());
     return false;
@@ -1032,7 +1032,7 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
   bool found = HasReflectionInfo(obj_file);
   LLDB_LOG_VERBOSE(GetLog(LLDBLog::Types), "{0} reflection metadata in \"{1}\"",
                    found ? "Adding" : "No",
-                   module_sp->GetObjectName()
+                   !module_sp->GetObjectName().empty()
                        ? module_sp->GetObjectName()
                        : obj_file->GetFileSpec().GetFilename());
   if (!found)

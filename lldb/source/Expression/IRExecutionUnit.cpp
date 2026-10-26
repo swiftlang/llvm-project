@@ -1420,7 +1420,7 @@ lldb::ModuleSP IRExecutionUnit::CreateJITModule(const char *name) {
 
       FileSpec jit_file;
       jit_file.SetFilename(name);
-      jit_module_sp->SetFileSpecAndObjectName(jit_file, ConstString());
+      jit_module_sp->SetFileSpecAndObjectName(jit_file, std::string());
 
       target->GetImages().Append(jit_module_sp);
       return jit_module_sp;
