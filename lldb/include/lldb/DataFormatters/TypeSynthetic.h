@@ -78,10 +78,10 @@ public:
   // made to this ValueObject
   virtual lldb::ValueObjectSP GetSyntheticValue() { return nullptr; }
 
-  // if this function returns a non-empty ConstString, then clients are
+  // if this function returns a non-empty string, then clients are
   // expected to use the return as the name of the type of this ValueObject for
   // display purposes
-  virtual ConstString GetSyntheticTypeName() { return ConstString(); }
+  virtual std::string GetSyntheticTypeName() { return std::string(); }
 
   typedef std::shared_ptr<SyntheticChildrenFrontEnd> SharedPointer;
   typedef std::unique_ptr<SyntheticChildrenFrontEnd> UniquePointer;
@@ -459,7 +459,7 @@ public:
 
     lldb::ValueObjectSP GetSyntheticValue() override;
 
-    ConstString GetSyntheticTypeName() override;
+    std::string GetSyntheticTypeName() override;
 
     typedef std::shared_ptr<SyntheticChildrenFrontEnd> SharedPointer;
 
