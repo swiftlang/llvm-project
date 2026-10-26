@@ -782,7 +782,7 @@ public:
   lldb::ValueObjectSP GetChildAtIndex(uint32_t idx) override;
   lldb::ChildCacheState Update() override;
   bool MightHaveChildren() override;
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override;
 
 private:
   ValueObjectSP m_projected;
@@ -1048,12 +1048,12 @@ public:
 
   bool MightHaveChildren() override { return true; }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     ArrayRef children = TaskChildren;
     const auto *it = llvm::find(children, name);
     if (it == children.end())
       return llvm::createStringError("Type has no child named '%s'",
-                                     name.AsCString(""));
+                                     name.str().c_str());
     return std::distance(children.begin(), it);
   }
 
@@ -1126,7 +1126,7 @@ public:
     return {};
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (!m_task_sp)
       return m_backend.GetIndexOfChildWithName(name);
 
@@ -1134,7 +1134,7 @@ public:
       return 0;
 
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
   lldb::ChildCacheState Update() override {
@@ -1178,13 +1178,13 @@ public:
     return {};
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (!m_value_sp)
       return m_backend.GetIndexOfChildWithName(name);
     if (name == "value")
       return 0;
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
   lldb::ChildCacheState Update() override {
@@ -1283,7 +1283,7 @@ public:
     return {};
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (!m_task_sp)
       return m_backend.GetIndexOfChildWithName(name);
 
@@ -1291,7 +1291,7 @@ public:
       return 0;
 
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
   lldb::ChildCacheState Update() override {
@@ -1372,16 +1372,16 @@ public:
     return task_sp;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (!m_is_supported_target)
       return m_backend.GetIndexOfChildWithName(name);
 
-    StringRef buf = name.GetStringRef();
+    StringRef buf = name;
     size_t idx = UINT32_MAX;
     if (buf.consume_front("[") && !buf.consumeInteger(10, idx) && buf == "]")
       return idx;
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
   lldb::ChildCacheState Update() override {
@@ -1600,11 +1600,11 @@ public:
     return m_unprioritised_jobs_sp;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (m_is_supported_target && name == "unprioritised_jobs")
       return 0;
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
   lldb::ChildCacheState Update() override {
@@ -1790,15 +1790,14 @@ bool lldb_private::formatters::swift::EnumSyntheticFrontEnd::
 }
 
 llvm::Expected<size_t>
-lldb_private::formatters::swift::EnumSyntheticFrontEnd::GetIndexOfChildWithName(
-    ConstString name) {
+lldb_private::formatters::swift::EnumSyntheticFrontEnd::GetIndexOfChildWithName(llvm::StringRef name) {
   // Hide the indirection.
   if (m_indirect && m_projected)
     return m_projected->GetIndexOfChildWithName(name);
-  if (m_projected && name == m_projected->GetName())
+  if (m_projected && name == m_projected->GetName().GetStringRef())
     return 0;
   return llvm::createStringError("Type has no child named '%s'",
-                                 name.AsCString(""));
+                                 name.str().c_str());
 }
 
 SyntheticChildrenFrontEnd *

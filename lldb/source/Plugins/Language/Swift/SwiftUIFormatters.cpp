@@ -51,7 +51,7 @@ public:
     }
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (name == "lock")
       return 0;
     if (name == "value")
@@ -148,7 +148,7 @@ public:
     return nullptr;
   }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
     if (name == "wrappedValue")
       return 0;
     return llvm::createStringError(

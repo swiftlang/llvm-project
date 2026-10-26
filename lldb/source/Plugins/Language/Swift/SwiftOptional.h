@@ -54,7 +54,7 @@ public:
   /// Returns the optional child, this is only used by other
   /// dataformatters that need direct access.
   /// For example, for an Int??, this returns an Int? child.
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override;
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override;
   /// Returns the optional value's synthetic value.
   /// For example, for an Int??, this returns an Int.
   lldb::ValueObjectSP GetSyntheticValue() override;

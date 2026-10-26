@@ -720,7 +720,8 @@ public:
 #define COMPONENT(Name, PrettyName, ID)                                        \
   {                                                                            \
     auto index_or_err =                                                        \
-        m_synth_frontend_up->GetIndexOfChildWithName(g__##Name);               \
+        m_synth_frontend_up->GetIndexOfChildWithName(                          \
+            g__##Name.GetStringRef());                                         \
     if (!index_or_err) {                                                       \
       LLDB_LOG_ERROR(GetLog(LLDBLog::DataFormatters),                          \
                      index_or_err.takeError(), "{0}");                         \
@@ -739,13 +740,13 @@ public:
 
   bool MightHaveChildren() override { return true; }
 
-  llvm::Expected<size_t> GetIndexOfChildWithName(ConstString name) override {
+  llvm::Expected<size_t> GetIndexOfChildWithName(llvm::StringRef name) override {
 #define COMPONENT(Name, PrettyName, ID)                                        \
-  if (name == GetNameFor##Name())                                              \
+  if (name == GetNameFor##Name().GetStringRef())                               \
     return ID;
 #include "URLComponents.def"
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
   }
 
 private:

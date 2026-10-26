@@ -358,10 +358,10 @@ bool lldb_private::formatters::swift::SwiftOptionalSyntheticFrontEnd::
 }
 
 llvm::Expected<size_t> lldb_private::formatters::swift::
-    SwiftOptionalSyntheticFrontEnd::GetIndexOfChildWithName(ConstString name) {
+    SwiftOptionalSyntheticFrontEnd::GetIndexOfChildWithName(llvm::StringRef name) {
   if (IsEmpty())
     return llvm::createStringError("Type has no child named '%s'",
-                                   name.AsCString(""));
+                                   name.str().c_str());
 
   return m_some->GetIndexOfChildWithName(name);
 }
