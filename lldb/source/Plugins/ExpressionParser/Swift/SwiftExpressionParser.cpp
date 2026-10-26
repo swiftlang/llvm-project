@@ -70,21 +70,22 @@
 #include "clang/Basic/Module.h"
 
 #include "swift/AST/ASTContext.h"
+#include "swift/AST/ASTMangler.h"
 #include "swift/AST/DiagnosticConsumer.h"
 #include "swift/AST/DiagnosticEngine.h"
+#include "swift/AST/GenericEnvironment.h"
+#include "swift/AST/GenericParamList.h"
 #include "swift/AST/IRGenOptions.h"
 #include "swift/AST/IRGenRequests.h"
 #include "swift/AST/Import.h"
-#include "swift/AST/ASTMangler.h"
 #include "swift/AST/Module.h"
 #include "swift/AST/ModuleLoader.h"
-#include "swift/AST/GenericParamList.h"
-#include "swift/AST/GenericEnvironment.h"
 #include "swift/Basic/OptimizationMode.h"
 #include "swift/Basic/PrimarySpecificPaths.h"
 #include "swift/Basic/SourceManager.h"
 #include "swift/ClangImporter/ClangImporter.h"
 #include "swift/Demangling/Demangle.h"
+#include "swift/Demangling/Demangler.h"
 #include "swift/Frontend/Frontend.h"
 #include "swift/Parse/PersistentParserState.h"
 #include "swift/SIL/SILDebuggerClient.h"
@@ -743,6 +744,15 @@ AddRequiredAliases(Block *block, lldb_private::StackFrame &stack_frame,
   return llvm::Error::success();
 }
 
+static bool HasGenericParameters(llvm::StringRef mangled_name) {
+  swift::Demangle::Demangler dem;
+  bool found = false;
+  SwiftLanguageRuntime::ForEachGenericParameter(
+      dem.demangleSymbol(mangled_name),
+      [&](unsigned, unsigned) { found = true; });
+  return found;
+}
+
 static void ResolveSpecialNames(
     SymbolContext &sc, ExecutionContextScope &exe_scope,
     SwiftASTContextForExpressions &ast_context,
@@ -997,8 +1007,8 @@ MaterializeVariable(SwiftASTManipulatorBase::VariableInfo &variable,
         return make_error<StringError>(inconvertibleErrorCode(),
                                        "transformed type is empty");
 
-      actual_type =
-          ToCompilerType(transformed_type->mapTypeOutOfEnvironment().getPointer());
+      swift::Type interface_type = transformed_type->mapTypeOutOfEnvironment();
+      actual_type = ToCompilerType(interface_type.getPointer());
       auto swift_ast_ctx =
           actual_type.GetTypeSystem().dyn_cast_or_null<SwiftASTContext>();
       if (!swift_ast_ctx)
@@ -1011,11 +1021,31 @@ MaterializeVariable(SwiftASTManipulatorBase::VariableInfo &variable,
       // Hoist the type into the scratch typesystem.
       if (lldb::StackFrameSP frame_sp = stack_frame_wp.lock())
         if (auto *runtime =
-                SwiftLanguageRuntime::Get(frame_sp->CalculateProcess()))
-          if (auto rt = runtime->GetRuntimeType(actual_type,
-                                                ExecutionContext(frame_sp)))
+                SwiftLanguageRuntime::Get(frame_sp->CalculateProcess())) {
+          if (interface_type->hasTypeParameter()) {
+            auto bound_type_or_err =
+                runtime->BindGenericTypeParameters(*frame_sp, actual_type);
+            // Binding succeeds even if parameters without metadata remain.
+            if (!bound_type_or_err || !bound_type_or_err->IsValid() ||
+                HasGenericParameters(
+                    bound_type_or_err->GetMangledTypeName().GetStringRef())) {
+              std::string reason =
+                  bound_type_or_err
+                      ? "type metadata is missing"
+                      : llvm::toString(bound_type_or_err.takeError());
+              std::string message =
+                  "could not bind the generic parameters of the result type " +
+                  actual_type.GetDisplayTypeName().GetString() + ": " + reason;
+              diagnostic_manager.PutString(eSeverityError, message);
+              return llvm::createStringError(message);
+            }
+            actual_type = *bound_type_or_err;
+          } else if (auto rt = runtime->GetRuntimeType(
+                         actual_type, ExecutionContext(frame_sp))) {
             if (rt->IsValid())
               actual_type = *rt;
+          }
+        }
 
       offset = materializer.AddResultVariable(
           actual_type, false, true,

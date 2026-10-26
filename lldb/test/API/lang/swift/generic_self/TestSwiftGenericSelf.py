@@ -35,8 +35,8 @@ class TestSwiftGenericSelf(TestBase):
         target, process, thread, _ = lldbutil.run_to_source_breakpoint(
             self, "break 1", lldb.SBFileSpec("main.swift"))
         frame = thread.GetFrameAtIndex(0)
-        lldbutil.check_variable(self, self.expr(frame, "my_t"), use_dynamic=use_dynamic,
-                                value="3735928559")
+        lldbutil.check_variable(self, self.expr(frame, "my_t"),
+                                typename="Swift.Int", value="3735928559")
         lldbutil.check_variable(self, frame.GetValueForVariablePath("self.my_t"),
                                 value="3735928559")
         my_t = self.expr(frame, "self").GetChildMemberWithName("my_t")
@@ -49,7 +49,7 @@ class TestSwiftGenericSelf(TestBase):
         self.assertEqual(len(threads), 1)
         frame = threads[0].GetFrameAtIndex(0)
         s = self.expr(frame, "self")
-        lldbutil.check_variable(self, s, use_dynamic=use_dynamic, typename="a.S<Swift.Int>")
+        lldbutil.check_variable(self, s, typename="a.S<Swift.Int>")
         lldbutil.check_variable(self, s.GetChildMemberWithName("a"), value="12")
         s = frame.FindVariable("self")
         lldbutil.check_variable(self, s, use_dynamic=use_dynamic, typename="a.S<Swift.Int>")
