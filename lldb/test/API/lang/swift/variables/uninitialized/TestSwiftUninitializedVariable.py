@@ -28,5 +28,5 @@ class TestSwiftUninitializedVariable(TestBase):
         self.assertEqual(len(threads), 1)
         frame = threads[0].GetFrameAtIndex(0)
         # k2 and k3 are still uninitialized here; the expression must ignore them.
-        lldbutil.check_variable(self, self.expr(frame, "c"), use_dynamic=True,
-                                value="3")
+        lldbutil.check_variable(self, self.expr(frame, "c"),
+                                typename="Swift.Int", value="3")
