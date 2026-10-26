@@ -2044,8 +2044,8 @@ protected:
 
     bool MightHaveChildren() override { return true; }
 
-    ConstString GetSyntheticTypeName() override {
-      return m_projection->type_name;
+    std::string GetSyntheticTypeName() override {
+      return m_projection->type_name.GetString();
     }
 
   private:
