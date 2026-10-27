@@ -5,7 +5,7 @@
 
 #include <ptrcheck.h>
 
-// CHECK-LABEL: define dso_local signext i8 @for_cond_inc(
+// CHECK-LABEL: define dso_local i8 @for_cond_inc(
 // CHECK-SAME: ptr noundef [[P:%.*]], i64 noundef [[LEN:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[P_ADDR:%.*]] = alloca ptr, align 8

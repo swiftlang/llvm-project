@@ -9,7 +9,7 @@
 char array[256];
 char *__counted_by(256) p = array;
 
-// CHECK-LABEL: define dso_local signext i8 @foo(
+// CHECK-LABEL: define dso_local i8 @foo(
 // CHECK-SAME: i32 noundef [[I:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[I_ADDR:%.*]] = alloca i32, align 4
