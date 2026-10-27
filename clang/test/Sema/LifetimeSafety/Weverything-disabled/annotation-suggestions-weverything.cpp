@@ -7,12 +7,12 @@
 //
 // RUN: %clang_cc1 %{common} -Weverything -verify=none %t/test_source.cpp
 // RUN: %clang_cc1 %{common} -Weverything -Werror -Wno-error=lifetime-safety-intra-tu-suggestions -Wno-error=lifetime-safety-cross-tu-suggestions -verify=none %t/test_source.cpp
-// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-suggestions -verify=enabled %t/test_source.cpp
-// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-intra-tu-suggestions -verify=enabled %t/test_source.cpp
-// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-cross-tu-suggestions -verify=enabled %t/test_source.cpp
+// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-suggestions -verify=cross,intra %t/test_source.cpp
+// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-intra-tu-suggestions -verify=intra %t/test_source.cpp
+// RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-cross-tu-suggestions -verify=cross %t/test_source.cpp
 // RUN: %clang_cc1 %{common} -Weverything -Wlifetime-safety-suggestions \
 // RUN:   -Wno-lifetime-safety-suggestions -verify=none %t/test_source.cpp
-// RUN: %clang_cc1 %{common} -Wlifetime-safety-suggestions -verify=enabled %t/test_source.cpp
+// RUN: %clang_cc1 %{common} -Wlifetime-safety-suggestions -verify=cross,intra %t/test_source.cpp
 
 //--- test_header.h
 struct [[gsl::Pointer]] View {
@@ -21,26 +21,26 @@ struct [[gsl::Pointer]] View {
 };
 
 // Cross-TU param suggestion.
-View cross_tu_param(View a); // enabled-warning {{parameter in cross-TU function should be marked [[clang::lifetimebound]]}}
+View cross_tu_param(View a); // cross-warning {{parameter in cross-TU function should be marked [[clang::lifetimebound]]}}
 
 //--- test_source.cpp
 // none-no-diagnostics
 #include "test_header.h"
 
-View cross_tu_param(View a) { return a; } // enabled-note {{param returned here}}
+View cross_tu_param(View a) { return a; } // cross-note {{param returned here}}
 
 // Intra-TU param suggestion.
-inline View intra_tu_param(View a) { // enabled-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
-  return a;                          // enabled-note {{param returned here}}
+inline View intra_tu_param(View a) { // intra-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+  return a;                          // intra-note {{param returned here}}
 }
 
 // Intra-TU constructor param suggestion.
 struct Capture {
-  Capture(const int &x) : p(&x) {} // enabled-warning {{parameter in intra-TU constructor should be marked [[clang::lifetimebound]]}}
-  const int *p;                    // enabled-note {{escapes to this field}}
+  Capture(const int &x) : p(&x) {} // intra-warning {{parameter in intra-TU constructor should be marked [[clang::lifetimebound]]}}
+  const int *p;                    // intra-note {{escapes to this field}}
 };
 
 // Intra-TU 'this' suggestion.
 struct S {
-  const S &get() const { return *this; } // enabled-warning {{implicit this in intra-TU function should be marked [[clang::lifetimebound]]}}
-};                                       // enabled-note@-1 {{param returned here}}
+  const S &get() const { return *this; } // intra-warning {{implicit this in intra-TU function should be marked [[clang::lifetimebound]]}}
+};                                       // intra-note@-1 {{param returned here}}

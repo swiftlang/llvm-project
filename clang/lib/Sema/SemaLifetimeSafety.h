@@ -39,6 +39,17 @@ inline bool IsDiagExplicitlyEnabled(const DiagnosticsEngine &Diags,
   return false;
 }
 
+/// Returns true if \p DiagID is enabled at \p Loc, ignoring enablement that
+/// comes only from -Weverything.
+inline bool IsDiagEnabledExcludingWeverything(const DiagnosticsEngine &Diags,
+                                              unsigned DiagID,
+                                              SourceLocation Loc) {
+  if (Diags.isIgnored(DiagID, Loc))
+    return false;
+  return !Diags.getEnableAllWarnings() ||
+         IsDiagExplicitlyEnabled(Diags, DiagID);
+}
+
 inline bool ShouldCheckSafety(Sema &S, const Decl *D) {
   DiagnosticsEngine &Diags = S.getDiagnostics();
   constexpr unsigned DiagIDs[] = {
@@ -56,20 +67,25 @@ inline bool ShouldCheckSafety(Sema &S, const Decl *D) {
       diag::warn_lifetime_safety_dangling_global_in_main,
       diag::warn_lifetime_safety_invalidated_field,
       diag::warn_lifetime_safety_invalidated_global};
+  // Don't enable this via -Weverything - see rdar://190623069.
   for (unsigned DiagID : DiagIDs)
-    if (!Diags.isIgnored(DiagID, D->getBeginLoc()))
+    if (IsDiagEnabledExcludingWeverything(Diags, DiagID, D->getBeginLoc()))
       return true;
   return false;
 }
 
 inline bool ShouldCheckNoescapeViolations(Sema &S, const Decl *D) {
-  return !S.getDiagnostics().isIgnored(
-      diag::warn_lifetime_safety_noescape_escapes, D->getBeginLoc());
+  // Don't enable this via -Weverything - see rdar://190623069.
+  return IsDiagEnabledExcludingWeverything(
+      S.getDiagnostics(), diag::warn_lifetime_safety_noescape_escapes,
+      D->getBeginLoc());
 }
 
 inline bool ShouldCheckLifetimeboundViolations(Sema &S, const Decl *D) {
-  return !S.getDiagnostics().isIgnored(
-      diag::warn_lifetime_safety_lifetimebound_violation, D->getBeginLoc());
+  // Don't enable this via -Weverything - see rdar://190623069.
+  return IsDiagEnabledExcludingWeverything(
+      S.getDiagnostics(), diag::warn_lifetime_safety_lifetimebound_violation,
+      D->getBeginLoc());
 }
 
 inline bool ShouldCheckMisplacedLifetimebound(Sema &S, const Decl *D) {
@@ -77,25 +93,25 @@ inline bool ShouldCheckMisplacedLifetimebound(Sema &S, const Decl *D) {
   constexpr unsigned DiagIDs[] = {
       diag::warn_lifetime_safety_cross_tu_misplaced_lifetimebound,
       diag::warn_lifetime_safety_intra_tu_misplaced_lifetimebound};
+  // Don't enable this via -Weverything - see rdar://190623069.
   for (unsigned DiagID : DiagIDs)
-    if (!Diags.isIgnored(DiagID, D->getBeginLoc()))
+    if (IsDiagEnabledExcludingWeverything(Diags, DiagID, D->getBeginLoc()))
       return true;
   return false;
 }
 
 inline bool ShouldCheckInapplicableLifetimebound(Sema &S, const Decl *D) {
-  return !S.getDiagnostics().isIgnored(
-      diag::warn_lifetime_safety_inapplicable_lifetimebound, D->getBeginLoc());
+  // Don't enable this via -Weverything - see rdar://190623069.
+  return IsDiagEnabledExcludingWeverything(
+      S.getDiagnostics(), diag::warn_lifetime_safety_inapplicable_lifetimebound,
+      D->getBeginLoc());
 }
 
 inline bool ShouldCheckFieldOriginEscape(Sema &S, const Decl *D) {
   // Don't enable this via -Weverything - see rdar://190623069.
-  const DiagnosticsEngine &Diags = S.getDiagnostics();
-  unsigned DiagID = diag::warn_lifetime_safety_field_origin_escape;
-  if (Diags.isIgnored(DiagID, D->getBeginLoc()))
-    return false;
-  return !Diags.getEnableAllWarnings() ||
-         IsDiagExplicitlyEnabled(Diags, DiagID);
+  return IsDiagEnabledExcludingWeverything(
+      S.getDiagnostics(), diag::warn_lifetime_safety_field_origin_escape,
+      D->getBeginLoc());
 }
 
 inline bool ShouldCheckDestructorUses(Sema &S, const Decl *D) {
@@ -120,9 +136,7 @@ inline bool ShouldSuggestLifetimeAnnotations(Sema &S, const Decl *D) {
       diag::warn_lifetime_safety_cross_tu_this_suggestion};
   // Don't enable these via -Weverything - see rdar://190709787.
   for (unsigned DiagID : DiagIDs) {
-    if (Diags.isIgnored(DiagID, D->getBeginLoc()))
-      continue;
-    if (!Diags.getEnableAllWarnings() || IsDiagExplicitlyEnabled(Diags, DiagID))
+    if (IsDiagEnabledExcludingWeverything(Diags, DiagID, D->getBeginLoc()))
       return true;
   }
   return false;
@@ -189,6 +203,7 @@ public:
     else
       DiagID = MovedExpr ? diag::warn_lifetime_safety_use_after_scope_moved
                          : diag::warn_lifetime_safety_use_after_scope;
+
     std::string DestroyedSubject = getDiagSubjectDescription(IssueExpr);
 
     S.Diag(IssueExpr->getExprLoc(), DiagID)
@@ -208,6 +223,9 @@ public:
     unsigned DiagID = MovedExpr
                           ? diag::warn_lifetime_safety_return_stack_addr_moved
                           : diag::warn_lifetime_safety_return_stack_addr;
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, IssueExpr->getExprLoc()))
+      return;
 
     S.Diag(IssueExpr->getExprLoc(), DiagID)
         << getDiagSubjectDescription(IssueExpr) << IssueExpr->getSourceRange();
@@ -230,6 +248,9 @@ public:
             ? diag::warn_lifetime_safety_dangling_field_lambda_capture
             : (MovedExpr ? diag::warn_lifetime_safety_dangling_field_moved
                          : diag::warn_lifetime_safety_dangling_field);
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, IssueExpr->getExprLoc()))
+      return;
 
     S.Diag(IssueExpr->getExprLoc(), DiagID)
         << getDiagSubjectDescription(IssueExpr)
@@ -257,6 +278,9 @@ public:
       DiagID = MovedExpr ? diag::warn_lifetime_safety_dangling_global_moved
                          : diag::warn_lifetime_safety_dangling_global;
     }
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, IssueExpr->getExprLoc()))
+      return;
 
     S.Diag(IssueExpr->getExprLoc(), DiagID)
         << getDiagSubjectDescription(IssueExpr)
@@ -297,6 +321,11 @@ public:
                               const FieldDecl *DanglingField,
                               const Expr *InvalidationExpr,
                               llvm::ArrayRef<const Expr *> ExprChain) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_invalidated_field,
+            IssueExpr->getExprLoc()))
+      return;
     std::string InvalidatedSubject = getDiagSubjectDescription(IssueExpr);
     S.Diag(IssueExpr->getExprLoc(),
            diag::warn_lifetime_safety_invalidated_field)
@@ -313,6 +342,11 @@ public:
                               const FieldDecl *DanglingField,
                               const Expr *InvalidationExpr,
                               llvm::ArrayRef<const Expr *> ExprChain) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_invalidated_field,
+            PVD->getSourceRange().getBegin()))
+      return;
     std::string InvalidatedSubject = getDiagSubjectDescription(PVD);
     S.Diag(PVD->getSourceRange().getBegin(),
            diag::warn_lifetime_safety_invalidated_field)
@@ -329,6 +363,11 @@ public:
   reportInvalidatedGlobal(const Expr *IssueExpr, const VarDecl *DanglingGlobal,
                           const Expr *InvalidationExpr,
                           llvm::ArrayRef<const Expr *> ExprChain) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_invalidated_global,
+            IssueExpr->getExprLoc()))
+      return;
     std::string InvalidatedSubject = getDiagSubjectDescription(IssueExpr);
     S.Diag(IssueExpr->getExprLoc(),
            diag::warn_lifetime_safety_invalidated_global)
@@ -350,6 +389,11 @@ public:
   reportInvalidatedGlobal(const ParmVarDecl *PVD, const VarDecl *DanglingGlobal,
                           const Expr *InvalidationExpr,
                           llvm::ArrayRef<const Expr *> ExprChain) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_invalidated_global,
+            PVD->getSourceRange().getBegin()))
+      return;
     std::string InvalidatedSubject = getDiagSubjectDescription(PVD);
     S.Diag(PVD->getSourceRange().getBegin(),
            diag::warn_lifetime_safety_invalidated_global)
@@ -381,6 +425,9 @@ public:
                    : diag::warn_lifetime_safety_intra_tu_param_suggestion;
 
     auto [InsertionPoint, FixItText] = getLifetimeBoundFixIt(ParmToAnnotate);
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, InsertionPoint))
+      return;
 
     S.Diag(InsertionPoint, DiagID)
         << ParmToAnnotate->getSourceRange()
@@ -401,6 +448,11 @@ public:
     const auto *Attr = ParmWithLifetimebound->getAttr<LifetimeBoundAttr>();
     StringRef ParamName = ParmWithLifetimebound->getName();
     bool HasName = ParamName.size() > 0;
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_lifetimebound_violation,
+            Attr->getLocation()))
+      return;
     S.Diag(Attr->getLocation(),
            diag::warn_lifetime_safety_lifetimebound_violation)
         << HasName << ParamName << Attr->getRange();
@@ -411,6 +463,11 @@ public:
     const auto *Attr =
         getImplicitObjectParamLifetimeBoundAttr(MDWithLifetimebound);
     assert(Attr && "Expected lifetimebound attribute");
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_lifetimebound_violation,
+            Attr->getLocation()))
+      return;
     S.Diag(Attr->getLocation(),
            diag::warn_lifetime_safety_lifetimebound_violation)
         << 2 << "" << Attr->getRange();
@@ -425,6 +482,9 @@ public:
         Scope == WarningScope::CrossTU
             ? diag::warn_lifetime_safety_cross_tu_misplaced_lifetimebound
             : diag::warn_lifetime_safety_intra_tu_misplaced_lifetimebound;
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, FDecl->getLocation()))
+      return;
 
     auto [InsertionPoint, FixItText] = getLifetimeBoundFixIt(FDecl);
 
@@ -452,6 +512,9 @@ public:
         Scope == WarningScope::CrossTU
             ? diag::warn_lifetime_safety_cross_tu_misplaced_lifetimebound
             : diag::warn_lifetime_safety_intra_tu_misplaced_lifetimebound;
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, PVDDecl->getBeginLoc()))
+      return;
 
     auto [InsertionPoint, FixItText] = getLifetimeBoundFixIt(PVDDecl);
 
@@ -474,6 +537,11 @@ public:
     assert(PVD->hasAttr<LifetimeBoundAttr>() &&
            "Expected parameter to have lifetimebound attribute");
     const auto *Attr = PVD->getAttr<LifetimeBoundAttr>();
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_inapplicable_lifetimebound,
+            Attr->getLocation()))
+      return;
     S.Diag(Attr->getLocation(),
            diag::warn_lifetime_safety_inapplicable_lifetimebound)
         << PVD->getType() << Attr->getRange();
@@ -487,6 +555,9 @@ public:
                           : diag::warn_lifetime_safety_intra_tu_this_suggestion;
 
     auto [InsertionPoint, FixItText] = getLifetimeBoundFixIt(MD);
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, InsertionPoint))
+      return;
 
     S.Diag(InsertionPoint, DiagID)
         << MD->getNameInfo().getSourceRange()
@@ -499,6 +570,10 @@ public:
 
   void reportFieldOriginEscape(const CXXMethodDecl *MD, const FieldDecl *FD,
                                const Expr *EscapeExpr) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_field_origin_escape, MD->getLocation()))
+      return;
     std::string FieldDesc = getDiagSubjectDescription(FD);
     S.Diag(MD->getLocation(), diag::warn_lifetime_safety_field_origin_escape)
         << FieldDesc << MD->getNameInfo().getSourceRange();
@@ -515,6 +590,11 @@ public:
 
   void reportNoescapeViolation(const ParmVarDecl *ParmWithNoescape,
                                const Expr *EscapeExpr) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_noescape_escapes,
+            ParmWithNoescape->getBeginLoc()))
+      return;
     S.Diag(ParmWithNoescape->getBeginLoc(),
            diag::warn_lifetime_safety_noescape_escapes)
         << ParmWithNoescape->getSourceRange();
@@ -526,6 +606,11 @@ public:
 
   void reportNoescapeViolation(const ParmVarDecl *ParmWithNoescape,
                                const FieldDecl *EscapeField) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_noescape_escapes,
+            ParmWithNoescape->getBeginLoc()))
+      return;
     S.Diag(ParmWithNoescape->getBeginLoc(),
            diag::warn_lifetime_safety_noescape_escapes)
         << ParmWithNoescape->getSourceRange();
@@ -537,6 +622,11 @@ public:
 
   void reportNoescapeViolation(const ParmVarDecl *ParmWithNoescape,
                                const VarDecl *EscapeGlobal) override {
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(
+            diag::warn_lifetime_safety_noescape_escapes,
+            ParmWithNoescape->getBeginLoc()))
+      return;
     S.Diag(ParmWithNoescape->getBeginLoc(),
            diag::warn_lifetime_safety_noescape_escapes)
         << ParmWithNoescape->getSourceRange();
@@ -640,9 +730,13 @@ private:
                                       const Expr *InvalidationExpr,
                                       llvm::ArrayRef<const Expr *> ExprChain,
                                       const UseSite &Use) {
-    S.Diag(IssueLoc, getInvalidationWarnDiag(
-                         isa<CXXDeleteExpr>(InvalidationExpr), Use.getKind()))
-        << InvalidatedSubject << IssueRange;
+    auto WarnDiag = getInvalidationWarnDiag(
+        isa<CXXDeleteExpr>(InvalidationExpr), Use.getKind());
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(WarnDiag, IssueLoc))
+      return;
+
+    S.Diag(IssueLoc, WarnDiag) << InvalidatedSubject << IssueRange;
     reportInvalidationSite(InvalidationExpr, InvalidatedSubject);
     reportAliasingChain(ExprChain);
     reportUseNote(Use);
@@ -749,6 +843,14 @@ private:
     return {InsertionPoint,
             getLifetimeBoundFixItText(InsertionPoint, /*LeadingSpace=*/true,
                                       /*AllowGNUAttrMacro=*/false)};
+  }
+
+  /// Reports are emitted unconditionally by the analysis, so make sure none of
+  /// them leaks out because of -Weverything alone - see rdar://190623069.
+  bool IsDiagEnabledExcludingWeverything(unsigned DiagID,
+                                         SourceLocation Loc) const {
+    const DiagnosticsEngine &Diags = S.getDiagnostics();
+    return lifetimes::IsDiagEnabledExcludingWeverything(Diags, DiagID, Loc);
   }
 
   std::string getDiagSubjectDescription(const ValueDecl *VD) {
