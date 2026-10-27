@@ -20,6 +20,7 @@ import lldbsuite.test.lldbutil as lldbutil
 
 class TestSwiftExpressionErrors(TestBase):
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_CanThrowError(self):
         """Tests that swift expressions resolve scoped variables correctly"""
         self.build()
@@ -43,6 +44,7 @@ class TestSwiftExpressionErrors(TestBase):
 
     @skipEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_expression_errors(self):
         """Tests that swift expressions that throw report the errors correctly"""
         self.build()

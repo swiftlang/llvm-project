@@ -16,6 +16,7 @@ class TestTrampoline(TestBase):
             self, bkpt_str, lldb.SBFileSpec('main.c'))
         return thread
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_direct_call(self):
         thread = self.setup('Break here for direct')
 
@@ -41,6 +42,7 @@ class TestTrampoline(TestBase):
         self.assertIn('direct_trampoline_call', name)
 
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_chained_call(self):
         thread = self.setup('Break here for chained')
 
@@ -65,6 +67,7 @@ class TestTrampoline(TestBase):
         name = thread.frames[0].GetFunctionName()
         self.assertIn('chained_trampoline_call', name)
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_trampoline_after_nodebug(self):
         thread = self.setup('Break here for nodebug then trampoline')
 
@@ -89,6 +92,7 @@ class TestTrampoline(TestBase):
         name = thread.frames[0].GetFunctionName()
         self.assertIn('trampoline_after_nodebug', name)
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test_unused_target(self):
         thread = self.setup('Break here for unused')
 

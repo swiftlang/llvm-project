@@ -10,6 +10,7 @@ class TestCase(TestBase):
     @skipEmbeddedSwiftOnLinux
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

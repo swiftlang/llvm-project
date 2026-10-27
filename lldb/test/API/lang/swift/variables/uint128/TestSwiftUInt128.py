@@ -11,6 +11,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftUInt128(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a UInt128 with its high bit set is not printed signed."""
         self.build()

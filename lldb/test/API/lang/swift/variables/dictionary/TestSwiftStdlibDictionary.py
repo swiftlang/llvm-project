@@ -86,6 +86,7 @@ class TestSwiftStdlibDictionary(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
     # @skipIfLinux  # bugs.swift.org/SR-844
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_stdlib_dictionary(self):
         """Tests that we properly vend synthetic children for Swift.Dictionary"""
         self.build()

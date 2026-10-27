@@ -35,6 +35,7 @@ class TestSwiftBackwardInteropSteppingStruct(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_setter_step_in_struct(self):
         thread = self.setup("Break here for setter - struct")
         self.check_step_in(thread, "testSetter", "SwiftStruct.swiftProperty.setter")

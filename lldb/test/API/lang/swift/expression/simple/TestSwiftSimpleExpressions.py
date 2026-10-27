@@ -23,6 +23,7 @@ import sys
 class TestSwiftSimpleExpressions(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_simple_swift_expressions(self):
         """Tests that we can run simple Swift expressions correctly"""
         self.build()

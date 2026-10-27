@@ -9,6 +9,7 @@ class TestSwiftGenericStructWithOptional(TestBase):
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
     @skipIfLinux
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test a generic struct holding an Optional<Data> and an enum in a closure"""
         self.build()

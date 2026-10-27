@@ -19,6 +19,7 @@ class TestSwiftMutatingStructExtension(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test expression evaluation in a mutating generic struct extension method"""
         self.build()

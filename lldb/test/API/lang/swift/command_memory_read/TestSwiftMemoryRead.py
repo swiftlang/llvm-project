@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestCase(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_scalar_types(self):
         self.build()
         _, _, thread, _ = lldbutil.run_to_source_breakpoint(

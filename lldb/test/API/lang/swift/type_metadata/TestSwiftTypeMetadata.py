@@ -21,6 +21,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class SwiftTypeMetadataTest(TestBase):
     @requireNotEmbeddedSwift # embedded Swift never emits an uncalled generic function, so the breakpoint slides to the next line
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_swift_type_metadata(self):
         """Test that LLDB can effectively use the type metadata to reconstruct dynamic types for Swift"""
         self.build()

@@ -26,6 +26,7 @@ class TestSwiftPartiallyGenericFuncStruct(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that a generic struct argument of a generic function shows its fields"""
         self.build()

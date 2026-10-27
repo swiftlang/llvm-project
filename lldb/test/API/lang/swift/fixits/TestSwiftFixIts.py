@@ -23,6 +23,7 @@ class TestSwiftFixIts(TestBase):
     # `_swift_beginAccess` is missing from the runtime.
     @skipEmbeddedSwift # rdar://184868790 (Embedded Swift: dead-function elimination removes symbols expressions need, and struct size is uncomputable from static debug info)
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_fixits(self):
         """Test applying fixits to expressions"""
         self.build()

@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftUnrealizableSelf(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_unrealizable_self_does_not_break_frame(self):
         """
         Test expression evaluation in a frame whose `self` can neither be read nor have

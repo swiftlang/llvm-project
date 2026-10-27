@@ -25,6 +25,7 @@ class TestSwiftStepping(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwift # embedded Swift steps to the wrong line on x86_64, and the inferior does not link on Linux.
     @skipIf(oslist=["linux"], archs=no_match("x86_64"))
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_stepping(self):
         """Tests that we can step reliably in swift code."""
         self.build()

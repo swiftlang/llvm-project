@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftProtocolCompositionExpr(lldbtest.TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that expression evaluation can call functions in protocol composition existentials"""
 

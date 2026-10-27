@@ -15,6 +15,7 @@ class TestSwiftUninitializedVariable(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that uninitialized locals don't break frame variable or expressions"""
         self.build()

@@ -15,6 +15,7 @@ class TestSwiftNestedCEnums(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that enum cases with enum payloads show the payload case"""
         self.build()

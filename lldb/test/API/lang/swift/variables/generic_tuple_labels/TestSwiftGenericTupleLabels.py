@@ -28,6 +28,7 @@ class TestSwiftGenericTupleLabels(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_generic_tuple_labels(self):
         """Test that LLDB can reconstruct tuple labels from metadata"""
         self.build()

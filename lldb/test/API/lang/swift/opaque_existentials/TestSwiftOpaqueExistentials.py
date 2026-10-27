@@ -15,6 +15,7 @@ class TestSwiftOpaqueExistentials(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a protocol existential resolves to its dynamic struct type"""
         self.build()

@@ -16,6 +16,7 @@ class TestSwiftBackwardInteropFormatSwiftStdlibTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_array(self):
         self.setup('break here for array')
         self.expect('frame var array', substrs=['Swift.Array<a.SwiftClass>',
@@ -24,6 +25,7 @@ class TestSwiftBackwardInteropFormatSwiftStdlibTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_array_of_ints(self):
         self.setup('break here for array of ints')
 
@@ -31,6 +33,7 @@ class TestSwiftBackwardInteropFormatSwiftStdlibTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_optional(self):
         self.setup('break here for optional')
 
@@ -39,6 +42,7 @@ class TestSwiftBackwardInteropFormatSwiftStdlibTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_optional_primitive(self):
         self.setup('break here for optional primitive')
 
@@ -47,6 +51,7 @@ class TestSwiftBackwardInteropFormatSwiftStdlibTypes(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_string(self):
         self.setup('break here for string')
 

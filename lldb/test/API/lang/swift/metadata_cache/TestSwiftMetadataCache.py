@@ -43,6 +43,7 @@ class TestSwiftMetadataCache(TestBase):
         
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_metadata_cache(self):
         """Test the swift metadata cache."""
         

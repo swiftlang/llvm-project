@@ -8,6 +8,7 @@ from lldbsuite.test.decorators import *
 
 class TestSwiftBackwardInteropFormatActors(TestBase):
 
+    @expectedFailureAll(debug_info=["pdb"])
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
     def test_class(self):

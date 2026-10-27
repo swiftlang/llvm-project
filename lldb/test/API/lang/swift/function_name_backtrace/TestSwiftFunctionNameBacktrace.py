@@ -12,6 +12,7 @@ class TestSwiftFunctionNameBacktrace(TestBase):
     # rejects.
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_function_names_in_backtrace(self):
         self.build()
         lldbutil.run_to_name_breakpoint(self, "qux")

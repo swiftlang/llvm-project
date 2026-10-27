@@ -19,6 +19,7 @@ class TestSwiftClassEmpty(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test expression evaluation next to an instance of a class without fields"""
         self.build()

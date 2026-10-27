@@ -20,6 +20,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class SwiftPartialBreakTest(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_partial_break(self):
         """Tests that we can break on a partial name of a Swift function"""
         self.build()

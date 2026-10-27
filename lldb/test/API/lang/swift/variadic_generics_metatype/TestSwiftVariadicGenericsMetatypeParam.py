@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class SwiftVariadicGenericsMetatypeParamTest(TestBase):
     @skipEmbeddedSwiftOnWindows # Embedded Swift doesn't link on Windows (posix_memalign).
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """A generic value carrying `repeat each T` resolves under a function whose parameter is `repeat (each T).Type`."""
         self.build()

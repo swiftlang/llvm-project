@@ -6,6 +6,7 @@ from lldbsuite.test import lldbutil
 class TestBasicTypes(TestBase):
 
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
 

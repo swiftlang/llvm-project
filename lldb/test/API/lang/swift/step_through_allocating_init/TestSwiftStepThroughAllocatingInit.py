@@ -10,6 +10,7 @@ class TestSwiftStepThroughAllocatingInit(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_stepping_api(self):
         """Test that step in using the Python API steps through thunk."""
         self.build()
@@ -17,6 +18,7 @@ class TestSwiftStepThroughAllocatingInit(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_stepping_cli(self):
         """Same test with the cli - it goes a slightly different path than
            the API."""

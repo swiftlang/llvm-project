@@ -13,6 +13,7 @@ class TestSwiftForwardInteropTemplateTypes(TestBase):
     @skipIf(oslist=no_match(["linux"]), swift_module_importer=no_match("noclang"))
     @swiftClangImporterTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         

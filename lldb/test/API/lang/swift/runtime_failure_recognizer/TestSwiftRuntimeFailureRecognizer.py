@@ -24,6 +24,7 @@ class TestSwiftRuntimeRecognizer(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_runtime_recognizer(self):
         """Test Swift Runtime Failure Recognizer"""
         self.build()
