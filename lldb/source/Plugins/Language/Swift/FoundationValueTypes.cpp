@@ -470,6 +470,9 @@ bool lldb_private::formatters::swift::Data_SummaryProvider(
     static constexpr llvm::StringLiteral g_upperBound("upperBound");
     ValueObjectSP upper_bound_sp =
         slice_storage_sp->GetChildAtNamePath({g_upperBound});
+    // Newer stdlibs store Range's bounds as `_lowerBound` and `_upperBound`.
+    if (!upper_bound_sp)
+      upper_bound_sp = slice_storage_sp->GetChildAtNamePath({"_upperBound"});
     if (!upper_bound_sp)
       return false;
 
@@ -481,6 +484,8 @@ bool lldb_private::formatters::swift::Data_SummaryProvider(
     static constexpr llvm::StringLiteral g_lowerBound("lowerBound");
     ValueObjectSP lower_bound_sp =
         slice_storage_sp->GetChildAtNamePath({g_lowerBound});
+    if (!lower_bound_sp)
+      lower_bound_sp = slice_storage_sp->GetChildAtNamePath({"_lowerBound"});
     if (!lower_bound_sp)
       return false;
 
@@ -545,6 +550,9 @@ bool lldb_private::formatters::swift::Data_SummaryProvider(
     // We need to manually calculate range.upperBound - range.lowerBound.
     static constexpr llvm::StringLiteral g_upperBound("upperBound");
     ValueObjectSP upper_bound_sp = range_sp->GetChildAtNamePath({g_upperBound});
+    // Newer stdlibs store Range's bounds as `_lowerBound` and `_upperBound`.
+    if (!upper_bound_sp)
+      upper_bound_sp = range_sp->GetChildAtNamePath({"_upperBound"});
     if (!upper_bound_sp)
       return false;
 
@@ -555,6 +563,8 @@ bool lldb_private::formatters::swift::Data_SummaryProvider(
 
     static constexpr llvm::StringLiteral g_lowerBound("lowerBound");
     ValueObjectSP lower_bound_sp = range_sp->GetChildAtNamePath({g_lowerBound});
+    if (!lower_bound_sp)
+      lower_bound_sp = range_sp->GetChildAtNamePath({"_lowerBound"});
     if (!lower_bound_sp)
       return false;
 
