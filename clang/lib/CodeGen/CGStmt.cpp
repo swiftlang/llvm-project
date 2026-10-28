@@ -1846,6 +1846,18 @@ void CodeGenFunction::EmitCaseStmtRange(const CaseStmt &S,
     Builder.ClearInsertionPoint();
 }
 
+/// Returns true if the case label expression \p E names an enumerator that is
+/// unavailable in the current availability domain configuration. Such an
+/// enumerator can't be instantiated at runtime, so the switch condition never
+/// has its value.
+static bool isNeverMatchedCaseLabel(const ASTContext &Ctx, const Expr *E) {
+  const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts());
+  if (!DRE)
+    return false;
+  const auto *ECD = dyn_cast<EnumConstantDecl>(DRE->getDecl());
+  return ECD && Ctx.hasUnavailableFeature(ECD);
+}
+
 void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
                                    ArrayRef<const Attr *> Attrs) {
   // If there is no enclosing switch instance that we're aware of, then this
@@ -1867,6 +1879,11 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
   llvm::ConstantInt *CaseVal =
     Builder.getInt(S.getLHS()->EvaluateKnownConstInt(getContext()));
 
+  // Leave the value of a never matched case out of the switch instruction. The
+  // statements of the case are still emitted, because a preceding case can fall
+  // through into them, but the block that holds them is otherwise unreachable.
+  bool NeverMatches = isNeverMatchedCaseLabel(getContext(), S.getLHS());
+
   // Emit debuginfo for the case value if it is an enum value.
   const ConstantExpr *CE;
   if (auto ICE = dyn_cast<ImplicitCastExpr>(S.getLHS()))
@@ -1881,7 +1898,7 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
               APValue(llvm::APSInt(CaseVal->getValue())));
   }
 
-  if (SwitchLikelihood)
+  if (SwitchLikelihood && !NeverMatches)
     SwitchLikelihood->push_back(Stmt::getLikelihood(Attrs));
 
   // If the body of the case is just a 'break', try to not emit an empty block.
@@ -1894,9 +1911,11 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
 
     // Only do this optimization if there are no cleanups that need emitting.
     if (isObviouslyBranchWithoutCleanups(Block)) {
-      if (SwitchWeights)
-        SwitchWeights->push_back(getProfileCount(&S));
-      SwitchInsn->addCase(CaseVal, Block.getBlock());
+      if (!NeverMatches) {
+        if (SwitchWeights)
+          SwitchWeights->push_back(getProfileCount(&S));
+        SwitchInsn->addCase(CaseVal, Block.getBlock());
+      }
 
       // If there was a fallthrough into this case, make sure to redirect it to
       // the end of the switch as well.
@@ -1910,9 +1929,11 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
 
   llvm::BasicBlock *CaseDest = createBasicBlock("sw.bb");
   EmitBlockWithFallThrough(CaseDest, &S);
-  if (SwitchWeights)
-    SwitchWeights->push_back(getProfileCount(&S));
-  SwitchInsn->addCase(CaseVal, CaseDest);
+  if (!NeverMatches) {
+    if (SwitchWeights)
+      SwitchWeights->push_back(getProfileCount(&S));
+    SwitchInsn->addCase(CaseVal, CaseDest);
+  }
 
   // Recursively emitting the statement is acceptable, but is not wonderful for
   // code where we have many case statements nested together, i.e.:
@@ -1935,8 +1956,10 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
     CurCase = NextCase;
     llvm::ConstantInt *CaseVal =
       Builder.getInt(CurCase->getLHS()->EvaluateKnownConstInt(getContext()));
+    bool NeverMatches =
+        isNeverMatchedCaseLabel(getContext(), CurCase->getLHS());
 
-    if (SwitchWeights)
+    if (SwitchWeights && !NeverMatches)
       SwitchWeights->push_back(getProfileCount(NextCase));
     if (CGM.getCodeGenOpts().hasProfileClangInstr()) {
       CaseDest = createBasicBlock("sw.bb");
@@ -1944,10 +1967,11 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
     }
     // Since this loop is only executed when the CaseStmt has no attributes
     // use a hard-coded value.
-    if (SwitchLikelihood)
+    if (SwitchLikelihood && !NeverMatches)
       SwitchLikelihood->push_back(Stmt::LH_None);
 
-    SwitchInsn->addCase(CaseVal, CaseDest);
+    if (!NeverMatches)
+      SwitchInsn->addCase(CaseVal, CaseDest);
     NextCase = dyn_cast<CaseStmt>(CurCase->getSubStmt());
   }
 
