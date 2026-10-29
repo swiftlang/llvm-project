@@ -50,6 +50,11 @@ else
 	SWIFT_DEBUG_INFO_FLAG ?= $(DEBUG_INFO_FLAG)
 endif
 
+# Upgrade -g to -gdwarf-types.
+ifeq "$(SWIFT_DWARF_VALIDATION)" "1"
+  SWIFT_DEBUG_INFO_FLAG := $(patsubst -g,-gdwarf-types,$(SWIFT_DEBUG_INFO_FLAG))
+endif
+
 SWIFTFLAGS ?= $(SWIFT_DEBUG_INFO_FLAG) -Onone -Xfrontend -serialize-debugging-options
 
 ifeq "$(MAKE_PDB)" "YES"
