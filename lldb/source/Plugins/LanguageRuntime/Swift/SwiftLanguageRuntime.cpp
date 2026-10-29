@@ -106,24 +106,24 @@ const char *SwiftLanguageRuntime::GetConcurrencyLibraryBaseName() {
   return "swift_Concurrency";
 }
 
-static ConstString GetStandardLibraryName(Process &process) {
+static std::string GetStandardLibraryName(Process &process) {
   // This result needs to be stored in the constructor.
   PlatformSP platform_sp(process.GetTarget().GetPlatform());
   if (platform_sp)
     return platform_sp->GetFullNameForDylib(
-        ConstString(SwiftLanguageRuntime::GetStandardLibraryBaseName()));
+        SwiftLanguageRuntime::GetStandardLibraryBaseName());
   return {};
 }
 
-static ConstString GetConcurrencyLibraryName(Process &process) {
+static std::string GetConcurrencyLibraryName(Process &process) {
   PlatformSP platform_sp = process.GetTarget().GetPlatform();
   if (platform_sp)
     return platform_sp->GetFullNameForDylib(
-        ConstString(SwiftLanguageRuntime::GetConcurrencyLibraryBaseName()));
+        SwiftLanguageRuntime::GetConcurrencyLibraryBaseName());
   return {};
 }
 
-ConstString SwiftLanguageRuntime::GetStandardLibraryName() {
+std::string SwiftLanguageRuntime::GetStandardLibraryName() {
   return ::GetStandardLibraryName(*m_process);
 }
 
@@ -1793,7 +1793,7 @@ void SwiftLanguageRuntime::RegisterGlobalError(Target &target, ConstString name,
 
 lldb::BreakpointSP SwiftLanguageRuntime::CreateErrorBackstopBreakpoint() {
   FileSpecList stdlib_module_list;
-  stdlib_module_list.Append(FileSpec(GetStandardLibraryName().GetStringRef()));
+  stdlib_module_list.Append(FileSpec(GetStandardLibraryName()));
   const LazyBool skip_prologue = eLazyBoolNo;
   const bool is_internal = true;
   const bool is_hardware = false;

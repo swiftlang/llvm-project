@@ -633,7 +633,7 @@ public:
   /// \}
 
   static const char *GetErrorBackstopName();
-  ConstString GetStandardLibraryName();
+  std::string GetStandardLibraryName();
   static const char *GetStandardLibraryBaseName();
   static const char *GetConcurrencyLibraryBaseName();
 
