@@ -907,13 +907,12 @@ int dsymutil_main(int argc, char **argv, const llvm::ToolContext &) {
           continue;
         }
 
-        // Update the global CAS if it is not available on the command-line.
+        // Search the global CAS from the objects if it is not available on the
+        // command-line. It is only created when it is needed.
         if (Options.CASOptions.CASPath.empty()) {
-          for (auto &F : *Map) {
-            if (BinHolder.updateGlobalCASFromPath(
-                    sys::path::parent_path(F->getObjectFilename())))
-              break;
-          }
+          for (auto &F : *Map)
+            BinHolder.addGlobalCASSearchPath(
+                sys::path::parent_path(F->getObjectFilename()));
         }
 
         if (Map->begin() == Map->end()) {
