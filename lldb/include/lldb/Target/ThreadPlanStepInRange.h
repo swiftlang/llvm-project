@@ -75,7 +75,7 @@ private:
       Status &status, LazyBool avoid_code_without_debug_info);
   friend lldb::ThreadPlanSP Thread::QueueThreadPlanForStepInRange(
       bool abort_other_plans, const AddressRange &range,
-      const SymbolContext &addr_context, const char *step_in_target,
+      const SymbolContext &addr_context, llvm::StringRef step_in_target,
       lldb::RunMode stop_others, Status &status,
       LazyBool step_in_avoids_code_without_debug_info,
       LazyBool step_out_avoids_code_without_debug_info);

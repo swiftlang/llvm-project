@@ -480,16 +480,16 @@ bool ThreadPlanStepInRange::DefaultShouldStopHereImpl(Flags &flags,
   StackFrame *frame = GetThread().GetStackFrameAtIndex(0).get();
   Log *log = GetLog(LLDBLog::Step);
 
-  if (m_step_into_target) {
+  if (!m_step_into_target.empty()) {
     SymbolContext sc = frame->GetSymbolContext(
         eSymbolContextFunction | eSymbolContextBlock | eSymbolContextSymbol);
     if (sc.symbol != nullptr) {
       // First try an exact match, since that's cheap with
       // ConstStrings.  Then do a strstr compare.
-      if (m_step_into_target == sc.GetFunctionName()) {
+      if (llvm::StringRef(m_step_into_target) == sc.GetFunctionName()) {
         should_stop_here = true;
       } else {
-        const char *target_name = m_step_into_target.AsCString(nullptr);
+        const char *target_name = m_step_into_target.c_str();
         const char *function_name = sc.GetFunctionName().AsCString(nullptr);
 
         if (function_name == nullptr)
