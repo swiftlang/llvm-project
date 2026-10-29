@@ -676,10 +676,8 @@ static bool CanEvaluateExpressionWithoutBindingGenericParams(
   }
 
   // The expression is evaluated in an extension of the nominal type itself,
-  // which lacks the requirements of any constrained extension the frame is
-  // in. Variables whose types depend on these requirements, such as an
-  // associated type of a protocol only the extension requires, cannot be
-  // expressed there. Self and the generic metadata are passed in as opaque
+  // which lacks the requirements that a constrained extension or a `where`
+  // clause add. Self and the generic metadata are passed in as opaque
   // pointers and are exempt.
   auto sig = env->getGenericSignature();
   for (auto &variable : variables) {
@@ -691,7 +689,7 @@ static bool CanEvaluateExpressionWithoutBindingGenericParams(
         llvm::expectedToOptional(scratch_ctx.GetSwiftType(variable.GetType()))
             .value_or(swift::Type());
     if (var_type &&
-        !SwiftASTManipulator::HasOnlyValidTypeParameters(var_type, sig))
+        !SwiftASTManipulator::IsExpressibleInGenericSignature(var_type, sig))
       return false;
   }
 

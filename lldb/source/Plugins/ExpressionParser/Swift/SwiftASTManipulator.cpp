@@ -841,14 +841,52 @@ SwiftASTManipulator::AddExternalVariable(swift::Identifier name,
   return variables[0].m_decl;
 }
 
-bool SwiftASTManipulator::HasOnlyValidTypeParameters(
+bool SwiftASTManipulator::IsExpressibleInGenericSignature(
     swift::Type type, swift::GenericSignature sig) {
   if (!type->hasTypeParameter())
     return true;
   if (!sig)
     return false;
+  auto has_invalid_type_parameter = [&](swift::Type type) {
+    return type.findIf([&](swift::Type t) {
+      return t->isTypeParameter() && !sig->isValidTypeParameter(t);
+    });
+  };
+  if (has_invalid_type_parameter(type))
+    return false;
   return !type.findIf([&](swift::Type t) {
-    return t->isTypeParameter() && !sig->isValidTypeParameter(t);
+    if (!t->hasTypeParameter())
+      return false;
+    auto *decl = t->getAnyNominal();
+    if (!decl || swift::isa<swift::ProtocolDecl>(decl))
+      return false;
+    auto decl_sig = decl->getGenericSignature();
+    if (!decl_sig)
+      return false;
+    // The implicit Copyable and Escapable requirements are left out; the
+    // expression's generic parameters have them by default.
+    llvm::SmallVector<swift::Requirement, 2> reqs;
+    llvm::SmallVector<swift::InverseRequirement, 2> inverses;
+    decl_sig->getRequirementsWithInverses(reqs, inverses);
+    auto subs = t->getContextSubstitutionMap();
+    for (const swift::Requirement &req : reqs) {
+      // A requirement on a parameter pack substitutes to one requirement per
+      // pack element, which isRequirementSatisfied() can't check, so it is
+      // conservatively treated as unsatisfied.
+      if (req.getFirstType()->hasParameterPack())
+        return true;
+      swift::Requirement subst_req = req.subst(subs);
+      // isRequirementSatisfied() maps both types of the requirement into the
+      // generic environment of sig, so their type parameters have to be valid
+      // there. A layout requirement has a layout constraint instead of a
+      // second type.
+      if (has_invalid_type_parameter(subst_req.getFirstType()) ||
+          (subst_req.getKind() != swift::RequirementKind::Layout &&
+           has_invalid_type_parameter(subst_req.getSecondType())) ||
+          !sig->isRequirementSatisfied(subst_req))
+        return true;
+    }
+    return false;
   });
 }
 
@@ -878,7 +916,8 @@ GetPatternBindingForVarDecl(swift::VarDecl *var_decl,
   swift::Type interface_type = var_decl->getInterfaceType();
   if (swift::GenericSignature sig =
           var_decl->getDeclContext()->getGenericSignatureOfContext())
-    if (!SwiftASTManipulator::HasOnlyValidTypeParameters(interface_type, sig))
+    if (!SwiftASTManipulator::IsExpressibleInGenericSignature(interface_type,
+                                                              sig))
       return llvm::createStringError(
           llvm::formatv("type '{0}' is not valid in generic context {1}",
                         interface_type->getString(), sig->getAsString()));

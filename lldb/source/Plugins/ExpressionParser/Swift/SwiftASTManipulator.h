@@ -295,11 +295,11 @@ public:
     return bind_generic_types == lldb::eBind;
   }
 
-  /// Returns true if every type parameter in \p type is valid in \p sig.
-  /// Mapping a type with an invalid type parameter into a generic
-  /// environment is a fatal error in the Swift compiler.
-  static bool HasOnlyValidTypeParameters(swift::Type type,
-                                         swift::GenericSignature sig);
+  /// Returns true if every type parameter in \p type is valid in \p sig, and
+  /// \p sig satisfies the requirements of every generic type that \p type
+  /// applies to type parameters.
+  static bool IsExpressibleInGenericSignature(swift::Type type,
+                                              swift::GenericSignature sig);
 
   swift::FuncDecl *GetEntrypointDecl() const {
     return m_entrypoint_decl;
