@@ -31,6 +31,10 @@ embedded_swift_categories = {
     "swiftembed": platform.system() != "Windows",
 }
 
+swift_dwarf_validation_categories = {
+    "dwarfvalidation": True,
+}
+
 all_categories = {
     "basic_process": "Basic process execution sniff tests.",
     "cmdline": "Tests related to the LLDB command-line interface",
@@ -64,6 +68,8 @@ all_categories = {
     "noclang": "Tests run with the Swift DWARFImporter",
     "swiftembed": "Tests are compiled as embedded Swift",
     "swift": "Tests are compiled as normal Swift",
+    "dwarfvalidation": "Tests run comparing Swift type layout computed from "
+    "reflection metadata and from DWARF",
 }
 
 

@@ -460,6 +460,12 @@ if "XDG_CACHE_HOME" in os.environ:
 if "LLDBDAP_RUN_AS_SERVER" in os.environ:
     config.environment["LLDBDAP_RUN_AS_SERVER"] = os.environ["LLDBDAP_RUN_AS_SERVER"]
 
+# Propagate LLDB_SWIFT_VALIDATE_DWARF
+if "LLDB_SWIFT_VALIDATE_DWARF" in os.environ:
+    config.environment["LLDB_SWIFT_VALIDATE_DWARF"] = os.environ[
+        "LLDB_SWIFT_VALIDATE_DWARF"
+    ]
+
 # Transfer some environment variables into the tests on Windows build host.
 if platform.system() == "Windows":
     for v in ["SystemDrive"]:
