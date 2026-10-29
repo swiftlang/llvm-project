@@ -77,6 +77,7 @@ struct TestingProperties : public Properties {
   TestingProperties();
   bool GetInjectVarLocListError() const;
   bool GetSwiftValidateNoClangImports() const;
+  SwiftDWARFValidationMode GetSwiftValidateTypeSystemDWARF() const;
   static TestingProperties &GetGlobalTestingProperties();
 
   /// Overwrites the testing.safe-auto-load-paths settings.

@@ -176,6 +176,14 @@ typedef enum SwiftModuleLoadingMode {
   eSwiftModuleLoadingModeOnlyInterface,    // Load via .swiftinterface only
 } SwiftModuleLoadingMode;
 
+/// What to do when Swift type layout computed from reflection metadata and
+/// computed from DWARF disagree.
+typedef enum SwiftDWARFValidationMode {
+  eSwiftDWARFValidationOff,
+  eSwiftDWARFValidationReport,
+  eSwiftDWARFValidationAssert,
+} SwiftDWARFValidationMode;
+
 // BEGIN SWIFT
 enum class AutoBool {
   Auto,
