@@ -14,10 +14,15 @@
 #include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
 #include "ReflectionContextInterface.h"
 #include "SwiftLanguageRuntime.h"
+#include "lldb/Core/Debugger.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/RemoteInspection/DescriptorFinder.h"
+#include "swift/RemoteInspection/TypeLowering.h"
+#include "swift/RemoteInspection/TypeRef.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -37,14 +42,16 @@ struct DescriptorFinderForwarder : public swift::reflection::DescriptorFinder {
 
   std::unique_ptr<swift::reflection::BuiltinTypeDescriptorBase>
   getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR) override {
-    if (!m_descriptor_finders.empty() && shouldConsultDescriptorFinder())
+    if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
+        shouldConsultDescriptorFinder())
       return m_descriptor_finders.back()->getBuiltinTypeDescriptor(TR);
     return nullptr;
   }
 
   std::unique_ptr<swift::reflection::FieldDescriptorBase>
   getFieldDescriptor(const swift::reflection::TypeRef *TR) override {
-    if (!m_descriptor_finders.empty() && shouldConsultDescriptorFinder())
+    if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
+        shouldConsultDescriptorFinder())
       return m_descriptor_finders.back()->getFieldDescriptor(TR);
     return nullptr;
   }
@@ -526,12 +533,109 @@ class TargetReflectionContext : public ReflectionContextInterface {
     return Get(m_regular, swift::Mangle::ManglingFlavor::Default);
   }
 
+#ifndef NDEBUG
+  // Used to validate whether type infos computed by reflection metadata vs
+  // DWARF match.
+  std::unique_ptr<TargetReflectionContext> m_reflection_only;
+  std::unique_ptr<TargetReflectionContext> m_dwarf_only;
+
+  /// Consumes the error of a failed result.
+  template <typename ExpectedTI>
+  static std::string DescribeShadowResult(ExpectedTI &result) {
+    if (!result)
+      return "error: " + llvm::toString(result.takeError()) + "\n";
+    std::stringstream ss;
+    result->dump(ss);
+    return ss.str();
+  }
+
+  /// Consumes the errors of both shadow results.
+  template <typename ExpectedTI>
+  static void ReportShadowComparison(llvm::StringRef name, ExpectedTI &refl,
+                                     ExpectedTI &dwarf) {
+    bool differ = static_cast<bool>(refl) != static_cast<bool>(dwarf) ||
+                  (refl && dwarf && !refl->Equals(*dwarf));
+    if (!differ) {
+      if (!refl)
+        llvm::consumeError(refl.takeError());
+      if (!dwarf)
+        llvm::consumeError(dwarf.takeError());
+      return;
+    }
+    std::string message =
+        llvm::formatv("reflection metadata and DWARF disagree on the layout of "
+                      "{0}\nreflection:\n{1}DWARF:\n{2}",
+                      name, DescribeShadowResult(refl),
+                      DescribeShadowResult(dwarf))
+            .str();
+    LLDB_LOG(GetLog(LLDBLog::Types), "{0}", message);
+    if (TestingProperties::GetGlobalTestingProperties()
+            .GetSwiftValidateTypeSystemDWARF() == eSwiftDWARFValidationAssert) {
+      llvm::errs() << message;
+      assert(false &&
+             "reflection metadata and DWARF disagree on a Swift type's layout");
+    }
+  }
+
+  /// A TypeRef belongs to the builder that created it, so rebuild it in the
+  /// shadow's builder.
+  llvm::Expected<const swift::reflection::RecordTypeInfo &>
+  ClassInstanceOnShadow(
+      TargetReflectionContext &shadow,
+      const swift::reflection::TypeRef &type_ref,
+      swift::remote::TypeInfoProvider *provider,
+      swift::Mangle::ManglingFlavor flavor,
+      swift::reflection::DescriptorFinder *descriptor_finder) {
+    swift::Demangle::Demangler dem;
+    auto tr_or_err =
+        shadow.GetTypeRef(dem, type_ref.getDemangling(dem), flavor);
+    if (!tr_or_err)
+      return tr_or_err.takeError();
+    return shadow.GetClassInstanceTypeInfo(*tr_or_err, provider, flavor,
+                                           descriptor_finder);
+  }
+
+  void CompareShadowsForType(CompilerType type,
+                             swift::remote::TypeInfoProvider *provider,
+                             swift::reflection::DescriptorFinder *df) {
+    auto refl = m_reflection_only->GetTypeInfo(type, provider, nullptr);
+    auto dwarf = m_dwarf_only->GetTypeInfo(type, provider, df);
+    ReportShadowComparison(type.GetMangledTypeName().GetStringRef(), refl,
+                           dwarf);
+  }
+
+  void
+  CompareShadowsForClassInstance(const swift::reflection::TypeRef &type_ref,
+                                 swift::remote::TypeInfoProvider *provider,
+                                 swift::Mangle::ManglingFlavor flavor,
+                                 swift::reflection::DescriptorFinder *df) {
+    auto refl = ClassInstanceOnShadow(*m_reflection_only, type_ref, provider,
+                                      flavor, nullptr);
+    auto dwarf =
+        ClassInstanceOnShadow(*m_dwarf_only, type_ref, provider, flavor, df);
+    swift::Demangle::Demangler dem;
+    ReportShadowComparison(type_ref.mangle(dem, flavor).value_or("<unknown>"),
+                           refl, dwarf);
+  }
+#endif // !NDEBUG
+
 public:
   TargetReflectionContext(
       std::shared_ptr<swift::reflection::MemoryReader> reader,
-      SwiftMetadataCache *swift_metadata_cache)
+      SwiftMetadataCache *swift_metadata_cache, bool is_shadow = false)
       : m_reader(std::move(reader)),
-        m_swift_metadata_cache(swift_metadata_cache) {}
+        m_swift_metadata_cache(swift_metadata_cache) {
+#ifndef NDEBUG
+    if (!is_shadow && TestingProperties::GetGlobalTestingProperties()
+                              .GetSwiftValidateTypeSystemDWARF() !=
+                          eSwiftDWARFValidationOff) {
+      m_reflection_only = std::make_unique<TargetReflectionContext>(
+          m_reader, swift_metadata_cache, /*is_shadow=*/true);
+      m_dwarf_only = std::make_unique<TargetReflectionContext>(
+          m_reader, swift_metadata_cache, /*is_shadow=*/true);
+    }
+#endif
+  }
 
   /// Register an image's reflection metadata.
   std::optional<uint32_t> AddImage(
@@ -539,13 +643,23 @@ public:
           swift::ReflectionSectionKind)>
           find_section,
       llvm::SmallVector<llvm::StringRef, 1> likely_module_names) override {
-    return GetRegular().AddImage(find_section, likely_module_names);
+    auto id = GetRegular().AddImage(find_section, likely_module_names);
+#ifndef NDEBUG
+    if (m_reflection_only)
+      m_reflection_only->AddImage(find_section, likely_module_names);
+#endif
+    return id;
   }
 
   std::optional<uint32_t>
   AddImage(swift::remote::RemoteAddress image_start,
            llvm::SmallVector<llvm::StringRef, 1> likely_module_names) override {
-    return GetRegular().AddImage(image_start, likely_module_names);
+    auto id = GetRegular().AddImage(image_start, likely_module_names);
+#ifndef NDEBUG
+    if (m_reflection_only)
+      m_reflection_only->AddImage(image_start, likely_module_names);
+#endif
+    return id;
   }
 
   llvm::Expected<const swift::reflection::TypeRef &>
@@ -568,8 +682,14 @@ public:
       swift::remote::TypeInfoProvider *provider,
       swift::Mangle::ManglingFlavor flavor,
       swift::reflection::DescriptorFinder *descriptor_finder) override {
-    return Get(flavor).GetClassInstanceTypeInfo(type_ref, provider,
-                                                descriptor_finder);
+    auto result = Get(flavor).GetClassInstanceTypeInfo(type_ref, provider,
+                                                       descriptor_finder);
+#ifndef NDEBUG
+    if (m_reflection_only && m_dwarf_only)
+      CompareShadowsForClassInstance(type_ref, provider, flavor,
+                                     descriptor_finder);
+#endif
+    return result;
   }
 
   llvm::Expected<const swift::reflection::TypeInfo &>
@@ -580,8 +700,13 @@ public:
     auto type_ref_or_err = GetCanonicalTypeRef(type);
     if (!type_ref_or_err)
       return type_ref_or_err.takeError();
-    return Get(flavor).GetTypeInfoFromTypeRef(*type_ref_or_err, provider,
-                                              descriptor_finder);
+    auto result = Get(flavor).GetTypeInfoFromTypeRef(*type_ref_or_err, provider,
+                                                     descriptor_finder);
+#ifndef NDEBUG
+    if (m_reflection_only && m_dwarf_only)
+      CompareShadowsForType(type, provider, descriptor_finder);
+#endif
+    return result;
   }
 
   llvm::Expected<const swift::reflection::TypeInfo &> GetTypeInfoFromInstance(

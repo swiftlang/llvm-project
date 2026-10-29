@@ -154,6 +154,14 @@ let Definition = "testing", Path = "testing" in {
         DefaultFalse,
         Desc<"Used for testing LLDB only. Validate that Swift doesn't import "
              "any Clang modules.">;
+  def SwiftValidateTypeSystemDWARF
+      : Property<"swift-validate-typesystem-dwarf", "Enum">,
+        Global,
+        DefaultEnumValue<"eSwiftDWARFValidationOff">,
+        EnumValues<"OptionEnumValues(g_swift_dwarf_validation_modes)">,
+        Desc<"Used for testing LLDB only. Validate Swift type layout by "
+             "computing it exclusively from reflection metadata and "
+             "exclusively from DWARF and comparing the two.">;
   def SafeAutoloadPaths : Property<"safe-auto-load-paths", "FileSpecList">,
                           DefaultStringValue<"">,
                           Desc<"List of paths that LLDB will automatically "
