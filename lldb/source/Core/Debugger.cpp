@@ -225,6 +225,14 @@ enum {
 };
 
 #ifndef NDEBUG
+static constexpr OptionEnumValueElement g_swift_dwarf_validation_modes[] = {
+    {eSwiftDWARFValidationOff, "off", "Do not validate (default)."},
+    {eSwiftDWARFValidationReport, "report",
+     "Log each disagreement to the types log channel."},
+    {eSwiftDWARFValidationAssert, "assert",
+     "Log each disagreement, print it to stderr, and assert."},
+};
+
 #define LLDB_PROPERTIES_testing
 #include "CoreProperties.inc"
 
@@ -271,6 +279,14 @@ bool TestingProperties::GetSwiftValidateNoClangImports() const {
   const uint32_t idx = ePropertySwiftValidateNoClangImports;
   return GetPropertyAtIndexAs<bool>(
       idx, g_testing_properties[idx].default_uint_value != 0);
+}
+
+SwiftDWARFValidationMode
+TestingProperties::GetSwiftValidateTypeSystemDWARF() const {
+  const uint32_t idx = ePropertySwiftValidateTypeSystemDWARF;
+  return GetPropertyAtIndexAs<SwiftDWARFValidationMode>(
+      idx, static_cast<SwiftDWARFValidationMode>(
+               g_testing_properties[idx].default_uint_value));
 }
 
 TestingProperties &TestingProperties::GetGlobalTestingProperties() {
