@@ -71,6 +71,15 @@ static bool IsMarkerProtocol(const DWARFDIE &die) {
                                                      "swift.MarkerProtocol");
 }
 
+/// Returns true if the DIE represents a Clang-imported type with reference
+/// semantics.
+static bool IsForeignReferenceType(const DWARFDIE &die) {
+  if (die.Tag() != llvm::dwarf::DW_TAG_structure_type)
+    return false;
+  return DWARFASTParserSwift::HasSwiftFlagAnnotation(
+      die, "swift.ForeignReferenceType");
+}
+
 static llvm::StringRef GetTypedefName(const DWARFDIE &die) {
   if (die.Tag() != llvm::dwarf::DW_TAG_typedef)
     return {};
@@ -304,6 +313,9 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
     if (IsMarkerProtocol(die))
       type_sp->SetPayload(
           TypePayloadSwift(TypePayloadSwift::Options::IsMarkerProtocol));
+    else if (IsForeignReferenceType(die))
+      type_sp->SetPayload(
+          TypePayloadSwift(TypePayloadSwift::Options::IsForeignReferenceType));
 
     // If this is a protocol composition, force parsing the protocols which this
     // type is composed  of. We want to make sure we parse every marker protocol

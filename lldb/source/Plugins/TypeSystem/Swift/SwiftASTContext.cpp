@@ -9427,6 +9427,14 @@ bool SwiftASTContext::DumpTypeValue(
   return false;
 }
 
+bool SwiftASTContext::IsForeignReferenceType(opaque_compiler_type_t type) {
+  VALID_OR_RETURN_CHECK_TYPE(type, false, false);
+  if (swift::Type swift_type = GetSwiftType(type))
+    if (auto *class_decl = swift_type->getClassDecl())
+      return class_decl->isForeignReferenceType();
+  return false;
+}
+
 bool SwiftASTContext::IsImportedType(opaque_compiler_type_t type,
                                      CompilerType *original_type) {
   VALID_OR_RETURN_CHECK_TYPE(type, false, false);

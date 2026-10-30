@@ -47,7 +47,8 @@ class TypePayloadSwift {
 public:
   enum class Options : uint32_t {
     FixedValueBuffer = 1,
-    IsMarkerProtocol = 1 << 1
+    IsMarkerProtocol = 1 << 1,
+    IsForeignReferenceType = 1 << 2
   };
   TypePayloadSwift() = default;
 
@@ -69,6 +70,10 @@ public:
   }
   bool IsMarkerProtocol() {
     return m_flags.Test(llvm::to_underlying(Options::IsMarkerProtocol));
+  }
+  /// \return whether this is a Clang-imported type with reference semantics.
+  bool IsForeignReferenceType() {
+    return m_flags.Test(llvm::to_underlying(Options::IsForeignReferenceType));
   }
 
 private:
@@ -175,6 +180,9 @@ public:
 
   virtual bool IsImportedType(lldb::opaque_compiler_type_t type,
                               CompilerType *original_type) = 0;
+  /// \return whether \p type is a Clang-imported type with reference
+  /// semantics. Such a type is mangled like a C struct.
+  virtual bool IsForeignReferenceType(lldb::opaque_compiler_type_t type) = 0;
   virtual bool IsErrorType(lldb::opaque_compiler_type_t type,
                            const ExecutionContext *exe_ctx) = 0;
   virtual CompilerType GetErrorType(swift::Mangle::ManglingFlavor flavor) = 0;
