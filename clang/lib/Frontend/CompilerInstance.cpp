@@ -827,38 +827,37 @@ CompilerInstance::createCodeCompletionConsumer(Preprocessor &PP,
   return new PrintingCodeCompleteConsumer(Opts, OS);
 }
 
-static void loadAPINotesFromIncludeTree(cas::ObjectStore &DB,
-                                        api_notes::APINotesManager &APINotes,
-                                        DiagnosticsEngine &Diags,
-                                        StringRef IncludeTreeRootID) {
+static std::optional<SmallVector<StringRef, 2>>
+getAPINotesFromIncludeTree(cas::ObjectStore &DB, DiagnosticsEngine &Diags,
+                           StringRef IncludeTreeRootID) {
   Expected<llvm::cas::CASID> RootID = DB.parseID(IncludeTreeRootID);
   if (!RootID) {
     llvm::consumeError(RootID.takeError());
     Diags.Report(diag::err_cas_cannot_parse_include_tree_id)
         << IncludeTreeRootID;
-    return;
+    return std::nullopt;
   }
   std::optional<llvm::cas::ObjectRef> Ref = DB.getReference(*RootID);
   if (!Ref) {
     Diags.Report(diag::err_cas_missing_include_tree_id) << IncludeTreeRootID;
-    return;
+    return std::nullopt;
   }
   auto Root = cas::IncludeTreeRoot::get(DB, *Ref);
   if (!Root) {
     consumeError(Root.takeError());
     Diags.Report(diag::err_cas_missing_include_tree_id) << IncludeTreeRootID;
-    return;
+    return std::nullopt;
   }
   auto Notes = Root->getAPINotes();
   if (!Notes) {
     consumeError(Notes.takeError());
     Diags.Report(diag::err_cas_cannot_load_api_notes_include_tree)
         << IncludeTreeRootID;
-    return;
+    return std::nullopt;
   }
+  SmallVector<StringRef, 2> Buffers;
   if (!*Notes)
-    return;
-  std::vector<StringRef> Buffers;
+    return Buffers;
 
   if (auto E = (*Notes)->forEachAPINotes([&](StringRef Buffer) {
         Buffers.push_back(Buffer);
@@ -867,10 +866,30 @@ static void loadAPINotesFromIncludeTree(cas::ObjectStore &DB,
     consumeError(std::move(E));
     Diags.Report(diag::err_cas_cannot_load_api_notes_include_tree)
         << IncludeTreeRootID;
-    return;
+    return std::nullopt;
   }
+  return Buffers;
+}
 
-  APINotes.loadCurrentModuleAPINotesFromBuffer(Buffers);
+static void loadAPINotesFromIncludeTree(cas::ObjectStore &DB,
+                                        api_notes::APINotesManager &APINotes,
+                                        DiagnosticsEngine &Diags,
+                                        StringRef IncludeTreeRootID) {
+  if (auto Buffers = getAPINotesFromIncludeTree(DB, Diags, IncludeTreeRootID))
+    APINotes.loadCurrentModuleAPINotesFromBuffer(*Buffers);
+}
+
+static std::optional<SmallVector<StringRef, 2>>
+getModuleAPINotesFromPCM(CompilerInstance &CI, const Module &TopLevelModule) {
+  const ModuleFileName *FileName = TopLevelModule.getASTFileName();
+  auto Reader = CI.getASTReader();
+  if (!FileName || !Reader)
+    return std::nullopt;
+  auto *MF = Reader->getModuleManager().lookupByFileName(*FileName);
+  if (!MF || MF->IncludeTreeID.empty())
+    return std::nullopt;
+  return getAPINotesFromIncludeTree(CI.getOrCreateObjectStore(),
+                                    CI.getDiagnostics(), MF->IncludeTreeID);
 }
 
 void CompilerInstance::createSema(TranslationUnitKind TUKind,
@@ -880,6 +899,10 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
 
   // Set up API notes.
   TheSema->APINotes.setSwiftVersion(getAPINotesOpts().SwiftVersion);
+
+  if (!getFrontendOpts().ModuleLoadIgnoreCAS)
+    TheSema->APINotes.setImportedModuleAPINotesLoader(
+        [this](const Module &M) { return getModuleAPINotesFromPCM(*this, M); });
 
   // If we're building a module and are supposed to load API notes,
   // notify the API notes manager.
