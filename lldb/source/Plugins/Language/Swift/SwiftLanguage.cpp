@@ -1354,7 +1354,13 @@ SwiftLanguage::GetHardcodedSynthetics() {
                               "Could not get decl from clang type");
         return nullptr;
       }
-      auto casted = valobj.Cast(original_type);
+      ValueObjectSP casted;
+      if (swift_type_system->IsForeignReferenceType(type.GetOpaqueQualType()))
+        casted = valobj.CreateChildValueObjectFromAddress(
+            "Clang_Type", valobj.GetPointerValue().address,
+            ExecutionContext(valobj.GetExecutionContextRef()), original_type);
+      else
+        casted = valobj.Cast(original_type);
       if (!casted) {
         LLDB_LOG_VERBOSE(log, "[Matching Clang imported type] - "
                               "Could not cast value object to clang type");

@@ -499,6 +499,46 @@ TypeSP TypeSystemSwiftTypeRefForExpressions::LookupClangType(
   return result;
 }
 
+/// Look up one Swift type by its mangled name in a module.
+static TypeSP LookupSwiftType(Module &m, ConstString mangled_name) {
+  TypeQuery query({{CompilerContextKind::AnyType, mangled_name}},
+                  TypeQueryOptions::e_find_one |
+                      TypeQueryOptions::e_search_by_mangled_name);
+  query.SetLanguages(TypeSystemSwift::GetSupportedLanguagesForTypes());
+  TypeResults results;
+  m.FindTypes(query, results);
+  return results.GetFirstType();
+}
+
+TypeSP TypeSystemSwiftTypeRef::LookupSwiftType(ConstString mangled_name) {
+  if (TypeSP type_sp = GetCachedType(mangled_name))
+    return type_sp;
+  if (Module *m = GetModule())
+    return ::LookupSwiftType(*m, mangled_name);
+  return {};
+}
+
+TypeSP TypeSystemSwiftTypeRefForExpressions::LookupSwiftType(
+    ConstString mangled_name) {
+  TypeSP result;
+  if (TargetSP target_sp = GetTargetWP().lock())
+    target_sp->GetImages().ForEach([&](const ModuleSP &m) {
+      result = ::LookupSwiftType(*m, mangled_name);
+      return result ? IterationAction::Stop : IterationAction::Continue;
+    });
+  return result;
+}
+
+bool TypeSystemSwiftTypeRef::IsForeignReferenceType(ConstString mangled_name) {
+  bool is_frt = false;
+  if (m_foreign_reference_type_map.Lookup(mangled_name.GetCString(), is_frt))
+    return is_frt;
+  if (TypeSP type_sp = LookupSwiftType(mangled_name))
+    is_frt = TypePayloadSwift(type_sp->GetPayload()).IsForeignReferenceType();
+  m_foreign_reference_type_map.Insert(mangled_name.GetCString(), is_frt);
+  return is_frt;
+}
+
 /// Find a Clang type by name in module \p M.
 CompilerType TypeSystemSwiftTypeRef::LookupClangForwardType(
     StringRef name, llvm::ArrayRef<CompilerContext> decl_context,
@@ -769,6 +809,15 @@ TypeSystemSwiftTypeRef::GetClangTypeNode(CompilerType clang_type,
   NodePointer nominal = dem.createNode(kind);
   nominal->addChild(module, dem);
   nominal->addChild(identifier, dem);
+  // Like an Objective-C object, a foreign reference type is a first-class
+  // entity, not a pointer.
+  if (pointee && kind == Node::Kind::Structure &&
+      module_name == swift::MANGLING_MODULE_OBJC) {
+    auto mangling = GetMangledName(dem, nominal, flavor);
+    if (mangling.isSuccess() &&
+        IsForeignReferenceType(ConstString(mangling.result())))
+      return nominal;
+  }
   return pointee ? GetPointerTo(dem, nominal) : nominal;
 }
 
@@ -1943,6 +1992,22 @@ static bool IsImportedType(swift::Demangle::NodePointer node) {
   return false;
 }
 
+bool TypeSystemSwiftTypeRef::IsForeignReferenceType(
+    opaque_compiler_type_t type) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodePointer node = GetDemangledType(dem, AsMangledName(type));
+  if (!node)
+    return false;
+  if (node->getKind() == Node::Kind::TypeAlias ||
+      node->getKind() == Node::Kind::BoundGenericTypeAlias)
+    return IsForeignReferenceType(GetCanonicalType(type).GetMangledTypeName());
+  // Avoid the debug info lookup for types that can't be Clang types.
+  if (!::IsImportedType(node))
+    return false;
+  return IsForeignReferenceType(GetMangledTypeName(type));
+}
+
 swift::Demangle::NodePointer TypeSystemSwiftTypeRef::GetSwiftified(
     swift::Demangle::Demangler &dem, swift::Demangle::NodePointer node,
     swift::Mangle::ManglingFlavor flavor, bool resolve_objc_module) {
@@ -2363,6 +2428,13 @@ uint32_t TypeSystemSwiftTypeRef::CollectTypeInfo(
     auto clang_type =
         LookupClangForwardType(mangling.result(), decl_context, ignore_modules);
     collect_clang_type(clang_type.GetCanonicalType());
+    // Like an imported Objective-C class, a foreign reference type is a
+    // pointer to the Clang object.
+    if (IsForeignReferenceType(ConstString(mangling.result()))) {
+      swift_flags &= ~eTypeIsStructUnion;
+      swift_flags |= eTypeIsClass | eTypeHasChildren | eTypeHasValue |
+                     eTypeInstanceIsPointer;
+    }
     return swift_flags;
   }
     case Node::Kind::BoundGenericClass:
@@ -2538,6 +2610,7 @@ void TypeSystemSwiftTypeRefForExpressions::ModulesDidLoad(
     ModuleList &module_list) {
   ++m_generation;
   m_clang_type_cache.Clear();
+  m_foreign_reference_type_map.Clear();
   NotifyAllTypeSystems([&](TypeSystemSP ts_sp) {
     if (auto swift_ast_ctx =
             llvm::dyn_cast_or_null<SwiftASTContextForExpressions>(ts_sp.get()))
@@ -4901,6 +4974,12 @@ CompilerType TypeSystemSwiftTypeRef::ConvertClangTypeToSwiftType(
   swift::Demangle::NodePointer node =
       GetClangTypeTypeNode(dem, clang_type, flavor);
   CompilerType result = RemangleAsType(dem, node, flavor);
+  // A pointer to a foreign reference type converts to the type itself, which
+  // stands for the Clang record.
+  CompilerType pointee;
+  if (result && clang_type.IsPointerType(&pointee) &&
+      IsForeignReferenceType(result.GetMangledTypeName()))
+    clang_type = pointee;
   m_imported_type_map.Insert(result.GetMangledTypeName().AsCString(nullptr),
                              clang_type);
   return result;
@@ -5921,6 +6000,15 @@ bool TypeSystemSwiftTypeRef::DumpTypeValue(
                                  bitfield_bit_size, bitfield_bit_offset,
                                  exe_scope);
       }
+      // Like a class reference, a foreign reference is a pointer.
+      if (IsForeignReferenceType(type)) {
+        if (is_base_class)
+          return false;
+        return DumpDataExtractor(data, &s, data_offset, eFormatPointer,
+                                 data_byte_size, item_count, UINT32_MAX,
+                                 LLDB_INVALID_ADDRESS, bitfield_bit_size,
+                                 bitfield_bit_offset, exe_scope);
+      }
       // In some instances, a swift `structure` wraps an objc enum. The enum
       // case needs to be handled, but structs are no-ops.
       auto resolved = ResolveTypeAlias(dem, node, flavor, true);
@@ -6094,6 +6182,10 @@ TypeSystemSwiftTypeRef::GetTypeBitAlign(opaque_compiler_type_t type,
   if (TypeSP type_sp = GetCachedType(type))
     if (type_sp->GetLayoutCompilerType().GetOpaqueQualType() != type)
       return type_sp->GetLayoutCompilerType().GetTypeBitAlign(exe_scope);
+
+  // A foreign reference is a pointer to the Clang object.
+  if (IsForeignReferenceType(type))
+    return GetPointerByteSize() * 8;
 
   // Clang types can be resolved even without a process.
   if (CompilerType clang_type = GetAsClangTypeOrNull(type)) {

@@ -1260,11 +1260,12 @@ static bool IsSwiftResultVariable(ConstString name) {
 
 static bool IsSwiftReferenceType(ValueObject &object) {
   CompilerType object_type(object.GetCompilerType());
-  if (object_type.GetTypeSystem().isa_and_nonnull<TypeSystemSwift>()) {
+  if (auto ts =
+          object_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>()) {
     Flags type_flags(object_type.GetTypeInfo());
     if (type_flags.AllSet(eTypeIsClass | eTypeHasValue |
                           eTypeInstanceIsPointer))
-      return true;
+      return !ts->IsForeignReferenceType(object_type.GetOpaqueQualType());
   }
   return false;
 }
@@ -1299,8 +1300,17 @@ llvm::Error
 SwiftLanguageRuntime::PrintObjectViaPointer(Stream &strm, ValueObject &object,
                                             Process &process) const {
   Flags flags(object.GetCompilerType().GetTypeInfo());
+  bool is_object = flags.Test(eTypeInstanceIsPointer);
+  // A foreign reference is not an AnyObject, so the inferior loads it from
+  // the pointer like a value.
+  if (auto ts = object.GetCompilerType()
+                    .GetTypeSystem()
+                    .dyn_cast_or_null<TypeSystemSwift>())
+    if (ts->IsForeignReferenceType(
+            object.GetCompilerType().GetOpaqueQualType()))
+      is_object = false;
   addr_t addr = LLDB_INVALID_ADDRESS;
-  if (flags.Test(eTypeInstanceIsPointer)) {
+  if (is_object) {
     // Objects are pointers. The inferior dereferences this pointer, so the
     // metadata bits that authenticate a memory access have to be preserved.
     addr = object.GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
@@ -2574,7 +2584,9 @@ protected:
     result_valobj_sp = result_valobj_sp->GetQualifiedRepresentationIfAvailable(
         lldb::eDynamicCanRunTarget, true);
     CompilerType result_type(result_valobj_sp->GetCompilerType());
-    if (!(result_type.GetTypeInfo() & lldb::eTypeInstanceIsPointer)) {
+    auto ts = result_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
+    if (!(result_type.GetTypeInfo() & lldb::eTypeInstanceIsPointer) ||
+        (ts && ts->IsForeignReferenceType(result_type.GetOpaqueQualType()))) {
       result.AppendError("refcount only available for class types");
       result.SetStatus(lldb::eReturnStatusFailed);
       return;
