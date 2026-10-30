@@ -513,16 +513,17 @@ bool SwiftREPL::PrintOneVariable(Debugger &debugger,
     options.SetRevealEmptyAggregates(false);
     options.SetHidePointerValue(true);
     options.SetVariableFormatDisplayLanguage(lldb::eLanguageTypeSwift);
-    options.SetDeclPrintingHelper([&](ConstString type_name,
-                                      ConstString var_name,
+    options.SetDeclPrintingHelper([&](llvm::StringRef type_name,
+                                      llvm::StringRef var_name,
                                       const DumpValueObjectOptions &options,
                                       Stream &stream) -> bool {
-      if (!type_name || !var_name)
+      if (type_name.empty() || var_name.empty())
         return false;
 
       // Try to get the SwiftASTContext representation of the type. It
       // will hide Objective-C implemention details that are not
       // publicly declared in the SDK.
+      std::string type_name_str = type_name.str();
       if (valobj_sp) {
         auto static_valobj_sp = valobj_sp->GetStaticValue();
         // ExpressionVariable::GetValueObject() hands out the dynamic value
@@ -539,16 +540,16 @@ bool SwiftREPL::PrintOneVariable(Debugger &debugger,
               dynamic_type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>();
           if (ts &&
               ts->IsImportedType(dynamic_type.GetOpaqueQualType(), nullptr))
-            type_name = static_type.GetDisplayTypeName();
+            type_name_str = static_type.GetDisplayTypeName().GetString();
         }
       }
-      std::string type_name_str(type_name ? type_name.GetCString() : "");
       for (auto iter = type_name_str.find(" *"); iter != std::string::npos;
            iter = type_name_str.find(" *")) {
         type_name_str.erase(iter, 2);
       }
       if (!type_name_str.empty()) {
-        stream.Printf("%s: %s =", var_name.GetCString(), type_name_str.c_str());
+        stream.Printf("%s: %s =", var_name.str().c_str(),
+                      type_name_str.c_str());
         return true;
       }
 
