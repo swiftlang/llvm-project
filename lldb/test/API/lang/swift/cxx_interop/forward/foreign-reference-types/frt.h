@@ -100,4 +100,19 @@ OpaqueFRT *createOpaqueFRT() SWIFT_RETURNS_RETAINED;
 void retainOpaqueFRT(OpaqueFRT *frt);
 void releaseOpaqueFRT(OpaqueFRT *frt);
 
+/// Only used as an Optional in Swift.
+struct OptionalOnlyFRT {
+  int value;
+
+  static OptionalOnlyFRT *_Nullable create(int value);
+} SWIFT_IMMORTAL_REFERENCE;
+
+/// A value type that points to an FRT.
+struct HoldsFRT {
+  SharedFRT *shared;
+  int number;
+};
+
+HoldsFRT makeHoldsFRT(SharedFRT *shared);
+
 #pragma clang assume_nonnull end

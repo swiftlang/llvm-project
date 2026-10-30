@@ -896,6 +896,8 @@ public:
   bool IsImportedType(lldb::opaque_compiler_type_t type,
                       CompilerType *original_type = nullptr) override;
 
+  bool IsForeignReferenceType(lldb::opaque_compiler_type_t type) override;
+
   CompilerType GetReferentType(lldb::opaque_compiler_type_t type) override;
   CompilerType GetStaticSelfType(lldb::opaque_compiler_type_t type) override;
 
