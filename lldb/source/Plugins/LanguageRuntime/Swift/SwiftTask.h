@@ -81,8 +81,10 @@ public:
 private:
   /// A register context that is the source of `RegisterInfo` data.
   RegisterContextSP m_reg_info_sp;
-  /// The architecture specific regnum (LLDB) which holds the async context.
+  /// The architecture specific regnum which holds the async context, in
+  /// `m_async_ctx_regkind`.
   uint32_t m_async_ctx_regnum = LLDB_INVALID_REGNUM;
+  lldb::RegisterKind m_async_ctx_regkind = lldb::eRegisterKindDWARF;
   /// The Task's async context.
   RegisterValue m_async_ctx;
   /// The address of the async context's resume function.
