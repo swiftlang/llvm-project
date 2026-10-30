@@ -22,7 +22,7 @@ class ThreadPlanStepInRange : public ThreadPlanStepRange,
 public:
   ThreadPlanStepInRange(Thread &thread, const AddressRange &range,
                         const SymbolContext &addr_context,
-                        const char *step_into_target, lldb::RunMode stop_others,
+                        std::string step_into_target, lldb::RunMode stop_others,
                         LazyBool step_in_avoids_code_without_debug_info,
                         LazyBool step_out_avoids_code_without_debug_info);
 
@@ -75,7 +75,7 @@ private:
       Status &status, LazyBool avoid_code_without_debug_info);
   friend lldb::ThreadPlanSP Thread::QueueThreadPlanForStepInRange(
       bool abort_other_plans, const AddressRange &range,
-      const SymbolContext &addr_context, const char *step_in_target,
+      const SymbolContext &addr_context, llvm::StringRef step_in_target,
       lldb::RunMode stop_others, Status &status,
       LazyBool step_in_avoids_code_without_debug_info,
       LazyBool step_out_avoids_code_without_debug_info);
@@ -102,7 +102,7 @@ private:
                              // demand for that.
   LazyBool m_virtual_step;   // true if we've just done a "virtual step", i.e.
                              // just moved the inline stack depth.
-  ConstString m_step_into_target;
+  std::string m_step_into_target;
   std::vector<lldb::break_id_t> m_step_in_deep_bps; // Places where we might
                                                     // want to stop when we do a
                                                     // step out.

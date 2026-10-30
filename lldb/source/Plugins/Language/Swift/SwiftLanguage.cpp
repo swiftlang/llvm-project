@@ -1744,10 +1744,10 @@ SwiftLanguage::GetFormatterPrefixSuffix(llvm::StringRef type_hint) {
 
 DumpValueObjectOptions::DeclPrintingHelper
 SwiftLanguage::GetDeclPrintingHelper() {
-  return [](ConstString type_name, ConstString var_name,
+  return [](llvm::StringRef type_name, llvm::StringRef var_name,
             const DumpValueObjectOptions &options, Stream &stream) -> bool {
-    std::string type_name_str(type_name ? type_name.GetCString() : "");
-    if (type_name) {
+    std::string type_name_str = type_name.str();
+    if (!type_name.empty()) {
       for (auto iter = type_name_str.find(" *"); iter != std::string::npos;
            iter = type_name_str.find(" *")) {
         type_name_str.erase(iter, 2);
@@ -1761,8 +1761,8 @@ SwiftLanguage::GetDeclPrintingHelper() {
 
     if (!type_name_str.empty())
       stream.Printf("%s ", type_name_str.c_str());
-    if (var_name)
-      stream.Printf("%s =", var_name.GetCString());
+    if (!var_name.empty())
+      stream.Printf("%s =", var_name.str().c_str());
     else if (!options.m_hide_name)
       stream.Printf(" =");
 
