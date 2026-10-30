@@ -950,6 +950,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(EXT_VECTOR_DECLS);
   RECORD(UNUSED_FILESCOPED_DECLS);
   RECORD(PPD_ENTITIES_OFFSETS);
+  RECORD(PPD_SKIPPED_RANGES);
   RECORD(VTABLE_USES);
   RECORD(REFERENCED_SELECTOR_POOL);
   RECORD(TU_UPDATE_LEXICAL);
@@ -3017,6 +3018,34 @@ void ASTWriter::WritePreprocessorDetail(PreprocessingRecord &PPRec,
     RecordData::value_type Record[] = {PPD_ENTITIES_OFFSETS};
     Stream.EmitRecordWithBlob(PPEOffsetAbbrev, Record,
                               bytes(PreprocessedEntityOffsets));
+  }
+
+  // Write the skipped region table for the preprocessing record.
+  if (!PP->getHeaderSearchInfo()
+           .getHeaderSearchOpts()
+           .ModulesSkipPreprocessingRecordSkippedRanges) {
+    ArrayRef<SourceRange> SkippedRanges = PPRec.getSkippedRanges();
+    if (SkippedRanges.size() > 0) {
+      std::vector<PPSkippedRange> SerializedSkippedRanges;
+      SerializedSkippedRanges.reserve(SkippedRanges.size());
+      for (auto const &Range : SkippedRanges) {
+        SourceRange R = getAdjustedRange(Range);
+        SerializedSkippedRanges.emplace_back(
+            getRawSourceLocationEncoding(R.getBegin()),
+            getRawSourceLocationEncoding(R.getEnd()));
+      }
+
+      using namespace llvm;
+      auto Abbrev = std::make_shared<BitCodeAbbrev>();
+      Abbrev->Add(BitCodeAbbrevOp(PPD_SKIPPED_RANGES));
+      Abbrev->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Blob));
+      unsigned PPESkippedRangeAbbrev = Stream.EmitAbbrev(std::move(Abbrev));
+
+      Record.clear();
+      Record.push_back(PPD_SKIPPED_RANGES);
+      Stream.EmitRecordWithBlob(PPESkippedRangeAbbrev, Record,
+                                bytes(SerializedSkippedRanges));
+    }
   }
 }
 

@@ -262,6 +262,14 @@ public:
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesSkipPragmaDiagnosticMappings : 1;
 
+  /// Whether to entirely skip writing the ranges the preprocessor skipped while
+  /// evaluating excluded conditional directives (e.g. #if 0 blocks).
+  ///
+  /// This is enabled by default because writing these ranges could make PCM
+  /// files substantially bigger for headers with long excluded regions
+  /// (rdar://43533418).
+  unsigned ModulesSkipPreprocessingRecordSkippedRanges : 1;
+
   /// Whether to prune non-affecting module map files from PCM files.
   LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesPruneNonAffectingModuleMaps : 1;
@@ -312,6 +320,7 @@ public:
         ModulesSkipDiagnosticOptions(false),
         ModulesSkipHeaderSearchPaths(false),
         ModulesSkipPragmaDiagnosticMappings(false),
+        ModulesSkipPreprocessingRecordSkippedRanges(true),
         ModulesPruneNonAffectingModuleMaps(true), ModulesHashContent(false),
         ModulesSerializeOnlyPreprocessor(false),
         ModulesStrictContextHash(false), ModulesIncludeVFSUsage(false),
