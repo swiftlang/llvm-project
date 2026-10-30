@@ -34,8 +34,10 @@ RegisterContextTask::RegisterContextTask(Thread &thread,
       m_async_ctx(async_ctx), m_resume_fn(resume_fn) {
   auto &target = thread.GetProcess()->GetTarget();
   auto triple = target.GetArchitecture().GetTriple();
-  if (auto regnums = GetAsyncUnwindRegisterNumbers(triple.getArch()))
+  if (auto regnums = GetAsyncUnwindRegisterNumbers(triple.getArch())) {
     m_async_ctx_regnum = regnums->async_ctx_regnum;
+    m_async_ctx_regkind = regnums->GetRegisterKind();
+  }
 }
 
 bool RegisterContextTask::ReadRegister(const RegisterInfo *reg_info,
@@ -47,7 +49,8 @@ bool RegisterContextTask::ReadRegister(const RegisterInfo *reg_info,
     reg_value = m_resume_fn;
     return true;
   }
-  if (reg_info->kinds[eRegisterKindLLDB] == m_async_ctx_regnum) {
+  if (m_async_ctx_regnum != LLDB_INVALID_REGNUM &&
+      reg_info->kinds[m_async_ctx_regkind] == m_async_ctx_regnum) {
     reg_value = m_async_ctx;
     return true;
   }
