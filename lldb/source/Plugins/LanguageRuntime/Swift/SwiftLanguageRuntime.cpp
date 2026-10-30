@@ -3878,7 +3878,7 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
     return log_expected(async_ctx.takeError());
 
   UnwindPlan::Row row;
-  const int32_t ptr_size = 8;
+  const int32_t ptr_size = process_sp->GetAddressByteSize();
   row.SetOffset(0);
 
   // The CFA of a funclet is its own async context.
@@ -3913,7 +3913,7 @@ UnwindPlanSP SwiftLanguageRuntime::GetFollowAsyncContextUnwindPlan(
     ProcessSP process_sp, RegisterContext *regctx, ArchSpec &arch,
     bool &behaves_like_zeroth_frame) {
   UnwindPlan::Row row;
-  const int32_t ptr_size = 8;
+  const int32_t ptr_size = process_sp->GetAddressByteSize();
   row.SetOffset(0);
 
   std::optional<AsyncUnwindRegisterNumbers> regnums =
