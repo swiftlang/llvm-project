@@ -65,6 +65,15 @@ static cl::opt<uint64_t> BoundedMemSetInlineSizeOpt(
     cl::desc("Set maximum bound of a variable-length memset to expand inline"),
     cl::Hidden);
 
+/// Maximum bound of a memcpy or memmove with non-constant length for it to be
+/// expanded inline. Overrides
+/// TargetTransformInfo::getMaxBoundedMemTransferInlineSize.
+static cl::opt<uint64_t> BoundedMemTransferInlineSizeOpt(
+    "bounded-memtransfer-inline-size",
+    cl::desc("Set maximum bound of a variable-length memcpy or memmove to "
+             "expand inline"),
+    cl::Hidden);
+
 namespace {
 
 struct PreISelIntrinsicLowering {
@@ -94,6 +103,8 @@ struct PreISelIntrinsicLowering {
                               const TargetTransformInfo &TTI) const;
   bool tryExpandBoundedMemSetPattern(MemSetPatternInst *MemSet,
                                      const TargetTransformInfo &TTI) const;
+  bool tryExpandBoundedMemTransfer(MemTransferInst *MemTransfer,
+                                   const TargetTransformInfo &TTI) const;
   bool
   expandMemIntrinsicUses(Function &F,
                          DenseMap<Constant *, GlobalVariable *> &CMap) const;
@@ -376,6 +387,41 @@ bool PreISelIntrinsicLowering::tryExpandBoundedMemSetPattern(
   return true;
 }
 
+// Expand a memcpy or memmove whose length is not constant but is known to be
+// small, which is faster than calling the library.
+bool PreISelIntrinsicLowering::tryExpandBoundedMemTransfer(
+    MemTransferInst *MemTransfer, const TargetTransformInfo &TTI) const {
+  // This pass runs even at -O0, so skip if e.g. llc -O0 is used.
+  if (!TM || TM->getOptLevel() == CodeGenOptLevel::None)
+    return false;
+
+  Value *Len = MemTransfer->getLength();
+  const Function *F = MemTransfer->getFunction();
+  if (isa<Constant>(Len) || MemTransfer->isVolatile() || F->hasOptNone() ||
+      F->hasMinSize())
+    return false;
+  uint64_t Threshold = BoundedMemTransferInlineSizeOpt.getNumOccurrences()
+                           ? BoundedMemTransferInlineSizeOpt
+                           : TTI.getMaxBoundedMemTransferInlineSize();
+  if (!Threshold)
+    return false;
+
+  const DataLayout &DL = MemTransfer->getDataLayout();
+  KnownBits Known = computeKnownBits(Len, DL);
+  ConstantRange CR = computeConstantRangeIncludingKnownBits(
+      {Len, Known}, /*ForSigned=*/false, SimplifyQuery(DL, MemTransfer));
+  Attribute RangeAttr = MemTransfer->getParamAttr(
+      MemTransfer->getLengthUse().getOperandNo(), Attribute::Range);
+  if (RangeAttr.isValid())
+    CR = CR.intersectWith(RangeAttr.getRange());
+  if (CR.isEmptySet() || CR.getUnsignedMax().ugt(Threshold))
+    return false;
+
+  expandBoundedMemTransfer(MemTransfer, CR.getUnsignedMin().getZExtValue(),
+                           CR.getUnsignedMax().getZExtValue(), Known);
+  return true;
+}
+
 // Return a value appropriate for use with the memset_pattern16 libcall, if
 // possible and if we know how. (Adapted from equivalent helper in
 // LoopIdiomRecognize).
@@ -445,6 +491,11 @@ bool PreISelIntrinsicLowering::expandMemIntrinsicUses(
       auto *Memcpy = cast<MemCpyInst>(Inst);
       Function *ParentFunc = Memcpy->getFunction();
       const TargetTransformInfo &TTI = LookupTTI(*ParentFunc);
+      if (tryExpandBoundedMemTransfer(Memcpy, TTI)) {
+        Changed = true;
+        Memcpy->eraseFromParent();
+        break;
+      }
       if (shouldExpandMemIntrinsicWithSize(Memcpy->getLength(), TTI)) {
         if (UseMemIntrinsicLibFunc &&
             canEmitMemcpy(ModuleLibcalls, TM, ParentFunc))
@@ -477,6 +528,11 @@ bool PreISelIntrinsicLowering::expandMemIntrinsicUses(
       auto *Memmove = cast<MemMoveInst>(Inst);
       Function *ParentFunc = Memmove->getFunction();
       const TargetTransformInfo &TTI = LookupTTI(*ParentFunc);
+      if (tryExpandBoundedMemTransfer(Memmove, TTI)) {
+        Changed = true;
+        Memmove->eraseFromParent();
+        break;
+      }
       if (shouldExpandMemIntrinsicWithSize(Memmove->getLength(), TTI)) {
         if (UseMemIntrinsicLibFunc &&
             canEmitLibcall(ModuleLibcalls, TM, ParentFunc, RTLIB::MEMMOVE))
