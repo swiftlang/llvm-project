@@ -165,8 +165,17 @@ bool TypeSystemSwift::CheckFlagInCU(CompileUnit *cu, const char *flag) {
 }
 
 /// Determine whether this CU was compiled with C++ interop enabled.
-bool TypeSystemSwift::ShouldEnableCXXInterop(CompileUnit *cu) {
-  return CheckFlagInCU(cu, "-enable-experimental-cxx-interop");
+bool TypeSystemSwift::ShouldEnableCXXInterop(CompileUnit *cu,
+                                             Module *fallback_module) {
+  if (CheckFlagInCU(cu, "-enable-experimental-cxx-interop"))
+    return true;
+  // A scratch context isn't tied to a compile unit, so ask the module, which
+  // scans all of its Swift compile units. Without this the ClangImporter is
+  // configured for C while still carrying the C++ arguments deserialized from
+  // the module (e.g. -std=c++17), and clang rejects the combination.
+  if (!cu && fallback_module)
+    return fallback_module->IsSwiftCxxInteropEnabled();
+  return false;
 }
 
 bool TypeSystemSwift::ShouldEnableEmbeddedSwift(CompileUnit *cu) {
