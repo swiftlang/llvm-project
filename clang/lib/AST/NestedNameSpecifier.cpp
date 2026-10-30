@@ -370,4 +370,3 @@ NestedNameSpecifierLocBuilder::getWithLocInContext(ASTContext &Context) const {
   memcpy(Mem, Buffer, BufferSize);
   return NestedNameSpecifierLoc(Representation, Mem);
 }
-
