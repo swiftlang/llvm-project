@@ -385,6 +385,10 @@ public:
       return nullptr;
     }
 
+    // A value of foreign reference type is a pointer to the Clang object.
+    if (ts->IsForeignReferenceType(swift_type.GetOpaqueQualType()))
+      clang_type = clang_type.GetPointerType();
+
     return GetOrCreateTypeInfo(clang_type);
   }
 
@@ -974,7 +978,12 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
             child.language_flags);
         if (!child_type_or_err)
           return child_type_or_err.takeError();
-        CompilerType type = swiftify(*child_type_or_err);
+        // A base class of a foreign reference type is a subobject of the
+        // same Clang object, not a reference of its own.
+        bool is_subobject = child.is_base_class &&
+                            TypeSystemSwift::IsForeignReferenceType(m_type);
+        CompilerType type =
+            is_subobject ? *child_type_or_err : swiftify(*child_type_or_err);
         auto get_name = [&]() -> std::string { return child_name; };
         auto get_info = [&]() -> llvm::Expected<ChildInfo> { return child; };
         if (auto err = visit_callback(type, depth, get_name, get_info))
@@ -998,6 +1007,10 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       LLDB_LOG_ERRORV(GetLog(LLDBLog::Types), result.takeError(),
                       "could not resolve as clang type: {0}");
     }
+    // Without a Clang definition, a foreign reference is an opaque pointer.
+    // There is no Swift reflection metadata to fall back to.
+    if (TypeSystemSwift::IsForeignReferenceType(m_type))
+      return success;
   }
 
   // The actual conversion from the FieldInfo record.
@@ -3652,6 +3665,10 @@ Value::ValueType SwiftLanguageRuntime::GetValueType(
       if (dynamic_type_flags.AllClear(eTypeIsPointer | eTypeIsReference |
                                       eTypeInstanceIsPointer))
         return Value::ValueType::LoadAddress;
+      // The runtime vends the location of a foreign reference too, because
+      // it has no Swift metadata to find the object with.
+      if (TypeSystemSwift::IsForeignReferenceType(dynamic_type))
+        return Value::ValueType::LoadAddress;
     }
 
     if (static_type_flags.AllSet(eTypeIsSwift | eTypeIsPointer) &&
@@ -3894,6 +3911,9 @@ static bool CouldHaveDynamicValue(ValueObject &in_value) {
   CompilerType var_type(in_value.GetCompilerType());
   Flags var_type_flags(var_type.GetTypeInfo());
   if (var_type_flags.AllSet(eTypeIsSwift | eTypeInstanceIsPointer)) {
+    // Clang objects have no Swift metadata to read a dynamic type from.
+    if (TypeSystemSwift::IsForeignReferenceType(var_type))
+      return false;
     // Swift class instances are actually pointers, but base class instances
     // are inlined at offset 0 in the class data. If we just let base classes
     // be dynamic, it would cause an infinite recursion. So we would usually
@@ -4006,7 +4026,10 @@ bool SwiftLanguageRuntime::GetDynamicTypeAndAddress(
     }
 
     Flags subst_type_info(bound_type.GetTypeInfo());
-    if (subst_type_info.AnySet(eTypeIsClass)) {
+    // A foreign reference has no Swift metadata, so its bound type is its
+    // dynamic type.
+    if (subst_type_info.AnySet(eTypeIsClass) &&
+        !TypeSystemSwift::IsForeignReferenceType(bound_type)) {
       success = GetDynamicTypeAndAddress_Class(
           in_value, bound_type, use_dynamic, class_type_or_name, address,
           static_value_type, local_buffer);
@@ -4112,6 +4135,10 @@ bool SwiftLanguageRuntime::IsTaggedPointer(lldb::addr_t addr,
 
 std::pair<lldb::addr_t, bool>
 SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t addr, CompilerType type) {
+  // A pointer to a Clang object has no spare bits.
+  if (TypeSystemSwift::IsForeignReferenceType(type))
+    return {addr, false};
+
   // Check for an unowned Darwin Objective-C reference.
   if (IsTaggedPointer(addr, type)) {
     // Clear the discriminator bit to get at the pointer to Objective-C object.
