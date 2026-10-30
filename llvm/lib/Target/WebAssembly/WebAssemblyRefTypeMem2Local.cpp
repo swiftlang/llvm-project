@@ -59,8 +59,7 @@ FunctionPass *llvm::createWebAssemblyRefTypeMem2Local() {
 void WebAssemblyRefTypeMem2Local::visitAllocaInst(AllocaInst &AI) {
   if (WebAssembly::isWebAssemblyReferenceType(AI.getAllocatedType())) {
     Changed = true;
-    IRBuilder<> IRB(AI.getContext());
-    IRB.SetInsertPoint(&AI);
+    IRBuilder<> IRB(&AI);
     auto *NewAI = IRB.CreateAlloca(AI.getAllocatedType(),
                                    WebAssembly::WASM_ADDRESS_SPACE_VAR, nullptr,
                                    AI.getName() + ".var");

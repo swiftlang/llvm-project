@@ -267,7 +267,7 @@ QuotRemWithBB FastDivInsertionTask::createSlowBB(BasicBlock *SuccessorBB) {
   QuotRemWithBB DivRemPair;
   DivRemPair.BB = BasicBlock::Create(MainBB->getParent()->getContext(), "",
                                      MainBB->getParent(), SuccessorBB);
-  IRBuilder<> Builder(DivRemPair.BB, DivRemPair.BB->begin());
+  IRBuilder<> Builder(DivRemPair.BB->begin());
   Builder.SetCurrentDebugLocation(SlowDivOrRem->getDebugLoc());
 
   Value *Dividend = SlowDivOrRem->getOperand(0);
@@ -291,7 +291,7 @@ QuotRemWithBB FastDivInsertionTask::createFastBB(BasicBlock *SuccessorBB) {
   QuotRemWithBB DivRemPair;
   DivRemPair.BB = BasicBlock::Create(MainBB->getParent()->getContext(), "",
                                      MainBB->getParent(), SuccessorBB);
-  IRBuilder<> Builder(DivRemPair.BB, DivRemPair.BB->begin());
+  IRBuilder<> Builder(DivRemPair.BB->begin());
   Builder.SetCurrentDebugLocation(SlowDivOrRem->getDebugLoc());
 
   Value *Dividend = SlowDivOrRem->getOperand(0);
@@ -317,7 +317,7 @@ QuotRemWithBB FastDivInsertionTask::createFastBB(BasicBlock *SuccessorBB) {
 QuotRemPair FastDivInsertionTask::createDivRemPhiNodes(QuotRemWithBB &LHS,
                                                        QuotRemWithBB &RHS,
                                                        BasicBlock *PhiBB) {
-  IRBuilder<> Builder(PhiBB, PhiBB->begin());
+  IRBuilder<> Builder(PhiBB->begin());
   Builder.SetCurrentDebugLocation(SlowDivOrRem->getDebugLoc());
   PHINode *QuoPhi = Builder.CreatePHI(getSlowType(), 2);
   QuoPhi->addIncoming(LHS.Quotient, LHS.BB);
@@ -334,7 +334,7 @@ QuotRemPair FastDivInsertionTask::createDivRemPhiNodes(QuotRemWithBB &LHS,
 /// doesn't need a runtime check.
 Value *FastDivInsertionTask::insertOperandRuntimeCheck(Value *Op1, Value *Op2) {
   assert((Op1 || Op2) && "Nothing to check");
-  IRBuilder<> Builder(MainBB, MainBB->end());
+  IRBuilder<> Builder(MainBB->end());
   Builder.SetCurrentDebugLocation(SlowDivOrRem->getDebugLoc());
 
   Value *OrV;
@@ -404,7 +404,7 @@ std::optional<QuotRemPair> FastDivInsertionTask::insertFastDivAndRem() {
         isa<ConstantInt>(BCI->getOperand(0)))
       return std::nullopt;
 
-  IRBuilder<> Builder(MainBB, MainBB->end());
+  IRBuilder<> Builder(MainBB->end());
   Builder.SetCurrentDebugLocation(SlowDivOrRem->getDebugLoc());
 
   if (DividendShort && !isSignedOp()) {

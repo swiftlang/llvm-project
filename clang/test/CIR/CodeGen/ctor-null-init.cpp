@@ -103,7 +103,7 @@ VDerived::VDerived() : VBase() {}
 // OGCG: %[[ADDR:.*]] = getelementptr inbounds i8, ptr %[[THIS:.*]],
 // OGCG: call void @llvm.memset.p0.i64(ptr align 8 %[[ADDR]], i8 0, i64 8, i1 false)
 // OGCG: call void @_ZN5VBaseC2Ev(ptr noundef nonnull align 8 dereferenceable(8) %[[THIS]])
-// OGCG: store ptr getelementptr inbounds inrange(-16, 16) ({ [4 x ptr] }, ptr @_ZTV8VDerived, i32 0, i32 0, i32 2), ptr %[[THIS]], align 8
+// OGCG: store ptr getelementptr inbounds inrange(-16, 16) (i8, ptr @_ZTV8VDerived, i64 16), ptr %[[THIS]], align 8
 
 // CIR-LABEL: cir.func {{.*}}@_ZN5VBaseC2Ev
 // CIR: cir.vtable.address_point(@_ZTV5VBase
