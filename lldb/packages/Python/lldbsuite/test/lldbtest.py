@@ -2217,6 +2217,14 @@ def _embedded_swift_setup(test_instance, variant_value):
         assert False, f"Unknown variant: {variant_value}"
 
 
+def _swift_dwarf_validation_setup(test_instance, variant_value):
+    test_instance.runCmd(
+        "settings set testing.swift-validate-typesystem-dwarf "
+        + os.environ["LLDB_SWIFT_VALIDATE_DWARF"]
+    )
+    test_instance.extra_make_flags["SWIFT_DWARF_VALIDATION"] = "1"
+
+
 _test_variants = [
     TestVariant(
         name="swift_module_importer",
@@ -2233,6 +2241,14 @@ _test_variants = [
         setup_fn=_embedded_swift_setup,
         attrs_to_preserve=("debug_info", "swift_module_importer"),
     ),
+    TestVariant(
+        name="swift_dwarf_validation",
+        values=test_categories.swift_dwarf_validation_categories,
+        predicate=lambda m: getattr(m, "__swift_test__", False)
+        and bool(os.environ.get("LLDB_SWIFT_VALIDATE_DWARF")),
+        setup_fn=_swift_dwarf_validation_setup,
+        attrs_to_preserve=("debug_info", "swift_module_importer", "swift_embedded"),
+    ),
 ]
 
 
@@ -2246,6 +2262,9 @@ _excluded_variant_combinations = [
     # importer setting doesn't change anything observable; skip the noclang
     # cross to halve the embedded variant count.
     {"swift_module_importer": "noclang", "swift_embedded": "swiftembed"},
+    # Embedded Swift emits no reflection metadata, so there is nothing to
+    # compare DWARF against.
+    {"swift_embedded": "swiftembed", "swift_dwarf_validation": "dwarfvalidation"},
 ]
 
 
