@@ -211,6 +211,10 @@ public:
     unsigned DiagID = MovedExpr
                           ? diag::warn_lifetime_safety_use_after_scope_moved
                           : diag::warn_lifetime_safety_use_after_scope;
+    // Don't enable this via -Weverything - see rdar://190623069.
+    if (!IsDiagEnabledExcludingWeverything(DiagID, IssueExpr->getExprLoc()))
+      return;
+
     std::string DestroyedSubject = getDiagSubjectDescription(IssueExpr);
 
     S.Diag(IssueExpr->getExprLoc(), DiagID)
