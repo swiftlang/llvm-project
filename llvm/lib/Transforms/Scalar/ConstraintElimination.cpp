@@ -1147,7 +1147,7 @@ ConstraintTy ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred,
                         /*IsSigned=*/false, /*IsEq=*/false, /*IsNe=*/false);
   }
 
-  auto DL = State.DL;
+  const auto &DL = State.DL;
   // If both operands are known to be non-negative, change signed predicates to
   // unsigned ones. This increases the reasoning effectiveness in combination
   // with the signed <-> unsigned transfer logic.
