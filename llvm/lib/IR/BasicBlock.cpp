@@ -1040,10 +1040,11 @@ void BasicBlock::reinsertInstInDbgRecords(
   ThisMarker->absorbDebugValues(Range, *DM, true);
 }
 
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
 /// In asserts builds, this checks the numbering. In non-asserts builds, it
 /// is defined as a no-op inline function in BasicBlock.h.
 void BasicBlock::validateInstrOrdering() const {
+#ifndef NDEBUG
   if (!isInstrOrderValid())
     return;
   const Instruction *Prev = nullptr;
@@ -1052,6 +1053,7 @@ void BasicBlock::validateInstrOrdering() const {
            "cached instruction ordering is incorrect");
     Prev = &I;
   }
+#endif
 }
 #endif
 
