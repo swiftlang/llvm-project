@@ -3467,7 +3467,6 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
                          return A.Pos < B.Pos;
                        });
 
-            llvm::SmallString<128> FixedInitList{};
             SourceManager &SM = SemaRef.getSourceManager();
             const LangOptions &LangOpts = SemaRef.getLangOpts();
 
