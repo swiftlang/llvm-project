@@ -446,11 +446,12 @@ SparcDetectRoundChangePass::run(MachineFunction &MF,
 // with the changes that still need implementing for the "double" versions
 // of these instructions.
 //
-char FixAllFDIVSQRT::ID = 0;
+char SparcFixAllFDIVSQRTLegacy::ID = 0;
 
-FixAllFDIVSQRT::FixAllFDIVSQRT() : MachineFunctionPass(ID) {}
+SparcFixAllFDIVSQRTLegacy::SparcFixAllFDIVSQRTLegacy()
+    : MachineFunctionPass(ID) {}
 
-bool FixAllFDIVSQRT::runOnMachineFunction(MachineFunction &MF) {
+static bool fixAllFDIVSQRTInMachineFunction(MachineFunction &MF) {
   const SparcSubtarget *Subtarget = &MF.getSubtarget<SparcSubtarget>();
   if (!Subtarget->fixAllFDIVSQRT())
     return false;
@@ -482,4 +483,17 @@ bool FixAllFDIVSQRT::runOnMachineFunction(MachineFunction &MF) {
   }
 
   return Modified;
+}
+
+bool SparcFixAllFDIVSQRTLegacy::runOnMachineFunction(MachineFunction &MF) {
+  return fixAllFDIVSQRTInMachineFunction(MF);
+}
+
+PreservedAnalyses
+SparcFixAllFDIVSQRTPass::run(MachineFunction &MF,
+                             MachineFunctionAnalysisManager &MFAM) {
+  return fixAllFDIVSQRTInMachineFunction(MF)
+             ? getMachineFunctionPassPreservedAnalyses()
+                   .preserveSet<CFGAnalyses>()
+             : PreservedAnalyses::all();
 }

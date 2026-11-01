@@ -65,6 +65,13 @@ public:
                         MachineFunctionAnalysisManager &MFAM);
 };
 
+class SparcFixAllFDIVSQRTPass
+    : public RequiredPassInfoMixin<SparcFixAllFDIVSQRTPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
 void initializeSparcAsmPrinterPass(PassRegistry &);
 void initializeSparcDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeErrataWorkaroundPass(PassRegistry &);

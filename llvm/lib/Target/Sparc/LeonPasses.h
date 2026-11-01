@@ -85,16 +85,22 @@ public:
   }
 };
 
-class LLVM_LIBRARY_VISIBILITY FixAllFDIVSQRT : public MachineFunctionPass {
+class LLVM_LIBRARY_VISIBILITY SparcFixAllFDIVSQRTLegacy
+    : public MachineFunctionPass {
 public:
   static char ID;
 
-  FixAllFDIVSQRT();
+  SparcFixAllFDIVSQRTLegacy();
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   StringRef getPassName() const override {
     return "FixAllFDIVSQRT: Erratum Fix LBR34: fix FDIVS/FDIVD/FSQRTS/FSQRTD "
            "instructions with NOPs and floating-point store";
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesCFG();
+    MachineFunctionPass::getAnalysisUsage(AU);
   }
 };
 } // namespace llvm
