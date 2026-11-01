@@ -211,7 +211,7 @@ void loop_all_accesses_in_bounds_len_signed(int* __counted_by(len) buf, int len)
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
 // CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 [[TMP0]], 1
 // CHECK-NEXT:    store i32 [[ADD]], ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[INC]] = add nuw i64 [[I_07]], 1
+// CHECK-NEXT:    [[INC]] = add nuw nsw i64 [[I_07]], 1
 // CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[INC]], [[LEN]]
 // CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], {{!llvm.loop ![0-9]+}}
 //
@@ -295,24 +295,22 @@ void loop_accesses_out_of_bounds_eliminate_lower_check_len_signed(int* __counted
 // CHECK-NEXT:    [[CMP1:%.*]] = icmp sgt i64 [[LEN]], -1
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP1]])
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw [4 x i8], ptr [[BUF]], i64 [[LEN]]
-// CHECK-NEXT:    br label %[[FOR_BODY:.*]]
+// CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr i8, ptr [[BUF]], i64 4
+// CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[ARRAYIDX8]], [[ADD_PTR]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[TMP0]], label %[[CONT2:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
-// CHECK:       [[FOR_BODY]]:
-// CHECK-NEXT:    [[I_07:%.*]] = phi i64 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[ADD:%.*]], %[[CONT2:.*]] ]
-// CHECK-NEXT:    [[ADD]] = add nuw i64 [[I_07]], 1
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr [4 x i8], ptr [[BUF]], i64 [[ADD]]
-// CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[ARRAYIDX]], [[ADD_PTR]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[TMP1:%.*]] = icmp uge ptr [[ARRAYIDX]], [[BUF]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT2]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
 // CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT2]]:
-// CHECK-NEXT:    store i32 0, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[ADD]], [[LEN]]
-// CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], {{!llvm.loop ![0-9]+}}
+// CHECK-NEXT:    [[ARRAYIDX10:%.*]] = phi ptr [ [[ARRAYIDX:%.*]], %[[CONT2]] ], [ [[ARRAYIDX8]], %[[FOR_BODY_LR_PH]] ]
+// CHECK-NEXT:    [[ADD9:%.*]] = phi i64 [ [[ADD:%.*]], %[[CONT2]] ], [ 1, %[[FOR_BODY_LR_PH]] ]
+// CHECK-NEXT:    store i32 0, ptr [[ARRAYIDX10]], align 4, {{!tbaa ![0-9]+}}
+// CHECK-NEXT:    [[ADD]] = add nuw nsw i64 [[ADD9]], 1
+// CHECK-NEXT:    [[ARRAYIDX]] = getelementptr [4 x i8], ptr [[BUF]], i64 [[ADD]]
+// CHECK-NEXT:    [[TMP1:%.*]] = icmp ult ptr [[ARRAYIDX]], [[ADD_PTR]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    br i1 [[TMP1]], label %[[CONT2]], label %[[TRAP]], {{!prof ![0-9]+}}, {{!llvm.loop ![0-9]+}}, {{!annotation ![0-9]+}}
 //
 void loop_accesses_out_of_bounds_eliminate_lower_check_len_ull(int* __counted_by(len) buf, unsigned long long len) {
   for (unsigned long long i = 0; i < len; ++i)
@@ -411,7 +409,7 @@ void loop_accesses_out_of_bounds_cannot_eliminate_wrap_check_signed_len(int* __c
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT2]]:
 // CHECK-NEXT:    store i32 0, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
-// CHECK-NEXT:    [[ADD3]] = add nuw i64 [[I_08]], 1
+// CHECK-NEXT:    [[ADD3]] = add nuw nsw i64 [[I_08]], 1
 // CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[ADD3]], [[N]]
 // CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], {{!llvm.loop ![0-9]+}}
 //
