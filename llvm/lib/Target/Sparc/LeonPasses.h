@@ -18,32 +18,20 @@
 namespace llvm {
 class SparcSubtarget;
 
-class LLVM_LIBRARY_VISIBILITY ErrataWorkaround : public MachineFunctionPass {
-protected:
-  const SparcSubtarget *ST;
-  const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
-
-  bool checkSeqTN0009A(MachineBasicBlock::iterator I);
-  bool checkSeqTN0009B(MachineBasicBlock::iterator I);
-  bool checkSeqTN0010First(MachineBasicBlock &MBB);
-  bool checkSeqTN0010(MachineBasicBlock::iterator I);
-  bool checkSeqTN0012(MachineBasicBlock::iterator I);
-  bool checkSeqTN0013(MachineBasicBlock::iterator I);
-
-  bool moveNext(MachineBasicBlock::iterator &I);
-  bool isFloat(MachineBasicBlock::iterator I);
-  bool isDivSqrt(MachineBasicBlock::iterator I);
-  bool isAtomic(MachineBasicBlock::iterator I);
-  void insertNop(MachineBasicBlock::iterator I);
-
+class LLVM_LIBRARY_VISIBILITY SparcErrataWorkaroundLegacy
+    : public MachineFunctionPass {
 public:
   static char ID;
 
-  ErrataWorkaround();
+  SparcErrataWorkaroundLegacy();
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   StringRef getPassName() const override { return "Errata workaround pass"; };
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesCFG();
+    MachineFunctionPass::getAnalysisUsage(AU);
+  }
 };
 
 class LLVM_LIBRARY_VISIBILITY SparcInsertNOPLoadLegacy

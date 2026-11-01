@@ -34,7 +34,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSparcTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeSparcAsmPrinterPass(PR);
   initializeSparcDAGToDAGISelLegacyPass(PR);
-  initializeErrataWorkaroundPass(PR);
+  initializeSparcErrataWorkaroundLegacyPass(PR);
 }
 
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
@@ -169,7 +169,7 @@ void SparcPassConfig::addPreEmitPass(){
   addPass(new SparcInsertNOPLoadLegacy());
   addPass(new SparcDetectRoundChangeLegacy());
   addPass(new SparcFixAllFDIVSQRTLegacy());
-  addPass(new ErrataWorkaround());
+  addPass(new SparcErrataWorkaroundLegacy());
 }
 
 void SparcV8TargetMachine::anchor() { }
