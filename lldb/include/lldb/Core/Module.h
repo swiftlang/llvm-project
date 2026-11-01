@@ -34,8 +34,9 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StableHashing.h"
 #include "llvm/ADT/StringRef.h"
-#include <optional>
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Chrono.h"
+#include <optional>
 
 #include <atomic>
 #include <cstddef>
@@ -919,7 +920,13 @@ public:
     m_type_system_map = type_system_map;
   }
 
-  std::vector<lldb::DataBufferSP> GetASTData(lldb::LanguageType language);
+  /// Return AST data, optionally omitting external files already loaded by
+  /// this consumer. The consumer must retain previously returned buffers while
+  /// reusing loaded_ast_files and serialize calls sharing it. Missing files
+  /// are never added to the set; the remaining buffers keep their order.
+  std::vector<lldb::DataBufferSP>
+  GetASTData(lldb::LanguageType language,
+             llvm::StringSet<> *loaded_ast_files = nullptr);
 
   /// Update the ArchSpec to a more specific variant.
   bool MergeArchitecture(const ArchSpec &arch_spec);

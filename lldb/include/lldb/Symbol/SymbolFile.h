@@ -29,6 +29,7 @@
 #include "lldb/lldb-private.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Errc.h"
 
 #include <mutex>
@@ -434,11 +435,19 @@ public:
   ///   The language for which AST data is being requested.
   ///   A given file can contain ASTs for more than one language.
   ///
+  /// @param[in,out] loaded_ast_files
+  ///   If supplied, omit external files already successfully returned to this
+  ///   consumer and add newly loaded absolute paths. The consumer must keep
+  ///   the previous buffers alive and serialize calls sharing this set. Missing
+  ///   files must not be recorded, so a later image can retry them. The order
+  ///   of the remaining buffers is unchanged.
+  ///
   /// @return
   ///   Zero or more buffers, each of which contain the raw data
   ///   of an AST in the requested language.
   virtual std::vector<lldb::DataBufferSP>
-  GetASTData(lldb::LanguageType language);
+  GetASTData(lldb::LanguageType language,
+             llvm::StringSet<> *loaded_ast_files = nullptr);
 
   struct RegisterInfoResolver {
     virtual ~RegisterInfoResolver(); // anchor

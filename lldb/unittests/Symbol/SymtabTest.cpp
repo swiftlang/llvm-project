@@ -9,6 +9,7 @@
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
 #include "Plugins/ObjectFile/Mach-O/ObjectFileMachO.h"
 #include "Plugins/SymbolFile/DWARF/SymbolFileDWARF.h"
+#include "Plugins/SymbolFile/DWARF/SymbolFileDWARFDebugMap.h"
 #include "Plugins/SymbolFile/Symtab/SymbolFileSymtab.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "TestingSupport/SubsystemRAII.h"
@@ -20,8 +21,14 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/Symtab.h"
+#include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataEncoder.h"
 #include "lldb/Utility/DataExtractor.h"
+
+#include "llvm/ADT/ScopeExit.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 #include <memory>
 
@@ -36,6 +43,270 @@ class SymtabTest : public testing::Test {
                 ObjectFileELF, SymbolFileSymtab, TypeSystemClang>
       subsystem;
 };
+
+TEST_F(SymtabTest, ExternalASTFilesAreDeduplicatedPerConsumer) {
+  auto object = TestFile::fromYaml(R"(
+--- !mach-o
+FileHeader:
+  magic:      0xFEEDFACF
+  cputype:    0x100000C
+  cpusubtype: 0x0
+  filetype:   0x2
+  ncmds:      0
+  sizeofcmds: 0
+  flags:      0x0
+  reserved:   0x0
+)");
+  ASSERT_THAT_EXPECTED(object, llvm::Succeeded());
+
+  llvm::SmallString<128> directory;
+  ASSERT_NO_ERROR(
+      llvm::sys::fs::createUniqueDirectory("lldb-ast-files", directory));
+  auto cleanup =
+      llvm::scope_exit([&] { llvm::sys::fs::remove_directories(directory); });
+  // Keep absolute paths and getcwd spellings consistent on hosts where the
+  // temporary directory has a symlinked parent (for example /var on macOS).
+  llvm::SmallString<128> real_directory;
+  ASSERT_NO_ERROR(llvm::sys::fs::real_path(directory, real_directory));
+  directory = real_directory;
+  auto file_path = [&](llvm::StringRef parent) {
+    llvm::SmallString<128> path(directory);
+    llvm::sys::path::append(path, parent, "Shared.swiftmodule");
+    return path;
+  };
+  auto write_file = [&](llvm::StringRef path, llvm::StringRef contents) {
+    ASSERT_NO_ERROR(
+        llvm::sys::fs::create_directories(llvm::sys::path::parent_path(path)));
+    std::error_code error;
+    llvm::raw_fd_ostream stream(path, error);
+    ASSERT_NO_ERROR(error);
+    stream << contents;
+  };
+  auto make_image = [&](llvm::StringRef path) -> ModuleSP {
+    auto module_spec = object->moduleSpec();
+    module_spec.GetFileSpec() =
+        FileSpec(directory).CopyByAppendingPathComponent("image");
+    auto module = std::make_shared<Module>(module_spec);
+    ObjectFile *file = module->GetObjectFile();
+    EXPECT_NE(file, nullptr);
+    if (!file)
+      return {};
+    file->GetSymtab()->AddSymbol(Symbol(0, path, eSymbolTypeASTFile, false,
+                                        true, false, false, SectionSP(), 0, 0,
+                                        false, false, 0));
+    return module;
+  };
+  auto ast_data = [&](const ModuleSP &module, llvm::StringSet<> *loaded) {
+    SymbolFileDWARFDebugMap provider(
+        module->GetObjectFile()->shared_from_this());
+    return static_cast<SymbolFile &>(provider).GetASTData(eLanguageTypeSwift,
+                                                          loaded);
+  };
+  auto contents = [](const DataBufferSP &buffer) {
+    return llvm::StringRef(reinterpret_cast<const char *>(buffer->GetBytes()),
+                           buffer->GetByteSize());
+  };
+
+  auto first_path = file_path("first");
+  auto other_path = file_path("other");
+  auto missing_path = file_path("missing");
+  write_file(first_path, "first AST");
+  write_file(other_path, "different AST with the same filename");
+  auto first = make_image(first_path);
+  auto duplicate = make_image(first_path);
+  auto other = make_image(other_path);
+  auto missing = make_image(missing_path);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(duplicate, nullptr);
+  ASSERT_NE(other, nullptr);
+  ASSERT_NE(missing, nullptr);
+
+  llvm::StringSet<> loaded;
+  auto first_buffers = ast_data(first, &loaded);
+  ASSERT_EQ(first_buffers.size(), 1u);
+  EXPECT_EQ(contents(first_buffers.front()), "first AST");
+  EXPECT_TRUE(ast_data(duplicate, &loaded).empty());
+  EXPECT_EQ(loaded.size(), 1u);
+  // The optional set must not change consumers requesting all buffers.
+  EXPECT_EQ(ast_data(duplicate, nullptr).size(), 1u);
+
+  auto other_buffers = ast_data(other, &loaded);
+  ASSERT_EQ(other_buffers.size(), 1u);
+  EXPECT_EQ(contents(other_buffers.front()),
+            "different AST with the same filename");
+  EXPECT_EQ(loaded.size(), 2u);
+
+  // Keep the original N_AST order when omitting a repeated external file.
+  auto ordered = make_image(other_path);
+  ASSERT_NE(ordered, nullptr);
+  Symtab *ordered_symbols = ordered->GetObjectFile()->GetSymtab();
+  ordered_symbols->AddSymbol(Symbol(1, first_path, eSymbolTypeASTFile, false,
+                                    true, false, false, SectionSP(), 0, 0,
+                                    false, false, 0));
+  ordered_symbols->AddSymbol(Symbol(2, other_path, eSymbolTypeASTFile, false,
+                                    true, false, false, SectionSP(), 0, 0,
+                                    false, false, 0));
+  llvm::StringSet<> ordered_context;
+  auto ordered_buffers = ast_data(ordered, &ordered_context);
+  ASSERT_EQ(ordered_buffers.size(), 2u);
+  EXPECT_EQ(contents(ordered_buffers[0]),
+            "different AST with the same filename");
+  EXPECT_EQ(contents(ordered_buffers[1]), "first AST");
+  EXPECT_EQ(ast_data(ordered, nullptr).size(), 3u);
+
+  // A missing file must remain retryable when a later image needs it.
+  EXPECT_TRUE(ast_data(missing, &loaded).empty());
+  EXPECT_EQ(loaded.size(), 2u);
+  write_file(missing_path, "now available");
+  auto late_buffers = ast_data(missing, &loaded);
+  ASSERT_EQ(late_buffers.size(), 1u);
+  EXPECT_EQ(contents(late_buffers.front()), "now available");
+
+  // A new consumer has no stale path cache after a build replaces a file.
+  first_buffers.clear();
+  write_file(first_path, "replacement AST");
+  llvm::StringSet<> fresh_context;
+  auto fresh_buffers = ast_data(first, &fresh_context);
+  ASSERT_EQ(fresh_buffers.size(), 1u);
+  EXPECT_EQ(contents(fresh_buffers.front()), "replacement AST");
+
+  // Relative paths use the current cwd for each provider call, not a cwd
+  // captured for the entire consumer lifetime.
+  llvm::SmallString<128> original_cwd;
+  ASSERT_NO_ERROR(llvm::sys::fs::current_path(original_cwd));
+  auto restore_cwd =
+      llvm::scope_exit([&] { llvm::sys::fs::set_current_path(original_cwd); });
+  auto relative = make_image("Shared.swiftmodule");
+  llvm::StringSet<> relative_context;
+  ASSERT_NO_ERROR(llvm::sys::fs::set_current_path(
+      llvm::sys::path::parent_path(first_path)));
+  auto relative_first = ast_data(relative, &relative_context);
+  ASSERT_EQ(relative_first.size(), 1u);
+  EXPECT_EQ(contents(relative_first.front()), "replacement AST");
+  EXPECT_TRUE(ast_data(relative, &relative_context).empty());
+  // Raw-spelling misses still normalize to the successful absolute key.
+  auto dot_alias = make_image("./Shared.swiftmodule");
+  auto parent_alias = make_image("unused/../Shared.swiftmodule");
+  llvm::SmallString<128> absolute_alias(
+      llvm::sys::path::parent_path(first_path));
+  llvm::sys::path::append(absolute_alias, "unused", "..", "Shared.swiftmodule");
+  auto absolute_parent_alias = make_image(absolute_alias);
+  EXPECT_TRUE(ast_data(dot_alias, &relative_context).empty());
+  EXPECT_TRUE(ast_data(parent_alias, &relative_context).empty());
+  EXPECT_TRUE(ast_data(absolute_parent_alias, &relative_context).empty());
+  EXPECT_TRUE(ast_data(first, &relative_context).empty());
+  EXPECT_EQ(relative_context.size(), 1u);
+  ASSERT_NO_ERROR(llvm::sys::fs::set_current_path(
+      llvm::sys::path::parent_path(other_path)));
+  auto relative_other = ast_data(relative, &relative_context);
+  ASSERT_EQ(relative_other.size(), 1u);
+  EXPECT_EQ(contents(relative_other.front()),
+            "different AST with the same filename");
+  EXPECT_EQ(relative_context.size(), 2u);
+  EXPECT_TRUE(ast_data(first, &relative_context).empty());
+
+  // A basename first searches cwd, then next to the referring image. A later
+  // cwd file must still win over the already-loaded adjacent candidate.
+  std::string adjacent_name =
+      llvm::sys::path::filename(directory).str() + ".swiftmodule";
+  llvm::SmallString<128> adjacent_path(first->GetFileSpec().GetDirectory());
+  llvm::sys::path::append(adjacent_path, adjacent_name);
+  write_file(adjacent_path, "adjacent AST");
+  auto adjacent = make_image(adjacent_name);
+  llvm::StringSet<> adjacent_context;
+  auto adjacent_buffers = ast_data(adjacent, &adjacent_context);
+  ASSERT_EQ(adjacent_buffers.size(), 1u);
+  EXPECT_EQ(contents(adjacent_buffers.front()), "adjacent AST");
+  llvm::SmallString<128> cwd_path(llvm::sys::path::parent_path(other_path));
+  llvm::sys::path::append(cwd_path, adjacent_name);
+  write_file(cwd_path, "cwd AST");
+  auto cwd_buffers = ast_data(adjacent, &adjacent_context);
+  ASSERT_EQ(cwd_buffers.size(), 1u);
+  EXPECT_EQ(contents(cwd_buffers.front()), "cwd AST");
+  EXPECT_EQ(adjacent_context.size(), 2u);
+
+  auto late_relative = make_image("late/Shared.swiftmodule");
+  llvm::StringSet<> late_context;
+  EXPECT_TRUE(ast_data(late_relative, &late_context).empty());
+  EXPECT_TRUE(late_context.empty());
+  llvm::SmallString<128> late_path(llvm::sys::path::parent_path(other_path));
+  llvm::sys::path::append(late_path, "late", "Shared.swiftmodule");
+  write_file(late_path, "late relative AST");
+  auto late_relative_buffers = ast_data(late_relative, &late_context);
+  ASSERT_EQ(late_relative_buffers.size(), 1u);
+  EXPECT_EQ(contents(late_relative_buffers.front()), "late relative AST");
+
+  // A custom VFS override is not replaced by the native lexical fast path.
+  // Its returned path must anchor both the dedup key and the opened buffer.
+  class ASTPathFileSystem : public llvm::vfs::ProxyFileSystem {
+  public:
+    ASTPathFileSystem(llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> fs,
+                      llvm::StringRef path)
+        : ProxyFileSystem(std::move(fs)), path(path) {}
+    std::error_code
+    makeAbsolute(llvm::SmallVectorImpl<char> &value) const override {
+      ++calls;
+      if (fail)
+        return std::make_error_code(std::errc::permission_denied);
+      value.assign(path.begin(), path.end());
+      return {};
+    }
+    std::string path;
+    mutable unsigned calls = 0;
+    bool fail = false;
+  };
+  auto original_fs = FileSystem::Instance().GetVirtualFileSystem();
+  auto custom_fs =
+      llvm::makeIntrusiveRefCnt<ASTPathFileSystem>(original_fs, first_path);
+  FileSystem::Terminate();
+  FileSystem::Initialize(custom_fs);
+  auto restore_fs = llvm::scope_exit([&] {
+    FileSystem::Terminate();
+    FileSystem::Initialize(original_fs);
+  });
+  llvm::StringSet<> custom_context;
+  auto custom_buffers = ast_data(relative, &custom_context);
+  ASSERT_EQ(custom_buffers.size(), 1u);
+  EXPECT_EQ(contents(custom_buffers.front()), "replacement AST");
+  EXPECT_EQ(custom_fs->calls, 1u);
+  EXPECT_TRUE(custom_context.contains(first_path));
+
+  // Even an exact absolute spelling must still honor a custom VFS redirect.
+  auto custom_absolute = make_image(first_path);
+  custom_fs->path = other_path.str().str();
+  auto redirected_buffers = ast_data(custom_absolute, &custom_context);
+  ASSERT_EQ(redirected_buffers.size(), 1u);
+  EXPECT_EQ(contents(redirected_buffers.front()),
+            "different AST with the same filename");
+  EXPECT_EQ(custom_fs->calls, 2u);
+  EXPECT_EQ(custom_context.size(), 2u);
+
+  // Failed resolution retains legacy relative reads without poisoning the
+  // consumer set. Callers without a consumer set still request every buffer.
+  custom_fs->fail = true;
+  llvm::StringSet<> failed_context;
+  auto failed_buffers = ast_data(relative, &failed_context);
+  ASSERT_EQ(failed_buffers.size(), 1u);
+  EXPECT_EQ(contents(failed_buffers.front()),
+            "different AST with the same filename");
+  EXPECT_TRUE(failed_context.empty());
+  unsigned previous_calls = custom_fs->calls;
+  EXPECT_EQ(ast_data(relative, nullptr).size(), 1u);
+  EXPECT_EQ(custom_fs->calls, previous_calls);
+
+  // The same consumer retries after failed anchoring, then deduplicates the
+  // successful result without retaining a failure or a raw-spelling cache.
+  custom_fs->fail = false;
+  auto retried_buffers = ast_data(relative, &failed_context);
+  ASSERT_EQ(retried_buffers.size(), 1u);
+  EXPECT_EQ(contents(retried_buffers.front()),
+            "different AST with the same filename");
+  EXPECT_TRUE(failed_context.contains(other_path));
+  EXPECT_EQ(failed_context.size(), 1u);
+  EXPECT_EQ(custom_fs->calls, previous_calls + 1);
+  EXPECT_TRUE(ast_data(relative, &failed_context).empty());
+  EXPECT_EQ(custom_fs->calls, previous_calls + 2);
+}
 
 static void EncodeDecode(const Symtab &object, ByteOrder byte_order) {
   const uint8_t addr_size = 8;
