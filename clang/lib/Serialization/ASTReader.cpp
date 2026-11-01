@@ -4512,6 +4512,24 @@ llvm::Error ASTReader::ReadASTBlock(ModuleFile &F,
       break;
     }
 
+    case PPD_SKIPPED_RANGES: {
+      F.PreprocessedSkippedRangeOffsets = (const PPSkippedRange*)Blob.data();
+      assert(Blob.size() % sizeof(PPSkippedRange) == 0);
+      F.NumPreprocessedSkippedRanges = Blob.size() / sizeof(PPSkippedRange);
+
+      if (!PP.getPreprocessingRecord())
+        PP.createPreprocessingRecord();
+      if (!PP.getPreprocessingRecord()->getExternalSource())
+        PP.getPreprocessingRecord()->SetExternalSource(*this);
+      F.BasePreprocessedSkippedRangeID = PP.getPreprocessingRecord()
+          ->allocateSkippedRanges(F.NumPreprocessedSkippedRanges);
+
+      if (F.NumPreprocessedSkippedRanges > 0)
+        GlobalSkippedRangeMap.insert(
+            std::make_pair(F.BasePreprocessedSkippedRangeID, &F));
+      break;
+    }
+
     case DECL_UPDATE_OFFSETS:
       if (Record.size() % 2 != 0)
         return llvm::createStringError(
@@ -7177,6 +7195,20 @@ ASTReader::getModuleFileLevelDecls(ModuleFile &Mod) {
       ModuleDeclIterator(this, &Mod, Mod.FileSortedDecls),
       ModuleDeclIterator(this, &Mod,
                          Mod.FileSortedDecls + Mod.NumFileSortedDecls));
+}
+
+SourceRange ASTReader::ReadSkippedRange(unsigned GlobalIndex) {
+  auto I = GlobalSkippedRangeMap.find(GlobalIndex);
+  assert(I != GlobalSkippedRangeMap.end() &&
+    "Corrupted global skipped range map");
+  ModuleFile *M = I->second;
+  unsigned LocalIndex = GlobalIndex - M->BasePreprocessedSkippedRangeID;
+  assert(LocalIndex < M->NumPreprocessedSkippedRanges);
+  PPSkippedRange RawRange = M->PreprocessedSkippedRangeOffsets[LocalIndex];
+  SourceRange Range(ReadSourceLocation(*M, RawRange.getBegin()),
+                    ReadSourceLocation(*M, RawRange.getEnd()));
+  assert(Range.isValid());
+  return Range;
 }
 
 unsigned
