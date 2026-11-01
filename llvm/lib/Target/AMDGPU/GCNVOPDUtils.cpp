@@ -232,7 +232,8 @@ std::optional<VOPDMatchInfo> llvm::tryMatchVOPDPair(const SIInstrInfo &TII,
 static bool shouldScheduleVOPDAdjacent(const TargetInstrInfo &TII,
                                        const TargetSubtargetInfo &TSI,
                                        const MachineInstr *FirstMI,
-                                       const MachineInstr &SecondMI) {
+                                       const MachineInstr &SecondMI,
+                                       const SDep *) {
   const SIInstrInfo &STII = static_cast<const SIInstrInfo &>(TII);
   const GCNSubtarget &ST = STII.getSubtarget();
 
@@ -334,19 +335,17 @@ static bool loadsMayOverlap(
     for (SUnit *JLoad : JLoadPreds) {
       if (ILoad == JLoad) {
         LLVM_DEBUG(
-            dbgs() << "Will not pair SU(" << I.NodeNum << ") with SU("
-                   << J.NodeNum << ")\n"
-                   << "  Fusion would introduce a cyclic dependency with SU("
-                   << ILoad->NodeNum << ")\n");
+            dbgs() << "Will not pair " << I << " with " << J << "\n"
+                   << "  Fusion would introduce a cyclic dependency with "
+                   << *ILoad << "\n");
         return true;
       }
 
       if (!ILoadDeps.contains(JLoad)) {
-        LLVM_DEBUG(dbgs() << "Will not pair SU(" << I.NodeNum << ") with SU("
-                          << J.NodeNum << ")\n"
-                          << "  Fusion may force SU(" << JLoad->NodeNum
-                          << ") to complete its load before dispatching SU("
-                          << ILoad->NodeNum << ")\n");
+        LLVM_DEBUG(dbgs() << "Will not pair " << I << " with " << J << "\n"
+                          << "  Fusion may force " << *JLoad
+                          << " to complete its load before dispatching "
+                          << *ILoad << "\n");
         return true;
       }
     }
@@ -380,7 +379,7 @@ struct VOPDPairingMutation : ScheduleDAGMutation {
     for (auto ISUI = DAG->SUnits.begin(), E = DAG->SUnits.end(); ISUI != E;
          ++ISUI, ++IIdx) {
       const MachineInstr *IMI = ISUI->getInstr();
-      if (shouldScheduleAdjacent(TII, ST, nullptr, *IMI) &&
+      if (shouldScheduleAdjacent(TII, ST, nullptr, *IMI, nullptr) &&
           hasLessThanNumFused(*ISUI, 2))
         VOPDCapable[IIdx] = true;
     }
@@ -411,7 +410,7 @@ struct VOPDPairingMutation : ScheduleDAGMutation {
           continue;
         const MachineInstr *JMI = JSUI->getInstr();
         if (!hasLessThanNumFused(*JSUI, 2) ||
-            !shouldScheduleAdjacent(TII, ST, IMI, *JMI))
+            !shouldScheduleAdjacent(TII, ST, IMI, *JMI, nullptr))
           continue;
 
         if (loadsMayOverlap(*ISUI, ILoadSuccs, *JSUI, LoadPredsComputed,
