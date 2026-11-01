@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Sparc.h"
+#include "SparcAsmPrinter.h"
 #include "SparcTargetMachine.h"
 #include "llvm/CodeGen/AtomicExpand.h"
 #include "llvm/CodeGen/BranchRelaxation.h"
@@ -63,15 +64,15 @@ void SparcCodeGenPassBuilder::addPreEmitPass(PassManagerWrapper &PMW) {
 }
 
 void SparcCodeGenPassBuilder::addAsmPrinterBegin(PassManagerWrapper &PMW) {
-  // TODO(boomanaiden154): Add SparcAsmPrinterBegin
+  addModulePass(SparcAsmPrinterBeginPass(), PMW, /*Force=*/true);
 }
 
 void SparcCodeGenPassBuilder::addAsmPrinter(PassManagerWrapper &PMW) {
-  // TODO(boomanaiden154): Add SparcAsmPrinter
+  addMachineFunctionPass(SparcAsmPrinterPass(), PMW, /*Force=*/true);
 }
 
 void SparcCodeGenPassBuilder::addAsmPrinterEnd(PassManagerWrapper &PMW) {
-  // TODO(boomanaiden154): Add SparcAsmPrinterEnd
+  addModulePass(SparcAsmPrinterEndPass(), PMW, /*Force=*/true);
 }
 
 } // namespace
