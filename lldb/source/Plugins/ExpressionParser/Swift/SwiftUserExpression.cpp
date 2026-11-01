@@ -582,6 +582,8 @@ static llvm::Error RegisterAllVariables(
 /// - The Self type can only have one generic parameter.
 /// - The Self type has to be the outermost type with unbound generics.
 /// - Every generic parameter in scope has to belong to the outermost type.
+/// - The types of all variables have to be expressible in the generic
+///   signature of the outermost type.
 static bool CanEvaluateExpressionWithoutBindingGenericParams(
     const llvm::SmallVectorImpl<SwiftASTManipulator::VariableInfo> &variables,
     const std::optional<SwiftLanguageRuntime::GenericSignature> &generic_sig,
@@ -670,6 +672,24 @@ static bool CanEvaluateExpressionWithoutBindingGenericParams(
       }
     }
     if (!found)
+      return false;
+  }
+
+  // The expression is evaluated in an extension of the nominal type itself,
+  // which lacks the requirements that a constrained extension or a `where`
+  // clause add. Self and the generic metadata are passed in as opaque
+  // pointers and are exempt.
+  auto sig = env->getGenericSignature();
+  for (auto &variable : variables) {
+    if (!variable.IsAvailable() || variable.IsSelf() ||
+        variable.IsMetadataPointer() || variable.IsPackCount() ||
+        variable.IsUnboundPack())
+      continue;
+    auto var_type =
+        llvm::expectedToOptional(scratch_ctx.GetSwiftType(variable.GetType()))
+            .value_or(swift::Type());
+    if (var_type &&
+        !SwiftASTManipulator::IsExpressibleInGenericSignature(var_type, sig))
       return false;
   }
 
