@@ -5012,10 +5012,11 @@ CFGBlock *CFGBuilder::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
   // false branch).
   addSuccessor(ConditionBlock, KnownVal.isTrue() ? nullptr : LoopSuccessor);
 
-  // Add the initialization statements.
+  // Add the initialization statements in reverse execution order so that
+  // begin is initialized before end.
   Block = createBlock();
-  addStmt(S->getBeginStmt());
   addStmt(S->getEndStmt());
+  addStmt(S->getBeginStmt());
   CFGBlock *Head = addStmt(S->getRangeStmt());
   if (S->getInit())
     Head = addStmt(S->getInit());
