@@ -1458,7 +1458,6 @@ std::unique_ptr<CompilerInstance> CompilerInstance::cloneForModuleCompileImpl(
   // Force implicitly-built modules to hash the content of the module file.
   HSOpts.ModulesHashContent = true;
   FrontendOpts.Inputs = {std::move(Input)};
-  FrontendOpts.MayEmitDiagnosticsAfterProcessingSourceFiles = false;
   // Clear `IndexUnitOutputPath`. Otherwise the unit for the pcm will be named
   // after the primary source file, and will be overwritten when that file's
   // unit is finally written.

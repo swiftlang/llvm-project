@@ -314,8 +314,6 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   if (std::optional<int> Status = JobCache.tryReplayCachedResult(*Clang))
     return *Status; // FIXME: Should write out timers before exiting!
 
-  Clang->getFrontendOpts().MayEmitDiagnosticsAfterProcessingSourceFiles = true;
-
   // Execute the frontend actions.
   Success = ExecuteCompilerInvocation(Clang.get());
 
