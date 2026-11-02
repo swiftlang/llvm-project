@@ -423,10 +423,6 @@ public:
   /// of gmodules with PCH and include tree.
   unsigned IncludeTreePreservePCHPath : 1;
 
-  /// Keep the diagnostic client open for receiving diagnostics after the source
-  /// files have been processed.
-  unsigned MayEmitDiagnosticsAfterProcessingSourceFiles : 1;
-
   /// When using CacheCompileJob, write a CASID for the output file.
   ///
   /// FIXME: Add clang tests for this functionality.
@@ -665,7 +661,6 @@ public:
         ModulesEmbedAllFiles(false), IncludeTimestamps(true),
         UseTemporary(true), CacheCompileJob(false), ForIncludeTreeScan(false),
         DisableCachedCompileJobReplay(false), IncludeTreePreservePCHPath(false),
-        MayEmitDiagnosticsAfterProcessingSourceFiles(false),
         WriteOutputAsCASID(false), WriteOutputHashXAttr(false),
         AllowPCMWithCompilerErrors(false),
         ModulesShareFileManager(true), EmitSymbolGraph(false),
