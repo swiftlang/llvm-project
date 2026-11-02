@@ -36,6 +36,7 @@ struct NonCopyable {
   NonCopyable(int x) : x(x) {}
   NonCopyable(const NonCopyable &) = delete;
   NonCopyable(NonCopyable &&other);
+  ~NonCopyable() {}
   int method(int y) const { return x * y; }
 };
 
