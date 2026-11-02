@@ -268,6 +268,7 @@ public:
   /// This is enabled by default because writing these ranges could make PCM
   /// files substantially bigger for headers with long excluded regions
   /// (rdar://43533418).
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ModulesSkipPreprocessingRecordSkippedRanges : 1;
 
   /// Whether to prune non-affecting module map files from PCM files.
