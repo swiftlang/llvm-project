@@ -895,6 +895,13 @@ private:
   /// added to the global preprocessing entity ID to produce a local ID.
   GlobalPreprocessedEntityMapType GlobalPreprocessedEntityMap;
 
+  using GlobalSkippedRangeMapType =
+      ContinuousRangeMap<unsigned, ModuleFile *, 4>;
+
+  /// Mapping from global skipped range base IDs to the module in which
+  /// the skipped ranges reside.
+  GlobalSkippedRangeMapType GlobalSkippedRangeMap;
+
   /// \name CodeGen-relevant special data
   /// Fields containing data that is relevant to CodeGen.
   //@{
@@ -2064,6 +2071,9 @@ public:
   /// entity with index \p Index came from file \p FID.
   std::optional<bool> isPreprocessedEntityInFileID(unsigned Index,
                                                    FileID FID) override;
+
+  /// Read a preallocated skipped range from the external source.
+  SourceRange ReadSkippedRange(unsigned Index) override;
 
   /// Read the header file information for the given file entry.
   HeaderFileInfo GetHeaderFileInfo(FileEntryRef FE) override;

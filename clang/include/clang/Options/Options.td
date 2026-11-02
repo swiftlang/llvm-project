@@ -4028,6 +4028,11 @@ defm modules_skip_header_search_paths : BoolFOption<"modules-skip-header-search-
     HeaderSearchOpts<"ModulesSkipHeaderSearchPaths">, DefaultFalse,
     PosFlag<SetTrue, [], [], "Disable writing header search paths">,
     NegFlag<SetFalse>, BothFlags<[], [CC1Option]>>;
+defm modules_skip_pp_record_skipped_ranges : BoolFOption<"modules-skip-pp-record-skipped-ranges",
+    HeaderSearchOpts<"ModulesSkipPreprocessingRecordSkippedRanges">, DefaultTrue,
+    PosFlag<SetTrue, [], [], "Disable writing preprocessing record's skipped ranges">,
+    NegFlag<SetFalse>, BothFlags<[], [CC1Option]>>;
+
 def fno_modules_prune_non_affecting_module_map_files :
     Flag<["-"], "fno-modules-prune-non-affecting-module-map-files">,
     Group<f_Group>, Flags<[]>, Visibility<[CC1Option]>,
