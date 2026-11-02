@@ -880,6 +880,8 @@ features cannot lower the translation-unit ABI level;
 - Fixed an assertion that could occur when rebuilding parenthesized list initialization expressions during template instantiation or AST transformation.
 - Fixed a bug where repeated #imports of modular headers in non-modular compilation were translated to #pragma clang module import. (#GH216924)
 - Fixed a crash when invoking clang with `--` followed by an empty file name. (#GH184718)
+- Fixed a use-after-free when a variable whose initializer folded to a different type was emitted
+  twice through OpenMP or header units.
 
 #### Bug Fixes to Compiler Builtins
 
