@@ -2242,7 +2242,8 @@ public:
   void enableDebugInfo() { DisableDebugInfo = false; }
 
   bool shouldUseFusedARCCalls() {
-    return CGM.getCodeGenOpts().OptimizationLevel == 0;
+    return CGM.getCodeGenOpts().OptimizationLevel == 0 &&
+           !SanOpts.has(SanitizerKind::Thread);
   }
 
   const LangOptions &getLangOpts() const { return CGM.getLangOpts(); }
