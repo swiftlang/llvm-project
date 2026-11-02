@@ -868,13 +868,20 @@ void MachineSchedulerBase::scheduleRegions(ScheduleDAGInstrs &Scheduler,
         Scheduler.exitRegion();
         continue;
       }
-      LLVM_DEBUG(dbgs() << "********** MI Scheduling **********\n");
-      LLVM_DEBUG(dbgs() << MF->getName() << ":" << printMBBReference(*MBB)
-                        << " " << MBB->getName() << "\n  From: " << *I
-                        << "    To: ";
-                 if (RegionEnd != MBB->end()) dbgs() << *RegionEnd;
-                 else dbgs() << "End\n";
-                 dbgs() << " RegionInstrs: " << NumRegionInstrs << '\n');
+      auto DumpRegionHeader = [&] {
+        dbgs() << "Current Schedule Region\n";
+        dbgs() << MF->getName() << ":" << printMBBReference(*MBB) << " "
+               << MBB->getName() << "\n  From: " << *I << "    To: ";
+        if (RegionEnd != MBB->end())
+          dbgs() << *RegionEnd;
+        else
+          dbgs() << "End\n";
+        dbgs() << " RegionInstrs: " << NumRegionInstrs << '\n';
+      };
+      if (PrintDAGs)
+        DumpRegionHeader();
+      else
+        LLVM_DEBUG(DumpRegionHeader());
       if (DumpCriticalPathLength) {
         errs() << MF->getName();
         errs() << ":%bb. " << MBB->getNumber();
@@ -902,7 +909,7 @@ void MachineSchedulerBase::scheduleRegions(ScheduleDAGInstrs &Scheduler,
 LLVM_DUMP_METHOD void ReadyQueue::dump() const {
   dbgs() << "Queue " << Name << ": ";
   for (const SUnit *SU : Queue)
-    dbgs() << SU->NodeNum << " ";
+    dbgs() << *SU << " ";
   dbgs() << "\n";
 }
 #endif
@@ -1253,8 +1260,8 @@ LLVM_DUMP_METHOD void ScheduleDAGMI::dumpScheduleTraceTopDown() const {
       dbgs() << "Missing SUnit\n";
       continue;
     }
-    std::string NodeName("SU(");
-    NodeName += std::to_string(SU->NodeNum) + ")";
+    std::string NodeName;
+    raw_string_ostream(NodeName) << *SU;
     dbgs() << llvm::left_justify(NodeName, HeaderColWidth);
     unsigned C = FirstCycle;
     for (; C <= LastCycle; ++C) {
@@ -1335,8 +1342,8 @@ LLVM_DUMP_METHOD void ScheduleDAGMI::dumpScheduleTraceBottomUp() const {
       dbgs() << "Missing SUnit\n";
       continue;
     }
-    std::string NodeName("SU(");
-    NodeName += std::to_string(SU->NodeNum) + ")";
+    std::string NodeName;
+    raw_string_ostream(NodeName) << *SU;
     dbgs() << llvm::left_justify(NodeName, HeaderColWidth);
     int C = FirstCycle;
     for (; C >= LastCycle; --C) {
@@ -1607,7 +1614,7 @@ void ScheduleDAGMILive::updatePressureDiffs(ArrayRef<VRegMaskOrUnit> LiveUses) {
               return Change.isValid();
             }))
           LLVM_DEBUG(dbgs()
-                         << "  UpdateRegPressure: SU(" << SU.NodeNum << ") "
+                         << "  UpdateRegPressure: " << SU << " "
                          << printReg(Reg, TRI) << ':'
                          << PrintLaneMask(P.LaneMask) << ' ' << *SU.getInstr();
                      dbgs() << "                     to "; PDiff.dump(*TRI););
@@ -1645,8 +1652,8 @@ void ScheduleDAGMILive::updatePressureDiffs(ArrayRef<VRegMaskOrUnit> LiveUses) {
             if (llvm::any_of(PDiff, [](const PressureChange &Change) {
                   return Change.isValid();
                 }))
-              LLVM_DEBUG(dbgs() << "  UpdateRegPressure: SU(" << SU->NodeNum
-                                << ") " << *SU->getInstr();
+              LLVM_DEBUG(dbgs() << "  UpdateRegPressure: " << *SU << " "
+                                << *SU->getInstr();
                          dbgs() << "                     to ";
                          PDiff.dump(*TRI););
           }
@@ -1858,8 +1865,8 @@ unsigned ScheduleDAGMILive::computeCyclicCriticalPath() {
       } else
         CyclicLatency = 0;
 
-      LLVM_DEBUG(dbgs() << "Cyclic Path: SU(" << DefSU->NodeNum << ") -> SU("
-                        << SU->NodeNum << ") = " << CyclicLatency << "c\n");
+      LLVM_DEBUG(dbgs() << "Cyclic Path: " << *DefSU << " -> " << *SU << " = "
+                        << CyclicLatency << "c\n");
       if (CyclicLatency > MaxCyclicLatency)
         MaxCyclicLatency = CyclicLatency;
     }
@@ -2129,8 +2136,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       continue;
 
     Clusters.unionSets(SUa, SUb);
-    LLVM_DEBUG(dbgs() << "Cluster ld/st SU(" << SUa->NodeNum << ") - SU("
-                      << SUb->NodeNum << ")\n");
+    LLVM_DEBUG(dbgs() << "Cluster ld/st " << *SUa << " - " << *SUb << "\n");
     ++NumClustered;
 
     if (IsLoad) {
@@ -2141,8 +2147,8 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       for (const SDep &Succ : SUa->Succs) {
         if (Succ.getSUnit() == SUb)
           continue;
-        LLVM_DEBUG(dbgs() << "  Copy Succ SU(" << Succ.getSUnit()->NodeNum
-                          << ")\n");
+        LLVM_DEBUG(dbgs() << "  Copy Succ ";
+                   DAG->dumpNodeName(*Succ.getSUnit()); dbgs() << "\n");
         DAG->addEdge(Succ.getSUnit(), SDep(SUb, SDep::Artificial));
       }
     } else {
@@ -2155,8 +2161,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
       for (const SDep &Pred : SUb->Preds) {
         if (Pred.getSUnit() == SUa)
           continue;
-        LLVM_DEBUG(dbgs() << "  Copy Pred SU(" << Pred.getSUnit()->NodeNum
-                          << ")\n");
+        LLVM_DEBUG(dbgs() << "  Copy Pred " << *Pred.getSUnit() << "\n");
         DAG->addEdge(SUa, SDep(Pred.getSUnit(), SDep::Artificial));
       }
     }
@@ -2432,7 +2437,7 @@ void CopyConstrain::constrainLocalCopy(SUnit *CopySU, ScheduleDAGMILive *DAG) {
       return;
     GlobalUses.push_back(Pred.getSUnit());
   }
-  LLVM_DEBUG(dbgs() << "Constraining copy SU(" << CopySU->NodeNum << ")\n");
+  LLVM_DEBUG(dbgs() << "Constraining copy " << *CopySU << "\n");
   // Add the weak edges.
   for (SUnit *LU : LocalUses) {
     LLVM_DEBUG(dbgs() << "  Local use SU(" << LU->NodeNum << ") -> SU("
@@ -2440,8 +2445,8 @@ void CopyConstrain::constrainLocalCopy(SUnit *CopySU, ScheduleDAGMILive *DAG) {
     DAG->addEdge(GlobalSU, SDep(LU, SDep::Weak));
   }
   for (SUnit *GU : GlobalUses) {
-    LLVM_DEBUG(dbgs() << "  Global use SU(" << GU->NodeNum << ") -> SU("
-                      << FirstLocalSU->NodeNum << ")\n");
+    LLVM_DEBUG(dbgs() << "  Global use " << *GU << " -> " << *FirstLocalSU
+                      << "\n");
     DAG->addEdge(FirstLocalSU, SDep(GU, SDep::Weak));
   }
 }
@@ -2704,14 +2709,14 @@ bool SchedBoundary::checkHazard(SUnit *SU) {
   if (HazardRec->isEnabled()
       && HazardRec->getHazardType(SU) != ScheduleHazardRecognizer::NoHazard) {
     LLVM_DEBUG(dbgs().indent(2)
-               << "hazard: SU(" << SU->NodeNum << ") reported by HazardRec\n");
+               << "hazard: " << *SU << " reported by HazardRec\n");
     return true;
   }
 
   unsigned uops = SchedModel->getNumMicroOps(SU->getInstr());
   if ((CurrMOps > 0) && (CurrMOps + uops > SchedModel->getIssueWidth())) {
-    LLVM_DEBUG(dbgs().indent(2) << "hazard:  SU(" << SU->NodeNum << ") uops="
-                                << uops << ", CurrMOps = " << CurrMOps << ", "
+    LLVM_DEBUG(dbgs().indent(2) << "hazard:  " << *SU << " uops=" << uops
+                                << ", CurrMOps = " << CurrMOps << ", "
                                 << "CurrMOps + uops > issue width of "
                                 << SchedModel->getIssueWidth() << "\n");
     return true;
@@ -2720,7 +2725,7 @@ bool SchedBoundary::checkHazard(SUnit *SU) {
   if (CurrMOps > 0 &&
       ((isTop() && SchedModel->mustBeginGroup(SU->getInstr())) ||
        (!isTop() && SchedModel->mustEndGroup(SU->getInstr())))) {
-    LLVM_DEBUG(dbgs().indent(2) << "hazard: SU(" << SU->NodeNum << ") must "
+    LLVM_DEBUG(dbgs().indent(2) << "hazard: " << *SU << " must "
                                 << (isTop() ? "begin" : "end") << " group\n");
     return true;
   }
@@ -2741,7 +2746,7 @@ bool SchedBoundary::checkHazard(SUnit *SU) {
         MaxObservedStall = std::max(ReleaseAtCycle, MaxObservedStall);
 #endif
         LLVM_DEBUG(dbgs().indent(2)
-                   << "hazard:  SU(" << SU->NodeNum << ") "
+                   << "hazard:  " << *SU << " "
                    << SchedModel->getResourceName(ResIdx) << '['
                    << InstanceIdx - ReservedCyclesIndex[ResIdx] << ']' << "="
                    << NRCycle << "c, is later than "
@@ -2766,8 +2771,8 @@ findMaxLatency(ArrayRef<SUnit*> ReadySUs) {
     }
   }
   if (LateSU) {
-    LLVM_DEBUG(dbgs() << Available.getName() << " RemLatency SU("
-                      << LateSU->NodeNum << ") " << RemLatency << "c\n");
+    LLVM_DEBUG(dbgs() << Available.getName() << " RemLatency " << *LateSU << " "
+                      << RemLatency << "c\n");
   }
   return RemLatency;
 }
@@ -2822,10 +2827,10 @@ void SchedBoundary::releaseNode(SUnit *SU, unsigned ReadyCycle, bool InPQueue,
   bool IsBuffered = SchedModel->getMicroOpBufferSize() != 0;
   bool HazardDetected = !IsBuffered && ReadyCycle > CurrCycle;
   if (HazardDetected)
-    LLVM_DEBUG(dbgs().indent(2) << "hazard: SU(" << SU->NodeNum
-                                << ") ReadyCycle = " << ReadyCycle
-                                << " is later than CurrCycle = " << CurrCycle
-                                << " on an unbuffered resource" << "\n");
+    LLVM_DEBUG(dbgs().indent(2)
+               << "hazard: " << *SU << " ReadyCycle = " << ReadyCycle
+               << " is later than CurrCycle = " << CurrCycle
+               << " on an unbuffered resource" << "\n");
   else
     HazardDetected = checkHazard(SU);
 
@@ -2837,8 +2842,7 @@ void SchedBoundary::releaseNode(SUnit *SU, unsigned ReadyCycle, bool InPQueue,
 
   if (!HazardDetected) {
     Available.push(SU);
-    LLVM_DEBUG(dbgs().indent(2)
-               << "Move SU(" << SU->NodeNum << ") into Available Q\n");
+    LLVM_DEBUG(dbgs().indent(2) << "Move " << *SU << " into Available Q\n");
 
     if (InPQueue)
       Pending.remove(Pending.begin() + Idx);
@@ -3050,13 +3054,13 @@ void SchedBoundary::bumpNode(SUnit *SU) {
   unsigned &BotLatency = isTop() ? DependentLatency : ExpectedLatency;
   if (SU->getDepth() > TopLatency) {
     TopLatency = SU->getDepth();
-    LLVM_DEBUG(dbgs() << "  " << Available.getName() << " TopLatency SU("
-                      << SU->NodeNum << ") " << TopLatency << "c\n");
+    LLVM_DEBUG(dbgs() << "  " << Available.getName() << " TopLatency " << *SU
+                      << " " << TopLatency << "c\n");
   }
   if (SU->getHeight() > BotLatency) {
     BotLatency = SU->getHeight();
-    LLVM_DEBUG(dbgs() << "  " << Available.getName() << " BotLatency SU("
-                      << SU->NodeNum << ") " << BotLatency << "c\n");
+    LLVM_DEBUG(dbgs() << "  " << Available.getName() << " BotLatency " << *SU
+                      << " " << BotLatency << "c\n");
   }
   // If we stall for any reason, bump the cycle.
   if (NextCycle > CurrCycle)
@@ -3118,7 +3122,7 @@ void SchedBoundary::releasePending() {
     SUnit *SU = *(Pending.begin() + I);
     unsigned ReadyCycle = isTop() ? SU->TopReadyCycle : SU->BotReadyCycle;
 
-    LLVM_DEBUG(dbgs() << "Checking pending node SU(" << SU->NodeNum << ")\n");
+    LLVM_DEBUG(dbgs() << "Checking pending node " << *SU << "\n");
 
     if (ReadyCycle < MinReadyCycle)
       MinReadyCycle = ReadyCycle;
@@ -3394,7 +3398,7 @@ void GenericSchedulerBase::traceCandidate(const SchedCandidate &Cand) {
     Latency = Cand.SU->getDepth();
     break;
   }
-  dbgs() << "  Cand SU(" << Cand.SU->NodeNum << ") " << getReasonStr(Cand.Reason);
+  dbgs() << "  Cand " << *Cand.SU << " " << getReasonStr(Cand.Reason);
   if (P.isValid())
     dbgs() << " " << TRI->getRegPressureSetName(P.getPSet())
            << ":" << P.getUnitInc() << " ";
@@ -3505,10 +3509,12 @@ bool llvm::tryLatency(GenericSchedulerBase::SchedCandidate &TryCand,
   return false;
 }
 
-static void tracePick(GenericSchedulerBase::CandReason Reason, bool IsTop,
-                      bool IsPostRA = false) {
-  LLVM_DEBUG(dbgs() << "Pick " << (IsTop ? "Top " : "Bot ")
-                    << GenericSchedulerBase::getReasonStr(Reason) << " ["
+static void tracePick(const SUnit *SU,
+                      const GenericSchedulerBase::CandReason Reason,
+                      const bool IsTop, const bool IsPostRA = false) {
+  assert(SU && "SU must not be null for tracing");
+  LLVM_DEBUG(dbgs() << "Pick " << (IsTop ? "Top " : "Bot ") << "Cand " << *SU
+                    << " " << GenericSchedulerBase::getReasonStr(Reason) << " ["
                     << (IsPostRA ? "post-RA" : "pre-RA") << "]\n");
 
   if (IsPostRA) {
@@ -3634,8 +3640,8 @@ static void tracePick(GenericSchedulerBase::CandReason Reason, bool IsTop,
 }
 
 static void tracePick(const GenericSchedulerBase::SchedCandidate &Cand,
-                      bool IsPostRA = false) {
-  tracePick(Cand.Reason, Cand.AtTop, IsPostRA);
+                      const bool IsPostRA = false) {
+  tracePick(Cand.SU, Cand.Reason, Cand.AtTop, IsPostRA);
 }
 
 void GenericScheduler::initialize(ScheduleDAGMI *dag) {
@@ -3932,7 +3938,7 @@ void GenericScheduler::initCandidate(SchedCandidate &Cand, SUnit *SU,
     }
   }
   LLVM_DEBUG(if (Cand.RPDelta.Excess.isValid()) dbgs()
-             << "  Try  SU(" << Cand.SU->NodeNum << ") "
+             << "  Try  " << *Cand.SU << " "
              << TRI->getRegPressureSetName(Cand.RPDelta.Excess.getPSet()) << ":"
              << Cand.RPDelta.Excess.getUnitInc() << "\n");
 }
@@ -4090,12 +4096,12 @@ SUnit *GenericScheduler::pickNodeBidirectional(bool &IsTopNode) {
   // efficient, but also provides the best heuristics for CriticalPSets.
   if (SUnit *SU = Bot.pickOnlyChoice()) {
     IsTopNode = false;
-    tracePick(Only1, /*IsTopNode=*/false);
+    tracePick(SU, Only1, /*IsTopNode=*/false);
     return SU;
   }
   if (SUnit *SU = Top.pickOnlyChoice()) {
     IsTopNode = true;
-    tracePick(Only1, /*IsTopNode=*/true);
+    tracePick(SU, Only1, /*IsTopNode=*/true);
     return SU;
   }
   // Set the bottom-up policy based on the state of the current bottom zone and
@@ -4172,7 +4178,9 @@ SUnit *GenericScheduler::pickNode(bool &IsTopNode) {
   SUnit *SU;
   if (RegionPolicy.OnlyTopDown) {
     SU = Top.pickOnlyChoice();
-    if (!SU) {
+    if (SU) {
+      tracePick(SU, Only1, /*IsTopNode=*/true);
+    } else {
       CandPolicy NoPolicy;
       TopCand.reset(NoPolicy);
       pickNodeFromQueue(Top, NoPolicy, DAG->getTopRPTracker(), TopCand);
@@ -4183,7 +4191,9 @@ SUnit *GenericScheduler::pickNode(bool &IsTopNode) {
     IsTopNode = true;
   } else if (RegionPolicy.OnlyBottomUp) {
     SU = Bot.pickOnlyChoice();
-    if (!SU) {
+    if (SU) {
+      tracePick(SU, Only1, /*IsTopNode=*/false);
+    } else {
       CandPolicy NoPolicy;
       BotCand.reset(NoPolicy);
       pickNodeFromQueue(Bot, NoPolicy, DAG->getBotRPTracker(), BotCand);
@@ -4217,8 +4227,7 @@ SUnit *GenericScheduler::pickNode(bool &IsTopNode) {
   if (SU->isBottomReady())
     Bot.removeReady(SU);
 
-  LLVM_DEBUG(dbgs() << "Scheduling SU(" << SU->NodeNum << ") "
-                    << *SU->getInstr());
+  LLVM_DEBUG(dbgs() << "Scheduling " << *SU << " " << *SU->getInstr());
 
   if (IsTopNode) {
     if (SU->NodeNum == TopIdx++)
@@ -4272,8 +4281,10 @@ void GenericScheduler::schedNode(SUnit *SU, bool IsTopNode) {
       if (TopClusterID != InvalidClusterId) {
         ClusterInfo *TopCluster = DAG->getCluster(TopClusterID);
         dbgs() << "  Top Cluster: ";
-        for (auto *N : *TopCluster)
-          dbgs() << N->NodeNum << '\t';
+        for (auto *N : *TopCluster) {
+          DAG->dumpNodeName(*N);
+          dbgs() << '\t';
+        }
         dbgs() << '\n';
       }
     });
@@ -4287,8 +4298,10 @@ void GenericScheduler::schedNode(SUnit *SU, bool IsTopNode) {
       if (BotClusterID != InvalidClusterId) {
         ClusterInfo *BotCluster = DAG->getCluster(BotClusterID);
         dbgs() << "  Bot Cluster: ";
-        for (auto *N : *BotCluster)
-          dbgs() << N->NodeNum << '\t';
+        for (auto *N : *BotCluster) {
+          DAG->dumpNodeName(*N);
+          dbgs() << '\t';
+        }
         dbgs() << '\n';
       }
     });
@@ -4456,12 +4469,12 @@ SUnit *PostGenericScheduler::pickNodeBidirectional(bool &IsTopNode) {
   // efficient, but also provides the best heuristics for CriticalPSets.
   if (SUnit *SU = Bot.pickOnlyChoice()) {
     IsTopNode = false;
-    tracePick(Only1, /*IsTopNode=*/false, /*IsPostRA=*/true);
+    tracePick(SU, Only1, /*IsTopNode=*/false, /*IsPostRA=*/true);
     return SU;
   }
   if (SUnit *SU = Top.pickOnlyChoice()) {
     IsTopNode = true;
-    tracePick(Only1, /*IsTopNode=*/true, /*IsPostRA=*/true);
+    tracePick(SU, Only1, /*IsTopNode=*/true, /*IsPostRA=*/true);
     return SU;
   }
   // Set the bottom-up policy based on the state of the current bottom zone and
@@ -4539,7 +4552,7 @@ SUnit *PostGenericScheduler::pickNode(bool &IsTopNode) {
   if (RegionPolicy.OnlyBottomUp) {
     SU = Bot.pickOnlyChoice();
     if (SU) {
-      tracePick(Only1, /*IsTopNode=*/true, /*IsPostRA=*/true);
+      tracePick(SU, Only1, /*IsTopNode=*/false, /*IsPostRA=*/true);
     } else {
       CandPolicy NoPolicy;
       BotCand.reset(NoPolicy);
@@ -4555,7 +4568,7 @@ SUnit *PostGenericScheduler::pickNode(bool &IsTopNode) {
   } else if (RegionPolicy.OnlyTopDown) {
     SU = Top.pickOnlyChoice();
     if (SU) {
-      tracePick(Only1, /*IsTopNode=*/true, /*IsPostRA=*/true);
+      tracePick(SU, Only1, /*IsTopNode=*/true, /*IsPostRA=*/true);
     } else {
       CandPolicy NoPolicy;
       TopCand.reset(NoPolicy);
@@ -4578,8 +4591,7 @@ SUnit *PostGenericScheduler::pickNode(bool &IsTopNode) {
   if (SU->isBottomReady())
     Bot.removeReady(SU);
 
-  LLVM_DEBUG(dbgs() << "Scheduling SU(" << SU->NodeNum << ") "
-                    << *SU->getInstr());
+  LLVM_DEBUG(dbgs() << "Scheduling " << *SU << " " << *SU->getInstr());
 
   if (IsTopNode) {
     if (SU->NodeNum == TopIdx++)
@@ -4682,8 +4694,7 @@ public:
     SUnit *SU = ReadyQ.back();
     ReadyQ.pop_back();
     IsTopNode = false;
-    LLVM_DEBUG(dbgs() << "Pick node "
-                      << "SU(" << SU->NodeNum << ") "
+    LLVM_DEBUG(dbgs() << "Pick node " << *SU << " "
                       << " ILP: " << DAG->getDFSResult()->getILP(SU)
                       << " Tree: " << DAG->getDFSResult()->getSubtreeID(SU)
                       << " @"
@@ -4824,7 +4835,7 @@ static MachineSchedRegistry ShufflerRegistry(
 // GraphWriter support for ScheduleDAGMILive.
 //===----------------------------------------------------------------------===//
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && LLVM_ENABLE_ABI_BREAKING_CHECKS
 
 template <>
 struct llvm::GraphTraits<ScheduleDAGMI *> : public GraphTraits<ScheduleDAG *> {
@@ -4867,7 +4878,7 @@ struct llvm::DOTGraphTraits<ScheduleDAGMI *> : public DefaultDOTGraphTraits {
     const ScheduleDAGMI *DAG = static_cast<const ScheduleDAGMI*>(G);
     const SchedDFSResult *DFS = DAG->hasVRegLiveness() ?
       static_cast<const ScheduleDAGMILive*>(G)->getDFSResult() : nullptr;
-    SS << "SU:" << SU->NodeNum;
+    SS << *SU;
     if (DFS)
       SS << " I:" << DFS->getNumInstrs(SU);
     return Str;
@@ -4896,7 +4907,7 @@ struct llvm::DOTGraphTraits<ScheduleDAGMI *> : public DefaultDOTGraphTraits {
 /// viewGraph - Pop up a ghostview window with the reachable parts of the DAG
 /// rendered using 'dot'.
 void ScheduleDAGMI::viewGraph(const Twine &Name, const Twine &Title) {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && LLVM_ENABLE_ABI_BREAKING_CHECKS
   ViewGraph(this, Name, false, Title);
 #else
   errs() << "ScheduleDAGMI::viewGraph is only available in debug builds on "

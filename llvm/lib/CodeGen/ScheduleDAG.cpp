@@ -336,6 +336,14 @@ void SUnit::biasCriticalPath() {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+raw_ostream &llvm::operator<<(raw_ostream &OS, const SUnit &SU) {
+  assert(!SU.isBoundaryNode() &&
+         "use ScheduleDAG::dumpNodeName for boundary nodes");
+  return OS << "SU(" << SU.NodeNum << ")";
+}
+#endif
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void SUnit::dumpAttributes() const {
   dbgs() << "  # preds left       : " << NumPredsLeft << "\n";
   dbgs() << "  # succs left       : " << NumSuccsLeft << "\n";
@@ -355,7 +363,7 @@ LLVM_DUMP_METHOD void ScheduleDAG::dumpNodeName(const SUnit &SU) const {
   else if (&SU == &ExitSU)
     dbgs() << "ExitSU";
   else
-    dbgs() << "SU(" << SU.NodeNum << ")";
+    dbgs() << SU;
 }
 
 LLVM_DUMP_METHOD void ScheduleDAG::dumpNodeAll(const SUnit &SU) const {

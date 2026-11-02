@@ -99,7 +99,7 @@ static void dumpSUList(const ScheduleDAGInstrs::SUList &L) {
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   dbgs() << "{ ";
   for (const SUnit *SU : L) {
-    dbgs() << "SU(" << SU->NodeNum << ")";
+    dbgs() << *SU;
     if (SU != L.back())
       dbgs() << ", ";
   }
@@ -880,8 +880,8 @@ void ScheduleDAGInstrs::buildSchedGraph(AAResults *AA,
         BarrierChain->addPredBarrier(SU);
       BarrierChain = SU;
 
-      LLVM_DEBUG(dbgs() << "Global memory object and new barrier chain: SU("
-                        << BarrierChain->NodeNum << ").\n");
+      LLVM_DEBUG(dbgs() << "Global memory object and new barrier chain: "
+                        << *BarrierChain << ".\n");
 
       // Add dependencies against everything below it and clear maps.
       addBarrierChain(Stores);
@@ -1129,6 +1129,7 @@ void ScheduleDAGInstrs::dump() const {
 #endif
 }
 
+#if !defined(NDEBUG) && LLVM_ENABLE_ABI_BREAKING_CHECKS
 std::string ScheduleDAGInstrs::getGraphNodeLabel(const SUnit *SU) const {
   std::string s;
   raw_string_ostream oss(s);
@@ -1140,6 +1141,7 @@ std::string ScheduleDAGInstrs::getGraphNodeLabel(const SUnit *SU) const {
     SU->getInstr()->print(oss, /*IsStandalone=*/true);
   return s;
 }
+#endif
 
 /// Return the basic block label. It is not necessarily unique because a block
 /// contains multiple scheduling regions. But it is fine for visualization.
@@ -1272,7 +1274,7 @@ public:
 
   /// Sets each node's subtree ID to the representative ID and record
   /// connections between trees.
-  void finalize() {
+  void finalize(ArrayRef<SUnit> SUnits) {
     SubtreeClasses.compress();
     R.DFSTreeData.resize(SubtreeClasses.getNumClasses());
     assert(SubtreeClasses.getNumClasses() == RootSet.size()
@@ -1292,7 +1294,7 @@ public:
     LLVM_DEBUG(dbgs() << R.getNumSubtrees() << " subtrees:\n");
     for (unsigned Idx = 0, End = R.DFSNodeData.size(); Idx != End; ++Idx) {
       R.DFSNodeData[Idx].SubtreeID = SubtreeClasses[Idx];
-      LLVM_DEBUG(dbgs() << "  SU(" << Idx << ") in tree "
+      LLVM_DEBUG(dbgs() << "  " << SUnits[Idx] << " in tree "
                         << R.DFSNodeData[Idx].SubtreeID << '\n');
     }
     for (const auto &[Pred, Succ] : ConnectionPairs) {
@@ -1438,7 +1440,7 @@ void SchedDFSResult::compute(ArrayRef<SUnit> SUnits) {
         break;
     }
   }
-  Impl.finalize();
+  Impl.finalize(SUnits);
 }
 
 /// The root of the given SubtreeID was just scheduled. For all subtrees
