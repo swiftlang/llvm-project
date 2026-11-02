@@ -1250,11 +1250,8 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
 void PassBuilder::addVectorPasses(OptimizationLevel Level,
                                   FunctionPassManager &FPM,
                                   ThinOrFullLTOPhase LTOPhase) {
-  // Vectorisation is not enabled for optimization levels below O2 in post-link
-  // LTO phases, we don't want to remove completely.
-  if (Level < OptimizationLevel::O2 || !isFullLTOPreLink(LTOPhase))
-    FPM.addPass(LoopVectorizePass(
-        LoopVectorizeOptions(!PTO.LoopInterleaving, !PTO.LoopVectorization)));
+  FPM.addPass(LoopVectorizePass(
+      LoopVectorizeOptions(!PTO.LoopInterleaving, !PTO.LoopVectorization)));
 
   // Drop dereferenceable assumes after vectorization, as they are no longer
   // needed and can inhibit further optimization.
@@ -1350,8 +1347,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   }
 
   // Optimize parallel scalar instruction chains into SIMD instructions.
-  if (PTO.SLPVectorization &&
-      (Level < OptimizationLevel::O2 || !isFullLTOPreLink(LTOPhase))) {
+  if (PTO.SLPVectorization) {
     FPM.addPass(SLPVectorizerPass());
     if (Level >= OptimizationLevel::O2 && Opts.extra_vectorizer_passes) {
       FPM.addPass(EarlyCSEPass());
@@ -1360,7 +1356,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   // Enhance/cleanup vector code.
   FPM.addPass(VectorCombinePass());
 
-  if (Level < OptimizationLevel::O2 || !isFullLTOPreLink(LTOPhase)) {
+  if (!isFullLTOPostLink(LTOPhase)) {
     FPM.addPass(InstCombinePass());
     // Unroll small loops to hide loop backedge latency and saturate any
     // parallel execution resources of an out-of-order processor. We also then
