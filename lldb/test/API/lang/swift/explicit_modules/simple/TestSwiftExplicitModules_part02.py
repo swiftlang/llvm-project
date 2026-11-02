@@ -17,7 +17,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
     # imported.
     @skipIf(setting=("symbols.use-swift-clangimporter", "false"),
             bugnumber="rdar://118337109")
-    @skipIfWindows # rdar://186975412, FoundationEssentials.__DataStorage.init symbol not found
+    @expectedFailureAll(debug_info=["pdb"])
     def test_import(self):
         """Test an implicit import inside an explicit build"""
         mod_cache = self.getBuildArtifact("my-clang-modules-cache")
