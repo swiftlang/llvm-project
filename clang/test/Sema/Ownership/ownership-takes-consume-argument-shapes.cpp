@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -std=c++2b -fsyntax-only \
 // RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     -Wexperimental-lifetime-safety-field-origin-escape \
+// RUN:     -Wlifetime-safety-experimental-field-origin-escape \
 // RUN:     %s -verify -Wownership-inference
 
 // A destructor that releases its raw-pointer field by handing the field's value

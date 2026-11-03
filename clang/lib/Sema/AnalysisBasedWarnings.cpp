@@ -35,6 +35,7 @@
 #include "clang/Analysis/Analyses/CalledOnceCheck.h"
 #include "clang/Analysis/Analyses/Consumed.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
+#include "clang/Analysis/Analyses/Ownership/SelfContainment.h"
 #include "clang/Analysis/Analyses/ReachableCode.h"
 #include "clang/Analysis/Analyses/ThreadSafety.h"
 #include "clang/Analysis/Analyses/UninitializedValues.h"
@@ -45,6 +46,7 @@
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "clang/Basic/DiagnosticUtils.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
@@ -3774,6 +3776,25 @@ static bool shouldSkipAnalysisForDecl(Sema &S, const Decl *D) {
   return cast<DeclContext>(D)->isDependentContext();
 }
 
+static bool shouldRunSelfContainmentInference(const Sema &S) {
+  // The whole-TU self-containment inference only produces ownership-inference
+  // diagnostics, so skip it entirely unless at least one of those is enabled.
+  // Gate on the command-line/global state (SourceLocation()) since this is a
+  // TU-wide pass. Don't enable this via -Weverything, like the other
+  // lifetime-safety checks.
+  const DiagnosticsEngine &Diags = S.getDiagnostics();
+  constexpr unsigned DiagIDs[] = {
+      diag::warn_ownership_inference_suggest_trivially_self_contained,
+      diag::warn_ownership_inference_suggest_self_contained,
+      diag::warn_ownership_inference_suggest_view,
+      diag::warn_ownership_inference_failed_to_infer,
+      diag::warn_ownership_inference_annotation_mismatch};
+  for (unsigned DiagID : DiagIDs)
+    if (IsDiagEnabledExcludingWeverything(Diags, DiagID, SourceLocation()))
+      return true;
+  return false;
+}
+
 static void
 LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
                          clang::lifetimes::LifetimeSafetyStats &LSStats) {
@@ -3781,6 +3802,9 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
   CallGraph CG;
   CG.addToCallGraph(TU);
   lifetimes::LifetimeSafetySemaHelperImpl SemaHelper(S);
+  // Collects each destructor's destroyed pointer fields from every per-function
+  // pass; consumed once below.
+  ownership::DestroyedFieldsCollector DestroyedFields;
   for (auto *Node : llvm::post_order(&CG)) {
     const clang::FunctionDecl *CanonicalFD =
         dyn_cast_or_null<clang::FunctionDecl>(Node->getDecl());
@@ -3791,11 +3815,19 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
       continue;
     AnalysisDeclContext AC(nullptr, FD);
     setLifetimeSafetyCFGBuildOptions(AC);
-    if (AC.getCFG())
-      runLifetimeSafetyAnalysis(AC, &SemaHelper,
-                                lifetimes::GetLifetimeSafetyOpts(S, FD),
-                                LSStats, S.CollectStats);
+    if (AC.getCFG()) {
+      lifetimes::LifetimeSafetyOpts Opts =
+          lifetimes::GetLifetimeSafetyOpts(S, FD);
+      Opts.Observer = &DestroyedFields;
+      runLifetimeSafetyAnalysis(AC, &SemaHelper, Opts, LSStats, S.CollectStats);
+    }
   }
+
+  // All per-function passes are done, so the destroyed-fields collector is now
+  // complete. Infer class-level self-containment exactly once over the whole
+  // TU, but only when some ownership-inference diagnostic is actually enabled.
+  if (shouldRunSelfContainmentInference(S))
+    ownership::inferClassSelfContainment(S.getASTContext(), DestroyedFields);
 }
 
 static bool shouldRunUnsafeBufferUsageAnalysis(const Sema &S,
