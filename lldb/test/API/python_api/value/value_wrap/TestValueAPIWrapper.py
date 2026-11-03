@@ -54,9 +54,13 @@ class ValueAPIWrapper(TestBase):
 
         self.assertFalse(lldb.value(frame.FindVariable("this_does_not_exist")))
 
+        # CodeView has no type records for typedefs, so with PDB the variables
+        # have the underlying type.
+        u32 = "unsigned int" if self.getDebugInfo() == "pdb" else "uint32_t"
+
         # Test __str__().
-        self.assertEqual(str(u32_zero), "(uint32_t) u32_zero = 0")
-        self.assertEqual(str(u32_one), "(uint32_t) u32_one = 1")
+        self.assertEqual(str(u32_zero), f"({u32}) u32_zero = 0")
+        self.assertEqual(str(u32_one), f"({u32}) u32_one = 1")
 
         # Test __getitem__(key).
         self.assertIsInstance(arr[0], lldb.value)
@@ -170,7 +174,7 @@ class ValueAPIWrapper(TestBase):
         # Test __eq__().
         self.assertEqual(u32_two, i32_two)
         self.assertEqual(u32_two, 2)
-        self.assertEqual(u32_two, "(uint32_t) u32_two = 2")
+        self.assertEqual(u32_two, f"({u32}) u32_two = 2")
         with self.assertRaisesRegex(
             TypeError, "^Unknown type <class 'bool'>, No equality operation defined.$"
         ):
