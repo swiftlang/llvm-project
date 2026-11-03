@@ -1499,6 +1499,7 @@ bool AArch64InstrInfo::isSEHInstruction(const MachineInstr &MI) {
   switch (Opc) {
     default:
       return false;
+    case AArch64::SEH_EndC:
     case AArch64::SEH_StackAlloc:
     case AArch64::SEH_SaveFPLR:
     case AArch64::SEH_SaveFPLR_X:
@@ -10945,6 +10946,7 @@ AArch64InstrInfo::getOutliningTypeImpl(const MachineModuleInfo &MMI,
   case AArch64::EMITBKEY:
   case AArch64::PAUTH_PROLOGUE:
   case AArch64::PAUTH_EPILOGUE:
+  case AArch64::PAUTH_EPILOGUE_ENTRY_SP:
     return outliner::InstrType::Illegal;
   }
 
