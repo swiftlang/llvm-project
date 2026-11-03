@@ -7,6 +7,7 @@ class TestSwiftExplicitModuleNoCaching(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @swiftTest
+    @skipEmbeddedSwift
     @expectedFailureWindows
     def test(self):
         """
