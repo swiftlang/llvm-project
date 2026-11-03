@@ -4554,7 +4554,7 @@ SwiftLanguageRuntime::GetConcreteType(ExecutionContextScope *exe_scope,
     return CompilerType();
 
   SwiftLanguageRuntime::MetadataPromiseSP promise_sp(
-      GetPromiseForTypeNameAndFrame(abstract_type_name.GetCString(), frame));
+      GetPromiseForTypeNameAndFrame(abstract_type_name, frame));
   if (!promise_sp)
     return CompilerType();
 

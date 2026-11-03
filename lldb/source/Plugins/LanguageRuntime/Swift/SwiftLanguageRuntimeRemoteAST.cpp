@@ -528,13 +528,13 @@ SwiftLanguageRuntime::GetMetadataPromise(const SymbolContext &sc,
 }
 
 SwiftLanguageRuntime::MetadataPromiseSP
-SwiftLanguageRuntime::GetPromiseForTypeNameAndFrame(const char *type_name,
+SwiftLanguageRuntime::GetPromiseForTypeNameAndFrame(llvm::StringRef type_name,
                                                     StackFrame *frame) {
-  if (!frame || !type_name || !type_name[0])
+  if (!frame || type_name.empty())
     return nullptr;
 
   StreamString type_metadata_ptr_var_name;
-  type_metadata_ptr_var_name.Printf("$%s", type_name);
+  type_metadata_ptr_var_name.Format("${0}", type_name);
   VariableList *var_list = frame->GetVariableList(false, false, nullptr);
   if (!var_list)
     return nullptr;
