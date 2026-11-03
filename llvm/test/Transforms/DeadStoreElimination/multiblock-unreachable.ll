@@ -193,3 +193,22 @@ if.end:
   store i64 0, ptr %ptr, align 8
   ret void
 }
+
+define void @unreachable_exit_with_coro_end(ptr noalias %ptr, i1 %cond) presplitcoroutine {
+entry:
+  %id = call token @llvm.coro.id.async(i32 16, i32 16, i32 1, ptr null)
+  %hdl = call ptr @llvm.coro.begin(token %id, ptr null)
+  store i8 0, ptr %ptr
+  br i1 %cond, label %if.then, label %if.else
+
+if.then:
+  br label %exit
+
+if.else:
+  store i8 1, ptr %ptr
+  br label %exit
+
+exit:
+  call i1 (ptr, i1, ...) @llvm.coro.end.async(ptr %hdl, i1 false)
+  unreachable
+}
