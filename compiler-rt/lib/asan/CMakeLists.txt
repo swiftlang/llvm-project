@@ -16,6 +16,7 @@ set(ASAN_SOURCES
   asan_interceptors_memintrinsics.cpp
   asan_linux.cpp
   asan_mac.cpp
+  asan_mac_crashreport.cpp  # TO_UPSTREAM(crashreporter_global)
   asan_malloc_linux.cpp
   asan_malloc_mac.cpp
   asan_malloc_win.cpp
