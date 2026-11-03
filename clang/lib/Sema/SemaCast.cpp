@@ -516,6 +516,7 @@ Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
         // DstTy is __terminated_by(), update only the pointee.
         QualType Ty = Context.getPointerType(
             MergePointeeTy, BoundsSafetyPointerAttributes::single());
+        Ty = Context.getAttributedType(attr::PtrSingle, Ty, Ty);
         return Context.getValueTerminatedType(Ty, DVTT->getTerminatorExpr());
       }
 
@@ -527,6 +528,7 @@ Sema::deduceCastPointerAttributes(QualType ResultType, QualType SrcType) {
         assert(!DVTT && SPTy->isSingle());
         QualType Ty = Context.getPointerType(
             MergePointeeTy, BoundsSafetyPointerAttributes::single());
+        Ty = Context.getAttributedType(attr::PtrSingle, Ty, Ty);
         return Context.getValueTerminatedType(Ty, SVTT->getTerminatorExpr());
       }
 
