@@ -882,7 +882,7 @@ protected:
   MetadataPromiseSP GetMetadataPromise(const SymbolContext &sc,
                                        lldb::addr_t addr,
                                        ValueObject &for_object);
-  MetadataPromiseSP GetPromiseForTypeNameAndFrame(const char *type_name,
+  MetadataPromiseSP GetPromiseForTypeNameAndFrame(llvm::StringRef type_name,
                                                   StackFrame *frame);
 
   std::optional<lldb::addr_t>
