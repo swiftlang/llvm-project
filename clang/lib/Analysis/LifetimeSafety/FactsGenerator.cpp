@@ -9,6 +9,7 @@
 #include <cassert>
 #include <string>
 
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -830,8 +831,8 @@ void FactsGenerator::VisitCXXDeleteExpr(const CXXDeleteExpr *DE) {
   // The destructor may dereference to any depth.
   handleUse(DE->getArgument());
   OriginList *List = getOriginsList(*DE->getArgument());
-  CurrentBlockFacts.push_back(
-      FactMgr.createFact<InvalidateOriginFact>(List->getOuterOriginID(), DE));
+  CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
+      List->getOuterOriginID(), DE, InvalidateOriginFact::Reason::Destroy));
 }
 
 void FactsGenerator::VisitStmtExpr(const StmtExpr *SE) {
@@ -1018,6 +1019,8 @@ void FactsGenerator::handleInvalidatingCall(const Expr *Call,
   if (!MD || !MD->isInstance())
     return;
 
+  // Invalidate the receiver when the callee is a known container-mutating STL
+  // method.
   if (!isInvalidationMethod(*MD))
     return;
 
@@ -1032,7 +1035,57 @@ void FactsGenerator::handleInvalidatingCall(const Expr *Call,
   OriginList *ThisList = getOriginsList(*Args[0]);
   if (ThisList)
     CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
-        ThisList->getOuterOriginID(), Call));
+        ThisList->getOuterOriginID(), Call,
+        InvalidateOriginFact::Reason::Mutate));
+}
+
+void FactsGenerator::handleOwnershipTakesCall(const Expr *Call,
+                                              const FunctionDecl *FD,
+                                              ArrayRef<const Expr *> Args) {
+  // A parameter (or the implicit object, source index 1) named by an
+  // `ownership_takes` attribute is deleted/consumed by the call, so invalidate
+  // the corresponding argument's origin.
+  //
+  // The source index is 1-origin including the implicit object parameter. For
+  // instance-method/operator calls `Args[0]` is the implicit object, so the
+  // argument position is `sourceIndex - 1`. A constructor call has no implicit
+  // object argument in `Args`, yet its source indices still count the object
+  // being constructed (index 1), so shift by one more and skip index 1.
+  const bool IsConstructor = isa<CXXConstructorDecl>(FD);
+  for (const auto *OA : FD->specific_attrs<OwnershipAttr>()) {
+    if (!OA->isTakes())
+      continue;
+    for (ParamIdx Idx : OA->args()) {
+      unsigned ArgIdx;
+      if (IsConstructor) {
+        if (Idx.isThis())
+          continue; // the object being constructed is not a call argument
+        ArgIdx = Idx.getSourceIndex() - 2;
+      } else {
+        ArgIdx = Idx.getSourceIndex() - 1;
+      }
+      // A valid, Sema-checked `ownership_takes` index always maps to a real
+      // call argument (constructors skip the object-being-constructed above), so
+      // this is an invariant rather than a case to handle gracefully.
+      assert(ArgIdx < Args.size() &&
+             "ownership_takes index maps outside the call's arguments");
+      const Expr *Arg = Args[ArgIdx];
+      // The argument named by `ownership_takes` is consumed/deleted by the
+      // call, so invalidate its origin. Unlike handleInvalidatingCall's
+      // container-mutation case -- where the receiver is a container and
+      // following iterators through a complex receiver expression is imprecise
+      // -- here the invalidated origin *is* the consumed value's origin, which
+      // loan propagation already tracks precisely however the argument is
+      // spelled: a local alias (`p = m_ptr; consume(p)`), a field access
+      // (`consume(m_ptr)`), or a call result (`consume(exchange(m_ptr, {}))`).
+      // Restricting this to a bare DeclRefExpr/`*this` silently dropped the
+      // consume for the latter two, making owners like `~RefPtr` look unmanaged.
+      if (OriginList *List = getOriginsList(*Arg))
+        CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
+            List->getOuterOriginID(), Call,
+            InvalidateOriginFact::Reason::Destroy));
+    }
+  }
 }
 
 void FactsGenerator::handleDestructiveCall(const Expr *Call,
@@ -1043,7 +1096,8 @@ void FactsGenerator::handleDestructiveCall(const Expr *Call,
   OriginList *ArgList = getOriginsList(*Args[0]);
   if (ArgList)
     CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
-        ArgList->getOuterOriginID(), Call));
+        ArgList->getOuterOriginID(), Call,
+        InvalidateOriginFact::Reason::Destroy));
 }
 
 void FactsGenerator::handleImplicitObjectFieldUses(const Expr *Call,
@@ -1156,35 +1210,18 @@ void FactsGenerator::handleLifetimeCaptureBy(const FunctionDecl *FD,
 
 void FactsGenerator::handleFreeingCall(const Expr *Call, const FunctionDecl *FD,
                                        ArrayRef<const Expr *> Args) {
-  if (!isFreeingFunction(*FD))
+  // Functions annotated with `ownership_takes` are handled by
+  // handleOwnershipTakesCall.
+  if (!isFreeingFunction(*FD) ||
+      llvm::any_of(FD->specific_attrs<OwnershipAttr>(),
+                   [](const OwnershipAttr *A) { return A->isTakes(); }))
     return;
-  auto InvalidateArg = [&](unsigned ArgIndex) {
-    assert(ArgIndex < Args.size() && "Arg index should be in bounds");
-
-    OriginList *ArgList = getOriginsList(*Args[ArgIndex]);
-    if (!ArgList)
-      return;
+  // Freeing builtins (e.g. `free`, `realloc`) free their first argument.
+  assert(!Args.empty() && "freeing builtins take at least one argument");
+  if (OriginList *ArgList = getOriginsList(*Args[0]))
     CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
-        ArgList->getOuterOriginID(), Call));
-  };
-
-  bool HasOwnershipTakesAttr = false;
-  for (const OwnershipAttr *Attr : FD->specific_attrs<OwnershipAttr>()) {
-    if (Attr->getOwnKind() != OwnershipAttr::Takes)
-      continue;
-    HasOwnershipTakesAttr = true;
-    for (const ParamIdx &Idx : Attr->args()) {
-      // Attribute indices count implicit 'this', but constructor Args omits it:
-      // the first explicit parameter (2) maps to Args[0], not Args[1].
-      InvalidateArg(Idx.getLLVMIndex() - isa<CXXConstructorDecl>(FD));
-    }
-  }
-  // Allocating/freeing builtins (e.g. `free`, `realloc`) free their first
-  // argument.
-  if (!HasOwnershipTakesAttr) {
-    assert(!Args.empty() && "freeing builtins take at least one argument");
-    InvalidateArg(0);
-  }
+        ArgList->getOuterOriginID(), Call,
+        InvalidateOriginFact::Reason::Destroy));
 }
 
 void FactsGenerator::handleAllocatingCall(const Expr *Call,
@@ -1221,6 +1258,7 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
   if (!FD)
     return;
   handleInvalidatingCall(Call, FD, Args);
+  handleOwnershipTakesCall(Call, FD, Args);
   handleDestructiveCall(Call, FD, Args);
   handleMovedArgsInCall(FD, Args);
   handleImplicitObjectFieldUses(Call, FD);

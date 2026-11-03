@@ -2150,6 +2150,12 @@ ProgramStateRef MallocChecker::FreeMemAttr(CheckerContext &C,
   if (!State)
     return nullptr;
 
+  // Implicit ownership attributes are synthesized by the lifetime-safety
+  // inference (-flifetime-safety-inference), not authored by the user, so do
+  // not model allocation/deallocation from them here.
+  if (Att->isImplicit())
+    return State;
+
   auto attrClassName = Att->getModule()->getName();
   auto Family = AllocationFamily(AF_Custom, attrClassName);
 

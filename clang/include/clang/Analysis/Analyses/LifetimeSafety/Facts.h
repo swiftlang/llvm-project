@@ -354,20 +354,31 @@ public:
 /// Created when a container method that may invalidate references/iterators
 /// is called on the container.
 class InvalidateOriginFact : public Fact {
+public:
+  /// Why the origin was invalidated. Only `Destroy` (the object is freed /
+  /// consumed) justifies inferring an `ownership_takes` contract; `Mutate`
+  /// (e.g. a container reallocation) invalidates interior references but does
+  /// not consume the object itself.
+  enum class Reason : uint8_t { Destroy, Mutate };
+
+private:
   OriginID OID;
   const Expr *InvalidationExpr;
+  Reason R;
 
 public:
   static bool classof(const Fact *F) {
     return F->getKind() == Kind::InvalidateOrigin;
   }
 
-  InvalidateOriginFact(OriginID OID, const Expr *InvalidationExpr)
+  InvalidateOriginFact(OriginID OID, const Expr *InvalidationExpr, Reason R)
       : Fact(Kind::InvalidateOrigin), OID(OID),
-        InvalidationExpr(InvalidationExpr) {}
+        InvalidationExpr(InvalidationExpr), R(R) {}
 
   OriginID getInvalidatedOrigin() const { return OID; }
   const Expr *getInvalidationExpr() const { return InvalidationExpr; }
+  Reason getReason() const { return R; }
+  bool destroysObject() const { return R == Reason::Destroy; }
   void dump(llvm::raw_ostream &OS, const LoanManager &, const OriginManager &OM,
             const LoanPropagationAnalysis *LPA = nullptr) const override;
 };

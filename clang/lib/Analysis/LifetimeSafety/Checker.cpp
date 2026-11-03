@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/Analyses/LifetimeSafety/Checker.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/Facts.h"
@@ -61,6 +62,12 @@ private:
   llvm::DenseMap<AnnotationTarget, EscapingTarget> AnnotationWarningsMap;
   llvm::DenseMap<const ParmVarDecl *, EscapingTarget> NoescapeWarningsMap;
   llvm::DenseMap<const FieldDecl *, const Expr *> FieldOriginEscapesMap;
+  /// Methods inferred to delete/consume the object their implicit `this` points
+  /// to (populated when an InvalidateOrigin reaches the `$this` placeholder).
+  llvm::DenseSet<const CXXMethodDecl *> DeletesThisMethods;
+  /// Parameters inferred to be deleted/consumed by their function (populated
+  /// when an InvalidateOrigin reaches the parameter's `$param` placeholder).
+  llvm::DenseSet<const ParmVarDecl *> TakenParams;
   llvm::DenseSet<const Decl *> VerifiedLiftimeboundEscapes;
   const LoanPropagationAnalysis &LoanPropagation;
   const MovedLoansAnalysis &MovedLoans;
@@ -282,6 +289,43 @@ public:
             }
           }
       }
+    // Inference: if the invalidated origin holds a placeholder loan to one of
+    // this function's own objects ($this or a $param), the function
+    // deletes/consumes that object. Recorded here, emitted in inferAnnotations().
+    if (AST.getLangOpts().EnableLifetimeSafetyInference)
+      inferOwnershipTakes(IOF);
+  }
+
+  /// Detects whether an InvalidateOrigin fact invalidates one of the current
+  /// function's own placeholder loans ($this or $param), i.e. the function
+  /// deletes/consumes that object.
+  void inferOwnershipTakes(const InvalidateOriginFact *IOF) {
+    // Only destroying/consuming invalidations (delete, destructor, destroy_at,
+    // or a callee that itself takes ownership) justify an `ownership_takes`
+    // contract. A mutating invalidation (e.g. a container reallocation) does
+    // not consume the object and must not be inferred as ownership_takes.
+    if (!IOF->destroysObject())
+      return;
+    const auto *Fn = dyn_cast<FunctionDecl>(FD);
+    if (!Fn)
+      return;
+    for (LoanID LID : LoanPropagation.getLoans(IOF->getInvalidatedOrigin(), IOF)) {
+      const AccessPath &AP = FactMgr.getLoanMgr().getLoan(LID)->getAccessPath();
+      // Only a bare placeholder ($this / $param, with no path elements)
+      // represents the whole object; `$this.field` loans are different storage.
+      if (!AP.getElements().empty())
+        continue;
+      const PlaceholderBase *PB = AP.getAsPlaceholderBase();
+      if (!PB)
+        continue;
+      if (const auto *MD = PB->getImplicitThisParent()) {
+        if (MD == Fn)
+          DeletesThisMethods.insert(cast<CXXMethodDecl>(Fn));
+      } else if (const auto *PVD = PB->getParmVarDecl()) {
+        if (PVD->getDeclContext() == Fn)
+          TakenParams.insert(PVD);
+      }
+    }
   }
 
   void issuePendingWarnings() {
@@ -590,6 +634,38 @@ public:
   }
 
   void inferAnnotations() {
+    // Mark functions inferred to delete `*this` or one of their parameters with
+    // an implicit `ownership_takes(<index>)` so callers see the effect in
+    // post-order analysis.
+    auto addOwnershipTakes = [&](FunctionDecl *Fn, unsigned SourceIdx) {
+      for (const auto *OA : Fn->specific_attrs<OwnershipAttr>())
+        if (OA->isTakes())
+          for (ParamIdx Existing : OA->args())
+            if (Existing.getSourceIndex() == SourceIdx)
+              return; // already present
+      ParamIdx Idx(SourceIdx, Fn);
+      Fn->addAttr(OwnershipAttr::CreateImplicit(
+          AST, /*Module=*/&AST.Idents.get("__lifetime_safety"),
+          /*Args=*/&Idx, /*ArgsSize=*/1, Fn->getLocation(),
+          OwnershipAttr::GNU_ownership_takes));
+    };
+    for (const CXXMethodDecl *MD : DeletesThisMethods)
+      addOwnershipTakes(const_cast<CXXMethodDecl *>(cast<CXXMethodDecl>(
+                            getDeclWithMergedLifetimeBoundAttrs(MD))),
+                        /*SourceIdx=*/1);
+    for (const ParmVarDecl *PVD : TakenParams) {
+      const auto *FnD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
+      if (!FnD)
+        continue;
+      auto *Merged =
+          const_cast<FunctionDecl *>(getDeclWithMergedLifetimeBoundAttrs(FnD));
+      // Source index is 1-origin and includes the implicit object parameter.
+      bool HasThis = false;
+      if (const auto *MD = dyn_cast<CXXMethodDecl>(Merged))
+        HasThis = MD->isImplicitObjectMemberFunction();
+      addOwnershipTakes(Merged,
+                        PVD->getFunctionScopeIndex() + 1 + (HasThis ? 1 : 0));
+    }
     for (auto [Target, EscapeTarget] : AnnotationWarningsMap) {
       if (const auto *MD = dyn_cast<const CXXMethodDecl *>(Target)) {
         if (!implicitObjectParamIsLifetimeBound(MD))
