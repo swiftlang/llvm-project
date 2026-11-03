@@ -56,6 +56,7 @@
 ---
 name:            baz
 alignment:       16
+tracksRegLiveness: false
 debugInstrRef: true
 tracksDebugUserValues: true
 liveins:
