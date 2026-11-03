@@ -66,6 +66,7 @@ add_llvm_unittest(CASTests
   ObjectStoreTest.cpp
   OnDiskCommonUtils.cpp
   TreeSchemaTest.cpp
+  UniqueTempFileTest.cpp
 
   ${ONDISK_CAS_TEST_SOURCES}
   ${PLUGIN_CAS_TEST_SOURCES}
