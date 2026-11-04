@@ -7,6 +7,7 @@ set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES
 add_subdirectory(CPlusPlus)
 add_subdirectory(ObjC)
 add_subdirectory(ObjCPlusPlus)
+add_subdirectory(Rust)
 if(LLDB_ENABLE_SWIFT_SUPPORT)
   add_subdirectory(Swift)
 endif()
