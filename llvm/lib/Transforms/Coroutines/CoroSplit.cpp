@@ -358,9 +358,9 @@ static void replaceFallthroughCoroEnd(AnyCoroEndInst *End,
 /// Create a pointer to the switch index field in the coroutine frame.
 static Value *createSwitchIndexPtr(const coro::Shape &Shape,
                                    IRBuilder<> &Builder, Value *FramePtr) {
-  auto *Offset = ConstantInt::get(Type::getInt64Ty(FramePtr->getContext()),
-                                  Shape.SwitchLowering.IndexOffset);
-  return Builder.CreateInBoundsPtrAdd(FramePtr, Offset, "index.addr");
+  return Builder.CreatePtrAddWithUnsignedOffset(
+      FramePtr, Shape.SwitchLowering.IndexOffset, "index.addr",
+      GEPNoWrapFlags::inBounds());
 }
 
 // Mark a coroutine as done, which implies that the coroutine is finished and
@@ -861,12 +861,9 @@ Value *coro::BaseCloner::deriveNewFramePointer() {
     CallerContext->setCallingConv(ProjectionFunc->getCallingConv());
     CallerContext->setDebugLoc(DbgLoc);
     // The frame is located after the async_context header.
-    auto &Context = Builder.getContext();
-    auto *FramePtrAddr = Builder.CreateInBoundsPtrAdd(
-        CallerContext,
-        ConstantInt::get(Type::getInt64Ty(Context),
-                         Shape.AsyncLowering.FrameOffset),
-        "async.ctx.frameptr");
+    auto *FramePtrAddr = Builder.CreatePtrAddWithUnsignedOffset(
+        CallerContext, Shape.AsyncLowering.FrameOffset, "async.ctx.frameptr",
+        GEPNoWrapFlags::inBounds());
     // Inline the projection function.
     InlineFunctionInfo InlineInfo;
     auto InlineRes = InlineFunction(*CallerContext, InlineInfo);
@@ -1765,7 +1762,6 @@ private:
   static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
                               Function *DestroyFn, Function *CleanupFn) {
     IRBuilder<> Builder(&*Shape.getInsertPtAfterFramePtr());
-    LLVMContext &C = ResumeFn->getContext();
 
     // Resume function pointer
     Value *ResumeAddr = Shape.FramePtr;
@@ -1785,11 +1781,9 @@ private:
     }
 
     // Destroy function pointer
-    Value *DestroyAddr = Builder.CreateInBoundsPtrAdd(
-        Shape.FramePtr,
-        ConstantInt::get(Type::getInt64Ty(C),
-                         Shape.SwitchLowering.DestroyOffset),
-        "destroy.addr");
+    Value *DestroyAddr = Builder.CreatePtrAddWithUnsignedOffset(
+        Shape.FramePtr, Shape.SwitchLowering.DestroyOffset, "destroy.addr",
+        GEPNoWrapFlags::inBounds());
     Builder.CreateStore(DestroyOrCleanupFn, DestroyAddr);
   }
 
@@ -1899,11 +1893,9 @@ void coro::AsyncABI::splitCoroutine(Function &F, coro::Shape &Shape,
 
   auto *FramePtr = Id->getStorage();
   FramePtr = Builder.CreateBitOrPointerCast(FramePtr, Int8PtrTy);
-  FramePtr = Builder.CreateInBoundsPtrAdd(
-      FramePtr,
-      ConstantInt::get(Type::getInt64Ty(Context),
-                       Shape.AsyncLowering.FrameOffset),
-      "async.ctx.frameptr");
+  FramePtr = Builder.CreatePtrAddWithUnsignedOffset(
+      FramePtr, Shape.AsyncLowering.FrameOffset, "async.ctx.frameptr",
+      GEPNoWrapFlags::inBounds());
 
   // Map all uses of llvm.coro.begin to the allocated frame pointer.
   {
