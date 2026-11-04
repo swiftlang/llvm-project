@@ -1493,12 +1493,14 @@ Value *State::createIndexExpression(
   IRBuilder<> Builder(GEPI ? GEPI : &*DT.getRoot()->getFirstInsertionPt());
   Value *IdxOp = zeroExtendIfNeeded(Builder, Index, IntTy);
   Value *ScaleV = ConstantInt::get(IntTy, Scale.getSExtValue());
-  Value *Offset = trackExtraInst(
-      Builder.CreateMul(IdxOp, ScaleV, "", /*HasNUW=*/true, /*HasNSW=*/true));
+  bool IdxNonNeg = isKnownNonNegative(Index, DL, 2);
+  Value *Offset = trackExtraInst(Builder.CreateMul(
+      IdxOp, ScaleV, "", /*HasNUW=*/IdxNonNeg, /*HasNSW=*/true));
   if (ConstantOffset.isZero())
     return Offset;
   return trackExtraInst(Builder.CreateAdd(Offset, ConstOffsetValue, "",
-                                          /*HasNUW=*/true, /*HasNSW=*/true));
+                                          /*HasNUW=*/IdxNonNeg,
+                                          /*HasNSW=*/true));
 }
 
 void State::addPointerBoundInfo(GEPOperator *GEP, DomTreeNode *DTN) {
