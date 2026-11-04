@@ -2885,22 +2885,16 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
 void Parser::ParseSpecifierQualifierList(
     DeclSpec &DS, ImplicitTypenameContext AllowImplicitTypename,
-    AccessSpecifier AS, DeclSpecContext DSC,
-    // TO_UPSTREAM(BoundsSafety)
-    LateParsedAttrList *LateAttrs) {
+    AccessSpecifier AS, DeclSpecContext DSC, LateParsedAttrList *LateAttrs) {
+  ParsedTemplateInfo TemplateInfo;
+
+  assert((!LateAttrs ||
+          llvm::none_of(*LateAttrs, llvm::IsaPred<LateParsedTypeAttribute>)) &&
+         "caller's late-attribute list must not hold type attributes yet");
+
   /// specifier-qualifier-list is a subset of declaration-specifiers.  Just
   /// parse declaration-specifiers and complain about extra stuff.
   /// TODO: diagnose attribute-specifiers and alignment-specifiers.
-
-  /*TO_UPSTREAM(BoundsSafety) ON*/
-  assert(((LateAttrs && getLangOpts().BoundsSafetyAttributes)
-              ? LateAttrs->lateAttrParseExperimentalExtOnly()
-              : true) &&
-         "Experimental late parsing must be enabled for BoundsSafety");
-  /*TO_UPSTREAM(BoundsSafety) OFF*/
-
-  ParsedTemplateInfo TemplateInfo;
-  // TO_UPSTREAM(BoundsSafety): Pass LateAttrs
   ParseDeclarationSpecifiers(DS, TemplateInfo, AS, DSC, LateAttrs,
                              AllowImplicitTypename);
 
@@ -6580,9 +6574,7 @@ bool Parser::isConstructorDeclarator(bool IsUnqualified, bool DeductionGuide,
 
 void Parser::ParseTypeQualifierListOpt(
     DeclSpec &DS, unsigned AttrReqs, bool AtomicOrPtrauthAllowed,
-    bool IdentifierRequired,
-    llvm::function_ref<void()> CodeCompletionHandler,
-    // TO_UPSTREAM(BoundsSafety)
+    bool IdentifierRequired, llvm::function_ref<void()> CodeCompletionHandler,
     LateParsedAttrList *LateAttrs) {
   if ((AttrReqs & AR_CXX11AttributesParsed) &&
       isAllowedCXX11AttributeSpecifier()) {
@@ -6756,9 +6748,7 @@ void Parser::ParseTypeQualifierListOpt(
                     ? LateAttrs->lateAttrParseExperimentalExtOnly()
                     : true) &&
                "Experimental late parsing must be enabled for BoundsSafety");
-        // Upstream doesn't pass LateAttrs
-        ParseGNUAttributes(DS.getAttributes(), LateAttrs, nullptr);
-        /*TO_UPSTREAM(BoundsSafety) OFF*/
+        ParseGNUAttributes(DS.getAttributes(), LateAttrs);
         continue; // do *not* consume the next token!
       }
       // otherwise, FALL THROUGH!
