@@ -318,7 +318,7 @@ ConstString Mangled::GetDemangledName( // BEGIN SWIFT
   if (m_mangled.GetMangledCounterpart(m_demangled) && !m_demangled.IsNull())
     return m_demangled;
 
-  // We didn't already mangle this name, demangle it and if all goes well
+  // We didn't already demangle this name, demangle it and if all goes well
   // add it to our map.
   ManglingScheme scheme = GetManglingScheme(m_mangled.GetStringRef());
   switch (scheme) {
