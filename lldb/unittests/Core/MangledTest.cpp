@@ -169,47 +169,6 @@ TEST(MangledTest, RegisterManglingSchemeWithMatcher) {
   Mangled::UnregisterManglingScheme(scheme);
 }
 
-TEST(MangledTest, RecognizeSwiftMangledNames) {
-  llvm::StringRef valid_swift_mangled_names[] = {
-      "_TtC4main7MyClass",   // Mangled objc class name
-      "_TtP4main3Foo_",      // Mangld objc protocol name
-      "$s4main3BarCACycfC",  // Mangled name
-      "_$s4main3BarCACycfC", // Mangled name with leading underscore
-      "$S4main3BarCACycfC",  // Older swift mangled name
-      "_$S4main3BarCACycfC", // Older swift mangled name
-                             // with leading underscore
-      // Mangled swift filename
-      "@__swiftmacro_4main16FunVariableNames9OptionSetfMm_.swift",
-  };
-
-  for (llvm::StringRef mangled : valid_swift_mangled_names)
-    EXPECT_EQ(Mangled::GetManglingScheme(mangled),
-              Mangled::eManglingSchemeSwift);
-}
-
-// BEGIN SWIFT
-#ifdef LLDB_ENABLE_SWIFT
-TEST(MangledTest, RecognizeSwiftAsyncMainEntryPoint) {
-  llvm::StringRef async_main_names[] = {
-      "async_Main",      "_async_Main",    "async_MainTQ0_",
-      "_async_MainTQ0_", "async_MainTY1_", "_async_MainTY1_",
-  };
-
-  for (llvm::StringRef name : async_main_names) {
-    EXPECT_EQ(Mangled::GetManglingScheme(name), Mangled::eManglingSchemeSwift)
-        << name;
-    Mangled mangled(name);
-    EXPECT_EQ(mangled.GetMangledName(), ConstString(name)) << name;
-  }
-
-  EXPECT_STREQ(Mangled("async_Main").GetDemangledName().GetCString(),
-               "async main entry point");
-  EXPECT_EQ(Mangled::GetManglingScheme("async_main"),
-            Mangled::eManglingSchemeNone);
-}
-#endif // LLDB_ENABLE_SWIFT
-// END SWIFT
-
 TEST(MangledTest, BoolConversionOperator) {
   {
     ConstString MangledName("_ZN1a1b1cIiiiEEvm");

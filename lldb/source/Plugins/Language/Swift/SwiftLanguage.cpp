@@ -37,8 +37,11 @@
 #include "ObjCRuntimeSyntheticProvider.h"
 #include "SwiftFormatters.h"
 
+#include <cassert>
 #include <functional>
+#include <memory>
 #include <mutex>
+#include <optional>
 
 #include "lldb/lldb-enumerations.h"
 #include "swift/AST/ImportCache.h"
@@ -62,6 +65,24 @@ using lldb_private::formatters::swift::SetConfig;
 
 LLDB_PLUGIN_DEFINE(SwiftLanguage)
 
+/// The prefixes of the names that SwiftLanguageRuntime::IsSwiftMangledName()
+/// recognizes.
+static constexpr llvm::StringRef g_swift_mangling_prefixes[] = {
+    // Swift's older style of mangling used "_T" as a prefix, which other
+    // symbols may start with too, so only the old-style names of ObjC classes
+    // and protocols are recognized.
+    "_TtC", "_TtGC", "_TtP",
+    // Swift 4.2 used "$S", Swift 5 and onward use "$s", and Embedded Swift
+    // uses "$e".
+    "$S", "_$S", "$s", "_$s", "$e", "_$e",
+    // Mangled filenames.
+    "@__swiftmacro_",
+    // The async main entry point.
+    "async_Main", "_async_Main"};
+
+/// The mangling scheme that this plugin registered.
+static Mangled::ManglingScheme g_swift_scheme = Mangled::eManglingSchemeNone;
+
 void SwiftLanguage::Initialize() {
   LogChannelSwift::Initialize();
   static ConstString g_SwiftSharedStringClass("_TtCs21__SharedStringStorage");
@@ -69,6 +90,8 @@ void SwiftLanguage::Initialize() {
   static ConstString g_NSArrayClass1("_TtCs22__SwiftDeferredNSArray");
   PluginManager::RegisterPlugin(GetPluginNameStatic(), "Swift Language",
                                 CreateInstance, &DebuggerInitialize);
+  g_swift_scheme = Mangled::RegisterManglingScheme(g_swift_mangling_prefixes,
+                                                   eLanguageTypeSwift);
 
   lldb_private::formatters::NSString_Additionals::GetAdditionalSummaries()
       .emplace(
@@ -105,6 +128,7 @@ void SwiftLanguage::Terminate() {
   lldb_private::formatters::NSArray_Additionals::GetAdditionalSynthetics()
       .erase(g_NSArrayClass1);
 
+  Mangled::UnregisterManglingScheme(g_swift_scheme);
   PluginManager::UnregisterPlugin(CreateInstance);
   LogChannelSwift::Terminate();
 }
@@ -112,6 +136,77 @@ void SwiftLanguage::Terminate() {
 bool SwiftLanguage::SymbolNameFitsToLanguage(const Mangled &mangled) const {
   return SwiftLanguageRuntime::IsSwiftMangledName(
       mangled.GetMangledName().GetStringRef());
+}
+
+Language::DemangledName
+SwiftLanguage::DemangleSymbol(ConstString mangled,
+                              Mangled::ManglingScheme scheme,
+                              const DemangleOptions &options) const {
+  assert(scheme == g_swift_scheme);
+  const char *mangled_name = mangled.AsCString("");
+  Log *log = GetLog(LLDBLog::Demangle);
+  LLDB_LOGF(log, "demangle swift: %s", mangled_name);
+  auto [name, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
+      mangled_name, SwiftLanguageRuntime::eTypeName, options.sc);
+
+  DemangledName demangled;
+  demangled.name = std::move(name);
+  if (options.want_info)
+    demangled.info = std::move(info);
+
+  // Don't cache the demangled name if the function isn't available yet.
+  demangled.cache = options.sc && options.sc->function;
+  if (!demangled.cache)
+    LLDB_LOGF(log, "demangle swift: %s -> \"%s\" (not cached)", mangled_name,
+              demangled.name.c_str());
+  else if (demangled.name.empty())
+    LLDB_LOGF(log, "demangle swift: %s -> error: failed to demangle",
+              mangled_name);
+  else
+    LLDB_LOGF(log, "demangle swift: %s -> \"%s\"", mangled_name,
+              demangled.name.c_str());
+  return demangled;
+}
+
+namespace {
+/// Parses Swift mangled function names, whose mangling tells whether a
+/// function is a method.
+class SwiftMangledNameParser : public Language::MangledNameParser {
+public:
+  std::optional<Mangled::FunctionNameParts>
+  Parse(const Mangled &mangled) override {
+    ConstString mangled_name = mangled.GetMangledName();
+    ConstString basename;
+    bool is_method = false;
+    if (!SwiftLanguageRuntime::MethodName::ExtractFunctionBasenameFromMangled(
+            mangled_name, basename, is_method))
+      return std::nullopt;
+
+    Mangled::FunctionNameParts parts;
+    if (basename && basename != mangled_name) {
+      parts.basename = basename;
+      parts.kind = is_method ? Mangled::FunctionNameKind::Method
+                             : Mangled::FunctionNameKind::InNamespace;
+    }
+    return parts;
+  }
+};
+} // namespace
+
+std::unique_ptr<Language::MangledNameParser>
+SwiftLanguage::CreateMangledNameParser(Mangled::ManglingScheme scheme) const {
+  assert(scheme == g_swift_scheme);
+  return std::make_unique<SwiftMangledNameParser>();
+}
+
+ConstString
+SwiftLanguage::GetDisplayDemangledName(const Mangled &mangled,
+                                       const SymbolContext *sc) const {
+  llvm::StringRef mangled_name = mangled.GetMangledName().GetStringRef();
+  if (!SwiftLanguageRuntime::IsSwiftMangledName(mangled_name))
+    return Language::GetDisplayDemangledName(mangled, sc);
+  return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
+      mangled_name, SwiftLanguageRuntime::eSimplified, sc));
 }
 
 bool SwiftLanguage::IsTopLevelFunction(Function &function) {

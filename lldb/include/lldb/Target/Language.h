@@ -336,6 +336,10 @@ public:
   struct DemangleOptions {
     /// Whether to compute the \c DemangledNameInfo too.
     bool want_info = false;
+    // BEGIN SWIFT
+    /// The context to demangle the name in, if any.
+    const SymbolContext *sc = nullptr;
+    // END SWIFT
   };
 
   /// A demangled name and, if requested, where its parts begin and end.
@@ -344,6 +348,11 @@ public:
     std::string name;
     /// Only computed if DemangleOptions::want_info is true.
     std::optional<DemangledNameInfo> info;
+    // BEGIN SWIFT
+    /// Whether Mangled may cache the name as the demangled counterpart of the
+    /// mangled name.
+    bool cache = true;
+    // END SWIFT
   };
 
   /// Demangle \p mangled, a name mangled with \p scheme, a scheme that this
@@ -440,7 +449,11 @@ public:
     return mangled.GetMangledName();
   }
 
-  virtual ConstString GetDisplayDemangledName(const Mangled &mangled) const {
+  virtual ConstString GetDisplayDemangledName(const Mangled &mangled,
+                                              // BEGIN SWIFT
+                                              const SymbolContext *sc
+                                              // END SWIFT
+  ) const {
     return mangled.GetDemangledName();
   }
 
