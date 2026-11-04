@@ -61,6 +61,10 @@ public:
   const RegisterInfo *GetRegisterInfoAtIndex(size_t idx) override {
     return m_reg_info_sp->GetRegisterInfoAtIndex(idx);
   }
+  uint32_t ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
+                                               uint32_t num) override {
+    return m_reg_info_sp->ConvertRegisterKindToRegisterNumber(kind, num);
+  }
   size_t GetRegisterSetCount() override {
     return m_reg_info_sp->GetRegisterSetCount();
   }
