@@ -27,6 +27,7 @@
 #include "swift/AST/DiagnosticEngine.h"
 #include "swift/AST/DiagnosticsFrontend.h"
 #include "swift/AST/Expr.h"
+#include "swift/AST/GenericSignature.h"
 #include "swift/AST/Initializer.h"
 #include "swift/AST/Module.h"
 #include "swift/AST/NameLookup.h"
@@ -840,7 +841,18 @@ SwiftASTManipulator::AddExternalVariable(swift::Identifier name,
   return variables[0].m_decl;
 }
 
-static swift::PatternBindingDecl *
+bool SwiftASTManipulator::HasOnlyValidTypeParameters(
+    swift::Type type, swift::GenericSignature sig) {
+  if (!type->hasTypeParameter())
+    return true;
+  if (!sig)
+    return false;
+  return !type.findIf([&](swift::Type t) {
+    return t->isTypeParameter() && !sig->isValidTypeParameter(t);
+  });
+}
+
+static llvm::Expected<swift::PatternBindingDecl *>
 GetPatternBindingForVarDecl(swift::VarDecl *var_decl,
                             swift::DeclContext *containing_context) {
   swift::ASTContext &ast_context = var_decl->getASTContext();
@@ -861,6 +873,15 @@ GetPatternBindingForVarDecl(swift::VarDecl *var_decl,
       }
     }
   }
+  // A type that is not expressible in the generic signature of the context
+  // cannot be mapped into it.
+  swift::Type interface_type = var_decl->getInterfaceType();
+  if (swift::GenericSignature sig =
+          var_decl->getDeclContext()->getGenericSignatureOfContext())
+    if (!SwiftASTManipulator::HasOnlyValidTypeParameters(interface_type, sig))
+      return llvm::createStringError(
+          llvm::formatv("type '{0}' is not valid in generic context {1}",
+                        interface_type->getString(), sig->getAsString()));
   swift::Type type = var_decl->getTypeInContext();
   swift::TypedPattern *typed_pattern =
     swift::TypedPattern::createImplicit(ast_context, named_pattern, type);
@@ -1058,10 +1079,14 @@ bool SwiftASTManipulator::AddExternalVariables(
     swift::TopLevelCodeDecl *top_level_code =
         new (ast_context) swift::TopLevelCodeDecl(&m_source_file);
 
-    swift::PatternBindingDecl *pattern_binding =
+    llvm::Expected<swift::PatternBindingDecl *> pattern_binding =
         GetPatternBindingForVarDecl(redirected_var_decl, top_level_code);
+    if (!pattern_binding) {
+      variable.SetLookupError(pattern_binding.takeError());
+      return false;
+    }
 
-    swift::ASTNode elements[] = {pattern_binding};
+    swift::ASTNode elements[] = {*pattern_binding};
 
     swift::BraceStmt *brace_stmt =
         swift::BraceStmt::create(ast_context, loc, elements, loc, true);
@@ -1121,17 +1146,18 @@ bool SwiftASTManipulator::AddExternalVariables(
       variable.SetLookupError(redirected_var_decl.takeError());
       continue;
     }
-    swift::PatternBindingDecl *pattern_binding =
+    llvm::Expected<swift::PatternBindingDecl *> pattern_binding =
         GetPatternBindingForVarDecl(*redirected_var_decl, containing_function);
     if (!pattern_binding) {
       LLDB_LOG(log, "No pattern binding.");
+      variable.SetLookupError(pattern_binding.takeError());
       continue;
     }
 
     // Push the var decl and pattern binding so we add them to the function
     // later.
     injected_nodes[containing_function].push_back(
-        swift::ASTNode(pattern_binding));
+        swift::ASTNode(*pattern_binding));
     injected_nodes[containing_function].push_back(
         swift::ASTNode(*redirected_var_decl));
 
