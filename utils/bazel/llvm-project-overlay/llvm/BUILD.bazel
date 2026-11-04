@@ -4713,6 +4713,7 @@ cc_library(
         ":Core",
         ":LTO",
         ":Object",
+        ":Passes",
         ":Support",
     ],
 )
