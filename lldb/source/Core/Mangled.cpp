@@ -321,28 +321,17 @@ ConstString Mangled::GetDemangledName( // BEGIN SWIFT
   // We didn't already demangle this name, demangle it and if all goes well
   // add it to our map.
   ManglingScheme scheme = GetManglingScheme(m_mangled.GetStringRef());
-  switch (scheme) {
-  case eManglingSchemeSwift:
-    // Demangling a swift name requires the swift compiler. This is
-    // explicitly unsupported on llvm.org.
+  // BEGIN SWIFT
 #ifdef LLDB_ENABLE_SWIFT
-  {
-    auto demangled = GetSwiftDemangledStr(m_mangled, sc, m_demangled);
-    return demangled.first;
-  }
+  if (scheme == eManglingSchemeSwift)
+    return GetSwiftDemangledStr(m_mangled, sc, m_demangled).first;
 #endif // LLDB_ENABLE_SWIFT
-  break;
-  case eManglingSchemeNone:
-    // Don't bother demangling anything that isn't mangled.
-    break;
-  default:
-    if (Language *lang = Language::FindPluginForManglingScheme(scheme)) {
-      Language::DemangledName demangled =
-          lang->DemangleSymbol(m_mangled, scheme, Language::DemangleOptions());
-      if (!demangled.name.empty())
-        m_demangled.SetStringWithMangledCounterpart(demangled.name, m_mangled);
-    }
-    break;
+  // END SWIFT
+  if (Language *lang = Language::FindPluginForManglingScheme(scheme)) {
+    Language::DemangledName demangled =
+        lang->DemangleSymbol(m_mangled, scheme, Language::DemangleOptions());
+    if (!demangled.name.empty())
+      m_demangled.SetStringWithMangledCounterpart(demangled.name, m_mangled);
   }
 
   if (m_demangled.IsNull()) {
