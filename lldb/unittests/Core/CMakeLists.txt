@@ -37,6 +37,7 @@ add_lldb_unittest(LLDBCoreTests
     lldbCore
     lldbHost
     lldbPluginCPlusPlusLanguage
+    lldbPluginDLanguage
     lldbPluginObjectFileELF
     lldbPluginObjectFileMachO
     lldbPluginObjectFilePECOFF
