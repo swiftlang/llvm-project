@@ -3569,6 +3569,7 @@ cc_library(
         "//llvm:Core",
         "//llvm:Support",
         "//llvm:TargetParser",
+        "//llvm:TransformUtils",
         "//mlir:BuiltinToLLVMIRTranslation",
         "//mlir:DLTIDialect",
         "//mlir:DataLayoutInterfaces",
