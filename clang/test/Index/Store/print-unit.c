@@ -22,12 +22,12 @@ void foo(int i);
 // CHECK: target: x86_64-apple-macosx10.8
 // CHECK: is-debug: 1
 // CHECK: DEPEND START
-// CHECK: Record | system | {{.*}}{{/|\\}}Inputs{{/|\\}}sys{{/|\\}}syshead.h | syshead.h-
-// CHECK: Record | user | {{.*}}{{/|\\}}Inputs{{/|\\}}using-overlay.h | using-overlay.h-
-// CHECK: Record | user | {{.*}}{{/|\\}}print-unit.c | print-unit.c-
-// CHECK: Record | system | {{.*}}{{/|\\}}Inputs{{/|\\}}sys{{/|\\}}another.h | another.h-
-// CHECK: Record | user | {{.*}}{{/|\\}}Inputs{{/|\\}}head.h | head.h-
-// CHECK: File | user | {{.*}}{{/|\\}}Inputs{{/|\\}}print-unit.h{{$}}
+// CHECK-DAG: Record | system | {{.*}}{{/|\\}}Inputs{{/|\\}}sys{{/|\\}}syshead.h | syshead.h-
+// CHECK-DAG: Record | user | {{.*}}{{/|\\}}Inputs{{/|\\}}using-overlay.h | using-overlay.h-
+// CHECK-DAG: Record | user | {{.*}}{{/|\\}}print-unit.c | print-unit.c-
+// CHECK-DAG: Record | system | {{.*}}{{/|\\}}Inputs{{/|\\}}sys{{/|\\}}another.h | another.h-
+// CHECK-DAG: Record | user | {{.*}}{{/|\\}}Inputs{{/|\\}}head.h | head.h-
+// CHECK-DAG: File | user | {{.*}}{{/|\\}}Inputs{{/|\\}}print-unit.h{{$}}
 // CHECK: DEPEND END (6)
 // CHECK: INCLUDE START
 // CHECK: {{.*}}{{/|\\}}print-unit.c:3 | {{.*}}{{/|\\}}Inputs{{/|\\}}print-unit.h

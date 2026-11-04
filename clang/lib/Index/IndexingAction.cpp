@@ -246,20 +246,35 @@ static void indexPreprocessorMacro(const IdentifierInfo *II,
   DataConsumer.handleMacroOccurrence(II, MI, static_cast<unsigned>(Role), Loc);
 }
 
+template <typename Fn>
+static void forEachPreprocessorMacro(Preprocessor &PP, Fn &&Callback) {
+  // Sort macros by identifier name so indexing order does not depend on
+  // IdentifierInfo pointer values in the PP.macros() DenseMap.
+  using MacroEntry = decltype(&*PP.macros().begin());
+  SmallVector<MacroEntry, 64> Macros;
+  for (const auto &M : PP.macros())
+    Macros.push_back(&M);
+  llvm::sort(Macros, [](MacroEntry LHS, MacroEntry RHS) {
+    return LHS->first->getName() < RHS->first->getName();
+  });
+  for (MacroEntry M : Macros)
+    Callback(*M);
+}
+
 static void indexPreprocessorMacros(Preprocessor &PP,
                                     IndexDataConsumer &DataConsumer) {
-  for (const auto &M : PP.macros()) {
+  forEachPreprocessorMacro(PP, [&](const auto &M) {
     for (auto *MD = M.second.getLatest(); MD; MD = MD->getPrevious()) {
       indexPreprocessorMacro(M.first, MD->getMacroInfo(), MD->getKind(),
                              MD->getLocation(), DataConsumer);
     }
-  }
+  });
 }
 
 static void indexPreprocessorModuleMacros(Preprocessor &PP,
                                           serialization::ModuleFile &Mod,
                                           IndexDataConsumer &DataConsumer) {
-  for (const auto &M : PP.macros()) {
+  forEachPreprocessorMacro(PP, [&](const auto &M) {
     if (M.second.getLatest() == nullptr) {
       for (auto *MM : PP.getLeafModuleMacros(M.first)) {
         auto *OwningMod = MM->getOwningModule();
@@ -272,7 +287,7 @@ static void indexPreprocessorModuleMacros(Preprocessor &PP,
         }
       }
     }
-  }
+  });
 }
 
 void index::indexASTUnit(ASTUnit &Unit, IndexDataConsumer &DataConsumer,
@@ -884,12 +899,20 @@ static void writeUnitData(const CompilerInstance &CI,
     }
   });
 
+  // Sort by FileID so records are emitted in a deterministic order.
+  using RecordIterator = decltype(Recorder.record_begin());
+  SmallVector<std::pair<FileID, RecordIterator>> Records;
+  for (RecordIterator It = Recorder.record_begin(), End = Recorder.record_end();
+       It != End; ++It)
+    Records.emplace_back(It->first, It);
+  llvm::stable_sort(Records, [](const auto &LHS, const auto &RHS) {
+    return LHS.first < RHS.first;
+  });
+
   ClangIndexRecordWriter RecordWriter(
       CI.getASTContext(), CI.getFrontendOpts().IndexStoreCompress, RecordOpts);
-  for (auto I = Recorder.record_begin(), E = Recorder.record_end(); I != E;
-       ++I) {
-    FileID FID = I->first;
-    const FileIndexRecord &Rec = *I->second;
+  for (auto &[FID, Record] : Records) {
+    const FileIndexRecord &Rec = *Record->second;
     OptionalFileEntryRef FE = SM.getFileEntryRefForID(FID);
     std::string RecordFile;
     std::string Error;

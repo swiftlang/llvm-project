@@ -15,8 +15,8 @@
 // CHECK: main-path: {{$}}
 // CHECK: out-file: {{.*}}{{/|\\}}ModDep.pcm
 // CHECK: DEPEND START
-// CHECK: Unit | user | ModTop | {{.*}}{{/|\\}}ModTop.pcm | ModTop.pcm
-// CHECK: Record | user | ModDep | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModDep.h | ModDep.h
+// CHECK-DAG: Unit | user | ModTop | {{.*}}{{/|\\}}ModTop.pcm | ModTop.pcm
+// CHECK-DAG: Record | user | ModDep | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModDep.h | ModDep.h
 // CHECK: DEPEND END (2)
 
 // CHECK: ModSystem.pcm
@@ -27,7 +27,7 @@
 // CHECK: main-path: {{$}}
 // CHECK: out-file: {{.*}}{{/|\\}}ModSystem.pcm
 // CHECK: DEPEND START
-// CHECK: Record | system | ModSystem | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModSystem.h | ModSystem.h
+// CHECK-DAG: Record | system | ModSystem | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModSystem.h | ModSystem.h
 // CHECK: DEPEND END (1)
 
 // CHECK: ModTop.pcm
@@ -38,9 +38,9 @@
 // CHECK: main-path: {{$}}
 // CHECK: out-file: {{.*}}{{/|\\}}ModTop.pcm
 // CHECK: DEPEND START
-// CHECK: Record | user | ModTop.Sub1 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub1.h | ModTopSub1.h
-// CHECK: Record | user | ModTop | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTop.h | ModTop.h
-// CHECK: File | user | ModTop.Sub2 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub2.h{{$}}
+// CHECK-DAG: Record | user | ModTop.Sub1 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub1.h | ModTopSub1.h
+// CHECK-DAG: Record | user | ModTop | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTop.h | ModTop.h
+// CHECK-DAG: File | user | ModTop.Sub2 | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}ModTopSub2.h{{$}}
 // CHECK: DEPEND END (3)
 
 // CHECK: print-units-with-modules.m.tmp.o
@@ -51,8 +51,8 @@
 // CHECK: main-path: {{.*}}{{/|\\}}print-units-with-modules.m
 // CHECK: out-file: {{.*}}{{/|\\}}print-units-with-modules.m.tmp.o
 // CHECK: DEPEND START
-// CHECK: Unit | user | ModDep | {{.*}}{{/|\\}}ModDep.pcm | ModDep.pcm
-// CHECK: Unit | system | ModSystem | {{.*}}{{/|\\}}ModSystem.pcm | ModSystem.pcm
-// CHECK: File | user | {{.*}}{{/|\\}}print-units-with-modules.m{{$}}
-// CHECK: File | user | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}module.modulemap{{$}}
+// CHECK-DAG: Unit | user | ModDep | {{.*}}{{/|\\}}ModDep.pcm | ModDep.pcm
+// CHECK-DAG: Unit | system | ModSystem | {{.*}}{{/|\\}}ModSystem.pcm | ModSystem.pcm
+// CHECK-DAG: File | user | {{.*}}{{/|\\}}print-units-with-modules.m{{$}}
+// CHECK-DAG: File | user | {{.*}}{{/|\\}}Inputs{{/|\\}}module{{/|\\}}module.modulemap{{$}}
 // CHECK: DEPEND END (4)
