@@ -307,6 +307,21 @@ ignoreUnsafeBufferInContainer(const Stmt &Node,
   return Handler->ignoreUnsafeBufferInContainer(Node.getBeginLoc());
 }
 
+static bool ignoreUnsafeLibcCall(const ASTContext &Ctx, const Stmt &Node,
+                                 const UnsafeBufferUsageHandler *Handler) {
+  if (Ctx.getLangOpts().CPlusPlus)
+    return Handler->ignoreUnsafeBufferInLibcCall(Node.getBeginLoc());
+  return true; /* Only warn about libc calls for C++ */
+}
+
+static bool
+ignoreUnsafeFormatAttrCall(const ASTContext &Ctx, const Stmt &Node,
+                           const UnsafeBufferUsageHandler *Handler) {
+  if (Ctx.getLangOpts().CPlusPlus)
+    return Handler->ignoreUnsafeBufferInFormatAttrCall(Node.getBeginLoc());
+  return true; /* Only warn about format attribute calls for C++ */
+}
+
 // Finds any expression 'e' such that `OnResult`
 // matches 'e' and 'e' is in an Unspecified Lvalue Context.
 static void findStmtsInUnspecifiedLvalueContext(
@@ -2364,6 +2379,23 @@ static bool hasUnsafeSnprintfBuffer(const CallExpr &Node, ASTContext &Ctx) {
   }
   return false;
 }
+
+// A libc function must either be in the std:: namespace or a global function
+// that is not in any namespace.
+static bool isInLibcScope(const FunctionDecl &FD) {
+  const bool IsGlobalAndNotInAnyNamespace =
+      FD.isGlobal() && !FD.getEnclosingNamespaceContext()->isNamespace();
+
+  return FD.isInStdNamespace() || IsGlobalAndNotInAnyNamespace;
+}
+
+// Matches a function that UnsafeLibcFunctionCallGadget treats as a libc
+// function: in the libc scope, with a libc name.
+static bool isLibcFunction(const FunctionDecl &FD) {
+  return isInLibcScope(FD) &&
+         (isPredefinedUnsafeLibcFunc(FD) || isUnsafeVaListPrintfFunc(FD) ||
+          isUnsafeSprintfFunc(FD) || isNormalPrintfFunc(FD));
+}
 } // namespace libc_func_matchers
 
 // Matches each argument passed to a `__counted_by(count)` pointer that is
@@ -3481,12 +3513,7 @@ public:
     if (Handler->ignoreUnsafeBufferInLibcCall(S->getBeginLoc()))
       return false;
 
-    const bool IsGlobalAndNotInAnyNamespace =
-        FD->isGlobal() && !FD->getEnclosingNamespaceContext()->isNamespace();
-
-    // A libc function must either be in the std:: namespace or a global
-    // function that is not in any namespace:
-    if (!FD->isInStdNamespace() && !IsGlobalAndNotInAnyNamespace)
+    if (!libc_func_matchers::isInLibcScope(*FD))
       return false;
 
     // TO_UPSTREAM(BoundsSafety) ON
@@ -3583,7 +3610,7 @@ public:
     const FunctionDecl *FD = CE->getDirectCallee();
     if (!FD)
       return false;
-    if (Handler->ignoreUnsafeBufferInLibcCall(S->getBeginLoc()))
+    if (ignoreUnsafeFormatAttrCall(Ctx, *S, Handler))
       return false;
 
     const FormatAttr *Attr = nullptr;
@@ -3603,6 +3630,10 @@ public:
     const Expr *UnsafeArg;
 
     if (!AnyAttr)
+      return false;
+    // Calls to libc functions belong to -Wunsafe-buffer-usage-in-libc-call.
+    if (ignoreUnsafeLibcCall(Ctx, *S, Handler) &&
+        libc_func_matchers::isLibcFunction(*FD))
       return false;
 
     // FormatAttribute indexes are 1-based:
@@ -6787,6 +6818,10 @@ bool clang::matchUnsafePointers(const DynTypedNode &N, ASTContext &Ctx,
       return false;
     }
     bool ignoreUnsafeBufferInLibcCall(const SourceLocation &) const override {
+      return false;
+    }
+    bool
+    ignoreUnsafeBufferInFormatAttrCall(const SourceLocation &) const override {
       return false;
     }
     bool ignoreUnsafeBufferInStaticSizedArray(
