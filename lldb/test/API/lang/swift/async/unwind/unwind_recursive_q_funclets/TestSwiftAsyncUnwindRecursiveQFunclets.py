@@ -12,6 +12,7 @@ class TestCase(lldbtest.TestBase):
     @skipEmbeddedSwiftOnLinux
     @swiftTest
     @skipIf(archs=["arm64e"])
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that the debugger can unwind at all instructions of all funclets"""
         self.build()

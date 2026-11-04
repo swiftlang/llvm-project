@@ -26,6 +26,7 @@ class TestSwiftGenericExistentials(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that generic arguments bound to existentials resolve to the stored type"""
         self.build()

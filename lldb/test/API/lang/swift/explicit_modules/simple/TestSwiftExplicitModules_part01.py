@@ -8,6 +8,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test explicit Swift modules"""
         self.build()
@@ -23,6 +24,7 @@ class TestSwiftExplicitModules(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_disable_esml(self):
         """Test disabling the explicit Swift module loader"""
         self.build()

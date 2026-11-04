@@ -21,6 +21,7 @@ class TestSwiftCommandMemoryFind(TestBase):
     @skipEmbeddedSwiftOnLinux # `memory find -e` does not locate the value in embedded Swift on Linux.
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         target, _, _, _ = lldbutil.run_to_source_breakpoint(

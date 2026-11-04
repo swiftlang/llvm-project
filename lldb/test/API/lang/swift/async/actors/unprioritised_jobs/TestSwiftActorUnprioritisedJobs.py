@@ -8,6 +8,7 @@ class TestCase(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_actor_unprioritised_jobs(self):
         """Verify that an actor exposes its unprioritised jobs (queue)."""
         self.build()

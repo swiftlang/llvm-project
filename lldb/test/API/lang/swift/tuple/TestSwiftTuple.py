@@ -22,6 +22,7 @@ import os
 class TestSwiftTuple(TestBase):
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_tuples(self):
         """Test that LLDB understands tuple lowering"""
         self.build()

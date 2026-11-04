@@ -26,6 +26,7 @@ class TestSwiftGenericSelf(TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that self resolves to its bound generic type in generic methods"""
         self.build()

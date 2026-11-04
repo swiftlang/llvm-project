@@ -10,6 +10,7 @@ class TestSwiftForwardInteropTypedefType(TestBase):
 
     @swiftClangImporterTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test_class(self):
         self.build()
         

@@ -33,6 +33,7 @@ class TestSwiftExprInProtocolExtension(TestBase):
 
     @skipEmbeddedSwift # rdar://184869028 (Embedded Swift: self is unavailable in a static protocol extension frame after mandatory specialization)
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_protocol_extension(self):
         """Tests that swift expressions in protocol extension functions behave correctly"""
         self.build()

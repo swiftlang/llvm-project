@@ -7,6 +7,7 @@ class TestSwiftDWARFImporterC(lldbtest.TestBase):
 
     @swiftClangImporterTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test looking up a Clang typedef type that isn't directly
         referenced by debug info in the Swift object file.

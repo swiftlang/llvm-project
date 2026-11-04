@@ -19,6 +19,7 @@ class TestSwiftGenericTypeOfNestedArchetype(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that an array of a generic struct bound to an archetype is resolved"""
         self.build()

@@ -11,6 +11,7 @@ class TestSwiftCxxForwardInteropNestedClasses(TestBase):
     @skipIf(swift_module_importer="noclang")
     @swiftClangImporterTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         

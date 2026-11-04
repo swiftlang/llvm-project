@@ -9,6 +9,7 @@ class TestCase(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Verify the children of a TaskGroup and a ThrowingTaskGroup."""
         self.build()

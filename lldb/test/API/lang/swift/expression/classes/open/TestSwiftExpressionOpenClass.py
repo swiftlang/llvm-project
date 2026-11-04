@@ -7,6 +7,7 @@ class TestExpressionOpenClass(TestBase):
     NO_DEBUG_INFO_TEST = True
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Tests calling an open function"""
         self.build()

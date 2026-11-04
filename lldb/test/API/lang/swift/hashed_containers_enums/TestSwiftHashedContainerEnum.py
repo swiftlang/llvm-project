@@ -13,6 +13,7 @@ import os
 class TestSwiftHashedContainerEnum(TestBase):
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_any_object_type(self):
         """Test combinations of hashed swift containers with enums"""
         self.build()

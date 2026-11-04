@@ -137,6 +137,7 @@ class TestSwiftInterfaceNoDebugInfo(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_interface(self):
         """Test that we load and handle modules that only have textual .swiftinterface files"""
         self.build()

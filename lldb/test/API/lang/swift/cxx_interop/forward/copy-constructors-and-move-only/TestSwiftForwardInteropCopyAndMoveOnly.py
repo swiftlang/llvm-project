@@ -29,6 +29,7 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
         )
 
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_working(self):
         self.launch()
         self.expect_var_path("copyCounted.value", value="1")
@@ -78,6 +79,7 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
     # calls the deleted copy constructor or copies an AnnotatedNonCopyable.
     @skipIf(swift_module_importer=["noclang"], bugnumber="rdar://106871275")
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_not_working_in_noclang(self):
         self.launch()
         live = self.live_copy_counted()

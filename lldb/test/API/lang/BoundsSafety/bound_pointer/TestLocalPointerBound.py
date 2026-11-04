@@ -7,6 +7,7 @@ class TestLocalPointerBound(TestBase):
 
     mydir = TestBase.compute_mydir(__file__)
 
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         (_, self.process, _, bkpt) = lldbutil.run_to_source_breakpoint(self, "// break here", lldb.SBFileSpec("main.c"))

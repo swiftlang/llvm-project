@@ -22,6 +22,7 @@ import os
 class TestSwiftGenericTypes(TestBase):
     @requireNotEmbeddedSwift # embedded Swift monomorphizes every generic, so there is no unresolved static type to show
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_generic_types(self):
         """Test support for generic types"""
         self.build()

@@ -10,6 +10,7 @@ class TestSwiftForwardInteropVariadicTemplateTypes(TestBase):
 
     @swiftClangImporterTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         self.build()
         

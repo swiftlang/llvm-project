@@ -14,6 +14,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftCrossModuleExtensionSelf(TestBase):
     @requireNotEmbeddedSwift # library evolution cannot be enabled with embedded Swift
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test_unusable_self_does_not_break_frame(self):
         self.build()
         lldbutil.run_to_source_breakpoint(

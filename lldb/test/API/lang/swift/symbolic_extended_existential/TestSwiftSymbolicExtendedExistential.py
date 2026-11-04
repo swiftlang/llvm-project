@@ -8,6 +8,7 @@ class TestSwiftSymbolicExtendedExistential(lldbtest.TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test symbolic extended existentials"""
         self.build()

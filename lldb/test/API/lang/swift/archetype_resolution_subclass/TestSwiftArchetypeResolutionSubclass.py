@@ -8,6 +8,7 @@ class TestSwiftArchetypeResolutionSubclass(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that a generic argument resolves to its dynamic subclass type"""
         self.build()

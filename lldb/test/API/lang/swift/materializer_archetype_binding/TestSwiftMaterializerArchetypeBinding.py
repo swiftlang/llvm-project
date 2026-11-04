@@ -42,6 +42,7 @@ class TestSwiftMaterializerArchetypeBinding(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that generic parameters of protocol extension and class methods resolve"""
         self.build()

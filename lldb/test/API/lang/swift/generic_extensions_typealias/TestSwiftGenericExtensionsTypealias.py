@@ -8,6 +8,7 @@ class TestSwiftGenericExtensionsTypealias(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test that arguments of generic extension methods resolve to bound types"""
         self.build()

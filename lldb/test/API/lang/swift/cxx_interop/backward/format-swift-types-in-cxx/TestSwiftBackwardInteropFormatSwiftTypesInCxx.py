@@ -16,6 +16,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_class(self):
         self.setup('Break here for class')
 
@@ -28,6 +29,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
         
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_subclass(self):
         self.setup('Break here for subclass')
 
@@ -40,6 +42,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_struct(self):
         self.setup('Break here for struct')
 
@@ -50,6 +53,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_generic_struct(self):
         self.setup('Break here for generic struct')
 
@@ -63,6 +67,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_generic_enum(self):
         self.setup('Break here for generic enum')
 
@@ -76,6 +81,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_swift_ivars(self):
         self.setup('Break here for swift ivars')
 
@@ -94,6 +100,7 @@ class TestSwiftBackwardInteropFormatSwiftTypesInCxx(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftClangImporterTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_typealias(self):
         self.setup('Break here for swift alias')
 

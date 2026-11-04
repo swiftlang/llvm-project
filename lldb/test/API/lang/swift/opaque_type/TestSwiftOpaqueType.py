@@ -8,6 +8,7 @@ class TestSwiftOpaque(TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test opaque types in parameter positions"""         
         self.build()

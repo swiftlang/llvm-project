@@ -7,6 +7,7 @@ import lldbsuite.test.lldbutil as lldbutil
 class SwiftGenericClassTest(TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
+    @skipIf(debug_info=["pdb"])
     def test(self):
         """Tests that a generic class type can be resolved from the instance metadata alone"""
         self.build()

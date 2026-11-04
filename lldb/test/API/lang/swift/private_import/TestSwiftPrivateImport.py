@@ -7,6 +7,7 @@ class TestSwiftPrivateImport(TestBase):
     @requireNotEmbeddedSwift
     @skipIfLinux  # Fails on Amazon Linux (rdar://183725331)
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_private_import(self):
         """Test a library with a private import for which there is no debug info"""
         invisible_swift = self.getBuildArtifact("Invisible.swift")

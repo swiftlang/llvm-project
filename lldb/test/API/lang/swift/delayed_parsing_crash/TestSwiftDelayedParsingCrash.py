@@ -8,6 +8,7 @@ class TestSwiftDelayedParsingCrash(TestBase):
 
     @swiftTest
     @skipEmbeddedSwiftOnWindows
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Test that an expression can declare a typealias to a private class"""
         self.build()

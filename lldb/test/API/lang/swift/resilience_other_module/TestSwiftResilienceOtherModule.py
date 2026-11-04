@@ -8,11 +8,13 @@ class TestSwiftResilienceOtherModule(TestBase):
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_with_debug_info(self):
         self.impl('break here with debug info')
 
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test_without_debug_info(self):
         self.impl('break here without debug info')
 

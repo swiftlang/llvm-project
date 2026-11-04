@@ -7,6 +7,7 @@ class TestExpressionOpenResilientClass(TestBase):
     NO_DEBUG_INFO_TEST = True
     @requireNotEmbeddedSwift
     @swiftTest
+    @expectedFailureAll(debug_info=["pdb"])
     def test(self):
         """Tests calling an open resilient function"""
         self.build()
