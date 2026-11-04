@@ -43,9 +43,6 @@ public:
 
   enum ManglingScheme : uint8_t {
     eManglingSchemeNone = 0,
-    // BEGIN SWIFT
-    eManglingSchemeSwift,
-    // END SWIFT
     eFirstRegisteredManglingScheme,
   };
 

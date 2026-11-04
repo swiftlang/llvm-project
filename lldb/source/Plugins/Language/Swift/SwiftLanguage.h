@@ -136,6 +136,16 @@ public:
 
   bool SymbolNameFitsToLanguage(const Mangled &mangled) const override;
 
+  DemangledName DemangleSymbol(ConstString mangled,
+                               Mangled::ManglingScheme scheme,
+                               const DemangleOptions &options) const override;
+
+  std::unique_ptr<MangledNameParser>
+  CreateMangledNameParser(Mangled::ManglingScheme scheme) const override;
+
+  ConstString GetDisplayDemangledName(const Mangled &mangled,
+                                      const SymbolContext *sc) const override;
+
   llvm::StringRef GetInstanceName() override { return "self"; }
 
   bool HandleFrameFormatVariable(const SymbolContext &sc,

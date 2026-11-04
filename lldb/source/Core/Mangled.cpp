@@ -23,17 +23,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "lldb/Utility/LLDBLog.h"
-#include "lldb/Utility/Log.h"
-#include "swift/Demangling/Demangle.h"
-#include "llvm/ADT/DenseMap.h"
-#endif // LLDB_ENABLE_SWIFT
-// BEGIN SWIFT
-#include "lldb/Utility/ThreadSafeDenseMap.h"
-// END SWIFT
-
 #include <mutex>
 #include <optional>
 #include <string>
@@ -197,31 +186,6 @@ Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef name) {
   if (name.empty())
     return Mangled::eManglingSchemeNone;
 
-  // Swift's older style of mangling used "_T" as a mangling prefix. This can
-  // lead to false positives with other symbols that just so happen to start
-  // with "_T". To minimize the chance of that happening, we only return true
-  // for select old-style swift mangled names. The known cases are ObjC classes
-  // and protocols. Classes are either prefixed with "_TtC" or "_TtGC".
-  // Protocols are prefixed with "_TtP".
-  if (name.starts_with("_TtC") || name.starts_with("_TtGC") ||
-      name.starts_with("_TtP"))
-    return Mangled::eManglingSchemeSwift;
-
-  // Swift 4.2 used "$S" and "_$S".
-  // Swift 5 and onward uses "$s" and "_$s".
-  // Swift also uses "@__swiftmacro_" as a prefix for mangling filenames.
-  // Embedded Swift introduced "$e" and  "_$e" as Swift mangling prefixes.
-  if (name.starts_with("$S") || name.starts_with("_$S") ||
-      name.starts_with("$s") || name.starts_with("_$s") ||
-      name.starts_with("$e") || name.starts_with("_$e") ||
-      name.starts_with("@__swiftmacro_"))
-    return Mangled::eManglingSchemeSwift;
-
-#ifdef LLDB_ENABLE_SWIFT
-  if (swift::Demangle::isAsyncMainEntryPointSymbol(name))
-    return Mangled::eManglingSchemeSwift;
-#endif // LLDB_ENABLE_SWIFT
-
   return GetManglingSchemeRegistry().Find(name);
 }
 
@@ -270,36 +234,6 @@ void Mangled::SetValue(ConstString name) {
   }
 }
 
-// BEGIN SWIFT
-#ifdef LLDB_ENABLE_SWIFT
-std::pair<ConstString, DemangledNameInfo>
-GetSwiftDemangledStr(ConstString m_mangled, const SymbolContext *sc,
-                     ConstString &m_demangled) {
-  const char *mangled_name = m_mangled.AsCString("");
-  Log *log = GetLog(LLDBLog::Demangle);
-  LLDB_LOGF(log, "demangle swift: %s", mangled_name);
-  auto [demangled, info] = SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
-      mangled_name, SwiftLanguageRuntime::eTypeName, sc);
-
-  // Don't cache the demangled name if the function isn't available yet.
-  if (!sc || !sc->function) {
-    LLDB_LOGF(log, "demangle swift: %s -> \"%s\" (not cached)", mangled_name,
-              demangled.c_str());
-    return std::make_pair(ConstString(demangled), info);
-  }
-  if (demangled.empty()) {
-    LLDB_LOGF(log, "demangle swift: %s -> error: failed to demangle",
-              mangled_name);
-  } else {
-    LLDB_LOGF(log, "demangle swift: %s -> \"%s\"", mangled_name,
-              demangled.c_str());
-    m_demangled.SetStringWithMangledCounterpart(demangled, m_mangled);
-  }
-  return std::make_pair(m_demangled, info);
-}
-#endif // LLDB_ENABLE_SWIFT
-// END SWIFT
-
 // Generate the demangled name on demand using this accessor. Code in this
 // class will need to use this accessor if it wishes to decode the demangled
 // name. The result is cached and will be kept until a new string value is
@@ -321,15 +255,17 @@ ConstString Mangled::GetDemangledName( // BEGIN SWIFT
   // We didn't already demangle this name, demangle it and if all goes well
   // add it to our map.
   ManglingScheme scheme = GetManglingScheme(m_mangled.GetStringRef());
-  // BEGIN SWIFT
-#ifdef LLDB_ENABLE_SWIFT
-  if (scheme == eManglingSchemeSwift)
-    return GetSwiftDemangledStr(m_mangled, sc, m_demangled).first;
-#endif // LLDB_ENABLE_SWIFT
-  // END SWIFT
   if (Language *lang = Language::FindPluginForManglingScheme(scheme)) {
+    Language::DemangleOptions options;
+    // BEGIN SWIFT
+    options.sc = sc;
+    // END SWIFT
     Language::DemangledName demangled =
-        lang->DemangleSymbol(m_mangled, scheme, Language::DemangleOptions());
+        lang->DemangleSymbol(m_mangled, scheme, options);
+    // BEGIN SWIFT
+    if (!demangled.cache)
+      return ConstString(demangled.name);
+    // END SWIFT
     if (!demangled.name.empty())
       m_demangled.SetStringWithMangledCounterpart(demangled.name, m_mangled);
   }
@@ -344,16 +280,6 @@ ConstString Mangled::GetDemangledName( // BEGIN SWIFT
 }
 
 std::optional<DemangledNameInfo> Mangled::ComputeDemangledInfo() const {
-  // BEGIN SWIFT
-#ifdef LLDB_ENABLE_SWIFT
-  if (m_mangled &&
-      GetManglingScheme(m_mangled.GetStringRef()) == eManglingSchemeSwift)
-    return SwiftLanguageRuntime::TrackedDemangleSymbolAsString(
-               m_mangled.GetStringRef(), SwiftLanguageRuntime::eTypeName)
-        .second;
-#endif // LLDB_ENABLE_SWIFT
-  // END SWIFT
-
   if (!m_mangled)
     return std::nullopt;
 
@@ -369,17 +295,11 @@ std::optional<DemangledNameInfo> Mangled::ComputeDemangledInfo() const {
 
 ConstString Mangled::GetDisplayDemangledName(
     // BEGIN SWIFT
-    const SymbolContext *sc) const {
-#ifdef LLDB_ENABLE_SWIFT
-  if (m_mangled &&
-      SwiftLanguageRuntime::IsSwiftMangledName(m_mangled.GetStringRef()))
-    return ConstString(SwiftLanguageRuntime::DemangleSymbolAsString(
-        m_mangled.GetStringRef(), SwiftLanguageRuntime::eSimplified, sc));
-#endif // LLDB_ENABLE_SWIFT
-       // END SWIFT
-
+    const SymbolContext *sc
+    // END SWIFT
+) const {
   if (Language *lang = Language::FindPlugin(GuessLanguage()))
-    if (ConstString display_name = lang->GetDisplayDemangledName(*this))
+    if (ConstString display_name = lang->GetDisplayDemangledName(*this, sc))
       return display_name;
   return GetDemangledName();
 }
