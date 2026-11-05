@@ -195,12 +195,12 @@ class RealFile : public File {
 
   file_t FD;
   Status S;
-  std::string RealName;
+  // Resolved lazily, on the first getName() - most callers never ask for it.
+  std::optional<std::string> RealName;
 
-  RealFile(file_t RawFD, StringRef NewName, StringRef NewRealPathName)
+  RealFile(file_t RawFD, StringRef NewName)
       : FD(RawFD), S(NewName, {}, {}, {}, {}, {},
-                     llvm::sys::fs::file_type::status_error, {}),
-        RealName(NewRealPathName.str()) {
+                     llvm::sys::fs::file_type::status_error, {}) {
     assert(FD != kInvalidFile && "Invalid or inactive file descriptor");
   }
 
@@ -235,7 +235,15 @@ ErrorOr<Status> RealFile::status() {
 }
 
 ErrorOr<std::string> RealFile::getName() {
-  return RealName.empty() ? S.getName().str() : RealName;
+  if (!RealName) {
+    auto BypassSandbox = sys::sandbox::scopedDisable();
+    SmallString<256> Path;
+    if (FD != kInvalidFile && !sys::fs::getRealPathFromHandle(FD, Path))
+      RealName = std::string(Path);
+    else
+      RealName = std::string();
+  }
+  return RealName->empty() ? S.getName().str() : *RealName;
 }
 
 ErrorOr<std::unique_ptr<MemoryBuffer>>
@@ -322,13 +330,12 @@ private:
 
   ErrorOr<std::unique_ptr<File>>
   openFileForReadWithFlags(const Twine &Name, sys::fs::OpenFlags Flags) {
-    SmallString<256> RealName, Storage;
-    Expected<file_t> FDOrErr = sys::fs::openNativeFileForRead(
-        adjustPath(Name, Storage), Flags, &RealName);
+    SmallString<256> Storage;
+    Expected<file_t> FDOrErr =
+        sys::fs::openNativeFileForRead(adjustPath(Name, Storage), Flags);
     if (!FDOrErr)
       return errorToErrorCode(FDOrErr.takeError());
-    return std::unique_ptr<File>(
-        new RealFile(*FDOrErr, Name.str(), RealName.str()));
+    return std::unique_ptr<File>(new RealFile(*FDOrErr, Name.str()));
   }
 
   struct WorkingDirectory {
