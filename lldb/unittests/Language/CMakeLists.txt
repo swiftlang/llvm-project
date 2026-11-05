@@ -1,3 +1,8 @@
 add_subdirectory(CPlusPlus)
 add_subdirectory(CLanguages)
 add_subdirectory(ObjC)
+add_subdirectory(Rust)
+add_subdirectory(D)
+if(LLDB_ENABLE_SWIFT_SUPPORT)
+  add_subdirectory(Swift)
+endif()

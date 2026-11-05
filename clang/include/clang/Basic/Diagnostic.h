@@ -610,6 +610,13 @@ public:
     return diag_mapping_range(DS.begin(), DS.end());
   }
 
+  /// Look up the mapping of \p DiagID in the diagnostic state at \p Loc,
+  /// without computing the final severity.
+  DiagnosticMapping getDiagnosticMapping(diag::kind DiagID,
+                                         SourceLocation Loc) const {
+    return GetDiagStateForLoc(Loc)->lookupMapping(DiagID);
+  }
+
   DiagnosticConsumer *getClient() { return Client; }
   const DiagnosticConsumer *getClient() const { return Client; }
 
