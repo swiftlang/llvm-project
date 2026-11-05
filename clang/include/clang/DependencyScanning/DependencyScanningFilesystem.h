@@ -13,6 +13,7 @@
 #include "clang/Lex/DependencyDirectivesScanner.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASReference.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ErrorOr.h"
@@ -336,6 +337,10 @@ class DependencyScanningWorkerFilesystem
 public:
   static const char ID;
 
+  /// If \p Service performs an include-tree compilation, files that go
+  /// through the shared cache are read through a CAS-providing filesystem
+  /// layered directly on top of \p FS, and their CAS references are cached
+  /// alongside their contents.
   DependencyScanningWorkerFilesystem(
       DependencyScanningService &Service,
       IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -432,9 +437,17 @@ private:
   };
 
   /// Reads file at the given path. Enforces consistency between the file size
-  /// in status and size of read contents.
-  static llvm::ErrorOr<TentativeEntry> readFile(StringRef Filename,
-                                                llvm::vfs::FileSystem &FS);
+  /// in status and size of read contents. If \p CASFS is non-null, the file is
+  /// read through it and the CAS reference for its contents is captured too.
+  static llvm::ErrorOr<TentativeEntry>
+  readFile(StringRef Filename, llvm::vfs::FileSystem &FS,
+           llvm::cas::CASBackedFileSystem *CASFS);
+
+  DependencyScanningWorkerFilesystem(
+      DependencyScanningService &Service,
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
+      IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> CASFS,
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS);
 
   void printImpl(raw_ostream &OS, PrintType Type,
                  unsigned IndentLevel) const override {
@@ -474,6 +487,11 @@ private:
 
   /// The FS that is used for queries going through the global shared cache.
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS;
+
+  /// If non-null, this is \c BaseFS. It is created by this class for
+  /// include-tree compilations, so files going through the global shared cache
+  /// are stored in the CAS exactly once per service.
+  IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> CASFS;
 
   /// The backing storage for cached entries resolved from local FS only.
   llvm::SpecificBumpPtrAllocator<CachedFileSystemEntry> LocalEntryStorage;

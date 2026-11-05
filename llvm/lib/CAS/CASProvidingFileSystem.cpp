@@ -111,8 +111,7 @@ public:
 };
 } // namespace
 
-
-std::unique_ptr<vfs::FileSystem> cas::createCASProvidingFileSystem(
+std::unique_ptr<CASBackedFileSystem> cas::createCASProvidingFileSystem(
     std::shared_ptr<ObjectStore> DB,
     IntrusiveRefCntPtr<vfs::FileSystem> UnderlyingFS) {
   return std::make_unique<CASProvidingFileSystem>(std::move(DB),

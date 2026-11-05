@@ -253,12 +253,15 @@ TEST(DependencyScanner, DepScanFSWithCASProvider) {
   StringRef Path = "a.h";
   StringRef Contents = "a";
   FS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Contents));
-  std::unique_ptr<llvm::vfs::FileSystem> CASFS =
-      llvm::cas::createCASProvidingFileSystem(DB, FS);
 
-  DependencyScanningService Service({});
+  // For an include-tree compilation, the filesystem stores the files it reads
+  // in the CAS itself.
+  DependencyScanningServiceOptions Opts;
+  Opts.Compilation = IncludeTreeCompilation{
+      CASOptions(), DB, llvm::cas::createInMemoryActionCache()};
+  DependencyScanningService Service(std::move(Opts));
   {
-    DependencyScanningWorkerFilesystem DepFS(Service, std::move(CASFS));
+    DependencyScanningWorkerFilesystem DepFS(Service, FS);
     llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> File =
         DepFS.openFileForRead(Path);
     ASSERT_TRUE(File);
@@ -304,11 +307,13 @@ TEST(DependencyScanner, DepScanFSObjectRefForContents) {
   StringRef Path = "a.h";
   StringRef Contents = "a";
   FS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Contents));
-  IntrusiveRefCntPtr<llvm::vfs::FileSystem> CASFS =
-      llvm::cas::createCASProvidingFileSystem(DB, FS);
 
-  DependencyScanningService Service({});
-  DependencyScanningWorkerFilesystem DepFS(Service, CASFS);
+  DependencyScanningServiceOptions Opts;
+  Opts.Compilation = IncludeTreeCompilation{
+      CASOptions(), DB, llvm::cas::createInMemoryActionCache()};
+  DependencyScanningService Service(std::move(Opts));
+
+  DependencyScanningWorkerFilesystem DepFS(Service, FS);
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> File =
       DepFS.openFileForRead(Path);
   ASSERT_TRUE(File);
@@ -338,7 +343,7 @@ TEST(DependencyScanner, DepScanFSObjectRefForContents) {
 
   // The lookup only consults this worker's local cache: another worker that
   // has not read the file itself misses, even though the shared cache has it.
-  DependencyScanningWorkerFilesystem OtherDepFS(Service, CASFS);
+  DependencyScanningWorkerFilesystem OtherDepFS(Service, FS);
   EXPECT_FALSE(OtherDepFS.getObjectRefForContents(UID, (*Buf)->getBuffer()));
 }
 

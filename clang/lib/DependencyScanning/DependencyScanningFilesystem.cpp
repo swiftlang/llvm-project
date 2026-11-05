@@ -8,7 +8,7 @@
 
 #include "clang/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/DependencyScanning/DependencyScanningService.h"
-#include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"
 #include <optional>
@@ -17,13 +17,27 @@ using namespace clang;
 using namespace dependencies;
 
 llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
-DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
-                                             llvm::vfs::FileSystem &FS) {
-  // Load the file and its content from the file system.
-  auto MaybeFile = FS.openFileForRead(Filename);
-  if (!MaybeFile)
-    return MaybeFile.getError();
-  auto File = std::move(*MaybeFile);
+DependencyScanningWorkerFilesystem::readFile(
+    StringRef Filename, llvm::vfs::FileSystem &FS,
+    llvm::cas::CASBackedFileSystem *CASFS) {
+  // Load the file and its content from the file system. Capture the CAS
+  // reference at the one point where the bytes are produced, so that it is
+  // carried along with the contents in this cache and nobody downstream has to
+  // re-derive it.
+  std::unique_ptr<llvm::vfs::File> File;
+  std::optional<cas::ObjectRef> CASContents;
+  if (CASFS) {
+    auto MaybeFile = CASFS->openCASBackedFileForRead(Filename);
+    if (!MaybeFile)
+      return llvm::errorToErrorCode(MaybeFile.takeError());
+    CASContents = (*MaybeFile)->getObjectRefForContent();
+    File = std::move(*MaybeFile);
+  } else {
+    auto MaybeFile = FS.openFileForRead(Filename);
+    if (!MaybeFile)
+      return MaybeFile.getError();
+    File = std::move(*MaybeFile);
+  }
 
   auto MaybeStat = File->status();
   if (!MaybeStat)
@@ -34,10 +48,6 @@ DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
   if (!MaybeBuffer)
     return MaybeBuffer.getError();
   auto Buffer = std::move(*MaybeBuffer);
-
-  std::optional<cas::ObjectRef> CASContents;
-  if (auto *CASFile = dyn_cast<llvm::cas::CASBackedFile>(File.get()))
-    CASContents = CASFile->getObjectRefForContent();
 
   // If the file size changed between read and stat, pretend it didn't.
   if (Stat.getSize() != Buffer->getBufferSize())
@@ -241,15 +251,33 @@ combineGlobalAndLocalFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> GlobalFS,
   return GlobalFS;
 }
 
+static IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem>
+createCASFSIfNeeded(DependencyScanningService &Service,
+                    IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS) {
+  if (std::shared_ptr<cas::ObjectStore> CAS = Service.getCAS())
+    return llvm::cas::createCASProvidingFileSystem(std::move(CAS),
+                                                   std::move(FS));
+  return nullptr;
+}
+
 DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
     DependencyScanningService &Service,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS)
+    : DependencyScanningWorkerFilesystem(
+          Service, FS, createCASFSIfNeeded(Service, FS), std::move(LocalFS)) {}
+
+DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
+    DependencyScanningService &Service,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
+    IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> CASFS,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS)
     : llvm::RTTIExtends<DependencyScanningWorkerFilesystem,
                         llvm::vfs::ProxyFileSystem>(
-          combineGlobalAndLocalFS(FS, LocalFS)),
+          combineGlobalAndLocalFS(CASFS ? CASFS : FS, LocalFS)),
       Service(Service), WorkingDirForCacheLookup(llvm::errc::invalid_argument),
-      LocalFS(std::move(LocalFS)), BaseFS(FS) {
+      LocalFS(std::move(LocalFS)), BaseFS(CASFS ? CASFS : FS),
+      CASFS(std::move(CASFS)) {
   updateWorkingDirForCacheLookup();
 }
 
@@ -284,8 +312,9 @@ DependencyScanningWorkerFilesystem::resolveUIDThroughSharedCache(
   }
   auto UIDProducer = std::move(std::get<SlotProducer>(UIDSlot));
 
-  auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                                   : readFile(OriginalFilename, *BaseFS);
+  auto TEntry = Stat.isDirectory()
+                    ? TentativeEntry(Stat)
+                    : readFile(OriginalFilename, *BaseFS, CASFS.get());
 
   // Allocate the entry and bind the UID slot under one shard-lock acquisition
   // (BumpPtrAllocator isn't thread-safe). On read-failure, the entry wraps
@@ -309,8 +338,9 @@ const CachedFileSystemEntry *
 DependencyScanningWorkerFilesystem::createCachedFSEntryForLocal(
     StringRef OriginalFilename, const llvm::vfs::Status &Stat) {
   assert(LocalFS);
-  auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                                   : readFile(OriginalFilename, *LocalFS);
+  auto TEntry = Stat.isDirectory()
+                    ? TentativeEntry(Stat)
+                    : readFile(OriginalFilename, *LocalFS, /*CASFS=*/nullptr);
   return createEntry(TEntry, LocalContentsStorage, LocalEntryStorage);
 }
 
