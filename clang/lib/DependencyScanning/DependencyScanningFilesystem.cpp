@@ -455,33 +455,6 @@ private:
   llvm::vfs::Status Stat;
 };
 
-class DepScanCASFile final : public llvm::cas::CASBackedFile {
-public:
-  DepScanCASFile(std::unique_ptr<llvm::MemoryBuffer> Buffer,
-                 cas::ObjectRef CASContents, llvm::vfs::Status Stat)
-      : Buffer(std::move(Buffer)), CASContents(CASContents),
-        Stat(std::move(Stat)) {}
-
-  static llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> create(EntryRef Entry);
-
-  llvm::ErrorOr<llvm::vfs::Status> status() override { return Stat; }
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
-  getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
-            bool IsVolatile) override {
-    return std::move(Buffer);
-  }
-
-  cas::ObjectRef getObjectRefForContent() override { return CASContents; }
-
-  std::error_code close() override { return {}; }
-
-private:
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
-  cas::ObjectRef CASContents;
-  llvm::vfs::Status Stat;
-};
-
 } // end anonymous namespace
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
@@ -491,21 +464,11 @@ DepScanFile::create(EntryRef Entry) {
   if (Entry.isDirectory())
     return std::make_error_code(std::errc::is_a_directory);
 
-  std::unique_ptr<llvm::vfs::File> Result;
-  if (Entry.getObjectRefForContent())
-    Result = std::make_unique<DepScanCASFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        *Entry.getObjectRefForContent(), Entry.getStatus());
-  else
-    Result = std::make_unique<DepScanFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        Entry.getStatus());
-
-  return Result;
+  return std::unique_ptr<llvm::vfs::File>(std::make_unique<DepScanFile>(
+      llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
+                                       Entry.getStatus().getName(),
+                                       /*RequiresNullTerminator=*/false),
+      Entry.getStatus()));
 }
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
