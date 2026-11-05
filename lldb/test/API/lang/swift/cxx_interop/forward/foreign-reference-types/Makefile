@@ -5,7 +5,9 @@ endif
 SWIFT_SOURCES := main.swift
 CXX_SOURCES := impl.cpp
 SWIFT_CXX_INTEROP := 1
-SWIFTFLAGS_EXTRAS = -Xcc -I$(SRCDIR)
+# Foreign reference types require macOS 13.3, which is newer than the default
+# test deployment target.
+SWIFTFLAGS_EXTRAS = -Xcc -I$(SRCDIR) -Xfrontend -disable-availability-checking
 # The Embedded Swift link does not add the C++ standard library.
 ifeq "$(SWIFT_EMBEDDED_MODE)" "1"
 ifeq "$(OS)" "Darwin"
