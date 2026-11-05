@@ -20,6 +20,7 @@ class CompilerInvocation;
 class CowCompilerInvocation;
 
 namespace dependencies {
+class DependencyScanningWorkerFilesystem;
 struct ModuleDeps;
 
 /// An output from a module compilation, such as the path of the module file.
@@ -52,9 +53,12 @@ public:
   virtual void initializeScanInvocation(CompilerInvocation &ScanInvocation) {}
 
   /// Initializes the scan instance and modifies the resulting TU invocation.
+  /// \p DepFS, if non-null, is the scanning filesystem \p ScanInstance reads
+  /// files through; it is only valid for the duration of this scan.
   /// Returns true on success, false on failure.
   virtual bool initialize(CompilerInstance &ScanInstance,
-                          CompilerInvocation &NewInvocation) {
+                          CompilerInvocation &NewInvocation,
+                          DependencyScanningWorkerFilesystem *DepFS) {
     return true;
   }
 
@@ -72,8 +76,12 @@ public:
   }
 
   /// Initializes the module scan instance.
+  /// \p DepFS, if non-null, is the scanning filesystem \p ModuleScanInstance
+  /// reads files through; it is only valid for the duration of this build.
   /// Returns true on success, false on failure.
-  virtual bool initializeModuleBuild(CompilerInstance &ModuleScanInstance) {
+  virtual bool
+  initializeModuleBuild(CompilerInstance &ModuleScanInstance,
+                        DependencyScanningWorkerFilesystem *DepFS) {
     return true;
   }
 

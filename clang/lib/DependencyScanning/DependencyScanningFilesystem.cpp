@@ -387,7 +387,22 @@ DependencyScanningWorkerFilesystem::getOrCreateFileSystemEntry(
   if (!MaybeEntry)
     return MaybeEntry.getError();
   Local.File = *MaybeEntry;
+  if (!Local.File->isError() && !Local.File->isDirectory())
+    LocalEntriesByUID.try_emplace(Local.File->getStatus().getUniqueID(),
+                                  Local.File);
   return EntryRef(OriginalFilename, **MaybeEntry).unwrapError();
+}
+
+std::optional<cas::ObjectRef>
+DependencyScanningWorkerFilesystem::getObjectRefForContents(
+    llvm::sys::fs::UniqueID UID, StringRef Contents) const {
+  const CachedFileSystemEntry *Entry = LocalEntriesByUID.lookup(UID);
+  if (!Entry)
+    return std::nullopt;
+  StringRef Cached = Entry->getOriginalContents();
+  if (Cached.data() != Contents.data() || Cached.size() != Contents.size())
+    return std::nullopt;
+  return Entry->getObjectRefForContent();
 }
 
 llvm::ErrorOr<llvm::vfs::Status>

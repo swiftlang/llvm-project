@@ -376,6 +376,21 @@ public:
   /// status(), and falls back on FS if unable to do so.
   bool exists(const Twine &Path) override;
 
+  /// Returns the CAS reference this filesystem captured when it read the file
+  /// with \p UID, provided \p Contents is the very buffer it handed out for
+  /// that file.
+  ///
+  /// This filesystem hands out non-owning views of the contents it caches, so
+  /// a buffer that came through it still points into the cache. Comparing
+  /// addresses rather than bytes makes this lookup cheap and exact: any other
+  /// buffer -- a content override, a copy made by a VFS layer, an in-memory
+  /// input -- simply misses, and the caller is expected to compute the
+  /// reference itself. Only consults the local cache, so it never contends
+  /// with other workers.
+  std::optional<cas::ObjectRef>
+  getObjectRefForContents(llvm::sys::fs::UniqueID UID,
+                          StringRef Contents) const;
+
 private:
   /// Resolves the cache entry for \p FilenameForLookup through the shared
   /// cache: returns an entry already produced by another worker (a cache hit
@@ -443,6 +458,10 @@ private:
   /// The local cache is used by the worker thread to cache file system queries
   /// locally instead of querying the global cache every time.
   llvm::StringMap<LocalEntry, llvm::BumpPtrAllocator> LocalCache;
+
+  /// The local cache entries keyed by unique ID.
+  llvm::DenseMap<llvm::sys::fs::UniqueID, const CachedFileSystemEntry *>
+      LocalEntriesByUID;
 
   /// The working directory to use for making relative paths absolute before
   /// using them for cache lookups.
