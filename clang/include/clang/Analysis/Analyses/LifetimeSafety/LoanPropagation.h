@@ -37,6 +37,10 @@ public:
 
   LoanSet getLoans(OriginID OID, ProgramPoint P) const;
 
+  /// Like getLoans, but at the function's exit instead of a Fact, since no
+  /// Fact exists there for a persistent origin without its own escape fact.
+  LoanSet getLoansAtFunctionExit(OriginID OID) const;
+
   /// Builds the chain of origins through which a loan has propagated.
   ///
   /// Starting from the last fact of the block containing StartPoint, this

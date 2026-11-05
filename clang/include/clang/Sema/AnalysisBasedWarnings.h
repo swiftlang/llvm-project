@@ -114,6 +114,7 @@ private:
   /// when -print-stats is enabled.
   clang::lifetimes::LifetimeSafetyStats LSStats;
 
+  /// The summaries of the functions analyzed so far, created on first use.
   std::unique_ptr<lifetimes::LifetimeInference> LifetimeInferenceInstance;
 
   /// @}

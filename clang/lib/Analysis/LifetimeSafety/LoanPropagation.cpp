@@ -83,7 +83,7 @@ public:
                LoanSet::Factory &LoanSetFactory)
       : DataflowAnalysis(C, AC, F), OriginLoanMapFactory(OriginLoanMapFactory),
         LoanSetFactory(LoanSetFactory),
-        PersistentOrigins(F.getPersistentOrigins()) {}
+        PersistentOrigins(F.getPersistentOrigins()), Cfg(C) {}
 
   using Base::transfer;
 
@@ -154,6 +154,10 @@ public:
 
   LoanSet getLoans(OriginID OID, ProgramPoint P) const {
     return getLoans(getState(P), OID);
+  }
+
+  LoanSet getLoansAtFunctionExit(OriginID OID) const {
+    return getLoans(getOutState(&Cfg.getExit()), OID);
   }
 
   llvm::SmallVector<OriginID> buildOriginFlowChain(ProgramPoint StartPoint,
@@ -344,6 +348,7 @@ private:
   /// Origins referenced from more than one basic block; see
   /// `FactManager::getPersistentOrigins`.
   const llvm::BitVector &PersistentOrigins;
+  const CFG &Cfg;
 };
 } // namespace
 
@@ -364,6 +369,10 @@ LoanPropagationAnalysis::~LoanPropagationAnalysis() = default;
 
 LoanSet LoanPropagationAnalysis::getLoans(OriginID OID, ProgramPoint P) const {
   return PImpl->getLoans(OID, P);
+}
+
+LoanSet LoanPropagationAnalysis::getLoansAtFunctionExit(OriginID OID) const {
+  return PImpl->getLoansAtFunctionExit(OID);
 }
 
 llvm::SmallVector<OriginID> LoanPropagationAnalysis::buildOriginFlowChain(

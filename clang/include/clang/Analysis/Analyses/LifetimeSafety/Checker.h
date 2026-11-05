@@ -17,6 +17,7 @@
 
 #include "clang/Analysis/Analyses/LifetimeSafety/Facts.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LiveOrigins.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LoanPropagation.h"
 
@@ -31,6 +32,15 @@ void runLifetimeChecker(const LoanPropagationAnalysis &LoanPropagation,
                         FactManager &FactMgr, AnalysisDeclContext &ADC,
                         LifetimeSafetySemaHelper *SemaHelper,
                         const LifetimeSafetyOpts &LSOpts);
+
+/// Like runLifetimeChecker, and returns the summary of the function.
+FunctionSummary
+runLifetimeAnalysisForSummary(const LoanPropagationAnalysis &LoanPropagation,
+                              const MovedLoansAnalysis &MovedLoans,
+                              const LiveOriginsAnalysis &LiveOrigins,
+                              FactManager &FactMgr, AnalysisDeclContext &ADC,
+                              LifetimeSafetySemaHelper *SemaHelper,
+                              const LifetimeSafetyOpts &LSOpts);
 
 } // namespace clang::lifetimes::internal
 

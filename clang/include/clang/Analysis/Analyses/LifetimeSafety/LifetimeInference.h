@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The lifetime attributes/properties inference module.
+// The lifetime attributes/properties inference module. It runs the lifetime
+// safety analysis (LSA) on the CFG of a function and keeps the inferred
+// FunctionSummary of each analyzed function for the translation unit.
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,6 +16,9 @@
 #define LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIMESAFETY_LIFETIMEINFERENCE_H
 
 #include "clang/AST/Decl.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -33,6 +38,19 @@ using ThisOracleMap =
 
 class LifetimeInference {
 public:
+  /// Runs the lifetime safety analysis on the function of \p AC, silently, and
+  /// records the inferred summary, replacing the summary of an earlier
+  /// analysis of the function.
+  void analyzeFunction(AnalysisDeclContext &AC, const LifetimeSafetyOpts &Opts);
+
+  /// \return the summary of the definition of \p FD, or null. Do not keep the
+  /// pointer: analyzing a function can invalidate it.
+  const FunctionSummary *getSummary(const FunctionDecl *FD) const {
+    const FunctionDecl *Def = FD->getDefinition();
+    auto It = Def ? Summaries.find(Def) : Summaries.end();
+    return It == Summaries.end() ? nullptr : &It->second;
+  }
+
   /// Test mode: keeps the attribute \p A written on the parameter \p PVD as an
   /// oracle, instead of keeping it in AST.
   void addParamOracle(const ParmVarDecl *PVD, const Attr *A);
@@ -66,6 +84,8 @@ public:
 private:
   ParamOracleMap ParamOracles;
   ThisOracleMap ThisOracles;
+  /// The summaries of the analyzed definitions.
+  llvm::DenseMap<const FunctionDecl *, FunctionSummary> Summaries;
 };
 
 } // namespace clang::lifetimes

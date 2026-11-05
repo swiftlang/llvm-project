@@ -3844,6 +3844,23 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
   }
 }
 
+// Launches LifetimeInference on the function \p D, if D is one.
+static void runLifetimeInference(Sema &S, const Decl *D) {
+  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+    AnalysisDeclContext AC(nullptr, FD);
+
+    setLifetimeSafetyCFGBuildOptions(AC);
+    if (!AC.getCFG())
+      return;
+
+    // The default options turn off all the checks and suggestions.
+    lifetimes::LifetimeSafetyOpts Opts;
+
+    Opts.MaxCFGBlocks = S.getLangOpts().LifetimeSafetyMaxCFGBlocks;
+    S.AnalysisWarnings.getLifetimeInference().analyzeFunction(AC, Opts);
+  }
+}
+
 static bool shouldRunUnsafeBufferUsageAnalysis(const Sema &S,
                                                SourceLocation Loc) {
   const DiagnosticsEngine &Diags = S.getDiagnostics();
@@ -4113,6 +4130,8 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
           LSStats, S.CollectStats);
     }
   }
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode)
+    runLifetimeInference(S, D);
   // Check for violations of "called once" parameter properties.
   if (S.getLangOpts().ObjC && !S.getLangOpts().CPlusPlus &&
       shouldAnalyzeCalledOnceParameters(Diags, D->getBeginLoc())) {
