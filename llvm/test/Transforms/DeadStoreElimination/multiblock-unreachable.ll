@@ -209,6 +209,6 @@ if.else:
   br label %exit
 
 exit:
-  call i1 (ptr, i1, ...) @llvm.coro.end.async(ptr %hdl, i1 false)
+  call void (ptr, i1, ...) @llvm.coro.end.async(ptr %hdl, i1 false)
   unreachable
 }
