@@ -61,6 +61,9 @@
 // CHECK-NOT:          "-ivfsoverlay"
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
+// CHECK-NEXT:       "directory-deps": [
+// CHECK-NEXT:         "[[PREFIX]]/modules/D"
+// CHECK-NEXT:       ],
 // CHECK-NEXT:       "file-deps": [
 // CHECK:            ],
 // CHECK:            "name": "D"
@@ -74,6 +77,9 @@
 // CHECK-NOT:          "-ivfsoverlay"
 // CHECK:            ],
 // CHECK-NEXT:       "context-hash": "{{.*}}",
+// CHECK-NEXT:       "directory-deps": [
+// CHECK-NEXT:         "[[PREFIX]]/modules/E"
+// CHECK-NEXT:       ],
 // CHECK-NEXT:       "file-deps": [
 // CHECK:            ],
 // CHECK:            "name": "E"
