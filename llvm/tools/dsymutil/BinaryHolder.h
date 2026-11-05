@@ -149,8 +149,9 @@ public:
 
   /// Set GlobalCAS Configuration.
   Error setGlobalCASConfiguration(cas::CASConfiguration Config);
-  /// Update GlobalCAS with path, return true if a global CAS is set.
-  bool updateGlobalCASFromPath(StringRef Path);
+  /// Add a path to search for GlobalCAS. The search happens and GlobalCAS is
+  /// created only when it is first needed.
+  void addGlobalCASSearchPath(StringRef Path);
   /// Search and create CAS.
   Expected<cas::ObjectStore *> searchAndCreateCAS(StringRef Path);
 
@@ -158,6 +159,11 @@ public:
   void eraseObjectEntry(StringRef Filename);
 
 private:
+  /// Search and create CAS. CASMutex must be held.
+  Expected<cas::ObjectStore *> searchAndCreateCASImpl(StringRef Path);
+  /// Get GlobalCAS, searching and creating it from the search paths if needed.
+  cas::ObjectStore *getGlobalCAS();
+
   /// Cache of static archives. Objects that are part of a static archive are
   /// stored under this object, rather than in the map below.
   StringMap<std::unique_ptr<ArchiveEntry>> ArchiveCache;
@@ -178,6 +184,8 @@ private:
   StringMap<cas::ObjectStore *> CASLookupCache;
   /// Global CAS used fallback when local CAS are not available.
   cas::ObjectStore *GlobalCAS;
+  /// Paths to search for GlobalCAS when it is needed.
+  std::vector<std::string> GlobalCASSearchPaths;
   std::mutex CASMutex;
 
   Options Opts;

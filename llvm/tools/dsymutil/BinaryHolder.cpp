@@ -295,21 +295,37 @@ Error BinaryHolder::setGlobalCASConfiguration(cas::CASConfiguration Config) {
   return Error::success();
 }
 
-bool BinaryHolder::updateGlobalCASFromPath(StringRef Path) {
-  auto DB = searchAndCreateCAS(Path);
-  if (!DB) {
-    consumeError(DB.takeError());
-    return false;
+void BinaryHolder::addGlobalCASSearchPath(StringRef Path) {
+  std::scoped_lock<std::mutex> CASLock(CASMutex);
+  if (GlobalCASSearchPaths.empty() || GlobalCASSearchPaths.back() != Path)
+    GlobalCASSearchPaths.push_back(Path.str());
+}
+
+cas::ObjectStore *BinaryHolder::getGlobalCAS() {
+  std::scoped_lock<std::mutex> CASLock(CASMutex);
+  // Use the first CAS that can be created from the pending search paths.
+  for (StringRef Path : GlobalCASSearchPaths) {
+    auto DB = searchAndCreateCASImpl(Path);
+    if (!DB) {
+      consumeError(DB.takeError());
+      continue;
+    }
+    if (*DB) {
+      GlobalCAS = *DB;
+      break;
+    }
   }
-  if (*DB) {
-    GlobalCAS = *DB;
-    return true;
-  }
-  return false;
+  GlobalCASSearchPaths.clear();
+  return GlobalCAS;
 }
 
 Expected<cas::ObjectStore *> BinaryHolder::searchAndCreateCAS(StringRef Path) {
   std::scoped_lock<std::mutex> CASLock(CASMutex);
+  return searchAndCreateCASImpl(Path);
+}
+
+Expected<cas::ObjectStore *>
+BinaryHolder::searchAndCreateCASImpl(StringRef Path) {
   // The directory has been searched.
   auto Cached = CASLookupCache.find(Path);
   if (Cached != CASLookupCache.end())
@@ -396,7 +412,7 @@ BinaryHolder::getObjectEntryFromCAS(StringRef MaybeCASID, StringRef Filename) {
     return DB.takeError();
 
   // No CAS available to lookup, return nullptr.
-  if (!*DB && !GlobalCAS)
+  if (!*DB && !getGlobalCAS())
     return nullptr;
 
   std::lock_guard<std::mutex> Lock(ObjectCacheMutex);
@@ -404,7 +420,7 @@ BinaryHolder::getObjectEntryFromCAS(StringRef MaybeCASID, StringRef Filename) {
   if (!ObjectCache.count(MaybeCASID)) {
     auto OE = std::make_unique<ObjectEntry>();
     if (!OE->load(*DB, MaybeCASID, Opts) &&
-        !OE->load(GlobalCAS, MaybeCASID, Opts))
+        !OE->load(getGlobalCAS(), MaybeCASID, Opts))
       return nullptr;
     ObjectCache[MaybeCASID] = std::move(OE);
   }
