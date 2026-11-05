@@ -30,7 +30,7 @@ using ::testing::UnorderedElementsAreArray;
 // and provide an interface for querying the results.
 class LifetimeTestRunner {
 public:
-  LifetimeTestRunner(llvm::StringRef Code) {
+  LifetimeTestRunner(llvm::StringRef Code, bool IssueFieldPlaceholderLoans) {
     std::string FullCode = R"(
       #define POINT(name) void("__lifetime_test_point_" #name)
 
@@ -74,6 +74,7 @@ public:
     LSOpts.CheckLifetimeboundViolations = true;
     LSOpts.CheckMisplacedLifetimebound = true;
     LSOpts.CheckInapplicableLifetimebound = true;
+    LSOpts.IssueFieldPlaceholderLoans = IssueFieldPlaceholderLoans;
     Analysis =
         std::make_unique<LifetimeSafetyAnalysis>(*AnalysisCtx, nullptr, LSOpts);
     Analysis->run();
@@ -483,8 +484,10 @@ MATCHER_P(HasLoanToATemporary, Annotation, "") {
 // Base test fixture to manage the runner and helper.
 class LifetimeAnalysisTest : public ::testing::Test {
 protected:
-  void SetupTest(llvm::StringRef Code) {
-    Runner = std::make_unique<LifetimeTestRunner>(Code);
+  void SetupTest(llvm::StringRef Code,
+                 bool IssueFieldPlaceholderLoans = false) {
+    Runner =
+        std::make_unique<LifetimeTestRunner>(Code, IssueFieldPlaceholderLoans);
     Helper = std::make_unique<LifetimeTestHelper>(*Runner);
   }
 
@@ -524,6 +527,35 @@ protected:
 // ========================================================================= //
 //                                 TESTS
 // ========================================================================= //
+
+// Counts the placeholder loans whose base is a field of the enclosing class.
+static unsigned countFieldPlaceholderLoans(LifetimeTestRunner &Runner) {
+  unsigned Count = 0;
+
+  const auto &LoanMgr = Runner.getAnalysis().getFactManager().getLoanMgr();
+  for (const Loan *L : LoanMgr.getLoans()) {
+    if (const PlaceholderBase *PB = L->getAccessPath().getAsPlaceholderBase())
+      if (PB->getFieldDecl())
+        ++Count;
+  }
+  return Count;
+}
+
+TEST_F(LifetimeAnalysisTest, FieldPlaceholderLoansAreOptIn) {
+  // We need placeholder loans even without reporting - see rdar://190631414
+  constexpr llvm::StringLiteral Code = R"(
+    struct S {
+      View v;
+      void target() { POINT(p1); }
+    };
+  )";
+  SetupTest(Code);
+  EXPECT_EQ(countFieldPlaceholderLoans(*Runner), 0u);
+  // Issuing the loans must not require reporting: the runner has no Sema
+  // helper, so any attempt to report an escape would crash.
+  SetupTest(Code, /*IssueFieldPlaceholderLoans=*/true);
+  EXPECT_EQ(countFieldPlaceholderLoans(*Runner), 1u);
+}
 
 TEST_F(LifetimeAnalysisTest, SimpleLoanAndOrigin) {
   SetupTest(R"(
