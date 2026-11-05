@@ -11342,6 +11342,13 @@ def warn_lifetime_safety_destructor_use_after_invalidation
       InGroup<LifetimeSafetyDestructorUse>,
       DefaultIgnore;
 
+def remark_interop_lifetime_inference_oracle_summary
+    : Remark<"lifetime attribute inference vs. already-written oracle: "
+             "matched %0; failed to infer (lifetimebound %1, noescape %2, "
+             "lifetime_capture_by %3); inferred %4 in total">,
+      InGroup<InteropLifetimeInferenceTestMode>,
+      DefaultIgnore;
+
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;
 

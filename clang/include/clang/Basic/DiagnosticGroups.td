@@ -786,6 +786,12 @@ Turns on all the warnings in the lifetime-safety umbrella.
   }];
 }
 
+def InteropLifetimeInferenceTestMode : DiagGroup<"interop-lifetime-inference-test-mode"> {
+  code Documentation = [{
+In interop-lifetime-inference-test-mode, reports how the lifetime contracts inferred by lifetime safety analysis compare with the hand-written annotations.
+  }];
+}
+
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def DllexportExplicitInstantiation :

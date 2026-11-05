@@ -8,6 +8,8 @@
 
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace clang::lifetimes {
 
@@ -134,6 +136,40 @@ llvm::ArrayRef<Level> FunctionSummary::getNoEscapeFor(ParamOrThis P) const {
 const FieldSet *FunctionSummary::getInvalidatedFor(ParamOrThis P) const {
   const auto &Invalidated = lookup(*this, P).Invalidated;
   return Invalidated ? &*Invalidated : nullptr;
+}
+
+static unsigned levelNumber(Level L) { return static_cast<unsigned>(L); }
+
+static std::string name(const FunctionDecl *FD, ParamOrThis P) {
+  if (P.isThis())
+    return "this";
+  unsigned Idx = P.getParamIndex();
+  if (Idx < FD->getNumParams() && !FD->getParamDecl(Idx)->getName().empty())
+    return FD->getParamDecl(Idx)->getName().str();
+  return ("#" + llvm::Twine(Idx)).str();
+}
+
+void FunctionSummary::dump(llvm::raw_ostream &OS,
+                           const FunctionDecl *FD) const {
+  OS << FD->getQualifiedNameAsString() << ":\n";
+  auto DumpOne = [&](ParamOrThis P) {
+    OS << "  " << name(FD, P) << ":";
+    for (const LifetimeBoundAssertion &A : getLifetimeBoundFor(P))
+      OS << " lifetimebound(" << levelNumber(A.L) << ")";
+    for (const CapturedByAssertion &A : getCapturedByFor(P))
+      OS << " captured_by(" << levelNumber(A.L) << " -> " << name(FD, A.Q)
+         << "@" << levelNumber(A.QL) << ")";
+    for (Level L : getNoEscapeFor(P))
+      OS << " noescape(" << levelNumber(L) << ")";
+    if (getInvalidatedFor(P))
+      OS << " invalidated";
+    OS << "\n";
+  };
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD);
+      MD && MD->isImplicitObjectMemberFunction())
+    DumpOne(ParamOrThis::forThis());
+  for (const ParmVarDecl *PVD : FD->parameters())
+    DumpOne(ParamOrThis::forParam(PVD));
 }
 
 /// Adds the assertion unless one with the same key exists.

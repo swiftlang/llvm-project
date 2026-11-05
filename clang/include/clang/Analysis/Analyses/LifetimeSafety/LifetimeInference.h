@@ -19,12 +19,14 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
+#include "clang/Basic/AttrKinds.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace clang {
 class Attr;
 class Declarator;
+class DiagnosticsEngine;
 } // namespace clang
 
 namespace clang::lifetimes {
@@ -35,6 +37,17 @@ using ParamOracleMap =
     llvm::DenseMap<const ParmVarDecl *, llvm::SmallVector<const Attr *, 2>>;
 using ThisOracleMap =
     llvm::DenseMap<const FunctionDecl *, llvm::SmallVector<const Attr *, 2>>;
+
+/// How the inferred function contracts compare with the oracles.
+struct OracleComparisonReport {
+  /// The number of oracles that were inferred.
+  unsigned Matched = 0;
+  /// Per attribute kind (lifetimebound, noescape and lifetime_capture_by), the
+  /// number of oracles that were not inferred.
+  llvm::SmallDenseMap<attr::Kind, unsigned, 8> Failed;
+  /// The number of contracts inferred, with or without an oracle.
+  unsigned Inferred = 0;
+};
 
 class LifetimeInference {
 public:
@@ -50,6 +63,13 @@ public:
     auto It = Def ? Summaries.find(Def) : Summaries.end();
     return It == Summaries.end() ? nullptr : &It->second;
   }
+
+  /// Test mode: compares the oracles with the inferred summaries. An oracle
+  /// contract of a function without a summary counts as not inferred.
+  OracleComparisonReport compareWithOracles() const;
+
+  /// Test mode: reports the comparison as one remark.
+  void reportOracleSummary(DiagnosticsEngine &Diags) const;
 
   /// Test mode: keeps the attribute \p A written on the parameter \p PVD as an
   /// oracle, instead of keeping it in AST.

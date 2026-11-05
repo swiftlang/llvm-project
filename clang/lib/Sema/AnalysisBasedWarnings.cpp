@@ -3932,6 +3932,9 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
 
   if (lifetimes::IsLifetimeSafetyEnabled(S, TU))
     LifetimeSafetyTUAnalysis(S, TU, LSStats);
+
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode)
+    getLifetimeInference().reportOracleSummary(Diags);
 }
 
 void clang::sema::AnalysisBasedWarnings::IssueWarningsForImplicitFunction(
