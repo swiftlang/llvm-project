@@ -8,6 +8,7 @@
 
 #include "llvm/CAS/BuiltinObjectHasher.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/Support/IOSandbox.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -17,6 +18,8 @@ Expected<typename BuiltinObjectHasher<HasherT>::HashT>
 BuiltinObjectHasher<HasherT>::hashFile(StringRef FilePath) {
   BuiltinObjectHasher H;
   H.updateSize(0); // 0 refs
+
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
 
   sys::fs::file_t FD;
   if (Error E = sys::fs::openNativeFileForRead(FilePath).moveInto(FD))
