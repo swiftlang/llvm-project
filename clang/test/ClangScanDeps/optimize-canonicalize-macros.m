@@ -71,6 +71,8 @@
 // CAS-NEXT:       "command-line": [
 // CAS:            ],
 // CAS-NEXT:       "context-hash": "{{.*}}",
+// CAS-NEXT:       "directory-deps": [
+// CAS:            ],
 // CAS-NEXT:       "file-deps": [
 // CAS:            ],
 // CAS-NEXT:       "link-libraries": [],
@@ -84,6 +86,8 @@
 // CAS-NEXT:       "command-line": [
 // CAS:            ],
 // CAS-NEXT:       "context-hash": "{{.*}}",
+// CAS-NEXT:       "directory-deps": [
+// CAS:            ],
 // CAS-NEXT:       "file-deps": [
 // CAS:            ],
 // CAS-NEXT:       "link-libraries": [],
