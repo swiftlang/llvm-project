@@ -61,6 +61,10 @@ public:
     return {};
   }
 
+  std::string GetQualifiedName(llvm::StringRef name) override {
+    return name.str();
+  }
+
   void Dump(Stream &stream, llvm::StringRef filter, bool show_color) override;
 
   /// To avoid issues with uniquing, bound generics are emitted as follows in DWARF:
