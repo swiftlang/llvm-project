@@ -410,22 +410,22 @@ handleIncludeTreeToolResult(llvm::cas::ObjectStore &CAS,
                             const std::string &Input,
                             Expected<cas::IncludeTreeRoot> &MaybeTree,
                             llvm::raw_ostream &OS, SharedStream &Errs) {
+  // Use toString rather than handleAllErrors with a StringError handler:
+  // scanning failures are not all StringError (e.g. createFileError produces a
+  // FileError wrapping an ECError), and handleAllErrors aborts via cantFail on
+  // any error type it has no handler for.
   if (!MaybeTree) {
-    llvm::handleAllErrors(
-        MaybeTree.takeError(), [&Input, &Errs](llvm::StringError &Err) {
-          Errs.applyLocked([&](raw_ostream &OS) {
-            OS << "Error while scanning dependencies for " << Input << ":\n";
-            OS << Err.getMessage();
-            OS << "\n";
-          });
-        });
+    std::string Msg = llvm::toString(MaybeTree.takeError());
+    Errs.applyLocked([&](raw_ostream &OS) {
+      OS << "Error while scanning dependencies for " << Input << ":\n";
+      OS << Msg << "\n";
+    });
     return true;
   }
   auto printError = [&Errs](llvm::Error &&E) -> bool {
-    llvm::handleAllErrors(std::move(E), [&Errs](llvm::StringError &Err) {
-      Errs.applyLocked([&](raw_ostream &OS) {
-        OS << "Error while printing include tree: " << Err.getMessage() << "\n";
-      });
+    std::string Msg = llvm::toString(std::move(E));
+    Errs.applyLocked([&](raw_ostream &OS) {
+      OS << "Error while printing include tree: " << Msg << "\n";
     });
     return true;
   };
