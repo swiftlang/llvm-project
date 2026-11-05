@@ -20,40 +20,47 @@ llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
 DependencyScanningWorkerFilesystem::readFile(
     StringRef Filename, llvm::vfs::FileSystem &FS,
     llvm::cas::CASBackedFileSystem *CASFS) {
-  // Load the file and its content from the file system. Capture the CAS
-  // reference at the one point where the bytes are produced, so that it is
-  // carried along with the contents in this cache and nobody downstream has to
-  // re-derive it.
-  std::unique_ptr<llvm::vfs::File> File;
+  std::unique_ptr<llvm::MemoryBuffer> Buffer;
+  std::optional<llvm::vfs::Status> Stat;
   std::optional<cas::ObjectRef> CASContents;
+
+  // Capture the CAS reference at the one point where the bytes are produced,
+  // so that it is carried along with the contents in this cache and nobody
+  // downstream has to re-derive it.
   if (CASFS) {
-    auto MaybeFile = CASFS->openCASBackedFileForRead(Filename);
-    if (!MaybeFile)
-      return llvm::errorToErrorCode(MaybeFile.takeError());
-    CASContents = (*MaybeFile)->getObjectRefForContent();
-    File = std::move(*MaybeFile);
+    auto MaybeBufferAndRef = CASFS->getBufferAndObjectRefForFile(Filename);
+    if (!MaybeBufferAndRef)
+      return llvm::errorToErrorCode(MaybeBufferAndRef.takeError());
+    Buffer = std::move(MaybeBufferAndRef->first);
+    CASContents = MaybeBufferAndRef->second;
+
+    auto MaybeStat = FS.status(Filename);
+    if (!MaybeStat)
+      return MaybeStat.getError();
+    Stat = std::move(*MaybeStat);
   } else {
+    // Load the file and its content from the file system.
     auto MaybeFile = FS.openFileForRead(Filename);
     if (!MaybeFile)
       return MaybeFile.getError();
-    File = std::move(*MaybeFile);
+    auto File = std::move(*MaybeFile);
+
+    auto MaybeStat = File->status();
+    if (!MaybeStat)
+      return MaybeStat.getError();
+    Stat = std::move(*MaybeStat);
+
+    auto MaybeBuffer = File->getBuffer(Stat->getName());
+    if (!MaybeBuffer)
+      return MaybeBuffer.getError();
+    Buffer = std::move(*MaybeBuffer);
   }
 
-  auto MaybeStat = File->status();
-  if (!MaybeStat)
-    return MaybeStat.getError();
-  auto Stat = std::move(*MaybeStat);
-
-  auto MaybeBuffer = File->getBuffer(Stat.getName());
-  if (!MaybeBuffer)
-    return MaybeBuffer.getError();
-  auto Buffer = std::move(*MaybeBuffer);
-
   // If the file size changed between read and stat, pretend it didn't.
-  if (Stat.getSize() != Buffer->getBufferSize())
-    Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
+  if (Stat->getSize() != Buffer->getBufferSize())
+    Stat = llvm::vfs::Status::copyWithNewSize(*Stat, Buffer->getBufferSize());
 
-  return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
+  return TentativeEntry(*Stat, std::move(Buffer), std::move(CASContents));
 }
 
 bool DependencyScanningWorkerFilesystem::ensureDirectiveTokensArePopulated(

@@ -30,14 +30,16 @@ TEST(CASProvidingFileSystemTest, Basic) {
   ASSERT_TRUE(VFS);
   auto &CASFS = cast<CASBackedFileSystem>(*VFS);
   {
-    std::unique_ptr<CASBackedFile> File;
-    ASSERT_THAT_ERROR(CASFS.openCASBackedFileForRead(Path1).moveInto(File),
-                      Succeeded());
+    // Opening through the plain vfs::FileSystem interface still works; it just
+    // does not carry a CAS reference.
+    std::unique_ptr<vfs::File> File;
+    ASSERT_THAT_ERROR(
+        errorOrToExpected(CASFS.openFileForRead(Path1)).moveInto(File),
+        Succeeded());
     ASSERT_TRUE(File);
-    cas::ObjectRef Ref = File->getObjectRefForContent();
-    std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(Ref).moveInto(BlobContents), Succeeded());
-    EXPECT_EQ(BlobContents->getData(), Contents1);
+    auto Buf = File->getBuffer(Path1);
+    ASSERT_TRUE(Buf);
+    EXPECT_EQ(Contents1, (*Buf)->getBuffer());
   }
   {
     std::optional<cas::ObjectRef> Ref;
@@ -80,10 +82,10 @@ TEST(CASProvidingFileSystemTest, WithCASSupportingFS) {
   ASSERT_TRUE(VFS);
   auto &CASFS = cast<CASBackedFileSystem>(*VFS);
 
-  std::unique_ptr<CASBackedFile> File;
-  ASSERT_THAT_ERROR(CASFS.openCASBackedFileForRead(Path).moveInto(File),
+  std::optional<cas::ObjectRef> MaybeRef;
+  ASSERT_THAT_ERROR(CASFS.getObjectRefForFileContent(Path).moveInto(MaybeRef),
                     Succeeded());
-  cas::ObjectRef Ref = File->getObjectRefForContent();
+  cas::ObjectRef Ref = *MaybeRef;
   std::optional<ObjectProxy> BlobContents;
   ASSERT_THAT_ERROR(DB->getProxy(Ref).moveInto(BlobContents), Succeeded());
   EXPECT_EQ(BlobContents->getData(), Contents);

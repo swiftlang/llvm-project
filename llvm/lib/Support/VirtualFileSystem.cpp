@@ -21,8 +21,6 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CAS/CASReference.h"
-#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Chrono.h"
@@ -2587,33 +2585,6 @@ public:
   void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
 };
 
-
-class CASFileWithFixedStatus : public cas::CASBackedFile {
-  std::unique_ptr<cas::CASBackedFile> InnerFile;
-  Status S;
-
-public:
-  CASFileWithFixedStatus(std::unique_ptr<CASBackedFile> InnerFile, Status S)
-      : InnerFile(std::move(InnerFile)), S(std::move(S)) {}
-
-  ErrorOr<Status> status() override { return S; }
-  ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
-
-  getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
-            bool IsVolatile) override {
-    return InnerFile->getBuffer(Name, FileSize, RequiresNullTerminator,
-                                IsVolatile);
-  }
-
-  std::error_code close() override { return InnerFile->close(); }
-
-  void setPath(const Twine &Path) override { S = S.copyWithNewName(S, Path); }
-
-  cas::ObjectRef getObjectRefForContent() override {
-    return InnerFile->getObjectRefForContent();
-  }
-};
-
 } // namespace
 
 ErrorOr<std::unique_ptr<File>>
@@ -2688,11 +2659,6 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
   Status S = getRedirectedFileStatus(
       OriginalPath, RE->useExternalName(UseExternalNames), *ExternalStatus);
 
-  if (std::unique_ptr<cas::CASBackedFile> CASFile =
-          dyn_cast<cas::CASBackedFile>(*ExternalFile)) {
-    return std::unique_ptr<File>(
-        std::make_unique<CASFileWithFixedStatus>(std::move(CASFile), S));
-  }
   return std::unique_ptr<File>(
       std::make_unique<FileWithFixedStatus>(std::move(*ExternalFile), S));
 }
@@ -3075,17 +3041,12 @@ recursive_directory_iterator::increment(std::error_code &EC) {
   return *this;
 }
 
-const char File::ID = 0;
 
 const char FileSystem::ID = 0;
 const char OverlayFileSystem::ID = 0;
 const char ProxyFileSystem::ID = 0;
 const char InMemoryFileSystem::ID = 0;
 const char RedirectingFileSystem::ID = 0;
-
-// FIXME: Temporarily put the CASBackedFile::ID in Support library to workaround
-// the layer issue that `dyn_cast` check for the type needs to happen here.
-const char cas::CASBackedFile::ID = 0;
 
 unsigned ::llvm::IntrusiveRefCntPtrInfo<FileSystem>::useCount(
     const FileSystem *FS) {

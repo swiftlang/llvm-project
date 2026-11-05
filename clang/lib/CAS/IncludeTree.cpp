@@ -995,16 +995,13 @@ class IncludeTreeFileSystem final : public llvm::cas::CASBackedFileSystem {
   llvm::cas::ObjectStore &CAS;
 
 public:
-  class IncludeTreeFile final : public llvm::cas::CASBackedFile {
+  class IncludeTreeFile final : public llvm::vfs::File {
     llvm::vfs::Status Stat;
     StringRef Contents;
-    cas::ObjectRef ContentsRef;
 
   public:
-    IncludeTreeFile(llvm::vfs::Status Stat, StringRef Contents,
-                    cas::ObjectRef ContentsRef)
-        : Stat(std::move(Stat)), Contents(Contents),
-          ContentsRef(std::move(ContentsRef)) {}
+    IncludeTreeFile(llvm::vfs::Status Stat, StringRef Contents)
+        : Stat(std::move(Stat)), Contents(Contents) {}
 
     llvm::ErrorOr<llvm::vfs::Status> status() override { return Stat; }
 
@@ -1015,8 +1012,6 @@ public:
       return llvm::MemoryBuffer::getMemBuffer(Contents,
                                               Name.toStringRef(NameBuf));
     }
-
-    cas::ObjectRef getObjectRefForContent() override { return ContentsRef; }
 
     std::error_code close() override { return std::error_code(); }
   };
@@ -1061,19 +1056,34 @@ public:
     return llvm::errorToErrorCode(fileError(Filename));
   }
 
-  llvm::Expected<std::unique_ptr<llvm::cas::CASBackedFile>>
-  openCASBackedFileForRead(const Twine &Path) override {
+  llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
+  openFileForRead(const Twine &Path) override {
     SmallString<128> Filename;
     getPath(Path, Filename);
     auto MaterializedFile = materialize(Filename);
     if (!MaterializedFile)
-      return MaterializedFile.takeError();
+      return llvm::errorToErrorCode(MaterializedFile.takeError());
     llvm::vfs::Status Stat = makeStatus(
         Filename, MaterializedFile->Contents.size(), MaterializedFile->UniqueID,
         llvm::sys::fs::file_type::regular_file);
-    return std::make_unique<IncludeTreeFile>(
-        std::move(Stat), MaterializedFile->Contents,
-        std::move(MaterializedFile->ContentsRef));
+    return std::unique_ptr<llvm::vfs::File>(std::make_unique<IncludeTreeFile>(
+        std::move(Stat), MaterializedFile->Contents));
+  }
+
+  llvm::Expected<
+      std::pair<std::unique_ptr<llvm::MemoryBuffer>, llvm::cas::ObjectRef>>
+  getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                               bool RequiresNullTerminator, bool IsVolatile,
+                               bool IsText) override {
+    SmallString<128> Filename;
+    getPath(Name, Filename);
+    auto MaterializedFile = materialize(Filename);
+    if (!MaterializedFile)
+      return MaterializedFile.takeError();
+    return std::pair{
+        llvm::MemoryBuffer::getMemBuffer(MaterializedFile->Contents, Filename,
+                                         RequiresNullTerminator),
+        MaterializedFile->ContentsRef};
   }
 
   Expected<MaterializedFile> materialize(StringRef Filename) {
