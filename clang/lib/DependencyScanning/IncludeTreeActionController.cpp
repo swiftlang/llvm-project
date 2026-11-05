@@ -110,7 +110,12 @@ private:
   Expected<cas::ObjectRef>
   getObjectForFileNonCached(FileManager &FM, const SrcMgr::FileInfo &FI);
   Expected<cas::ObjectRef> getObjectForBuffer(const SrcMgr::FileInfo &FI);
-  Expected<cas::ObjectRef> addToFileList(FileManager &FM, FileEntryRef FE);
+  Expected<cas::ObjectRef>
+  addToFileList(FileManager &FM, FileEntryRef FE,
+                std::optional<llvm::MemoryBufferRef> Contents = std::nullopt);
+  Expected<cas::ObjectRef>
+  getObjectRefForFileContents(FileManager &FM, FileEntryRef FE,
+                              std::optional<llvm::MemoryBufferRef> Contents);
   Expected<cas::IncludeTree> getCASTreeForFileIncludes(FilePPState &&PPState);
   Expected<cas::IncludeTree::File> createIncludeFile(StringRef Filename,
                                                      cas::ObjectRef Contents);
@@ -718,10 +723,14 @@ Expected<cas::IncludeTreeRoot> IncludeTreeBuilder::finishIncludeTree(
     if (PPOpts.ImplicitPCHInclude.empty())
       return Error::success(); // no need for additional work.
 
-    llvm::ErrorOr<cas::ObjectRef> CASContents =
-        FM.getObjectRefForFileContent(PPOpts.ImplicitPCHInclude);
+    llvm::Expected<FileEntryRef> PCHEntry =
+        FM.getFileRef(PPOpts.ImplicitPCHInclude);
+    if (!PCHEntry)
+      return PCHEntry.takeError();
+    Expected<cas::ObjectRef> CASContents =
+        getObjectRefForFileContents(FM, *PCHEntry, /*Contents=*/std::nullopt);
     if (!CASContents)
-      return llvm::createFileError(PPOpts.ImplicitPCHInclude, CASContents.getError());
+      return CASContents.takeError();
 
     // Use a unique 'filename' for the PCH to make sure there are no conflicts
     // during lookup if there is another chained parent PCH.
@@ -898,7 +907,10 @@ IncludeTreeBuilder::getObjectForFileNonCached(FileManager &FM,
                                               const SrcMgr::FileInfo &FI) {
   OptionalFileEntryRef FE = FI.getContentCache().OrigEntry;
   assert(FE);
-  return addToFileList(FM, *FE);
+  // Prefer the buffer the compilation is actually using: it reflects any
+  // content override (\c overrideFileContents, \c -remap-file) and any VFS
+  // remapping, which re-reading or re-resolving the path would not.
+  return addToFileList(FM, *FE, FI.getContentCache().getBufferIfLoaded());
 }
 
 Expected<cas::ObjectRef>
@@ -915,8 +927,39 @@ IncludeTreeBuilder::getObjectForBuffer(const SrcMgr::FileInfo &FI) {
   return FileNode->getRef();
 }
 
-Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
-                                                           FileEntryRef FE) {
+/// Get the CAS reference for the contents of \p FE.
+///
+/// The reference is derived from the *contents*, never from the path. A path is
+/// not a reliable key here: the name on a \p FileEntryRef is whatever the VFS
+/// stack reported, which for \c -ivfsoverlay depends on \c use-external-names
+/// and may be a virtual path that exists in no filesystem below the overlay --
+/// so handing it to a lower filesystem either fails or, worse, names different
+/// contents. In a content-addressed store the reference is a pure function of
+/// the bytes, so asking "what is the reference for these bytes" is unambiguous
+/// and immune to every path-remapping concern.
+Expected<cas::ObjectRef> IncludeTreeBuilder::getObjectRefForFileContents(
+    FileManager &FM, FileEntryRef FE,
+    std::optional<llvm::MemoryBufferRef> Contents) {
+  if (Contents)
+    return DB.storeFromString({}, Contents->getBuffer());
+
+  // The compilation never loaded this file's contents (e.g. a profile file
+  // that only the backend reads, or an implicit PCH). Read it through the
+  // FileManager so that every VFS layer -- overlays, in-memory inputs, content
+  // overrides -- is honoured exactly as the compilation would see it. Read as
+  // binary: these contents are hashed verbatim.
+  auto Buffer = FM.getBufferForFile(FE, /*isVolatile=*/false,
+                                    /*RequiresNullTerminator=*/true,
+                                    /*MaybeLimit=*/std::nullopt,
+                                    /*IsText=*/false);
+  if (!Buffer)
+    return llvm::createFileError(FE.getName(), Buffer.getError());
+  return DB.storeFromString({}, (*Buffer)->getBuffer());
+}
+
+Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(
+    FileManager &FM, FileEntryRef FE,
+    std::optional<llvm::MemoryBufferRef> Contents) {
   SmallString<128> PathStorage;
   StringRef Filename = FE.getName();
   // Apply -working-directory to relative paths. This option causes filesystem
@@ -929,10 +972,10 @@ Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
     Filename = PathStorage;
   }
 
-  llvm::ErrorOr<cas::ObjectRef> CASContents =
-      FM.getObjectRefForFileContent(Filename);
+  Expected<cas::ObjectRef> CASContents =
+      getObjectRefForFileContents(FM, FE, Contents);
   if (!CASContents)
-    return llvm::createFileError(Filename, CASContents.getError());
+    return CASContents.takeError();
 
   auto addFile = [&](StringRef Filename) -> Expected<cas::ObjectRef> {
     assert(!Filename.empty());

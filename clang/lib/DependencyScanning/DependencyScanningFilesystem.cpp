@@ -19,31 +19,53 @@ using namespace dependencies;
 llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
 DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
                                              llvm::vfs::FileSystem &FS) {
-  // Load the file and its content from the file system.
-  auto MaybeFile = FS.openFileForRead(Filename);
-  if (!MaybeFile)
-    return MaybeFile.getError();
-  auto File = std::move(*MaybeFile);
-
-  auto MaybeStat = File->status();
-  if (!MaybeStat)
-    return MaybeStat.getError();
-  auto Stat = std::move(*MaybeStat);
-
-  auto MaybeBuffer = File->getBuffer(Stat.getName());
-  if (!MaybeBuffer)
-    return MaybeBuffer.getError();
-  auto Buffer = std::move(*MaybeBuffer);
-
+  std::unique_ptr<llvm::MemoryBuffer> Buffer;
+  std::optional<llvm::vfs::Status> Stat;
   std::optional<cas::ObjectRef> CASContents;
-  if (auto *CASFile = dyn_cast<llvm::cas::CASBackedFile>(File.get()))
-    CASContents = CASFile->getObjectRefForContent();
+
+  // \p FS is the filesystem this cache sits directly on top of, so if it is
+  // CAS-backed we can ask it for the contents and the CAS reference for those
+  // contents together, with static types and a single read. Capturing the
+  // reference here -- at the one point where the bytes are produced and the
+  // CAS filesystem is statically known -- is what lets it be carried along
+  // with the contents in this cache. Nobody downstream then has to re-derive
+  // it, neither by casting an already-opened \p vfs::File (which any VFS
+  // decorator is free to wrap) nor by re-resolving a path (which any VFS layer
+  // above this one is free to remap).
+  if (auto *CASFS = dyn_cast<llvm::cas::CASBackedFileSystem>(&FS)) {
+    auto MaybeBufferAndRef = CASFS->getBufferAndObjectRefForFile(Filename);
+    if (!MaybeBufferAndRef)
+      return llvm::errorToErrorCode(MaybeBufferAndRef.takeError());
+    Buffer = std::move(MaybeBufferAndRef->first);
+    CASContents = MaybeBufferAndRef->second;
+
+    auto MaybeStat = FS.status(Filename);
+    if (!MaybeStat)
+      return MaybeStat.getError();
+    Stat = std::move(*MaybeStat);
+  } else {
+    // Load the file and its content from the file system.
+    auto MaybeFile = FS.openFileForRead(Filename);
+    if (!MaybeFile)
+      return MaybeFile.getError();
+    auto File = std::move(*MaybeFile);
+
+    auto MaybeStat = File->status();
+    if (!MaybeStat)
+      return MaybeStat.getError();
+    Stat = std::move(*MaybeStat);
+
+    auto MaybeBuffer = File->getBuffer(Stat->getName());
+    if (!MaybeBuffer)
+      return MaybeBuffer.getError();
+    Buffer = std::move(*MaybeBuffer);
+  }
 
   // If the file size changed between read and stat, pretend it didn't.
-  if (Stat.getSize() != Buffer->getBufferSize())
-    Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
+  if (Stat->getSize() != Buffer->getBufferSize())
+    Stat = llvm::vfs::Status::copyWithNewSize(*Stat, Buffer->getBufferSize());
 
-  return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
+  return TentativeEntry(*Stat, std::move(Buffer), std::move(CASContents));
 }
 
 bool DependencyScanningWorkerFilesystem::ensureDirectiveTokensArePopulated(
@@ -440,33 +462,6 @@ private:
   llvm::vfs::Status Stat;
 };
 
-class DepScanCASFile final : public llvm::cas::CASBackedFile {
-public:
-  DepScanCASFile(std::unique_ptr<llvm::MemoryBuffer> Buffer,
-                 cas::ObjectRef CASContents, llvm::vfs::Status Stat)
-      : Buffer(std::move(Buffer)), CASContents(CASContents),
-        Stat(std::move(Stat)) {}
-
-  static llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> create(EntryRef Entry);
-
-  llvm::ErrorOr<llvm::vfs::Status> status() override { return Stat; }
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
-  getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
-            bool IsVolatile) override {
-    return std::move(Buffer);
-  }
-
-  cas::ObjectRef getObjectRefForContent() override { return CASContents; }
-
-  std::error_code close() override { return {}; }
-
-private:
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
-  cas::ObjectRef CASContents;
-  llvm::vfs::Status Stat;
-};
-
 } // end anonymous namespace
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
@@ -476,21 +471,11 @@ DepScanFile::create(EntryRef Entry) {
   if (Entry.isDirectory())
     return std::make_error_code(std::errc::is_a_directory);
 
-  std::unique_ptr<llvm::vfs::File> Result;
-  if (Entry.getObjectRefForContent())
-    Result = std::make_unique<DepScanCASFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        *Entry.getObjectRefForContent(), Entry.getStatus());
-  else
-    Result = std::make_unique<DepScanFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        Entry.getStatus());
-
-  return Result;
+  return std::unique_ptr<llvm::vfs::File>(std::make_unique<DepScanFile>(
+      llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
+                                       Entry.getStatus().getName(),
+                                       /*RequiresNullTerminator=*/false),
+      Entry.getStatus()));
 }
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>

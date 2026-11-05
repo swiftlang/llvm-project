@@ -8,6 +8,7 @@
 
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/FileSystemOptions.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -529,6 +530,11 @@ TEST_F(FileManagerTest, TraceCount) {
   EXPECT_EQ(InstrumentingFS->NumOpenFileForReadCalls, 2u);
 }
 
+// The FileManager knows nothing about the CAS: a CAS reference is obtained
+// from the CAS-backed filesystem itself, which is where the contents are
+// produced. Check that a FileManager layered on such a filesystem still serves
+// contents normally, and that those contents agree with the reference the
+// filesystem reports for them.
 TEST_F(FileManagerTest, CASProvider) {
   std::shared_ptr<ObjectStore> DB = llvm::cas::createInMemoryCAS();
   auto FS = makeIntrusiveRefCnt<vfs::InMemoryFileSystem>();
@@ -542,18 +548,10 @@ TEST_F(FileManagerTest, CASProvider) {
   FileSystemOptions Opts;
   {
     FileManager Manager(Opts, CASFS);
-    std::optional<ObjectRef> CASContents;
     auto Buf = Manager.getBufferForFile(Path, /*IsVolatile*/ false,
-                                        /*RequiresNullTerminator*/ false,
-                                        std::nullopt, /*IsText*/ true,
-                                        &CASContents);
+                                        /*RequiresNullTerminator*/ false);
     ASSERT_TRUE(Buf);
     EXPECT_EQ(Contents, (*Buf)->getBuffer());
-    ASSERT_TRUE(CASContents);
-    std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(*CASContents).moveInto(BlobContents),
-                      llvm::Succeeded());
-    EXPECT_EQ(BlobContents->getData(), Contents);
   }
   {
     FileManager Manager(Opts, CASFS);
@@ -561,41 +559,19 @@ TEST_F(FileManagerTest, CASProvider) {
     ASSERT_THAT_ERROR(
         Manager.getFileRef(Path, /*OpenFile*/ true).moveInto(FERef),
         llvm::Succeeded());
-    std::optional<ObjectRef> CASContents;
     auto Buf = Manager.getBufferForFile(*FERef, /*IsVolatile*/ false,
-                                        /*RequiresNullTerminator*/ false,
-                                        std::nullopt, /*IsText*/ true,
-                                        &CASContents);
+                                        /*RequiresNullTerminator*/ false);
     ASSERT_TRUE(Buf);
     EXPECT_EQ(Contents, (*Buf)->getBuffer());
-    ASSERT_TRUE(CASContents);
-    std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(*CASContents).moveInto(BlobContents),
-                      llvm::Succeeded());
-    EXPECT_EQ(BlobContents->getData(), Contents);
   }
   {
-    FileSystemOptions Opts;
-    FileManager Manager(Opts, CASFS);
-    llvm::ErrorOr<std::optional<ObjectRef>> CASContents =
-        Manager.getObjectRefForFileContent(Path);
-    ASSERT_TRUE(CASContents);
-    ASSERT_TRUE(*CASContents);
-    std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(**CASContents).moveInto(BlobContents),
+    // The reference comes from the filesystem that produced the bytes.
+    auto &Backed = cast<llvm::cas::CASBackedFileSystem>(*CASFS);
+    std::optional<ObjectRef> Ref;
+    ASSERT_THAT_ERROR(Backed.getObjectRefForFileContent(Path).moveInto(Ref),
                       llvm::Succeeded());
-    EXPECT_EQ(BlobContents->getData(), Contents);
-  }
-  {
-    FileSystemOptions Opts;
-    Opts.WorkingDir = "/root";
-    FileManager Manager(Opts, CASFS);
-    llvm::ErrorOr<std::optional<ObjectRef>> CASContents =
-        Manager.getObjectRefForFileContent("a.txt");
-    ASSERT_TRUE(CASContents);
-    ASSERT_TRUE(*CASContents);
     std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(**CASContents).moveInto(BlobContents),
+    ASSERT_THAT_ERROR(DB->getProxy(*Ref).moveInto(BlobContents),
                       llvm::Succeeded());
     EXPECT_EQ(BlobContents->getData(), Contents);
   }
