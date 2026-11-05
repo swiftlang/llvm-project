@@ -27,6 +27,7 @@
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeLocVisitor.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -10060,6 +10061,15 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
                                     QualType &CurType,
                                     ParsedAttr &Attr) {
   if (State.getDeclarator().isDeclarationOfFunction()) {
+    // In interop-lifetime-inference-test-mode, keep the attribute as an oracle
+    // instead of attaching it to the AST.
+    Sema &S = State.getSema();
+    if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+      S.AnalysisWarnings.getLifetimeInference().PendingThisOracle.add(
+          &State.getDeclarator(),
+          createSimpleAttr<LifetimeBoundAttr>(S.Context, Attr));
+      return;
+    }
     CurType = State.getAttributedType(
         createSimpleAttr<LifetimeBoundAttr>(State.getSema().Context, Attr),
         CurType, CurType);
@@ -10073,9 +10083,18 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
 static void HandleLifetimeCaptureByAttr(TypeProcessingState &State,
                                         QualType &CurType, ParsedAttr &PA) {
   if (State.getDeclarator().isDeclarationOfFunction()) {
-    auto *Attr = State.getSema().ParseLifetimeCaptureByAttr(PA, "this");
-    if (Attr)
-      CurType = State.getAttributedType(Attr, CurType, CurType);
+    Sema &S = State.getSema();
+    auto *Attr = S.ParseLifetimeCaptureByAttr(PA, "this");
+    if (!Attr)
+      return;
+    // In interop-lifetime-inference-test-mode, keep the attribute as an oracle
+    // instead of attaching it to the AST.
+    if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+      S.AnalysisWarnings.getLifetimeInference().PendingThisOracle.add(
+          &State.getDeclarator(), Attr);
+      return;
+    }
+    CurType = State.getAttributedType(Attr, CurType, CurType);
   }
 }
 

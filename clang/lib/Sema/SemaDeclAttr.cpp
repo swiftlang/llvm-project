@@ -30,6 +30,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeVisitor.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
@@ -1444,6 +1445,15 @@ static void handleReturnsNonNullAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleNoEscapeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // In interop-lifetime-inference-test-mode, keep the attribute as an oracle
+  // instead of attaching it to the AST.
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(D))
+      S.AnalysisWarnings.getLifetimeInference().addParamOracle(
+          PVD, ::new (S.Context) NoEscapeAttr(S.Context, AL));
+    return;
+  }
+
   if (D->isInvalidDecl())
     return;
 
@@ -4650,6 +4660,18 @@ LifetimeCaptureByAttr *Sema::ParseLifetimeCaptureByAttr(const ParsedAttr &AL,
   return CapturedBy;
 }
 
+static void handleLifetimeBoundAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // In interop-lifetime-inference-test-mode, keep the attribute as an oracle
+  // instead of attaching it to the AST.
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+    if (auto *PVD = dyn_cast<ParmVarDecl>(D))
+      S.AnalysisWarnings.getLifetimeInference().addParamOracle(
+          PVD, ::new (S.Context) LifetimeBoundAttr(S.Context, AL));
+    return;
+  }
+  handleSimpleAttribute<LifetimeBoundAttr>(S, D, AL);
+}
+
 static void handleLifetimeCaptureByAttr(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
   auto *PVD = dyn_cast<ParmVarDecl>(D);
@@ -4657,6 +4679,14 @@ static void handleLifetimeCaptureByAttr(Sema &S, Decl *D,
   auto *CaptureByAttr = S.ParseLifetimeCaptureByAttr(AL, PVD->getName());
   if (!CaptureByAttr)
     return;
+
+  // In interop-lifetime-inference-test-mode, keep the attribute as an oracle
+  // instead of attaching it to the AST.
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+    S.AnalysisWarnings.getLifetimeInference().addParamOracle(PVD,
+                                                             CaptureByAttr);
+    return;
+  }
 
   enum class SpellingKind { ParameterList, This, Global, Unknown };
   auto GetSpellingKind = [](const LifetimeCaptureByAttr *A) {
@@ -9574,6 +9604,9 @@ ProcessDeclAttribute(Sema &S, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_LifetimeCaptureBy:
     handleLifetimeCaptureByAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_LifetimeBound:
+    handleLifetimeBoundAttr(S, D, AL);
     break;
   case ParsedAttr::AT_CalledOnce:
     handleCalledOnceAttr(S, D, AL);

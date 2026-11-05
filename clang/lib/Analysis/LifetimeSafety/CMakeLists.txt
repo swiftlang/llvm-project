@@ -3,6 +3,7 @@ add_clang_library(clangAnalysisLifetimeSafety
   Facts.cpp
   FactsGenerator.cpp
   LifetimeAnnotations.cpp
+  LifetimeInference.cpp
   LifetimeSafety.cpp
   LiveOrigins.cpp
   LifetimeStats.cpp

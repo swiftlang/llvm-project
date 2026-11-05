@@ -20,6 +20,10 @@
 
 namespace clang {
 
+namespace lifetimes {
+class LifetimeInference;
+} // namespace lifetimes
+
 class AnalysisDeclContext;
 class Decl;
 class FunctionDecl;
@@ -110,6 +114,8 @@ private:
   /// when -print-stats is enabled.
   clang::lifetimes::LifetimeSafetyStats LSStats;
 
+  std::unique_ptr<lifetimes::LifetimeInference> LifetimeInferenceInstance;
+
   /// @}
 
 public:
@@ -143,6 +149,9 @@ public:
   void clearPolicyCache();
 
   void PrintStats() const;
+
+  /// The LifetimeInference of the translation unit, created on first use.
+  lifetimes::LifetimeInference &getLifetimeInference();
 };
 
 } // namespace sema

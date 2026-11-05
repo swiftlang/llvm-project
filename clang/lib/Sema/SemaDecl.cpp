@@ -32,6 +32,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypedMemoryInference.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -7316,6 +7317,21 @@ bool Sema::diagnoseQualifiedDeclaration(CXXScopeSpec &SS, DeclContext *DC,
   return false;
 }
 
+/// Saves the oracle attributes recorded for the implicit object parameter of
+/// \p D as the oracles of the function that \p D declared, \p New.
+static void addToThisInferenceOracle(Sema &S, const Declarator &D,
+                                     NamedDecl *New) {
+  const FunctionDecl *FD = nullptr;
+  if (const auto *FTD = dyn_cast<FunctionTemplateDecl>(New))
+    FD = FTD->getTemplatedDecl();
+  else
+    FD = dyn_cast<FunctionDecl>(New);
+  auto &LI = S.AnalysisWarnings.getLifetimeInference();
+  if (FD && LI.PendingThisOracle.D == &D)
+    LI.addThisOracles(FD, std::move(LI.PendingThisOracle.Attrs));
+  LI.PendingThisOracle.reset();
+}
+
 NamedDecl *Sema::HandleDeclarator(Scope *S, Declarator &D,
                                   MultiTemplateParamsArg TemplateParamLists) {
   // TODO: consider using NameInfo for diagnostic.
@@ -7395,6 +7411,8 @@ NamedDecl *Sema::HandleDeclarator(Scope *S, Declarator &D,
     }
   }
 
+  if (getLangOpts().InteropLifetimeInferenceTestMode)
+    AnalysisWarnings.getLifetimeInference().PendingThisOracle.reset();
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D);
   QualType R = TInfo->getType();
 
@@ -7538,6 +7556,8 @@ NamedDecl *Sema::HandleDeclarator(Scope *S, Declarator &D,
   if (OpenMP().isInOpenMPDeclareTargetContext())
     OpenMP().checkDeclIsAllowedInOpenMPTarget(nullptr, New);
 
+  if (getLangOpts().InteropLifetimeInferenceTestMode)
+    addToThisInferenceOracle(*this, D, New);
   return New;
 }
 

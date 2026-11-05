@@ -34,6 +34,7 @@
 #include "clang/Analysis/Analyses/CFGReachabilityAnalysis.h"
 #include "clang/Analysis/Analyses/CalledOnceCheck.h"
 #include "clang/Analysis/Analyses/Consumed.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/ReachableCode.h"
 #include "clang/Analysis/Analyses/ThreadSafety.h"
@@ -3605,6 +3606,14 @@ sema::AnalysisBasedWarnings::AnalysisBasedWarnings(Sema &s)
 
 // We need this here for unique_ptr with forward declared class.
 sema::AnalysisBasedWarnings::~AnalysisBasedWarnings() = default;
+
+lifetimes::LifetimeInference &
+sema::AnalysisBasedWarnings::getLifetimeInference() {
+  if (!LifetimeInferenceInstance)
+    LifetimeInferenceInstance =
+        std::make_unique<lifetimes::LifetimeInference>();
+  return *LifetimeInferenceInstance;
+}
 
 sema::AnalysisBasedWarnings::Policy
 sema::AnalysisBasedWarnings::getPolicyInEffectAt(SourceLocation Loc) {
