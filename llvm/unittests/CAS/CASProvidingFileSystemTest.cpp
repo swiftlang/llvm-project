@@ -93,3 +93,16 @@ TEST(CASProvidingFileSystemTest, WithCASSupportingFS) {
   // The file also ingested into the underlying FS.
   ASSERT_THAT_ERROR(UnderlyingDB->getProxy(ID).moveInto(Proxy), Succeeded());
 }
+
+TEST(CASProvidingFileSystemTest, ForwardsDirectoryContentRealSources) {
+  // Consumers use these sources to decide when to invalidate results derived
+  // from a directory's contents, so they must not be swallowed by the
+  // CAS-providing layer.
+  std::shared_ptr<ObjectStore> DB = createInMemoryCAS();
+  std::unique_ptr<vfs::FileSystem> VFS =
+      createCASProvidingFileSystem(DB, vfs::createPhysicalFileSystem());
+  SmallVector<std::string> Sources;
+  VFS->getDirectoryContentRealSources("/some/dir", Sources);
+  ASSERT_EQ(Sources.size(), 1u);
+  EXPECT_EQ(Sources[0], "/some/dir");
+}
