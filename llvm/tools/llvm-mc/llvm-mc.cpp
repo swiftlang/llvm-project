@@ -35,7 +35,6 @@
 #include "llvm/MCCAS/MCCASObjectV1.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LibraryOptionsContext.h"
