@@ -29,10 +29,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DJB.h"
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#endif // LLDB_ENABLE_SWIFT
-
 using namespace lldb;
 using namespace lldb_private;
 
@@ -329,24 +325,6 @@ void Symtab::InitNameIndexes() {
           RegisterMangledNameEntry(value, *parts, class_contexts, backlog);
           continue;
         }
-#ifdef LLDB_ENABLE_SWIFT
-        else if (SwiftLanguageRuntime::IsSwiftMangledName(name.GetStringRef())) {
-          lldb_private::ConstString basename;
-          bool is_method = false;
-          ConstString mangled_name = mangled.GetMangledName();
-          if (SwiftLanguageRuntime::MethodName::
-                  ExtractFunctionBasenameFromMangled(mangled_name, basename,
-                                                     is_method)) {
-            if (basename && basename != mangled_name) {
-              if (is_method)
-                method_to_index.Append(basename, value);
-              else
-                basename_to_index.Append(basename, value);
-            }
-            continue;
-          }
-        }
-#endif // LLDB_ENABLE_SWIFT
       }
     }
 
