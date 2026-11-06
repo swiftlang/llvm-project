@@ -1,0 +1,28 @@
+#pragma once
+
+namespace std {
+
+template<typename T> struct remove_reference { using type = T; };
+
+// doc-warning@+6         {{type 'std::remove_reference<WebCore::Document *&>' was trivially inferred as 'self-contained'}}
+// refptr-warning@+5      {{type 'std::remove_reference<WebCore::Document *&>' was trivially inferred as 'self-contained'}}
+// domparser-warning@+4   {{type 'std::remove_reference<WebCore::DOMParser *&>' was trivially inferred as 'self-contained'}}
+// eventsource-warning@+3 {{type 'std::remove_reference<WebCore::EventSource *&>' was trivially inferred as 'self-contained'}}
+// htmlspan-warning@+2    {{type 'std::remove_reference<WebCore::HTMLSpanElement *&>' was trivially inferred as 'self-contained'}}
+// rsrc-warning@+1        {{type 'std::remove_reference<WebKit::RemoteSharedResourceCache *&>' was trivially inferred as 'self-contained'}}
+template<typename T> struct remove_reference<T&> { using type = T; };
+template<typename T> struct remove_reference<T&&> { using type = T; };
+
+template<typename T>
+constexpr typename remove_reference<T>::type&& move(T&& t) noexcept {
+    return static_cast<typename remove_reference<T>::type&&>(t);
+}
+
+template<typename T, typename U = T>
+constexpr T exchange(T& obj, U&& newValue) {
+    T old = std::move(obj);
+    obj = static_cast<U&&>(newValue);
+    return old;
+}
+
+} // namespace std

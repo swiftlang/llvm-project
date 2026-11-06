@@ -1,0 +1,46 @@
+#pragma once
+namespace std {
+
+// Models libc++'s std::unique_ptr call chain exactly: ~unique_ptr() delegates to
+// reset(), which loads the owned pointer into a local and invokes the deleter on
+// it. (The __compressed_pair storage is simplified to two members; it does not
+// affect the dataflow.)
+template <class _Tp, class _Dp> class unique_ptr {
+// renderptr-warning@-1 {{type 'std::unique_ptr<WebCore::RenderEmbeddedObject, WebCore::RenderObjectDeleter>' was inferred as 'view'}}
+public:
+    typedef _Tp element_type;
+    typedef _Dp deleter_type;
+    typedef _Tp* pointer;
+
+private:
+    pointer __ptr_;
+    // renderptr-note@-1 {{holds unmanaged raw-pointer field '__ptr_'}}
+    deleter_type __deleter_;
+
+public:
+    constexpr unique_ptr() noexcept : __ptr_(), __deleter_() { }
+    explicit unique_ptr(pointer __p) noexcept : __ptr_(__p), __deleter_() { }
+
+    ~unique_ptr() { reset(); }
+
+    pointer operator->() const noexcept { return __ptr_; }
+    pointer get() const noexcept { return __ptr_; }
+    deleter_type& get_deleter() noexcept { return __deleter_; }
+
+    pointer release() noexcept
+    {
+        pointer __t = __ptr_;
+        __ptr_ = pointer();
+        return __t;
+    }
+
+    void reset(pointer __p = pointer()) noexcept
+    {
+        pointer __tmp = __ptr_;
+        __ptr_ = __p;
+        if (__tmp)
+            __deleter_(__tmp);
+    }
+};
+
+} // namespace std
