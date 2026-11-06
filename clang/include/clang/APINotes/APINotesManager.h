@@ -46,8 +46,7 @@ class APINotesReader;
 /// operation is \c findAPINotes(), which finds the API notes reader that
 /// provides information about the declarations at that location.
 class APINotesManager {
-  using ReaderEntry = llvm::PointerUnion<DirectoryEntryRef, APINotesReader *>;
-
+public:
   /// Callback that provides API notes of an imported top-level module.
   ///
   /// \returns the API notes buffers, possibly none, or \c std::nullopt if it
@@ -55,6 +54,9 @@ class APINotesManager {
   using ImportedModuleAPINotesLoader =
       llvm::unique_function<std::optional<llvm::SmallVector<StringRef, 2>>(
           const Module &TopLevelModule)>;
+
+private:
+  using ReaderEntry = llvm::PointerUnion<DirectoryEntryRef, APINotesReader *>;
 
   SourceManager &SM;
 
@@ -147,15 +149,16 @@ class APINotesManager {
   ImportedModuleAPINotesLoader GetImportedModuleAPINotes;
 
   /// A mapping from imported top-level modules to their API notes readers.
-  llvm::DenseMap<const Module *,
-                 std::optional<llvm::SmallVector<APINotesReader *, 2>>>
+  llvm::DenseMap<
+      const Module *,
+      std::optional<llvm::SmallVector<std::unique_ptr<APINotesReader>, 2>>>
       ImportedModuleReaders;
 
   /// Attempt to find API notes for the given imported top-level module.
   ///
   /// \returns the API notes readers, or \c std::nullopt if the loader has no
   /// answer.
-  std::optional<ArrayRef<APINotesReader *>>
+  std::optional<ArrayRef<std::unique_ptr<APINotesReader>>>
   findImportedModuleAPINotes(const Module &TopLevelModule);
 
 public:

@@ -881,11 +881,11 @@ static void loadAPINotesFromIncludeTree(cas::ObjectStore &DB,
 
 static std::optional<SmallVector<StringRef, 2>>
 getModuleAPINotesFromPCM(CompilerInstance &CI, const Module &TopLevelModule) {
-  const ModuleFileName *FileName = TopLevelModule.getASTFileName();
+  const ModuleFileKey *Key = TopLevelModule.getASTFileKey();
   auto Reader = CI.getASTReader();
-  if (!FileName || !Reader)
+  if (!Key || !Reader)
     return std::nullopt;
-  auto *MF = Reader->getModuleManager().lookupByFileName(*FileName);
+  auto *MF = Reader->getModuleManager().lookup(*Key);
   if (!MF || MF->IncludeTreeID.empty())
     return std::nullopt;
   return getAPINotesFromIncludeTree(CI.getOrCreateObjectStore(),

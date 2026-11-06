@@ -63,11 +63,6 @@ APINotesManager::~APINotesManager() {
   for (const auto &Entry : FileReaders)
     delete Entry.second;
 
-  for (const auto &Entry : ImportedModuleReaders)
-    if (Entry.second)
-      for (APINotesReader *Reader : *Entry.second)
-        delete Reader;
-
   delete CurrentModuleReaders[ReaderKind::Public];
   delete CurrentModuleReaders[ReaderKind::Private];
 }
@@ -493,24 +488,23 @@ APINotesManager::findAPINotes(SourceLocation Loc) {
   return Results;
 }
 
-std::optional<ArrayRef<APINotesReader *>>
+std::optional<ArrayRef<std::unique_ptr<APINotesReader>>>
 APINotesManager::findImportedModuleAPINotes(const Module &TopLevelModule) {
   if (!GetImportedModuleAPINotes)
     return std::nullopt;
 
   auto [Entry, Inserted] = ImportedModuleReaders.try_emplace(&TopLevelModule);
-  std::optional<llvm::SmallVector<APINotesReader *, 2>> &Readers =
-      Entry->second;
+  auto &Readers = Entry->second;
   if (Inserted)
     if (auto Buffers = GetImportedModuleAPINotes(TopLevelModule)) {
       Readers.emplace();
       for (StringRef Buffer : *Buffers)
         if (auto Reader = loadAPINotes(Buffer))
-          Readers->push_back(Reader.release());
+          Readers->push_back(std::move(Reader));
     }
   if (!Readers)
     return std::nullopt;
-  return ArrayRef<APINotesReader *>(*Readers);
+  return ArrayRef<std::unique_ptr<APINotesReader>>(*Readers);
 }
 
 std::optional<GlobalVariableInfo>
@@ -530,9 +524,9 @@ APINotesManager::lookupGlobalVariable(const Module *M, StringRef Name,
     bool FoundModuleAPINotes = false;
     if (auto ImportedReaders =
             findImportedModuleAPINotes(*M->getTopLevelModule())) {
-      for (auto *Reader : *ImportedReaders) {
+      for (const auto &Reader : *ImportedReaders) {
         FoundModuleAPINotes = true;
-        if (auto Info = Lookup(Reader))
+        if (auto Info = Lookup(Reader.get()))
           return Info;
       }
     } else {
