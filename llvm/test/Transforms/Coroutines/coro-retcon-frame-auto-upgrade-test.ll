@@ -17,7 +17,7 @@
 ; CHECK: declare void @use_addr_val(i64, ptr)
 
 ; Function Attrs: presplitcoroutine
-; CHECK: define { ptr, ptr } @f(ptr %buffer) #0 {
+; CHECK: define { ptr, ptr } @f(ptr %buffer) #0 !guid !{{[0-9]+}} {
 ; CHECK: entry:
 ; CHECK:   %tmp = alloca { i64, i64 }, align 8
 ; CHECK:   %proj.1 = getelementptr inbounds { i64, i64 }, ptr %tmp, i64 0, i32 0
