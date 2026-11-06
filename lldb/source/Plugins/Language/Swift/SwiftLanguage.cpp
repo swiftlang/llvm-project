@@ -1141,8 +1141,8 @@ class ValueObjectWrapperSyntheticChildren : public SyntheticChildren {
 
     bool MightHaveChildren() override { return true; }
 
-    ConstString GetSyntheticTypeName() override {
-      return m_backend.GetCompilerType().GetTypeName();
+    std::string GetSyntheticTypeName() override {
+      return m_backend.GetCompilerType().GetTypeName().GetStringRef().str();
     }
   };
 
