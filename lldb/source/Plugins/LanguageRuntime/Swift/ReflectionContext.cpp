@@ -41,18 +41,20 @@ struct DescriptorFinderForwarder : public swift::reflection::DescriptorFinder {
   ~DescriptorFinderForwarder() override = default;
 
   std::unique_ptr<swift::reflection::BuiltinTypeDescriptorBase>
-  getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR) override {
+  getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR,
+                           swift::Mangle::ManglingFlavor flavor) override {
     if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
         shouldConsultDescriptorFinder())
-      return m_descriptor_finders.back()->getBuiltinTypeDescriptor(TR);
+      return m_descriptor_finders.back()->getBuiltinTypeDescriptor(TR, flavor);
     return nullptr;
   }
 
   std::unique_ptr<swift::reflection::FieldDescriptorBase>
-  getFieldDescriptor(const swift::reflection::TypeRef *TR) override {
+  getFieldDescriptor(const swift::reflection::TypeRef *TR,
+                     swift::Mangle::ManglingFlavor flavor) override {
     if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
         shouldConsultDescriptorFinder())
-      return m_descriptor_finders.back()->getFieldDescriptor(TR);
+      return m_descriptor_finders.back()->getFieldDescriptor(TR, flavor);
     return nullptr;
   }
 

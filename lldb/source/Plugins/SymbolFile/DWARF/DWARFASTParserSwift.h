@@ -91,11 +91,13 @@ public:
 
   /// Returns a field descriptor constructed from DWARF info.
   std::unique_ptr<swift::reflection::FieldDescriptorBase>
-  getFieldDescriptor(const swift::reflection::TypeRef *TR) override;
+  getFieldDescriptor(const swift::reflection::TypeRef *TR,
+                     swift::Mangle::ManglingFlavor flavor) override;
 
   /// Returns a builtin descriptor constructed from DWARF info.
   std::unique_ptr<swift::reflection::BuiltinTypeDescriptorBase>
-  getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR) override;
+  getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR,
+                           swift::Mangle::ManglingFlavor flavor) override;
 
 private:
   /// Returns the canonical demangle tree of a die's type.
