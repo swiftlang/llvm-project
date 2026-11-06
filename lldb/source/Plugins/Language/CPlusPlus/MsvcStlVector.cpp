@@ -8,6 +8,8 @@
 
 #include "MsvcStl.h"
 
+#include "Plugins/Language/CPlusPlus/VectorIterator.h"
+
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/TypeSynthetic.h"
 #include "llvm/Support/ErrorExtras.h"
