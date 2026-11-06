@@ -26,6 +26,7 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/LiveOrigins.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LoanPropagation.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/MovedLoans.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/Observer.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/Origins.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "llvm/ADT/PointerUnion.h"
@@ -54,6 +55,9 @@ struct LifetimeSafetyOpts {
   bool IssueFieldPlaceholderLoans = false;
   /// Whether to model non-trivial destructors at scope exit as uses.
   bool CheckDestructorUses = false;
+  /// Optional client notified of facts the checker derives. Not owned; must
+  /// outlive the analysis.
+  LifetimeSafetyObserver *Observer = nullptr;
 };
 
 /// Enum to track functions visible across or within TU.

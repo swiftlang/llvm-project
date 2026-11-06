@@ -14,6 +14,7 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/Checker.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/Facts.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
@@ -294,6 +295,43 @@ public:
     // deletes/consumes that object. Recorded here, emitted in inferAnnotations().
     if (AST.getLangOpts().EnableLifetimeSafetyInference)
       inferOwnershipTakes(IOF);
+
+    if (LSOpts.Observer)
+      notifyDestroyedThisFields(IOF);
+  }
+
+  /// If this is a destructor and the invalidated origin holds a loan to one of
+  /// `*this`'s own pointer fields (`$this.field`), tells the observer that the
+  /// destructor destroys that field. The link travels through the loan, not the
+  /// syntax, so it works even when the field flows through a local alias
+  /// (`int *z = m_ptr; consume(z);`).
+  void notifyDestroyedThisFields(const InvalidateOriginFact *IOF) {
+    if (!IOF->destroysObject())
+      return;
+    const auto *DD = dyn_cast_if_present<CXXDestructorDecl>(FD);
+    if (!DD)
+      return;
+    const CXXRecordDecl *Class = DD->getParent();
+    for (LoanID LID :
+         LoanPropagation.getLoans(IOF->getInvalidatedOrigin(), IOF)) {
+      const AccessPath &AP = FactMgr.getLoanMgr().getLoan(LID)->getAccessPath();
+      const PlaceholderBase *PB = AP.getAsPlaceholderBase();
+      if (!PB)
+        continue;
+      // `$this.field` as a placeholder base (no trailing path elements).
+      if (const FieldDecl *F = PB->getFieldDecl()) {
+        if (AP.getElements().empty())
+          LSOpts.Observer->onDestructorDestroysField(Class, F);
+        continue;
+      }
+      // `$this` followed by exactly one field element.
+      if (PB->getImplicitThisParent()) {
+        llvm::ArrayRef<PathElement> Els = AP.getElements();
+        if (Els.size() == 1 && Els[0].isField())
+          LSOpts.Observer->onDestructorDestroysField(Class,
+                                                     Els[0].getFieldDecl());
+      }
+    }
   }
 
   /// Detects whether an InvalidateOrigin fact invalidates one of the current
