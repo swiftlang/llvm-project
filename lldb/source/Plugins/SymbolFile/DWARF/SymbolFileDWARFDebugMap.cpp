@@ -35,7 +35,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 #include "lldb/Target/StackFrame.h"
 
@@ -1635,7 +1637,8 @@ SymbolFileDWARFDebugMap::AddOSOARanges(SymbolFileDWARF *dwarf2Data,
 }
 
 std::vector<DataBufferSP>
-SymbolFileDWARFDebugMap::GetASTData(lldb::LanguageType language) {
+SymbolFileDWARFDebugMap::GetASTData(lldb::LanguageType language,
+                                    llvm::StringSet<> *loaded_ast_files) {
   Log *log = GetLog(DWARFLog::DebugMap);
 
   std::vector<DataBufferSP> ast_datas;
@@ -1655,55 +1658,111 @@ SymbolFileDWARFDebugMap::GetASTData(lldb::LanguageType language) {
     return ast_datas;
   }
 
-  uint32_t next_idx = 0;
-  bool done = false;
-  do {
-    Symbol *symbol =
-        symtab->FindSymbolWithType(eSymbolTypeASTFile, Symtab::eDebugAny,
-                                   Symtab::eVisibilityAny, next_idx);
-    if (symbol == nullptr) {
-      // We didn't find any more symbols of type eSymbolTypeASTFile.  We are
-      // done looping for them.
-      done = true;
-    } else {
-      // Try to load the specified file.
-      FileSpec file_spec(symbol->GetName().GetCString());
-      bool exists = FileSystem::Instance().Exists(file_spec);
-      if (!exists)
-        if (file_spec.GetDirectory().empty() && m_objfile_sp) {
-          // For relative paths, search next to the binary.
-          file_spec.SetDirectory(m_objfile_sp->GetFileSpec().GetDirectory());
-          exists = FileSystem::Instance().Exists(file_spec);
-        }
-      if (exists) {
-        // We found the source data for the AST data blob.
-        // Read it in and add it to our return vector.
-        DataBufferSP data_buf_sp =
-            FileSystem::Instance().CreateDataBuffer(file_spec.GetPath());
-        if (data_buf_sp) {
-          ast_datas.push_back(data_buf_sp);
-          if (log)
-            log->Printf("SymbolFileDWARFDebugMap::%s() - found and loaded AST "
-                        "data from file %s",
-                        __FUNCTION__, file_spec.GetPath().c_str());
-        } else if (log) {
-          if (log)
-            log->Printf("SymbolFileDWARFDebugMap::%s() - got empty data buffer "
-                        "SP from extant file %s",
-                        __FUNCTION__, file_spec.GetPath().c_str());
-        }
-      } else {
+  auto &file_system = FileSystem::Instance();
+  auto vfs = file_system.GetVirtualFileSystem();
+  // The default real filesystem implements makeAbsolute by querying the
+  // process cwd. Capture it lazily once for this batch, not for every N_AST.
+  // Other VFS implementations may override path handling, so keep dispatching
+  // through their existing makeAbsolute implementation.
+  const bool use_cwd_snapshot = vfs == llvm::vfs::getRealFileSystem();
+  std::optional<llvm::ErrorOr<std::string>> working_directory;
+  auto anchor_path = [&](llvm::SmallVectorImpl<char> &path) {
+    if (llvm::sys::path::is_absolute(path))
+      return true;
+    if (!working_directory)
+      working_directory = vfs->getCurrentWorkingDirectory();
+    if (!*working_directory)
+      return false;
+    llvm::sys::path::make_absolute(working_directory->get(), path);
+    return true;
+  };
+  auto make_absolute = [&](FileSpec &file_spec) {
+    if (!use_cwd_snapshot)
+      return !file_system.MakeAbsolute(file_spec);
+    llvm::SmallString<128> path;
+    file_spec.GetPath(path, false);
+    if (llvm::sys::path::is_absolute(path))
+      return true;
+    if (!anchor_path(path))
+      return false;
+    file_spec.SetFile(path, file_spec.GetPathStyle());
+    return true;
+  };
+  auto load_ast = [&](llvm::StringRef path) {
+    if (loaded_ast_files && use_cwd_snapshot) {
+      llvm::SmallString<128> absolute_path(path);
+      // Successful keys have already passed through FileSpec normalization.
+      // An exact anchored spelling can skip that work; aliases still take the
+      // existing normalized lookup below. Custom VFSes may rewrite paths.
+      if (anchor_path(absolute_path) &&
+          loaded_ast_files->contains(absolute_path)) {
+        LLDB_LOG(log, "AST file already loaded by this consumer: {0}",
+                 absolute_path.str());
+        return;
+      }
+    }
+    // Try to load the specified file.
+    FileSpec file_spec(path);
+    const bool search_adjacent = file_spec.GetDirectory().empty();
+    std::string loaded_path;
+    auto already_loaded = [&]() {
+      loaded_path.clear();
+      if (!loaded_ast_files)
+        return false;
+      FileSpec absolute_file(file_spec);
+      if (!make_absolute(absolute_file))
+        return false;
+      loaded_path = absolute_file.GetPath();
+      // Use the same anchored path for the key and the actual file access,
+      // even if the process cwd changes while this batch is being read.
+      file_spec = std::move(absolute_file);
+      return loaded_ast_files->contains(loaded_path);
+    };
+    bool duplicate = already_loaded();
+    bool exists = !duplicate && file_system.Exists(file_spec);
+    if (!exists && !duplicate)
+      if (search_adjacent && m_objfile_sp) {
+        // For relative paths, search next to the binary.
+        file_spec.SetDirectory(m_objfile_sp->GetFileSpec().GetDirectory());
+        duplicate = already_loaded();
+        exists = !duplicate && file_system.Exists(file_spec);
+      }
+    if (duplicate) {
+      LLDB_LOG(log, "AST file already loaded by this consumer: {0}",
+               loaded_path);
+    } else if (exists) {
+      // We found the source data for the AST data blob.
+      // Read it in and add it to our return vector.
+      DataBufferSP data_buf_sp =
+          file_system.CreateDataBuffer(file_spec.GetPath());
+      if (data_buf_sp) {
+        if (loaded_ast_files && !loaded_path.empty())
+          loaded_ast_files->insert(loaded_path);
+        ast_datas.push_back(data_buf_sp);
         if (log)
-          log->Printf("SymbolFileDWARFDebugMap::%s() - found reference to AST "
-                      "file %s, but could not find the file, ignoring",
+          log->Printf("SymbolFileDWARFDebugMap::%s() - found and loaded AST "
+                      "data from file %s",
+                      __FUNCTION__, file_spec.GetPath().c_str());
+      } else if (log) {
+        if (log)
+          log->Printf("SymbolFileDWARFDebugMap::%s() - got empty data buffer "
+                      "SP from extant file %s",
                       __FUNCTION__, file_spec.GetPath().c_str());
       }
-
-      // Regardless of whether we could find the specified file, start the next
-      // symbol search at the index past the one we just found.
-      ++next_idx;
+    } else {
+      if (log)
+        log->Printf("SymbolFileDWARFDebugMap::%s() - found reference to AST "
+                    "file %s, but could not find the file, ignoring",
+                    __FUNCTION__, file_spec.GetPath().c_str());
     }
-  } while (!done);
+  };
+  uint32_t next_idx = 0;
+  while (Symbol *symbol =
+             symtab->FindSymbolWithType(eSymbolTypeASTFile, Symtab::eDebugAny,
+                                        Symtab::eVisibilityAny, next_idx)) {
+    load_ast(symbol->GetName().GetStringRef());
+    ++next_idx;
+  }
 
   // Return the vector of AST data blobs
   if (log)

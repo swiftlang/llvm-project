@@ -35,6 +35,7 @@
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Target/TargetOptions.h"
 
 #include <memory>
@@ -1059,6 +1060,8 @@ protected:
 
   typedef std::map<Module *, std::vector<lldb::DataBufferSP>> ASTFileDataMap;
   ASTFileDataMap m_ast_file_data_map;
+  /// External ASTs retained in m_ast_file_data_map, keyed by absolute path.
+  llvm::StringSet<> m_loaded_ast_files;
   // FIXME: this vector is needed because the LLDBNameLookup debugger clients
   // are being put into the Module for the SourceFile that we compile the
   // expression into, and so have to live as long as the Module. But it's too
