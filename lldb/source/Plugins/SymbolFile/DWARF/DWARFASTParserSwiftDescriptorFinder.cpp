@@ -149,8 +149,8 @@ DWARFASTParserSwift::ResolveTypeAlias(lldb_private::CompilerType alias) {
 /// type that matches that mangled name, looking up the in the type system's
 /// module's debug information.
 static std::optional<std::pair<CompilerType, DWARFDIE>>
-getTypeAndDie(TypeSystemSwiftTypeRef &ts,
-              const swift::reflection::TypeRef *TR) {
+getTypeAndDie(TypeSystemSwiftTypeRef &ts, const swift::reflection::TypeRef *TR,
+              swift::Mangle::ManglingFlavor flavor) {
   swift::Demangle::Demangler dem;
   swift::Demangle::NodePointer node = TR->getDemangling(dem);
   // FIXME: Use Transform instead.  TypeRefs use a normalized
@@ -165,9 +165,7 @@ getTypeAndDie(TypeSystemSwiftTypeRef &ts,
     proto_list->addChild(type_list, dem);
     node = proto_list;
   }
-  // TODO: mangling flavor should come from the TypeRef.
-  auto type =
-      ts.RemangleAsType(dem, node, swift::Mangle::ManglingFlavor::Embedded);
+  auto type = ts.RemangleAsType(dem, node, flavor);
   if (!type) {
     if (auto log = GetLog(LLDBLog::Types)) {
       std::stringstream ss;
@@ -498,13 +496,14 @@ public:
 /// Constructs a builtin type descriptor from DWARF information.
 std::unique_ptr<swift::reflection::BuiltinTypeDescriptorBase>
 DWARFASTParserSwift::getBuiltinTypeDescriptor(
-    const swift::reflection::TypeRef *TR) {
+    const swift::reflection::TypeRef *TR,
+    swift::Mangle::ManglingFlavor flavor) {
   assert(ModuleList::GetGlobalModuleListProperties()
                  .GetSwiftEnableFullDwarfDebugging() !=
              lldb_private::AutoBool::False &&
          "Full DWARF debugging for Swift is disabled!");
 
-  auto pair = getTypeAndDie(m_swift_typesystem, TR);
+  auto pair = getTypeAndDie(m_swift_typesystem, TR, flavor);
   if (!pair)
     return nullptr;
   auto &[type, die] = *pair;
@@ -602,13 +601,14 @@ NodePointer DWARFASTParserSwift::GetCanonicalDemangleTree(DWARFDIE &die) {
 }
 
 std::unique_ptr<swift::reflection::FieldDescriptorBase>
-DWARFASTParserSwift::getFieldDescriptor(const swift::reflection::TypeRef *TR) {
+DWARFASTParserSwift::getFieldDescriptor(const swift::reflection::TypeRef *TR,
+                                        swift::Mangle::ManglingFlavor flavor) {
   assert(ModuleList::GetGlobalModuleListProperties()
                  .GetSwiftEnableFullDwarfDebugging() !=
              lldb_private::AutoBool::False &&
          "Full DWARF debugging for Swift is disabled!");
 
-  auto pair = getTypeAndDie(m_swift_typesystem, TR);
+  auto pair = getTypeAndDie(m_swift_typesystem, TR, flavor);
   if (!pair)
     return nullptr;
   auto [type, die] = *pair;
