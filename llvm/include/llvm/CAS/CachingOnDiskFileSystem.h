@@ -130,14 +130,6 @@ public:
     return createProxyFS();
   }
 
-  virtual llvm::Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForReadImpl(const Twine &Path) = 0;
-
-  llvm::Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForRead(const Twine &Path) final {
-    return openCASBackedFileForReadImpl(Path);
-  }
-
 protected:
   CachingOnDiskFileSystem(std::shared_ptr<ObjectStore> DB);
   CachingOnDiskFileSystem(ObjectStore &DB);

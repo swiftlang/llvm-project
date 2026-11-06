@@ -22,7 +22,6 @@
 #include "clang/Serialization/ObjectFilePCHContainerReader.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/AdvisoryLock.h"
 #include "llvm/Support/CrashRecoveryContext.h"
@@ -56,13 +55,14 @@ private:
 class WrapScanModuleBuildAction : public WrapperFrontendAction {
 public:
   WrapScanModuleBuildAction(std::unique_ptr<FrontendAction> WrappedAction,
-                            DependencyActionController &Controller)
-      : WrapperFrontendAction(std::move(WrappedAction)),
-        Controller(Controller) {}
+                            DependencyActionController &Controller,
+                            DependencyScanningWorkerFilesystem *DepFS)
+      : WrapperFrontendAction(std::move(WrappedAction)), Controller(Controller),
+        DepFS(DepFS) {}
 
 private:
   bool BeginInvocation(CompilerInstance &CI) override {
-    if (!Controller.initializeModuleBuild(CI))
+    if (!Controller.initializeModuleBuild(CI, DepFS))
       return false;
     return WrapperFrontendAction::BeginInvocation(CI);
   }
@@ -86,6 +86,7 @@ private:
 
 private:
   DependencyActionController &Controller;
+  DependencyScanningWorkerFilesystem *DepFS;
 };
 
 /// Builds a dependency file after reversing prefix mappings. This allows
@@ -138,6 +139,7 @@ initializeScanInstanceDependencyCollector(
     std::unique_ptr<DependencyOutputOptions> DepOutputOpts,
     DependencyScanningService &Service, CompilerInvocation &Inv,
     DependencyActionController &Controller,
+    DependencyScanningWorkerFilesystem *DepFS,
     PrebuiltModulesAttrsMap PrebuiltModulesASTMap,
     SmallVector<StringRef> &StableDirs) {
   // FIXME: Find a way to implement this via a DependencyConsumer.
@@ -153,10 +155,11 @@ initializeScanInstanceDependencyCollector(
       std::move(PrebuiltModulesASTMap), StableDirs);
   ScanInstance.addDependencyCollector(MDC);
   ScanInstance.setGenModuleActionWrapper(
-      [&Controller = Controller](const FrontendOptions &Opts,
-                                 std::unique_ptr<FrontendAction> Wrapped) {
+      [&Controller = Controller,
+       DepFS](const FrontendOptions &Opts,
+              std::unique_ptr<FrontendAction> Wrapped) {
         return std::make_unique<WrapScanModuleBuildAction>(std::move(Wrapped),
-                                                           Controller);
+                                                           Controller, DepFS);
       });
   return MDC;
 }
@@ -767,12 +770,11 @@ struct AsyncModuleCompile : PPCallbacks {
     if (!LockErr && !Owned)
       return;
     // We should build the PCM.
+    auto DepFS = llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
+        Service, Service.getOpts().MakeVFS());
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
-        llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
-            Service, Service.getOpts().MakeVFS());
-    VFS =
         createVFSFromCompilerInvocation(CI.getInvocation(), CI.getDiagnostics(),
-                                        std::move(VFS), Service.getCAS());
+                                        DepFS, Service.getCAS());
     auto DC = std::make_unique<DiagnosticConsumer>();
     auto MC = makeInProcessModuleCache(Service.getModuleCacheEntries(),
                                        Service.getLogger());
@@ -791,7 +793,7 @@ struct AsyncModuleCompile : PPCallbacks {
     Compiles.add([Lock = std::move(Lock), ModCI1 = std::move(ModCI1),
                   ModCI2 = std::move(ModCI2), DC = std::move(DC),
                   ModController = std::move(ModController), Service = &Service,
-                  Compiles = &Compiles] {
+                  Compiles = &Compiles, DepFS = std::move(DepFS)] {
       llvm::CrashRecoveryContext CRC;
       (void)CRC.RunSafely([&] {
         // Quickly discovers and compiles modules for the real scan below.
@@ -804,11 +806,11 @@ struct AsyncModuleCompile : PPCallbacks {
             [&](const FrontendOptions &,
                 std::unique_ptr<FrontendAction> Wrapped) {
               return std::make_unique<WrapScanModuleBuildAction>(
-                  std::move(Wrapped), *ModController);
+                  std::move(Wrapped), *ModController, DepFS.get());
             });
         WrapScanModuleBuildAction Action2(
             std::make_unique<GenerateModuleFromModuleMapAction>(),
-            *ModController);
+            *ModController, DepFS.get());
         (void)ModCI2->ExecuteAction(Action2);
       });
     });
@@ -1119,10 +1121,11 @@ public:
         /* The MDC's constructor makes a copy of the OriginalInvocation, so
         we can pass it in without worrying that it might be changed across
         invocations of computeDependencies. */
-        *OriginalInvocation, Controller, PrebuiltModuleASTMap, StableDirs);
+        *OriginalInvocation, Controller, Worker.DepFS.get(),
+        PrebuiltModuleASTMap, StableDirs);
 
     CompilerInvocation ModuleInvocation(*OriginalInvocation);
-    if (!Controller.initialize(CI, ModuleInvocation))
+    if (!Controller.initialize(CI, ModuleInvocation, Worker.DepFS.get()))
       return false;
 
     if (!SrcLocOffset) {
@@ -1228,8 +1231,8 @@ public:
 
     auto MDC = initializeScanInstanceDependencyCollector(
         CI, std::make_unique<DependencyOutputOptions>(*OutputOpts),
-        Worker.Service, *OriginalInvocation, Controller, PrebuiltModuleASTMap,
-        StableDirs);
+        Worker.Service, *OriginalInvocation, Controller, Worker.DepFS.get(),
+        PrebuiltModuleASTMap, StableDirs);
 
     if (CI.getDiagnostics().hasErrorOccurred())
       return nullptr;
@@ -1240,7 +1243,7 @@ public:
     if (CI.getFrontendOpts().ProgramAction == frontend::GeneratePCH)
       CI.getLangOpts().CompilingPCH = true;
 
-    if (!Controller.initialize(CI, *OriginalInvocation))
+    if (!Controller.initialize(CI, *OriginalInvocation, Worker.DepFS.get()))
       return nullptr;
 
     ReadPCHAndPreprocessAction Action;
@@ -1312,12 +1315,6 @@ DependencyScanningWorker::makeEffectiveVFS(
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS) const {
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS = DepFS;
   if (OverlayFS) {
-    // If we are using a CAS, we need to provide the fake input file in a
-    // CASProvidingFS for include-tree.
-    if (auto *IncludeTree =
-            std::get_if<IncludeTreeCompilation>(&Service.getOpts().Compilation))
-      OverlayFS = llvm::cas::createCASProvidingFileSystem(IncludeTree->CAS,
-                                                          std::move(OverlayFS));
     auto NewFS =
         llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(std::move(FS));
     NewFS->pushOverlay(std::move(OverlayFS));
