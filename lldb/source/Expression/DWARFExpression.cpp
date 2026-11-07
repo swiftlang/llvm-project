@@ -37,6 +37,7 @@
 
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/ExecutionContext.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
@@ -46,10 +47,6 @@
 #include "llvm/DebugInfo/DWARF/DWARFExpressionUnit.h"
 #include "llvm/DebugInfo/DWARF/LowLevel/DWARFExpression.h"
 #include "llvm/Support/ErrorExtras.h"
-
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#endif
 
 using namespace lldb;
 using namespace lldb_private;
@@ -688,86 +685,36 @@ bool DWARFExpression::LinkThreadLocalStorage(
   return true;
 }
 
-#ifdef LLDB_ENABLE_SWIFT
-/// Returns true if \c opcodes contains the opcode for the register used for the
-/// Swift Async Context (x22 for aarch64, r14 for x86-64). It must also not
-/// contain any other opcodes.
-static bool IsAsyncRegCtxExpr(DataExtractor &opcodes,
-                              llvm::Triple::ArchType triple) {
-  offset_t offset = 0;
-  const uint8_t op_async_ctx_reg = opcodes.GetU8(&offset);
-  if (opcodes.BytesLeft(offset) != 0)
-    return false;
+/// Asks the language runtime of the current function to evaluate
+/// DW_OP_entry_value(\p entry_value), possibly together with some of the
+/// \p following operations, which it consumes.
+static std::optional<Value>
+EvaluateEntryValueInLanguageRuntime(EvalContext &eval_ctx,
+                                    llvm::ArrayRef<uint8_t> entry_value,
+                                    llvm::ArrayRef<uint8_t> &following) {
+  if (!eval_ctx.frame || !eval_ctx.process)
+    return std::nullopt;
+  Function *function =
+      eval_ctx.frame->GetSymbolContext(eSymbolContextFunction).function;
+  if (!function)
+    return std::nullopt;
+  LanguageRuntime *runtime =
+      eval_ctx.process->GetLanguageRuntime(function->GetLanguage());
+  if (!runtime)
+    return std::nullopt;
 
-  // FIXME: could this be exposed through the ABI/Language plugins?
-  return (triple == llvm::Triple::x86_64 && op_async_ctx_reg == DW_OP_reg14) ||
-         (triple == llvm::Triple::aarch64 && op_async_ctx_reg == DW_OP_reg22);
+  llvm::ArrayRef<uint8_t> rest = following;
+  std::optional<Value> value =
+      runtime->EvaluateEntryValue(*eval_ctx.frame, entry_value, rest);
+  // The runtime may only consume operations from the front.
+  if (!value || rest.end() != following.end() || rest.size() > following.size())
+    return std::nullopt;
+  following = rest;
+  return value;
 }
-
-/// If \c subexpr contains the location of asynchronous contexts in Swift,
-/// evaluates DW_OP_call_frame_cfa and returns its result. Otherwise, does
-/// nothing. This is possible because, for async frames, the language
-/// unwinder treats the asynchronous context as the CFA of the frame.
-///
-/// \param next_op_is_deref whether the DWARF operation immediately following
-/// \c subexpr in the overall location expression is a DW_OP_deref.
-/// \param consumed_next_op set to true only on success, if that trailing
-/// DW_OP_deref was consumed as part of evaluating a Swift async Q funclet and
-/// should not be evaluated again by the caller. On failure it is left false, so
-/// the caller's fallback path still evaluates the DW_OP_deref.
-static llvm::Expected<Value> SwiftAsyncEvaluate_DW_OP_entry_value(
-    ExecutionContext &exe_ctx, StackFrame &current_frame,
-    const DWARFExpression::Delegate *dwarf_cu, Function &func,
-    llvm::ArrayRef<uint8_t> subexpr, bool next_op_is_deref,
-    bool &consumed_next_op) {
-  consumed_next_op = false;
-  auto func_name = func.GetMangled().GetMangledName();
-  if (!SwiftLanguageRuntime::IsAnySwiftAsyncFunctionSymbol(func_name))
-    return llvm::createStringError(
-        "SwiftAsyncEvaluate_DW_OP_entry_value: not an async function");
-
-  const ArchSpec &arch = exe_ctx.GetTargetRef().GetArchitecture();
-  DataExtractor subexpr_extractor(subexpr.data(), subexpr.size(),
-                                  arch.GetByteOrder(),
-                                  arch.GetAddressByteSize());
-  if (!IsAsyncRegCtxExpr(subexpr_extractor, arch.GetMachine()))
-    return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
-                                   "missing async context register opcode");
-
-  // Q funclets require an extra level of indirection.
-  const bool is_q_funclet =
-      SwiftLanguageRuntime::IsSwiftAsyncAwaitResumePartialFunctionSymbol(
-          func_name);
-  if (is_q_funclet && !next_op_is_deref)
-    return llvm::createStringError("SwiftAsyncEvaluate_DW_OP_entry_value: "
-                                   "missing DW_OP_deref in Q funclet");
-
-  static const uint8_t cfa_opcode = DW_OP_call_frame_cfa;
-  DataExtractor cfa_expr_data(&cfa_opcode, 1, arch.GetByteOrder(),
-                              arch.GetAddressByteSize());
-  DWARFExpressionList cfa_expr(func.CalculateSymbolContextModule(),
-                               cfa_expr_data, dwarf_cu);
-  llvm::Expected<Value> maybe_result = cfa_expr.Evaluate(
-      &exe_ctx, current_frame.GetRegisterContext().get(), LLDB_INVALID_ADDRESS,
-      /*initial_value_ptr=*/nullptr,
-      /*object_address_ptr=*/nullptr);
-  // Only report the trailing DW_OP_deref as consumed if the evaluation
-  // succeeded. On failure the caller falls through to the generic call-site
-  // parameter path, which must still get a chance to evaluate it.
-  if (maybe_result && is_q_funclet)
-    consumed_next_op = true;
-  return maybe_result;
-}
-#endif // LLDB_ENABLE_SWIFT
 
 static llvm::Error Evaluate_DW_OP_entry_value(EvalContext &eval_ctx,
-                                              llvm::ArrayRef<uint8_t> subexpr
-#ifdef LLDB_ENABLE_SWIFT
-                                              ,
-                                              bool next_op_is_deref,
-                                              bool &consumed_next_op
-#endif // LLDB_ENABLE_SWIFT
-                                              ) {
+                                              llvm::ArrayRef<uint8_t> subexpr) {
   Log *log = GetLog(LLDBLog::Expressions);
   // DW_OP_entry_value(sub-expr) describes the location a variable had upon
   // function entry: this variable location is presumed to be optimized out at
@@ -861,16 +808,6 @@ static llvm::Error Evaluate_DW_OP_entry_value(EvalContext &eval_ctx,
       current_frame->GetSymbolContext(eSymbolContextFunction).function;
   if (!current_func)
     return llvm::createStringError("no current function");
-
-#ifdef LLDB_ENABLE_SWIFT
-  if (llvm::Expected<Value> result = SwiftAsyncEvaluate_DW_OP_entry_value(
-          *eval_ctx.exe_ctx, *current_frame, eval_ctx.dwarf_cu, *current_func,
-          subexpr, next_op_is_deref, consumed_next_op)) {
-    eval_ctx.stack.push_back(*result);
-    return llvm::Error::success();
-  } else
-    LLDB_LOG_ERROR(log, result.takeError(), "{0}");
-#endif // LLDB_ENABLE_SWIFT
 
   CallEdge *call_edge = nullptr;
   ModuleList &modlist = target.GetImages();
@@ -2426,24 +2363,18 @@ llvm::Expected<Value> DWARFExpression::Evaluate(
       if (error)
         return error;
 
-#ifdef LLDB_ENABLE_SWIFT
-      llvm::DWARFExpression::iterator next_op = op.skipBytes(block_size);
-      bool next_op_is_deref =
-          next_op != op_end &&
-          static_cast<LocationAtom>(next_op->getCode()) == DW_OP_deref;
-      bool consumed_next_op = false;
-      if (llvm::Error err = Evaluate_DW_OP_entry_value(
-              eval_ctx, block_data, next_op_is_deref, consumed_next_op))
-        return llvm::createStringError(
-            "could not evaluate DW_OP_entry_value: %s",
-            llvm::toString(std::move(err)).c_str());
+      // A language runtime may know the entry value without call site
+      // information.
+      llvm::ArrayRef<uint8_t> following = llvm::arrayRefFromStringRef(
+          expr_data.getData().drop_front(block_offset));
+      const size_t following_size = following.size();
+      if (std::optional<Value> value = EvaluateEntryValueInLanguageRuntime(
+              eval_ctx, block_data, following)) {
+        stack.push_back(*value);
+        op = op.skipBytes(block_size + following_size - following.size());
+        continue;
+      }
 
-      // We can't use `operator++` here because the iterator currently points
-      // to the second operand. See the comment above. If the Swift async
-      // evaluator consumed a trailing DW_OP_deref as part of a Q funclet,
-      // skip past that too.
-      op = op.skipBytes(block_size + (consumed_next_op ? 1 : 0));
-#else
       if (llvm::Error err = Evaluate_DW_OP_entry_value(eval_ctx, block_data))
         return llvm::createStringError(
             "could not evaluate DW_OP_entry_value: %s",
@@ -2452,7 +2383,6 @@ llvm::Expected<Value> DWARFExpression::Evaluate(
       // We can't use `operator++` here because the iterator currently points
       // to the second operand. See the comment above.
       op = op.skipBytes(block_size);
-#endif // LLDB_ENABLE_SWIFT
       continue;
     }
 

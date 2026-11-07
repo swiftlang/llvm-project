@@ -587,6 +587,10 @@ public:
                             Status &error) override;
   llvm::Error FixupVariableLocation(Variable &variable, Value &value) override;
 
+  std::optional<Value>
+  EvaluateEntryValue(StackFrame &frame, llvm::ArrayRef<uint8_t> entry_value,
+                     llvm::ArrayRef<uint8_t> &following) override;
+
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
                                                   bool stop_others) override;
 
