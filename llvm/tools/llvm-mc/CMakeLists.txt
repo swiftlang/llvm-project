@@ -10,7 +10,6 @@ set(LLVM_LINK_COMPONENTS
   Support
   TargetParser
   DebugInfoDWARF
-  DWARFCFIChecker
   )
 
 add_llvm_tool(llvm-mc
