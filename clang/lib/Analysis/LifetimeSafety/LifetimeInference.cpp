@@ -166,7 +166,7 @@ OracleComparisonReport LifetimeInference::compareWithOracles() const {
     if (HasAttr(FD) || allInstantiationsSatisfy(FD, HasAttr))
       ++C.Matched;
     else
-      ++C.Failed[Attr->getKind()];
+      C.Missed.push_back({Attr, FD, Owner});
   };
 
   for (const auto &[PVD, Oracle] : ParamOracles)
@@ -183,10 +183,19 @@ OracleComparisonReport LifetimeInference::compareWithOracles() const {
 
 void LifetimeInference::reportOracleSummary(DiagnosticsEngine &Diags) const {
   OracleComparisonReport C = compareWithOracles();
+  auto CountMissed = [&](attr::Kind K) -> unsigned {
+    return llvm::count_if(C.Missed, [K](const MissedOracle &M) {
+      return M.A->getKind() == K;
+    });
+  };
   Diags.Report(diag::remark_interop_lifetime_inference_oracle_summary)
-      << C.Matched << C.Failed.lookup(attr::LifetimeBound)
-      << C.Failed.lookup(attr::NoEscape)
-      << C.Failed.lookup(attr::LifetimeCaptureBy) << C.Inferred;
+      << C.Matched << CountMissed(attr::LifetimeBound)
+      << CountMissed(attr::NoEscape) << CountMissed(attr::LifetimeCaptureBy)
+      << C.Inferred;
+  for (const MissedOracle &M : C.Missed)
+    Diags.Report(M.A->getLocation(),
+                 diag::note_interop_lifetime_inference_missed_oracle)
+        << M.A;
 }
 
 } // namespace clang::lifetimes

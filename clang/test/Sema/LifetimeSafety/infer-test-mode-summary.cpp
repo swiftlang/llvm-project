@@ -8,6 +8,9 @@
 
 // expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 43; failed to infer (lifetimebound 7, noescape 0, lifetime_capture_by 5); inferred 58 in total}}
 
+// The expected notes mark the oracles that inference misses so far: callers do
+// not use the summaries of callees, and referent-level flow is not inferred.
+
 // From lifetimebound-violation.cpp.
 namespace lifetimebound_violation {
 struct [[gsl::Owner]] MyObj {
@@ -28,7 +31,7 @@ View lb(const MyObj &obj [[clang::lifetimebound]]) { return obj; }
 View lb_view(View v [[clang::lifetimebound]]) { return v; }
 
 View return_through_lifetimebound_passthrough(
-    const MyObj &obj [[clang::lifetimebound]]) {
+    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
   return lb(obj);
 }
 
@@ -38,12 +41,12 @@ View return_through_alias(const MyObj &obj [[clang::lifetimebound]]) {
 }
 
 View return_through_two_lifetimebound_calls(
-    const MyObj &obj [[clang::lifetimebound]]) {
+    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
   return lb_view(lb(obj));
 }
 
 View return_constructed_view_through_lifetimebound_forwarder(
-    const MyObj &obj [[clang::lifetimebound]]) {
+    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
   return lb_view(View(obj));
 }
 
@@ -171,7 +174,7 @@ struct SWithOriginPropagatingCopy {
 
 struct DefaultedOuter {
   DefaultedOuter();
-  DefaultedOuter(const std::string &s [[clang::lifetimebound]]) : inner(s) {}
+  DefaultedOuter(const std::string &s [[clang::lifetimebound]]) : inner(s) {} // expected-note {{'clang::lifetimebound'}}
   SWithUserDefinedCopyLikeOps inner;
 };
 
@@ -217,7 +220,7 @@ struct Holder {
   void consume(this Holder &&self [[clang::noescape]]) {}
 };
 
-const int *object_arg_is_not_moved(Holder &&h [[clang::lifetimebound]]) {
+const int *object_arg_is_not_moved(Holder &&h [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
   static_cast<Holder &&>(h).consume();
   return h.borrow();
 }
@@ -278,13 +281,13 @@ struct S {
   void captureInt(const int &x [[clang::lifetime_capture_by_this]]) { this->x = &x; }
 };
 
-void nonMember(const int &x1 [[clang::lifetime_capture_by(s)]],
+void nonMember(const int &x1 [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
                S &s [[clang::noescape]]) {
   s.captureInt(x1);
 }
 
 struct T {
-  void member(const int &x [[clang::lifetime_capture_by(s)]],
+  void member(const int &x [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
               S &s [[clang::noescape]]) {
     s.captureInt(x);
   }
@@ -295,7 +298,7 @@ struct SS {
   void capture(const std::string &x [[clang::lifetime_capture_by_this]]) { v = x; }
 };
 
-void f_capture(const std::string &x [[clang::lifetime_capture_by(s)]],
+void f_capture(const std::string &x [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
                SS &s [[clang::noescape]]) {
   s.capture(x);
 }
@@ -311,21 +314,21 @@ int *exchange(int *&ptr, int *newValue) {
   return oldValue;
 }
 
-int *ret(int *p [[clang::lifetimebound]]) { return exchange(p, nullptr); }
+int *ret(int *p [[clang::lifetimebound]]) { return exchange(p, nullptr); } // expected-note {{'clang::lifetimebound'}}
 
 struct Escape {
   int *f;
-  Escape(int *p [[clang::lifetimebound]]) : f(exchange(p, nullptr)) {}
+  Escape(int *p [[clang::lifetimebound]]) : f(exchange(p, nullptr)) {} // expected-note {{'clang::lifetimebound'}}
 };
 
-void capture_by_param(int *p [[clang::lifetime_capture_by(out)]],
+void capture_by_param(int *p [[clang::lifetime_capture_by(out)]], // expected-note {{'clang::lifetime_capture_by'}}
                       int *&out [[clang::noescape]]) {
   out = exchange(p, nullptr);
 }
 
 struct CaptureByThis {
   int *f;
-  void capture(int *p [[clang::lifetime_capture_by_this]]) {
+  void capture(int *p [[clang::lifetime_capture_by_this]]) { // expected-note {{'clang::lifetime_capture_by_this'}}
     f = exchange(p, nullptr);
   }
 };

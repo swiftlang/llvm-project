@@ -11348,6 +11348,8 @@ def remark_interop_lifetime_inference_oracle_summary
              "lifetime_capture_by %3); inferred %4 in total">,
       InGroup<InteropLifetimeInferenceTestMode>,
       DefaultIgnore;
+def note_interop_lifetime_inference_missed_oracle
+    : Note<"lifetime attribute %0 was not inferred in the test mode">;
 
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;

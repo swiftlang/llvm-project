@@ -38,13 +38,19 @@ using ParamOracleMap =
 using ThisOracleMap =
     llvm::DenseMap<const FunctionDecl *, llvm::SmallVector<const Attr *, 2>>;
 
+/// An oracle that was not inferred: \p A, written on \p Owner of \p FD.
+struct MissedOracle {
+  const Attr *A;
+  const FunctionDecl *FD;
+  ParamOrThis Owner;
+};
+
 /// How the inferred function contracts compare with the oracles.
 struct OracleComparisonReport {
   /// The number of oracles that were inferred.
   unsigned Matched = 0;
-  /// Per attribute kind (lifetimebound, noescape and lifetime_capture_by), the
-  /// number of oracles that were not inferred.
-  llvm::SmallDenseMap<attr::Kind, unsigned, 8> Failed;
+  /// The oracles that were not inferred.
+  llvm::SmallVector<MissedOracle> Missed;
   /// The number of contracts inferred, with or without an oracle.
   unsigned Inferred = 0;
 };
