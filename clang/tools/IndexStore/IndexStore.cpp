@@ -62,6 +62,12 @@ static void fatal_error_handler(void *user_data, const char *reason,
 namespace {
 struct RegisterFatalErrorHandler {
   RegisterFatalErrorHandler() {
+    // In LLVM DLL builds the handler state lives in LLVM.dll and is shared
+    // with every other component loaded into the process (sourcekitd,
+    // libSwiftScan, ...). Another component may already have installed a
+    // handler; all of them print the reason and abort, so replace rather
+    // than assert.
+    llvm::remove_fatal_error_handler();
     llvm::install_fatal_error_handler(fatal_error_handler, nullptr);
   }
 };
