@@ -39,7 +39,6 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/MCCAS/MCCASObjectV1.h"
 #include "llvm/Pass.h"
@@ -795,7 +794,7 @@ static int compileModule(char **argv, SmallVectorImpl<PassPlugin> &PluginList,
     }
   }
 
-  if (mc::getExplicitRelaxAll() &&
+  if (Options.MCOptions.MCRelaxAll &&
       codegen::getFileType() != CodeGenFileType::ObjectFile)
     WithColor::warning(errs(), argv[0])
         << ": warning: ignoring -mc-relax-all because filetype != obj";
