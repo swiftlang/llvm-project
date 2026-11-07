@@ -69,6 +69,17 @@ public:
 protected:
   StringRef getPathForOutputKind(OutputKind Kind);
 
+  /// \returns true if \p Path is written on disk during the computation, as
+  /// opposed to only during replay.
+  virtual bool isOutputWrittenOnDiskDuringCompute(StringRef Path) const {
+    return !(WriteOutputAsCASID && Path == OutputFile);
+  }
+
+  /// \returns true if \p Path is stored via the caching output backend.
+  bool isOutputStoredInCacheBackend(StringRef Path) const {
+    return !(UseCASBackend && Path == OutputFile) && Path != DependenciesFile;
+  }
+
   bool prepareOutputCollectionCommon(
       IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CacheOutputs);
   Error replayCachedDiagnostics(StringRef DiagsData);
@@ -124,6 +135,18 @@ private:
   Expected<llvm::cas::ObjectRef>
   writeOutputs(const llvm::cas::CASID &ResultCacheKey);
 
+  /// Outputs that are stored in the CAS are not written on disk during the
+  /// computation; they are exported from the CAS after the result is stored,
+  /// which allows the CAS to use file cloning when applicable. Outputs written
+  /// to stdout are still streamed live.
+  bool isOutputWrittenOnDiskDuringCompute(StringRef Path) const override {
+    if (NonVirtualOutputFiles.contains(Path))
+      return true;
+    if (Path != "-" && isOutputStoredInCacheBackend(Path))
+      return false;
+    return CachingOutputs::isOutputWrittenOnDiskDuringCompute(Path);
+  }
+
   /// Replay a cache hit.
   ///
   /// \returns an \c Error if there was a problem performing the replay, true if
@@ -138,6 +161,8 @@ private:
   std::shared_ptr<llvm::cas::ActionCache> Cache;
   IntrusiveRefCntPtr<llvm::cas::CASOutputBackend> CASOutputs;
   std::optional<llvm::cas::ObjectRef> DependenciesOutput;
+  /// Output files that were written directly on the file system.
+  llvm::StringSet<> NonVirtualOutputFiles;
 };
 
 /// An \p OutputBackend that just records the list of output paths/names.
@@ -471,17 +496,15 @@ CompileJobCache::tryReplayCachedResult(CompilerInstance &Clang) {
 bool CompileJobCache::CachingOutputs::prepareOutputCollectionCommon(
     IntrusiveRefCntPtr<llvm::vfs::OutputBackend> CacheOutputs) {
   // Create an on-disk backend for streaming the results live if we run the
-  // computation. If we're writing the output as a CASID, skip it here, since
-  // it'll be handled during replay.
+  // computation. Skip outputs that are not written on disk during the
+  // computation, since they'll be handled during replay.
   IntrusiveRefCntPtr<llvm::vfs::OutputBackend> OnDiskOutputs =
-      llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>();
-  if (WriteOutputAsCASID) {
-    OnDiskOutputs = llvm::vfs::makeFilteringOutputBackend(
-        OnDiskOutputs,
-        [this](StringRef ResolvedPath, std::optional<llvm::vfs::OutputConfig>) {
-          return ResolvedPath != this->OutputFile;
-        });
-  }
+      llvm::vfs::makeFilteringOutputBackend(
+          llvm::makeIntrusiveRefCnt<llvm::vfs::OnDiskOutputBackend>(),
+          [this](StringRef ResolvedPath,
+                 std::optional<llvm::vfs::OutputConfig>) {
+            return isOutputWrittenOnDiskDuringCompute(ResolvedPath);
+          });
 
   // Set up the output backend so we can save / cache the result after.
   for (OutputKind K : clang::cas::CompileJobCacheResult::getAllOutputKinds()) {
@@ -495,8 +518,7 @@ bool CompileJobCache::CachingOutputs::prepareOutputCollectionCommon(
   auto FilterBackend = llvm::vfs::makeFilteringOutputBackend(
       CacheOutputs,
       [&](StringRef Path, std::optional<llvm::vfs::OutputConfig> Config) {
-        return !(UseCASBackend && (Path.str() == OutputFile)) &&
-               Path != DependenciesFile;
+        return isOutputStoredInCacheBackend(Path);
       });
 
   Clang.setOutputManager(llvm::vfs::makeMirroringOutputBackend(
@@ -718,17 +740,11 @@ Expected<llvm::cas::ObjectRef> ObjectStoreCachingOutputs::writeOutputs(
 }
 
 Error ObjectStoreCachingOutputs::addNonVirtualOutputFile(StringRef FilePath) {
-  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-
-  auto F = llvm::sys::fs::openNativeFileForRead(FilePath);
-  if (!F)
-    return F.takeError();
-  llvm::scope_exit CloseOnExit([&F]() { llvm::sys::fs::closeFile(*F); });
-
   std::optional<llvm::cas::ObjectRef> ObjRef;
-  if (Error E = CAS->storeFromOpenFile(*F).moveInto(ObjRef))
+  if (Error E = CAS->storeFromFile(FilePath).moveInto(ObjRef))
     return E;
   CASOutputs->addObject(FilePath, *ObjRef);
+  NonVirtualOutputFiles.insert(FilePath);
   return Error::success();
 }
 
@@ -770,9 +786,6 @@ Error ObjectStoreCachingOutputs::finishComputedResult(
 Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
     const llvm::cas::CASID &ResultCacheKey, llvm::cas::ObjectRef ResultID,
     bool JustComputedResult) {
-  if (JustComputedResult && !WriteOutputAsCASID && !WriteOutputHashXAttr)
-    return false;
-
   std::optional<clang::cas::CompileJobCacheResult> Result;
   auto Schema = clang::cas::CompileJobResultSchema::create(*CAS);
   if (!Schema)
@@ -786,9 +799,6 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
 Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
     const llvm::cas::CASID &ResultCacheKey,
     clang::cas::CompileJobCacheResult &Result, bool JustComputedResult) {
-  if (JustComputedResult && !WriteOutputAsCASID && !WriteOutputHashXAttr)
-    return false;
-
   llvm::cas::ObjectStore &CAS = Result.getCAS();
   DiagnosticsEngine &Diags = Clang.getDiagnostics();
   bool HasMissingOutput = false;
@@ -826,8 +836,12 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
       llvm::sys::fs::create_directories(ParentPath);
 
     bool IsOutputFile = O.Kind == OutputKind::MainOutput;
+    // For a just computed result, only write the outputs that were not
+    // already written on disk during the computation.
+    bool NeedsWrite =
+        !JustComputedResult || !isOutputWrittenOnDiskDuringCompute(Path);
 
-    if (IsOutputFile && ComputedJobNeedsReplay) {
+    if (IsOutputFile && ComputedJobNeedsReplay && NeedsWrite) {
       auto Output = Backend.createFile(Path);
       if (!Output)
         return Output.takeError();
@@ -854,19 +868,28 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
       return Output->keep();
     }
 
-    if (!JustComputedResult) {
-      auto Output = Backend.createFile(Path);
-      if (!Output)
-        return Output.takeError();
+    if (NeedsWrite) {
       if (O.Kind == OutputKind::Dependencies) {
+        auto Output = Backend.createFile(Path);
+        if (!Output)
+          return Output.takeError();
         if (auto E = CASDependencyCollector::replay(
                 Clang.getDependencyOutputOpts(), CAS, *Obj, *Output))
           return E;
-      } else {
+        if (Error E = Output->keep())
+          return E;
+      } else if (Path == "-") {
+        auto Output = Backend.createFile(Path);
+        if (!Output)
+          return Output.takeError();
         *Output << Obj->getData();
+        if (Error E = Output->keep())
+          return E;
+      } else {
+        // \c exportDataToFile can use file cloning when applicable.
+        if (Error E = Obj->exportDataToFile(Path))
+          return E;
       }
-      if (Error E = Output->keep())
-        return E;
     }
 
     if (IsOutputFile && WriteOutputHashXAttr)
@@ -874,8 +897,20 @@ Expected<bool> ObjectStoreCachingOutputs::replayCachedResult(
     return Error::success();
   };
 
-  if (auto Err = Result.forEachLoadedOutput(processOutput))
-    return std::move(Err);
+  if (JustComputedResult) {
+    // The outputs were just stored in the CAS, load them synchronously.
+    if (auto Err = Result.forEachOutput(
+            [&](clang::cas::CompileJobCacheResult::Output O) -> Error {
+              std::optional<llvm::cas::ObjectProxy> Obj;
+              if (Error E = CAS.getProxyIfExists(O.Object).moveInto(Obj))
+                return E;
+              return processOutput(O, Obj);
+            }))
+      return std::move(Err);
+  } else {
+    if (auto Err = Result.forEachLoadedOutput(processOutput))
+      return std::move(Err);
+  }
 
   if (HasMissingOutput) {
     Diags.Report(diag::remark_compile_job_cache_miss)
