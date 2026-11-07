@@ -2029,6 +2029,15 @@ void Target::ModulesDidUnload(ModuleList &module_list, bool delete_locations) {
     m_breakpoint_list.UpdateBreakpoints(module_list, false, delete_locations);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, false,
                                                  delete_locations);
+#ifdef LLDB_ENABLE_SWIFT
+    m_scratch_type_system_map.ForEach([&](lldb::TypeSystemSP type_system) {
+      if (auto *swift_scratch_ctx =
+              llvm::dyn_cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
+                  type_system.get()))
+        swift_scratch_ctx->ModulesDidUnload(module_list);
+      return true;
+    });
+#endif // LLDB_ENABLE_SWIFT
 
     // If a module was torn down it will have torn down the 'TypeSystemClang's
     // that we used as source 'ASTContext's for the persistent variables in
