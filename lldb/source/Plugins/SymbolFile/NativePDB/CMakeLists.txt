@@ -32,6 +32,7 @@ add_lldb_library(lldbPluginSymbolFileNativePDB
     lldbUtility
     lldbPluginTypeSystemClang
     lldbPluginObjectFilePDB
+    lldbPluginObjectFilePECOFF
   CLANG_LIBS
     clangAST
     clangLex
