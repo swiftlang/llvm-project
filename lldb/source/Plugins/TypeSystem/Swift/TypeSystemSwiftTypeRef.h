@@ -341,6 +341,10 @@ public:
   lldb::TypeSP GetCachedType(lldb::opaque_compiler_type_t type);
   void SetCachedType(ConstString mangled, const lldb::TypeSP &type_sp);
   bool IsMarkerProtocol(ConstString mangled_name);
+  /// \return whether the debug info marks the Clang-imported type
+  /// \p mangled_name as having reference semantics.
+  bool IsForeignReferenceType(ConstString mangled_name);
+  bool IsForeignReferenceType(lldb::opaque_compiler_type_t type) override;
   /// Remove marker protocols from a protocol list in a demangle tree.
   /// Marker protocols are compile-time concepts only and the reflection
   /// context does not expect them as input. Note: this mutates \p node
@@ -509,6 +513,11 @@ public:
   LookupClangType(llvm::StringRef name_ref,
                   llvm::ArrayRef<CompilerContext> decl_context,
                   bool ignore_modules, SymbolContext sc = {});
+
+  /// Search the debug info for the Swift type with the specified mangled
+  /// name. Unlike FindTypeInModule(), for a Clang-imported type this finds
+  /// the Swift type that wraps it.
+  virtual lldb::TypeSP LookupSwiftType(ConstString mangled_name);
 
   /// Attempts to convert a Clang type into a Swift type.
   /// For example, int is converted to Int32.
@@ -729,6 +738,9 @@ protected:
 
   /// A cache of Clang types that this TypeSystem mapped into Swift.
   ThreadSafeDenseMap<const char *, CompilerType> m_imported_type_map;
+
+  /// Results of IsForeignReferenceType(), including negative ones.
+  ThreadSafeDenseMap<const char *, bool> m_foreign_reference_type_map;
 };
 
 /// This one owns a SwiftASTContextForExpressions.
@@ -787,6 +799,9 @@ public:
                                llvm::ArrayRef<CompilerContext> decl_context,
                                bool ignore_modules,
                                SymbolContext sc = {}) override;
+  /// Performs a target-wide search, because the type may come from a mangled
+  /// name that is not bound to any module.
+  lldb::TypeSP LookupSwiftType(ConstString mangled_name) override;
   /// Import type into this typesystem and register it in the fallback
   /// sidetable.
   CompilerType ImportType(CompilerType type, ExecutionContextRef exe_ctx);
