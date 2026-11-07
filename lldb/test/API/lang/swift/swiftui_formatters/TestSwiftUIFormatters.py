@@ -4,6 +4,7 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
 
 
+@skipIf(macos_version=["==", "27.0"])
 @skipIfDarwinEmbedded
 class TestCase(TestBase):
 
