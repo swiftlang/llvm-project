@@ -161,7 +161,6 @@ TEST(CASFSBuilderTest, Missing) {
 
   TempDir TestDirectory("casfs-builder-test", /*Unique*/ true);
 
-  std::optional<ObjectProxy> Root;
   {
     CASFSBuilder Builder(*CAS);
     EXPECT_THAT_ERROR(Builder.ingestFileSystemPath(TestDirectory.path("a")),
