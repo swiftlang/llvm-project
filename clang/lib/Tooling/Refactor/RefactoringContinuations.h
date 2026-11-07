@@ -304,7 +304,7 @@ private:
   gatherQueries(std::index_sequence<Is...>) {
     assert(Inputs && "TU-dependent state is already converted");
     std::vector<indexer::IndexerQuery *> Queries;
-    std::make_tuple(gatherQueries(Queries, std::get<Is>(*Inputs))...);
+    (void)std::make_tuple(gatherQueries(Queries, std::get<Is>(*Inputs))...);
     return Queries;
   }
 
