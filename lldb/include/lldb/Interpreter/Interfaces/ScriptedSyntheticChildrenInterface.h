@@ -37,7 +37,7 @@ public:
 
   virtual lldb::ValueObjectSP GetSyntheticValue() { return nullptr; }
 
-  virtual ConstString GetSyntheticTypeName() { return ConstString(); }
+  virtual std::string GetSyntheticTypeName() { return std::string(); }
 };
 } // namespace lldb_private
 

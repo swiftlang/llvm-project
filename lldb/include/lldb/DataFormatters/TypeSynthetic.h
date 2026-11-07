@@ -78,10 +78,10 @@ public:
   // made to this ValueObject
   virtual lldb::ValueObjectSP GetSyntheticValue() { return nullptr; }
 
-  // if this function returns a non-empty ConstString, then clients are
+  // if this function returns a non-empty string, then clients are
   // expected to use the return as the name of the type of this ValueObject for
   // display purposes
-  virtual ConstString GetSyntheticTypeName() { return ConstString(); }
+  virtual std::string GetSyntheticTypeName() { return std::string(); }
 
   typedef std::shared_ptr<SyntheticChildrenFrontEnd> SharedPointer;
   typedef std::unique_ptr<SyntheticChildrenFrontEnd> UniquePointer;
@@ -315,25 +315,15 @@ public:
       AddExpressionPath(path);
   }
 
-  void AddExpressionPath(const char *path) {
-    AddExpressionPath(std::string(path));
-  }
-
   void Clear() { m_expression_paths.clear(); }
 
   size_t GetCount() const { return m_expression_paths.size(); }
 
-  const char *GetExpressionPathAtIndex(size_t i) const {
-    return m_expression_paths[i].c_str();
-  }
+  llvm::StringRef GetExpressionPathAtIndex(size_t i) const;
 
-  bool SetExpressionPathAtIndex(size_t i, const char *path) {
-    return SetExpressionPathAtIndex(i, std::string(path));
-  }
+  void AddExpressionPath(llvm::StringRef path);
 
-  void AddExpressionPath(const std::string &path);
-
-  bool SetExpressionPathAtIndex(size_t i, const std::string &path);
+  bool SetExpressionPathAtIndex(size_t i, llvm::StringRef path);
 
   bool IsScripted() override { return false; }
 
@@ -467,7 +457,7 @@ public:
 
     lldb::ValueObjectSP GetSyntheticValue() override;
 
-    ConstString GetSyntheticTypeName() override;
+    std::string GetSyntheticTypeName() override;
 
     typedef std::shared_ptr<SyntheticChildrenFrontEnd> SharedPointer;
 
