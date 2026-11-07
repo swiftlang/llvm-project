@@ -16,6 +16,6 @@ entry:
 
 ; CHECK: define private void @ptrauth_soft_init() {
 ; CHECK: [[T0:%.*]] = call ptr @__ptrauth_sign(ptr @test1_function, i32 1, i64 ptrtoint (ptr getelementptr inbounds ({ ptr, i32, i32, ptr }, ptr @test1, i32 0, i32 3) to i64)) [[NOUNWIND:#[0-9]+]]
-; CHECK: store ptr [[T0]], ptr getelementptr inbounds ({ ptr, i32, i32, ptr }, ptr @test1, i32 0, i32 3)
+; CHECK: store ptr [[T0]], ptr getelementptr inbounds (i8, ptr @test1, i64 16)
 
 ; CHECK: attributes [[NOUNWIND]] = { nounwind }
