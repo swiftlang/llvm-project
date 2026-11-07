@@ -30,7 +30,11 @@
 /// of the objects it references. Such type should not reference any objects whose
 /// lifetime is controlled externally. This annotation allows Swift to import methods
 /// that return a `class` or `struct` type that is annotated with this macro.
-#define SWIFT_SELF_CONTAINED __attribute__((swift_attr("import_owned")))
+/// The type is imported as an escapable Swift value; in safe interop mode
+/// this ensures that the type is not marked as unsafe.
+#define SWIFT_SELF_CONTAINED \
+  __attribute__((swift_attr("import_owned"))) \
+  __attribute__((swift_attr("Escapable")))
 
 /// Specifies that a method returns a value that is presumed to contain
 /// objects whose lifetime is not dependent on `this` or other parameters passed
@@ -271,22 +275,24 @@
 #define SWIFT_COPYABLE_IF(...) \
   __attribute__((swift_attr("copyable_if:" _CXX_INTEROP_CONCAT(__VA_ARGS__))))
 
-/// Specifies that a specific class or struct should be imported
-/// as a non-escapable Swift value type.
-#define SWIFT_NONESCAPABLE \
+/// Specifies that a specific class or struct is a view: it refers to objects
+/// whose lifetime is controlled externally, and is imported as a
+/// non-escapable Swift value type.
+#define SWIFT_VIEW \
   __attribute__((swift_attr("~Escapable")))
 
-/// Specifies that a specific class or struct should be imported
-/// as an escapable Swift value. While this matches the default behavior,
-/// in safe mode interop mode it ensures that the type is not marked as
-/// unsafe.
-#define SWIFT_ESCAPABLE \
-  __attribute__((swift_attr("Escapable")))
-
-/// Specifies that a C++ `class` or `struct` should be imported as a escapable
-/// Swift value if all of the specified template arguments are escapable.
-#define SWIFT_ESCAPABLE_IF(...) \
+/// Specifies that a C++ `class` or `struct` is self-contained (see
+/// SWIFT_SELF_CONTAINED) and should be imported as an escapable Swift value
+/// if all of the specified template arguments are escapable.
+#define SWIFT_SELF_CONTAINED_IF(...) \
+  __attribute__((swift_attr("import_owned"))) \
   __attribute__((swift_attr("escapable_if:" _CXX_INTEROP_CONCAT(__VA_ARGS__))))
+
+/// Deprecated spellings of SWIFT_VIEW, SWIFT_SELF_CONTAINED and
+/// SWIFT_SELF_CONTAINED_IF.
+#define SWIFT_NONESCAPABLE SWIFT_VIEW
+#define SWIFT_ESCAPABLE SWIFT_SELF_CONTAINED
+#define SWIFT_ESCAPABLE_IF(...) SWIFT_SELF_CONTAINED_IF(__VA_ARGS__)
 
 /// Specifies that the return value is passed as owned for functions and
 /// methods returning types annotated as `SWIFT_SHARED_REFERENCE`
@@ -381,6 +387,8 @@
 #define SWIFT_NONCOPYABLE
 #define SWIFT_NONCOPYABLE_WITH_DESTROY(_destroy)
 #define SWIFT_COPYABLE_IF(...)
+#define SWIFT_VIEW
+#define SWIFT_SELF_CONTAINED_IF(...)
 #define SWIFT_NONESCAPABLE
 #define SWIFT_ESCAPABLE
 #define SWIFT_ESCAPABLE_IF(...)
@@ -393,6 +401,12 @@
 #define SWIFT_NO_SAFE_WRAPPER
 
 #endif // #if _CXX_INTEROP_HAS_ATTRIBUTE(swift_attr)
+
+#ifdef __clang__
+#pragma clang deprecated(SWIFT_NONESCAPABLE, "use SWIFT_VIEW instead")
+#pragma clang deprecated(SWIFT_ESCAPABLE, "use SWIFT_SELF_CONTAINED instead")
+#pragma clang deprecated(SWIFT_ESCAPABLE_IF, "use SWIFT_SELF_CONTAINED_IF instead")
+#endif
 
 #undef _CXX_INTEROP_HAS_ATTRIBUTE
 
