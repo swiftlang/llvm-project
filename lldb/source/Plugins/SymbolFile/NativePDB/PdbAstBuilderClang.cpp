@@ -989,6 +989,13 @@ clang::QualType PdbAstBuilderClang::GetOrCreateClangType(PdbTypeSymId type) {
     DeclStatus &status = m_decl_to_status[tag];
     status.uid = uid;
     status.resolved = false;
+
+    if (auto *enum_decl = llvm::dyn_cast<clang::EnumDecl>(tag)) {
+      if (!CompleteTagDecl(*enum_decl)) {
+        TypeSystemClang::CompleteTagDeclarationDefinition(ToCompilerType(qt));
+        m_decl_to_status[enum_decl].resolved = true;
+      }
+    }
   }
   return qt;
 }
@@ -1754,6 +1761,25 @@ clang::Decl *PdbAstBuilderClang::FromCompilerDecl(CompilerDecl decl) {
 clang::DeclContext *
 PdbAstBuilderClang::FromCompilerDeclContext(CompilerDeclContext context) {
   return static_cast<clang::DeclContext *>(context.GetOpaqueDeclContext());
+}
+
+std::string PdbAstBuilderClang::GetQualifiedName(llvm::StringRef name) {
+  std::string result;
+  while (!name.empty()) {
+    size_t pos = name.find('`');
+    result += name.take_front(pos);
+    if (pos == llvm::StringRef::npos)
+      break;
+    name = name.drop_front(pos);
+    if (name.consume_front("`anonymous namespace'") ||
+        name.consume_front("`anonymous-namespace'")) {
+      result += "(anonymous namespace)";
+    } else {
+      result += name.front();
+      name = name.drop_front();
+    }
+  }
+  return result;
 }
 
 void PdbAstBuilderClang::Dump(Stream &stream, llvm::StringRef filter,
