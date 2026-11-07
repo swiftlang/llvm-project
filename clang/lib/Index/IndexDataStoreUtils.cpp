@@ -331,6 +331,9 @@ SymbolRoleSet index::getSymbolRoles(uint64_t Roles) {
 indexstore_symbol_kind_t index::getIndexStoreKind(SymbolKind K) {
   switch (K) {
   case SymbolKind::Unknown:
+  // For backwards compatibility, the include directive kind is treated the
+  // same as Unknown.
+  case SymbolKind::IncludeDirective:
   // FIXME: Tweak SymbolKind/SymbolSubKind to separate
   // generic-ish/language-specific-ish concepts.
   //
