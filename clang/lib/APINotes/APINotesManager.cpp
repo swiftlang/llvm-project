@@ -488,6 +488,25 @@ APINotesManager::findAPINotes(SourceLocation Loc) {
   return Results;
 }
 
+std::optional<ArrayRef<std::unique_ptr<APINotesReader>>>
+APINotesManager::findImportedModuleAPINotes(const Module &TopLevelModule) {
+  if (!GetImportedModuleAPINotes)
+    return std::nullopt;
+
+  auto [Entry, Inserted] = ImportedModuleReaders.try_emplace(&TopLevelModule);
+  auto &Readers = Entry->second;
+  if (Inserted)
+    if (auto Buffers = GetImportedModuleAPINotes(TopLevelModule)) {
+      Readers.emplace();
+      for (StringRef Buffer : *Buffers)
+        if (auto Reader = loadAPINotes(Buffer))
+          Readers->push_back(std::move(Reader));
+    }
+  if (!Readers)
+    return std::nullopt;
+  return ArrayRef<std::unique_ptr<APINotesReader>>(*Readers);
+}
+
 std::optional<GlobalVariableInfo>
 APINotesManager::lookupGlobalVariable(const Module *M, StringRef Name,
                                       SourceLocation Loc) {
@@ -503,13 +522,22 @@ APINotesManager::lookupGlobalVariable(const Module *M, StringRef Name,
 
   if (M) {
     bool FoundModuleAPINotes = false;
-    for (auto File :
-         getCurrentModuleAPINotes(const_cast<Module *>(M->getTopLevelModule()),
-                                  /*LookInModule=*/true, {})) {
-      if (auto *Reader = getAPINotesReader(File)) {
+    if (auto ImportedReaders =
+            findImportedModuleAPINotes(*M->getTopLevelModule())) {
+      for (const auto &Reader : *ImportedReaders) {
         FoundModuleAPINotes = true;
-        if (auto Info = Lookup(Reader))
+        if (auto Info = Lookup(Reader.get()))
           return Info;
+      }
+    } else {
+      for (auto File : getCurrentModuleAPINotes(
+               const_cast<Module *>(M->getTopLevelModule()),
+               /*LookInModule=*/true, {})) {
+        if (auto *Reader = getAPINotesReader(File)) {
+          FoundModuleAPINotes = true;
+          if (auto Info = Lookup(Reader))
+            return Info;
+        }
       }
     }
 
