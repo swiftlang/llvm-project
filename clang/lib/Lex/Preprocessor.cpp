@@ -1431,7 +1431,6 @@ bool Preprocessor::HandleModuleContextualKeyword(Token &Result) {
         LookUpIdentifierInfo(*NextTok);
       if (NextTok->isOneOf(tok::identifier, tok::colon, tok::semi)) {
         Result.setKind(tok::kw_module);
-        ModuleDeclLoc = Result.getLocation();
         return true;
       }
     }
