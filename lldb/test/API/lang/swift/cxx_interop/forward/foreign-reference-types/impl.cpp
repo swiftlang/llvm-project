@@ -42,3 +42,9 @@ OpaqueFRT *createOpaqueFRT() {
 }
 void retainOpaqueFRT(OpaqueFRT *) { ++opaqueRefCount; }
 void releaseOpaqueFRT(OpaqueFRT *) { --opaqueRefCount; }
+
+OptionalOnlyFRT *OptionalOnlyFRT::create(int value) {
+  return new OptionalOnlyFRT{value};
+}
+
+HoldsFRT makeHoldsFRT(SharedFRT *shared) { return {shared, 5}; }

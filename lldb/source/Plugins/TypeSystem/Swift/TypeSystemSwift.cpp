@@ -164,6 +164,12 @@ bool TypeSystemSwift::CheckFlagInCU(CompileUnit *cu, const char *flag) {
   return false;
 }
 
+bool TypeSystemSwift::IsForeignReferenceType(CompilerType type) {
+  if (auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemSwift>())
+    return ts->IsForeignReferenceType(type.GetOpaqueQualType());
+  return false;
+}
+
 /// Determine whether this CU was compiled with C++ interop enabled.
 bool TypeSystemSwift::ShouldEnableCXXInterop(CompileUnit *cu) {
   return CheckFlagInCU(cu, "-enable-experimental-cxx-interop");
