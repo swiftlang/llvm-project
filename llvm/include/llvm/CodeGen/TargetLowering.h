@@ -2269,6 +2269,7 @@ public:
 
 protected:
   Value *getDefaultSafeStackPointerLocation(IRBuilderBase &IRB,
+                                            const LibcallLoweringInfo &Libcalls,
                                             bool UseTLS) const;
 
 public:
