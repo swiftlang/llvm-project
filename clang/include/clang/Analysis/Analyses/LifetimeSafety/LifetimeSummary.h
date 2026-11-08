@@ -52,6 +52,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
+#include <functional>
 #include <optional>
 
 namespace clang::lifetimes {
@@ -138,6 +139,16 @@ struct CapturedByAssertion {
   FieldSet F;
 };
 
+/// Whether the users of summaries support the assertion. They must ignore the
+/// others.
+// FIXME: Support the other levels and the field sets.
+inline bool isSupportedLifetimeBoundSummary(const LifetimeBoundAssertion &A) {
+  return A.L == Level::Value && A.F.isAll();
+}
+inline bool isSupportedCapturedBySummary(const CapturedByAssertion &A) {
+  return A.L == Level::Value && A.QL == Level::Value && A.F.isAll();
+}
+
 /// The assertions on one parameter P or on `this`.
 struct ParameterThisSummary {
   llvm::SmallVector<LifetimeBoundAssertion, 1> LifetimeBound;
@@ -221,6 +232,25 @@ public:
 
 private:
   FunctionSummary Summary;
+};
+
+/// A lookup of the summaries of the callees. A default-constructed one knows no
+/// summary at all, so it is always callable.
+class FunctionSummariesRef {
+public:
+  using LookupT = std::function<const FunctionSummary *(const FunctionDecl *)>;
+  FunctionSummariesRef() = default;
+
+  FunctionSummariesRef(LookupT Lookup) : Lookup(std::move(Lookup)) {}
+
+  const FunctionSummary *operator()(const FunctionDecl *FD) const {
+    return Lookup(FD);
+  }
+
+private:
+  LookupT Lookup = [](const FunctionDecl *) -> const FunctionSummary * {
+    return nullptr;
+  };
 };
 
 } // namespace clang::lifetimes

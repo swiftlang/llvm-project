@@ -6,10 +6,10 @@
 
 #include "Inputs/lifetime-analysis.h"
 
-// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 43; failed to infer (lifetimebound 7, noescape 0, lifetime_capture_by 5); inferred 58 in total}}
+// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 56; failed to infer (lifetimebound 2, noescape 0, lifetime_capture_by 2); inferred 63 in total}}
 
-// The expected notes mark the oracles that inference misses so far: callers do
-// not use the summaries of callees, and referent-level flow is not inferred.
+// The expected notes mark the oracles that inference misses so far: referent-
+// level flow is not inferred.
 
 // From lifetimebound-violation.cpp.
 namespace lifetimebound_violation {
@@ -31,7 +31,7 @@ View lb(const MyObj &obj [[clang::lifetimebound]]) { return obj; }
 View lb_view(View v [[clang::lifetimebound]]) { return v; }
 
 View return_through_lifetimebound_passthrough(
-    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+    const MyObj &obj [[clang::lifetimebound]]) {
   return lb(obj);
 }
 
@@ -41,12 +41,12 @@ View return_through_alias(const MyObj &obj [[clang::lifetimebound]]) {
 }
 
 View return_through_two_lifetimebound_calls(
-    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+    const MyObj &obj [[clang::lifetimebound]]) {
   return lb_view(lb(obj));
 }
 
 View return_constructed_view_through_lifetimebound_forwarder(
-    const MyObj &obj [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+    const MyObj &obj [[clang::lifetimebound]]) {
   return lb_view(View(obj));
 }
 
@@ -174,7 +174,7 @@ struct SWithOriginPropagatingCopy {
 
 struct DefaultedOuter {
   DefaultedOuter();
-  DefaultedOuter(const std::string &s [[clang::lifetimebound]]) : inner(s) {} // expected-note {{'clang::lifetimebound'}}
+  DefaultedOuter(const std::string &s [[clang::lifetimebound]]) : inner(s) {}
   SWithUserDefinedCopyLikeOps inner;
 };
 
@@ -220,11 +220,44 @@ struct Holder {
   void consume(this Holder &&self [[clang::noescape]]) {}
 };
 
-const int *object_arg_is_not_moved(Holder &&h [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+const int *object_arg_is_not_moved(Holder &&h [[clang::lifetimebound]]) {
   static_cast<Holder &&>(h).consume();
   return h.borrow();
 }
 } // namespace explicit_object_param
+
+// A callee whose summary borrows its rvalue-reference parameter does not move
+// the argument, so the caller's parameter still flows to the return value.
+namespace borrowed_rvalue_ref_param {
+struct S {
+  int field;
+};
+
+const int *borrow(S &&s [[clang::lifetimebound]]) { return &s.field; }
+
+const int *forward(S &&s [[clang::lifetimebound]]) {
+  return borrow(static_cast<S &&>(s));
+}
+} // namespace borrowed_rvalue_ref_param
+
+// Cycles in the call graph: the fix-point must settle. `odd` gets its
+// contract only from `even`, which is analyzed after it, so `odd` is analyzed
+// again once the summary of `even` is known.
+namespace recursion {
+int *self(int *p [[clang::lifetimebound]], int n) {
+  return n == 0 ? p : self(p, n - 1);
+}
+
+int *even(int *p, int n);
+
+int *odd(int *p [[clang::lifetimebound]], int n) {
+  return n == 0 ? nullptr : even(p, n - 1);
+}
+
+int *even(int *p [[clang::lifetimebound]], int n) {
+  return n == 0 ? p : odd(p, n - 1);
+}
+} // namespace recursion
 
 // From annotation-suggestions.cpp.
 namespace annotation_suggestions {
@@ -281,13 +314,13 @@ struct S {
   void captureInt(const int &x [[clang::lifetime_capture_by_this]]) { this->x = &x; }
 };
 
-void nonMember(const int &x1 [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
+void nonMember(const int &x1 [[clang::lifetime_capture_by(s)]],
                S &s [[clang::noescape]]) {
   s.captureInt(x1);
 }
 
 struct T {
-  void member(const int &x [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
+  void member(const int &x [[clang::lifetime_capture_by(s)]],
               S &s [[clang::noescape]]) {
     s.captureInt(x);
   }
@@ -298,7 +331,7 @@ struct SS {
   void capture(const std::string &x [[clang::lifetime_capture_by_this]]) { v = x; }
 };
 
-void f_capture(const std::string &x [[clang::lifetime_capture_by(s)]], // expected-note {{'clang::lifetime_capture_by'}}
+void f_capture(const std::string &x [[clang::lifetime_capture_by(s)]],
                SS &s [[clang::noescape]]) {
   s.capture(x);
 }

@@ -18,6 +18,7 @@
 #include "clang/AST/TypeBase.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeStats.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "llvm/ADT/StringMap.h"
 
@@ -54,6 +55,10 @@ private:
 class LifetimeAnnotatedOriginTypeCollector
     : public RecursiveASTVisitor<LifetimeAnnotatedOriginTypeCollector> {
 public:
+  explicit LifetimeAnnotatedOriginTypeCollector(
+      const FunctionSummariesRef &Summaries)
+      : Summaries(Summaries) {}
+
   bool VisitCallExpr(const CallExpr *CE) {
     // Indirect calls (e.g., function pointers) are skipped because lifetime
     // annotations currently apply to declarations, not types.
@@ -78,6 +83,7 @@ public:
   }
 
 private:
+  const FunctionSummariesRef &Summaries;
   llvm::SmallVector<QualType> CollectedTypes;
 
   void collect(const FunctionDecl *FD, QualType RetType) {
@@ -97,6 +103,21 @@ private:
         CollectedTypes.push_back(RetType);
         return;
       }
+    }
+
+    // The summary adds to the attributes.
+    if (const FunctionSummary *Summary = Summaries(FD)) {
+      auto IsBound = [&](ParamOrThis P) {
+        return llvm::any_of(Summary->getLifetimeBoundFor(P),
+                            isSupportedLifetimeBoundSummary);
+      };
+      auto IsBoundForParmIdx = [&IsBound](unsigned Idx) {
+        return IsBound(ParamOrThis::forParam(Idx));
+      };
+
+      if (IsBound(ParamOrThis::forThis()) ||
+          llvm::any_of(llvm::seq(FD->getNumParams()), IsBoundForParmIdx))
+        CollectedTypes.push_back(RetType);
     }
   }
 
@@ -131,6 +152,34 @@ private:
       if (auto *Attr = Param->getAttr<LifetimeCaptureByAttr>())
         ProcessAttr(Attr);
     }
+
+    // The summary adds to the attributes. The capturers are what needs origins.
+    const FunctionSummary *Summary = Summaries(FD);
+
+    if (!Summary)
+      return;
+
+    //   Add the capturers that capture P to CollectedTypes:
+    auto ProcessCapturers = [&](ParamOrThis P) {
+      for (const CapturedByAssertion &A : Summary->getCapturedByFor(P)) {
+        if (!isSupportedCapturedBySummary(A))
+          continue;
+
+        auto Capturer = A.Q;
+
+        if (Capturer.isThis() && MD) {
+          CollectedTypes.push_back(MD->getFunctionObjectParameterType());
+        } else if (Capturer.getParamIndex() < FD->getNumParams()) {
+          CollectedTypes.push_back(FD->getParamDecl(Capturer.getParamIndex())
+                                       ->getType()
+                                       .getNonReferenceType());
+        }
+      }
+    };
+
+    ProcessCapturers(ParamOrThis::forThis());
+    for (unsigned I = 0; I < FD->getNumParams(); ++I)
+      ProcessCapturers(ParamOrThis::forParam(I));
   }
 };
 
@@ -198,9 +247,10 @@ bool doesDeclHaveStorage(const ValueDecl *D) {
   return !D->getType()->isReferenceType();
 }
 
-OriginManager::OriginManager(const AnalysisDeclContext &AC)
+OriginManager::OriginManager(const AnalysisDeclContext &AC,
+                             FunctionSummariesRef Summaries)
     : AST(AC.getASTContext()) {
-  collectLifetimeAnnotatedOriginTypes(AC);
+  collectLifetimeAnnotatedOriginTypes(AC, Summaries);
   initializeThisOrigins(AC.getDecl());
 }
 
@@ -396,8 +446,8 @@ void OriginManager::collectMissingOrigins(Stmt &FunctionBody,
 }
 
 void OriginManager::collectLifetimeAnnotatedOriginTypes(
-    const AnalysisDeclContext &AC) {
-  LifetimeAnnotatedOriginTypeCollector Collector;
+    const AnalysisDeclContext &AC, const FunctionSummariesRef &Summaries) {
+  LifetimeAnnotatedOriginTypeCollector Collector(Summaries);
   if (Stmt *Body = AC.getBody())
     Collector.TraverseStmt(Body);
   if (const auto *CD = dyn_cast<CXXConstructorDecl>(AC.getDecl()))

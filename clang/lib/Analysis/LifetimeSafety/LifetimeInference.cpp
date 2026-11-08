@@ -41,10 +41,14 @@ void LifetimeInference::analyzeFunction(AnalysisDeclContext &AC,
   if (!FD)
     return;
   const CFG &Cfg = *AC.getCFG();
+
   if (Opts.MaxCFGBlocks > 0 && Cfg.getNumBlockIDs() > Opts.MaxCFGBlocks)
     return;
-  FactManager FactMgr(AC, Cfg);
-  FactsGenerator(FactMgr, AC, Opts).run();
+
+  FunctionSummariesRef SummariesRef(
+      [this](const FunctionDecl *Callee) { return getSummary(Callee); });
+  FactManager FactMgr(AC, Cfg, SummariesRef);
+  FactsGenerator(FactMgr, AC, Opts, SummariesRef).run();
   LifetimeFactory Factory;
   LoanPropagationAnalysis LoanPropagation(
       Cfg, AC, FactMgr, Factory.OriginMapFactory, Factory.LoanSetFactory);

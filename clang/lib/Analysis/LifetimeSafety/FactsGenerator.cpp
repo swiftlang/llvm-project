@@ -964,6 +964,47 @@ void FactsGenerator::handleGSLPointerConstruction(const CXXConstructExpr *CCE) {
   }
 }
 
+// The number of call arguments before the first explicit parameter: 1 for the
+// object argument.
+static unsigned getObjectArgCount(const FunctionDecl *FD) {
+  const auto *MD = dyn_cast<CXXMethodDecl>(FD);
+  return MD && MD->isImplicitObjectMemberFunction() &&
+                 !isa<CXXConstructorDecl>(MD)
+             ? 1
+             : 0;
+}
+
+// The parameter of \p FD, or `this`, that the call argument \p ArgIdx is passed
+// to.
+static ParamOrThis getParamOrThisForArg(const FunctionDecl *FD,
+                                        unsigned ArgIdx) {
+  unsigned ObjectArgs = getObjectArgCount(FD);
+  return ArgIdx < ObjectArgs ? ParamOrThis::forThis()
+                             : ParamOrThis::forParam(ArgIdx - ObjectArgs);
+}
+
+// The supported lifetimebound assertions of the summary of \p FD on the call
+// argument \p ArgIdx.
+static auto getLifetimeBoundBySummary(const FunctionSummariesRef &Summaries,
+                                      const FunctionDecl *FD, unsigned ArgIdx) {
+  ArrayRef<LifetimeBoundAssertion> Assertions;
+
+  if (const FunctionSummary *Summary = Summaries(FD))
+    Assertions = Summary->getLifetimeBoundFor(getParamOrThisForArg(FD, ArgIdx));
+  return llvm::make_filter_range(Assertions, isSupportedLifetimeBoundSummary);
+}
+
+// The supported captured-by assertions of the summary of \p FD on the call
+// argument \p ArgIdx.
+static auto getCapturedByBySummary(const FunctionSummariesRef &Summaries,
+                                   const FunctionDecl *FD, unsigned ArgIdx) {
+  ArrayRef<CapturedByAssertion> Assertions;
+
+  if (const FunctionSummary *Summary = Summaries(FD))
+    Assertions = Summary->getCapturedByFor(getParamOrThisForArg(FD, ArgIdx));
+  return llvm::make_filter_range(Assertions, isSupportedCapturedBySummary);
+}
+
 void FactsGenerator::handleMovedArgsInCall(const FunctionDecl *FD,
                                            ArrayRef<const Expr *> Args) {
   // std::unique_ptr::release() transfers ownership.
@@ -993,7 +1034,9 @@ void FactsGenerator::handleMovedArgsInCall(const FunctionDecl *FD,
     // indicates that the parameter is borrowed (not consumed), so it should not
     // be marked as moved even though it's an r-value reference.
     if (PVD->hasAttr<LifetimeBoundAttr>() ||
-        PVD->hasAttr<LifetimeCaptureByAttr>())
+        PVD->hasAttr<LifetimeCaptureByAttr>() ||
+        !getLifetimeBoundBySummary(Summaries, FD, I).empty() ||
+        !getCapturedByBySummary(Summaries, FD, I).empty())
       continue;
     const Expr *Arg = Args[I];
     OriginList *MovedOrigins = getOriginsList(*Arg);
@@ -1090,7 +1133,20 @@ void FactsGenerator::handleLifetimeCaptureBy(const FunctionDecl *FD,
   };
   for (unsigned I = 0; I < Args.size(); ++I) {
     auto [Attr, ParamType] = getArgCaptureByAttr(I);
-    if (!Attr)
+    // The capturers, as call argument indices, from the attribute and the
+    // summary. Both may name the same one.
+    llvm::SmallVector<int, 2> Capturers;
+    if (Attr)
+      llvm::append_range(Capturers, Attr->params());
+    for (const CapturedByAssertion &A :
+         getCapturedByBySummary(Summaries, FD, I)) {
+      int Idx = A.Q.isThis() ? LifetimeCaptureByAttr::This
+                             : A.Q.getParamIndex() + getObjectArgCount(FD);
+
+      if (!llvm::is_contained(Capturers, Idx))
+        Capturers.push_back(Idx);
+    }
+    if (Capturers.empty())
       continue;
     OriginList *CapturedOriginList = getOriginsList(*Args[I]);
     if (!CapturedOriginList)
@@ -1102,7 +1158,7 @@ void FactsGenerator::handleLifetimeCaptureBy(const FunctionDecl *FD,
          isPointerLikeType(ParamType->getPointeeType())) &&
         CapturedOriginList->getLength() > 1)
       CapturedOriginList = CapturedOriginList->peelOuterOrigin();
-    for (int CapturingArgIdx : Attr->params()) {
+    for (int CapturingArgIdx : Capturers) {
       // FIXME: Add support for capturing to Global/unknown.
       if (CapturingArgIdx == LifetimeCaptureByAttr::Global ||
           CapturingArgIdx == LifetimeCaptureByAttr::Unknown ||
@@ -1228,7 +1284,9 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
     OriginList *ArgList = getOriginsList(*Args[I]);
     if (!ArgList)
       continue;
-    bool ShouldTrackArg = getTrackedArgInfo(FD, Args, I).has_value();
+    // The attributes and the summary may agree: either one suffices.
+    bool ShouldTrackArg = getTrackedArgInfo(FD, Args, I).has_value() ||
+                          !getLifetimeBoundBySummary(Summaries, FD, I).empty();
     if (IsGslConstruction) {
       // TODO: document with code example.
       // std::string_view(const std::string_view& from)

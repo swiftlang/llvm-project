@@ -19,6 +19,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/TypeBase.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeStats.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/Utils.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "llvm/Support/raw_ostream.h"
@@ -134,7 +135,10 @@ bool doesDeclHaveStorage(const ValueDecl *D);
 /// variables and expressions.
 class OriginManager {
 public:
-  explicit OriginManager(const AnalysisDeclContext &AC);
+  /// \p Summaries provides the summaries of the callees, which add to their
+  /// attributes. It is not kept.
+  explicit OriginManager(const AnalysisDeclContext &AC,
+                         FunctionSummariesRef Summaries = {});
 
   /// Gets or creates the OriginList for a given ValueDecl.
   ///
@@ -214,8 +218,11 @@ private:
 
   /// Pre-scans the function body (and constructor init lists) to discover
   /// return types of lifetime-annotated calls (currently
-  /// [[clang::lifetimebound]]), registering them for origin tracking.
-  void collectLifetimeAnnotatedOriginTypes(const AnalysisDeclContext &AC);
+  /// [[clang::lifetimebound]] or a lifetimebound summary of the callee),
+  /// registering them for origin tracking.
+  void
+  collectLifetimeAnnotatedOriginTypes(const AnalysisDeclContext &AC,
+                                      const FunctionSummariesRef &Summaries);
   void registerLifetimeAnnotatedOriginType(QualType QT);
 
   ASTContext &AST;

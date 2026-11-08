@@ -430,7 +430,10 @@ public:
 
 class FactManager {
 public:
-  FactManager(const AnalysisDeclContext &AC, const CFG &Cfg) : OriginMgr(AC) {
+  /// \p Summaries provides the summaries of the callees, for the origins.
+  FactManager(const AnalysisDeclContext &AC, const CFG &Cfg,
+              FunctionSummariesRef Summaries = {})
+      : OriginMgr(AC, std::move(Summaries)) {
     BlockToFacts.resize(Cfg.getNumBlockIDs());
   }
 
