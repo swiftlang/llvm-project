@@ -30,6 +30,7 @@
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
 #include "lldb/DataFormatters/StringPrinter.h"
+#include "lldb/Expression/DWARFExpression.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/OptionParser.h"
@@ -3953,6 +3954,59 @@ UnwindPlanSP SwiftLanguageRuntime::GetFollowAsyncContextUnwindPlan(
   plan->SetUnwindPlanForSignalTrap(eLazyBoolYes);
   behaves_like_zeroth_frame = true;
   return plan;
+}
+
+std::optional<Value>
+SwiftLanguageRuntime::EvaluateEntryValue(StackFrame &frame,
+                                         llvm::ArrayRef<uint8_t> entry_value,
+                                         llvm::ArrayRef<uint8_t> &following) {
+  Function *function = frame.GetSymbolContext(eSymbolContextFunction).function;
+  if (!function)
+    return std::nullopt;
+  llvm::StringRef mangled_name =
+      function->GetMangled().GetMangledName().GetStringRef();
+  if (!IsAnySwiftAsyncFunctionSymbol(mangled_name))
+    return std::nullopt;
+
+  const ArchSpec &arch = GetProcess().GetTarget().GetArchitecture();
+  std::optional<AsyncUnwindRegisterNumbers> regnums =
+      GetAsyncUnwindRegisterNumbers(arch.GetMachine());
+  if (!regnums || entry_value.size() != 1 ||
+      entry_value[0] != llvm::dwarf::DW_OP_reg0 + regnums->async_ctx_regnum)
+    return std::nullopt;
+
+  // On entry to a funclet, the async context register holds the async context
+  // of the function, which GetRuntimeUnwindPlan() makes the CFA of the frame.
+  // In a Q funclet, it holds the async context of the function that just
+  // returned, which points to the context of this one. Evaluate the
+  // DW_OP_deref along with the entry value, because the Q funclet frees the
+  // context the register points to.
+  if (IsSwiftAsyncAwaitResumePartialFunctionSymbol(mangled_name)) {
+    if (following.empty() || following.front() != llvm::dwarf::DW_OP_deref) {
+      LLDB_LOG(GetLog(LLDBLog::Expressions),
+               "missing DW_OP_deref after DW_OP_entry_value in Q funclet {0}",
+               mangled_name);
+      return std::nullopt;
+    }
+    following.consume_front();
+  }
+
+  ExecutionContext exe_ctx;
+  frame.CalculateExecutionContext(exe_ctx);
+  static const uint8_t cfa_opcode = llvm::dwarf::DW_OP_call_frame_cfa;
+  DataExtractor cfa_expr(&cfa_opcode, 1, arch.GetByteOrder(),
+                         arch.GetAddressByteSize());
+  llvm::Expected<Value> cfa = DWARFExpression::Evaluate(
+      &exe_ctx, frame.GetRegisterContext().get(),
+      function->CalculateSymbolContextModule(), cfa_expr,
+      /*dwarf_cu=*/nullptr, eRegisterKindDWARF,
+      /*initial_value_ptr=*/nullptr, /*object_address_ptr=*/nullptr);
+  if (!cfa) {
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Expressions), cfa.takeError(),
+                   "could not evaluate the CFA of {1}: {0}", mangled_name);
+    return std::nullopt;
+  }
+  return *cfa;
 }
 
 std::optional<lldb::addr_t> SwiftLanguageRuntime::TrySkipVirtualParentProlog(
