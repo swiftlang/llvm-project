@@ -93,6 +93,12 @@ def git(*cmd, **kwargs):
     return invoke(*cmd, **kwargs, stdout=subprocess.PIPE)
 
 
+def ref_exists(ref: str):
+    """Check whether a ref resolves locally."""
+    return git('rev-parse', '--verify', '--quiet', ref,
+               ignore_error=True) is not None
+
+
 class Commit:
     """ Represents the commit being merged."""
     def __init__(self, sha: str):
@@ -128,15 +134,33 @@ class MergeId:
     def merge_candidate_ref_name(self):
         return self.prefix + "/merge-candidate/" + self.merge_id
 
+    def negotiation_tips(self):
+        """ Local refs to negotiate against when fetching a merge candidate.
+
+            By default git seeds the negotiation with every ref in the
+            repository and picks the commits it offers the server by commit
+            date. In a repository with tens of thousands of refs that can fail
+            to turn up the common base, in which case the server falls back to
+            sending nearly the whole history rather than the handful of
+            objects we actually need. Restricting the negotiation to a ref on
+            the target branch, which the merge candidate is built on top of,
+            avoids that.
+        """
+        candidates = ['refs/remotes/origin/' + self.target_branch]
+        return [ref for ref in candidates if ref_exists(ref)]
+
     def get_previous_merge_id(self):
         previous_commit = self.commit.get_previous_commit()
         return MergeId(self.merge_id.replace(self.commit.sha, previous_commit))
 
     @staticmethod
-    def fetch(*args):
+    def fetch(*args, negotiation_tips=()):
         """Helper function for the "git fetch" command."""
+        cmd = ['fetch']
+        cmd += ['--negotiation-tip=' + tip for tip in negotiation_tips]
+        cmd += list(args)
         try:
-            git('fetch', *args)
+            git(*cmd)
             return True
         except GitError as e:
             if e.returncode == 128:
@@ -149,7 +173,8 @@ class MergeId:
 
     def fetch_merge_candidate_ref_name(self):
         refspec = "+" + self.merge_candidate_ref_name + ":" + self.merge_candidate_ref_name
-        return self.fetch(REMOTE, refspec)
+        return self.fetch(REMOTE, refspec,
+                          negotiation_tips=self.negotiation_tips())
 
     @staticmethod
     def checkout(*args):
