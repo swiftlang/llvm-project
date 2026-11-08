@@ -2344,6 +2344,14 @@ defm interop_lifetime_inference_test_mode
                             " lifetime safety analysis ignoring existing "
                             "explicit lifetime/escape annotations">>;
 
+defm interop_type_inference
+    : BoolFOption<"interop-type-inference",
+                  LangOpts<"InteropTypeInference">, DefaultFalse,
+                  PosFlag<SetTrue, [], [CC1Option], "Enable">,
+                  NegFlag<SetFalse, [], [CC1Option], "Disable">,
+                  BothFlags<[], [CC1Option],
+                            " interop type inference for C++">>;
+
 defm lifetime_safety_tu_analysis
     : BoolFOption<"experimental-lifetime-safety-tu-analysis",
                   LangOpts<"EnableLifetimeSafetyTUAnalysis">, DefaultFalse,

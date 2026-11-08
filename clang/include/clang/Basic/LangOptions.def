@@ -551,6 +551,7 @@ LANGOPT(LifetimeSafetyMaxCFGBlocks, 32, 0, Benign, "Skip LifetimeSafety analysis
 
 LANGOPT(EnableLifetimeSafetyInference, 1, 0, Benign, "Lifetime safety inference analysis for C++")
 LANGOPT(InteropLifetimeInferenceTestMode, 1, 0, Benign, "Make lifetime safety analysis ignore existing explicit lifetime/escape annotations for C++")
+LANGOPT(InteropTypeInference, 1, 0, Benign, "Interop type inference for C++")
 
 // TODO: Remove flag and default to end-of-TU analysis for lifetime safety after performance validation.
 LANGOPT(EnableLifetimeSafetyTUAnalysis, 1, 0, Benign, "Lifetime safety at translation-unit end, analyzing functions in call graph post-order for C++")
