@@ -23,6 +23,7 @@
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeVisitor.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/DirectViewInference.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
@@ -3807,6 +3808,9 @@ bool Sema::InstantiateClassImpl(
   ActOnFields(nullptr, Instantiation->getLocation(), Instantiation, Fields,
               SourceLocation(), SourceLocation(), ParsedAttributesView());
   CheckCompletedCXXClass(nullptr, Instantiation);
+  if (auto *DVI = AnalysisWarnings.getDirectViewInference();
+      DVI && !Instantiation->isInvalidDecl())
+    DVI->addRecord(Instantiation);
 
   // Default arguments are parsed, if not instantiated. We can go instantiate
   // default arg exprs for default constructors if necessary now. Unless we're

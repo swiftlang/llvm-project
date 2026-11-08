@@ -21,6 +21,7 @@
 namespace clang {
 
 namespace lifetimes {
+class DirectViewInference;
 class LifetimeInference;
 } // namespace lifetimes
 
@@ -117,6 +118,9 @@ private:
   /// The summaries of the functions analyzed so far, created on first use.
   std::unique_ptr<lifetimes::LifetimeInference> LifetimeInferenceInstance;
 
+  /// The records collected for DirectViewInference, created on first use.
+  std::unique_ptr<lifetimes::DirectViewInference> DirectViewInferenceInstance;
+
   /// @}
 
 public:
@@ -153,6 +157,10 @@ public:
 
   /// The LifetimeInference of the translation unit, created on first use.
   lifetimes::LifetimeInference &getLifetimeInference();
+
+  /// The DirectViewInference of the translation unit, created on first use;
+  /// null unless -finterop-type-inference is on.
+  lifetimes::DirectViewInference *getDirectViewInference();
 };
 
 } // namespace sema

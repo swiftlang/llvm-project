@@ -32,6 +32,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypedMemoryInference.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/DirectViewInference.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/HLSLRuntime.h"
@@ -20588,6 +20589,9 @@ void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
 
   if (auto *RD = dyn_cast<CXXRecordDecl>(Tag)) {
     FieldCollector->FinishClass();
+    if (auto *DVI = AnalysisWarnings.getDirectViewInference();
+        DVI && !RD->isInvalidDecl() && !RD->isDependentContext())
+      DVI->addRecord(RD);
     if (RD->hasAttr<SYCLSpecialClassAttr>()) {
       auto *Def = RD->getDefinition();
       assert(Def && "The record is expected to have a completed definition");

@@ -34,6 +34,7 @@
 #include "clang/Analysis/Analyses/CFGReachabilityAnalysis.h"
 #include "clang/Analysis/Analyses/CalledOnceCheck.h"
 #include "clang/Analysis/Analyses/Consumed.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/DirectViewInference.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeInference.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/ReachableCode.h"
@@ -3614,6 +3615,16 @@ sema::AnalysisBasedWarnings::getLifetimeInference() {
     LifetimeInferenceInstance =
         std::make_unique<lifetimes::LifetimeInference>();
   return *LifetimeInferenceInstance;
+}
+
+lifetimes::DirectViewInference *
+sema::AnalysisBasedWarnings::getDirectViewInference() {
+  if (!S.getLangOpts().InteropTypeInference)
+    return nullptr;
+  if (!DirectViewInferenceInstance)
+    DirectViewInferenceInstance =
+        std::make_unique<lifetimes::DirectViewInference>();
+  return DirectViewInferenceInstance.get();
 }
 
 sema::AnalysisBasedWarnings::Policy
