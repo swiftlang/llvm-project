@@ -13,6 +13,7 @@ add_clang_library(clangAnalysis
   CFGReachabilityAnalysis.cpp
   CFGStmtMap.cpp
   CallGraph.cpp
+  CallGraphFixPoint.cpp
   CloneDetection.cpp
   CocoaConventions.cpp
   ConstructionContext.cpp

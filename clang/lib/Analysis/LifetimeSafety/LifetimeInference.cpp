@@ -60,6 +60,29 @@ void LifetimeInference::analyzeFunction(AnalysisDeclContext &AC,
   LLVM_DEBUG(Summaries.lookup(FD).dump(llvm::dbgs(), FD));
 }
 
+std::function<bool(const FunctionDecl *)>
+LifetimeInference::getLifetimeInferenceAnalyzeLambda(
+    const LifetimeSafetyOpts &Opts,
+    std::function<bool(const FunctionDecl *)> ShouldSkip,
+    std::function<void(AnalysisDeclContext &)> SetupCFG) {
+  return [this, Opts, ShouldSkip = std::move(ShouldSkip),
+          SetupCFG = std::move(SetupCFG)](const FunctionDecl *FD) {
+    if (FD->isImplicit() || ShouldSkip(FD))
+      return false;
+    AnalysisDeclContext AC(nullptr, FD);
+    SetupCFG(AC);
+    if (!AC.getCFG())
+      return false;
+    // A missing summary is an empty one.
+    FunctionSummary Old;
+    if (const FunctionSummary *Prev = getSummary(FD))
+      Old = *Prev;
+    analyzeFunction(AC, Opts);
+    const FunctionSummary *New = getSummary(FD);
+    return New && !(*New == Old);
+  };
+}
+
 namespace {
 
 // Returns true if FD is declared by a template with at least one defined

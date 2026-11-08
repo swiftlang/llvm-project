@@ -43,6 +43,7 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CallGraph.h"
+#include "clang/Analysis/CallGraphFixPoint.h"
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
@@ -3844,21 +3845,20 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
   }
 }
 
-// Launches LifetimeInference on the function \p D, if D is one.
-static void runLifetimeInference(Sema &S, const Decl *D) {
-  if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
-    AnalysisDeclContext AC(nullptr, FD);
+// Runs LifetimeInference on the functions of \p TU until the summaries settle.
+static void runLifetimeInference(Sema &S, TranslationUnitDecl *TU) {
+  // The default options turn off all the checks and suggestions.
+  lifetimes::LifetimeSafetyOpts Opts;
+  Opts.MaxCFGBlocks = S.getLangOpts().LifetimeSafetyMaxCFGBlocks;
 
-    setLifetimeSafetyCFGBuildOptions(AC);
-    if (!AC.getCFG())
-      return;
-
-    // The default options turn off all the checks and suggestions.
-    lifetimes::LifetimeSafetyOpts Opts;
-
-    Opts.MaxCFGBlocks = S.getLangOpts().LifetimeSafetyMaxCFGBlocks;
-    S.AnalysisWarnings.getLifetimeInference().analyzeFunction(AC, Opts);
-  }
+  auto AnalyzeF = S.AnalysisWarnings.getLifetimeInference()
+                      .getLifetimeInferenceAnalyzeLambda(
+                          Opts,
+                          [&S](const FunctionDecl *FD) {
+                            return shouldSkipAnalysisForDecl(S, FD);
+                          },
+                          setLifetimeSafetyCFGBuildOptions);
+  CallGraphFixPoint(TU).run(AnalyzeF);
 }
 
 static bool shouldRunUnsafeBufferUsageAnalysis(const Sema &S,
@@ -3933,8 +3933,10 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
   if (lifetimes::IsLifetimeSafetyEnabled(S, TU))
     LifetimeSafetyTUAnalysis(S, TU, LSStats);
 
-  if (S.getLangOpts().InteropLifetimeInferenceTestMode)
+  if (S.getLangOpts().InteropLifetimeInferenceTestMode) {
+    runLifetimeInference(S, TU);
     getLifetimeInference().reportOracleSummary(Diags);
+  }
 }
 
 void clang::sema::AnalysisBasedWarnings::IssueWarningsForImplicitFunction(
@@ -4133,8 +4135,6 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
           LSStats, S.CollectStats);
     }
   }
-  if (S.getLangOpts().InteropLifetimeInferenceTestMode)
-    runLifetimeInference(S, D);
   // Check for violations of "called once" parameter properties.
   if (S.getLangOpts().ObjC && !S.getLangOpts().CPlusPlus &&
       shouldAnalyzeCalledOnceParameters(Diags, D->getBeginLoc())) {

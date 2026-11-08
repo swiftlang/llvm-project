@@ -19,9 +19,10 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
-#include "clang/Basic/AttrKinds.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Compiler.h"
+#include <functional>
 
 namespace clang {
 class Attr;
@@ -61,6 +62,16 @@ public:
   /// records the inferred summary, replacing the summary of an earlier
   /// analysis of the function.
   void analyzeFunction(AnalysisDeclContext &AC, const LifetimeSafetyOpts &Opts);
+
+  /// Returns a lambda of type bool(const FunctionDecl *) that runs
+  /// analyzeFunction on the function and returns true iff its summary changed.
+  /// The function is skipped if it is implicit or \p ShouldSkip holds for it;
+  /// \p SetupCFG sets the CFG build options of its context. The lambda must not
+  /// outlive this.
+  std::function<bool(const FunctionDecl *)> getLifetimeInferenceAnalyzeLambda(
+      const LifetimeSafetyOpts &Opts,
+      std::function<bool(const FunctionDecl *)> ShouldSkip,
+      std::function<void(AnalysisDeclContext &)> SetupCFG) LLVM_LIFETIME_BOUND;
 
   /// \return the summary of the definition of \p FD, or null. Do not keep the
   /// pointer: analyzing a function can invalidate it.
