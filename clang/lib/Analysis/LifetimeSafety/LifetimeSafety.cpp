@@ -30,6 +30,16 @@
 #include <memory>
 
 namespace clang::lifetimes {
+
+void setLifetimeSafetyCFGBuildOptions(AnalysisDeclContext &AC) {
+  AC.getCFGBuildOptions().PruneTriviallyFalseEdges = true;
+  AC.getCFGBuildOptions().AddLifetime = true;
+  AC.getCFGBuildOptions().AddParameterLifetimes = true;
+  AC.getCFGBuildOptions().AddInitializers = true;
+  AC.getCFGBuildOptions().AddCXXDefaultInitExprInCtors = true;
+  AC.getCFGBuildOptions().setAllAlwaysAdd();
+}
+
 namespace internal {
 
 #ifndef NDEBUG

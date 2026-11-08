@@ -3810,16 +3810,6 @@ public:
   }
 };
 
-// CFG build options for running the lifetime safety analysis on a function.
-static void setLifetimeSafetyCFGBuildOptions(AnalysisDeclContext &AC) {
-  AC.getCFGBuildOptions().PruneTriviallyFalseEdges = true;
-  AC.getCFGBuildOptions().AddLifetime = true;
-  AC.getCFGBuildOptions().AddParameterLifetimes = true;
-  AC.getCFGBuildOptions().AddInitializers = true;
-  AC.getCFGBuildOptions().AddCXXDefaultInitExprInCtors = true;
-  AC.getCFGBuildOptions().setAllAlwaysAdd();
-}
-
 // Returns true when analysis-based warnings should be skipped for D: warnings
 // are ignored, D is in a suppressed system header, or D is in a dependent
 // context (which is handled later at instantiation time).
@@ -3848,7 +3838,7 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
     if (!FD)
       continue;
     AnalysisDeclContext AC(nullptr, FD);
-    setLifetimeSafetyCFGBuildOptions(AC);
+    lifetimes::setLifetimeSafetyCFGBuildOptions(AC);
     if (AC.getCFG())
       runLifetimeSafetyAnalysis(AC, &SemaHelper,
                                 lifetimes::GetLifetimeSafetyOpts(S, FD),
@@ -3868,7 +3858,7 @@ static void runLifetimeInference(Sema &S, TranslationUnitDecl *TU) {
                           [&S](const FunctionDecl *FD) {
                             return shouldSkipAnalysisForDecl(S, FD);
                           },
-                          setLifetimeSafetyCFGBuildOptions);
+                          lifetimes::setLifetimeSafetyCFGBuildOptions);
   CallGraphFixPoint(TU).run(AnalyzeF);
 }
 
@@ -3980,7 +3970,7 @@ void clang::sema::AnalysisBasedWarnings::IssueWarningsForImplicitFunction(
   }
 
   AnalysisDeclContext AC(/*AnalysisDeclContextManager=*/nullptr, D);
-  setLifetimeSafetyCFGBuildOptions(AC);
+  lifetimes::setLifetimeSafetyCFGBuildOptions(AC);
 
   lifetimes::LifetimeSafetySemaHelperImpl SemaHelper(S);
   if (AC.getCFG())

@@ -190,6 +190,10 @@ public:
   virtual void addLifetimeBoundToImplicitThis(const CXXMethodDecl *MD) {}
 };
 
+/// Sets the CFG build options of \p AC for running the analysis on its
+/// function.
+void setLifetimeSafetyCFGBuildOptions(AnalysisDeclContext &AC);
+
 /// The main entry point for the analysis.
 void runLifetimeSafetyAnalysis(AnalysisDeclContext &AC,
                                LifetimeSafetySemaHelper *SemaHelper,
