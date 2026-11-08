@@ -1265,7 +1265,7 @@ static bool IsSwiftReferenceType(ValueObject &object) {
     Flags type_flags(object_type.GetTypeInfo());
     if (type_flags.AllSet(eTypeIsClass | eTypeHasValue |
                           eTypeInstanceIsPointer))
-      return true;
+      return !TypeSystemSwift::IsForeignReferenceType(object_type);
   }
   return false;
 }
@@ -1299,9 +1299,13 @@ static bool IsPrivate(ValueObjectSP valobj_sp) {
 llvm::Error
 SwiftLanguageRuntime::PrintObjectViaPointer(Stream &strm, ValueObject &object,
                                             Process &process) const {
-  Flags flags(object.GetCompilerType().GetTypeInfo());
+  CompilerType type = object.GetCompilerType();
+  // A foreign reference is not an AnyObject, so the inferior loads it from
+  // the pointer like a value.
+  bool is_object = Flags(type.GetTypeInfo()).Test(eTypeInstanceIsPointer) &&
+                   !TypeSystemSwift::IsForeignReferenceType(type);
   addr_t addr = LLDB_INVALID_ADDRESS;
-  if (flags.Test(eTypeInstanceIsPointer)) {
+  if (is_object) {
     // Objects are pointers. The inferior dereferences this pointer, so the
     // metadata bits that authenticate a memory access have to be preserved.
     addr = object.GetValueAsUnsigned(LLDB_INVALID_ADDRESS);
@@ -2575,7 +2579,8 @@ protected:
     result_valobj_sp = result_valobj_sp->GetQualifiedRepresentationIfAvailable(
         lldb::eDynamicCanRunTarget, true);
     CompilerType result_type(result_valobj_sp->GetCompilerType());
-    if (!(result_type.GetTypeInfo() & lldb::eTypeInstanceIsPointer)) {
+    if (!(result_type.GetTypeInfo() & lldb::eTypeInstanceIsPointer) ||
+        TypeSystemSwift::IsForeignReferenceType(result_type)) {
       result.AppendError("refcount only available for class types");
       result.SetStatus(lldb::eReturnStatusFailed);
       return;
