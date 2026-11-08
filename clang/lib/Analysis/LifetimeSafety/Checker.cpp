@@ -260,13 +260,21 @@ public:
     if (!FDecl)
       return;
 
-    // Add LifetimeBound assertion on 'this' if 'D' is a CXXMethodDecl or on 'D'
-    // if it is a ParmVarDecl:
+    // Add LifetimeBound assertion on 'this' if 'D' is a CXXMethodDecl, or on
+    // 'D' if it is a ParmVarDecl. A constructor's parameter is lifetimebound
+    // through the fields that it is stored in.
     auto AddLifetimeBound = [&](const Decl *D) {
+      if (isa<CXXMethodDecl>(D)) {
+        SummaryBuilder->addLifetimeBound(ParamOrThis::forThis(), Level::Value);
+        return;
+      }
+      ParamOrThis P = ParamOrThis::forParam(cast<ParmVarDecl>(D));
+      std::optional<FieldSet> Fields;
+
+      if (isa<CXXConstructorDecl>(FDecl))
+        Fields = getCapturingFields(P);
       SummaryBuilder->addLifetimeBound(
-          isa<CXXMethodDecl>(D) ? ParamOrThis::forThis()
-                                : ParamOrThis::forParam(cast<ParmVarDecl>(D)),
-          Level::Value);
+          P, Level::Value, Fields ? std::move(*Fields) : FieldSet());
     };
 
     for (const auto &Entry : AnnotationWarningsMap) {
@@ -349,6 +357,28 @@ public:
     return It != ParamLoans.PostState.end() ? It->second : LoanSet(nullptr);
   }
 
+  /// \return the fields of `this` that hold the entry loan of \p P at function
+  /// exit, or nothing if no field does.
+  std::optional<FieldSet> getCapturingFields(ParamOrThis P) {
+    auto It = ParamLoans.PreState.find(P);
+    if (It == ParamLoans.PreState.end())
+      return std::nullopt;
+
+    std::optional<FieldSet> Fields;
+
+    for (const Fact *F : FactMgr.getFacts(&Cfg->getExit()))
+      if (const auto *FEF = F->getAs<FieldEscapeFact>();
+          FEF && LoanPropagation.getLoans(FEF->getEscapedOriginID(), FEF)
+                     .contains(It->second)) {
+        FieldSet Field = FieldSet::of(FEF->getFieldDecl());
+        if (Fields)
+          Fields->merge(Field);
+        else
+          Fields = std::move(Field);
+      }
+    return Fields;
+  }
+
   /// Adds the CapturedBy assertions of the parameters and `this` of \p FDecl:
   /// by the reference parameters, and, for a parameter, by `this`.
   void addCapturedByHelper(const FunctionDecl *FDecl) {
@@ -384,26 +414,17 @@ public:
     bool IsMethodButNotCtorDtor =
         IsMethod && !isa<CXXConstructorDecl, CXXDestructorDecl>(MD);
 
-    // A parameter is captured by `this` if (a field of) `this` holds its entry
-    // loan at exit.
+    // A parameter is captured by `this`, through the fields of `this` that hold
+    // its entry loan at exit.
     auto AddParamCapturedByThis = [&](const ParmVarDecl *PVD) {
       if (!IsMethodButNotCtorDtor)
         return;
 
       ParamOrThis P = ParamOrThis::forParam(PVD);
-      std::optional<LoanID> EntryLoan = GetEntryLoan(P);
-
-      if (!EntryLoan)
-        return;
-      for (const Fact *F : FactMgr.getFacts(&Cfg->getExit()))
-        if (const auto *OEF = F->getAs<OriginEscapesFact>())
-          if (isa<FieldEscapeFact>(OEF) &&
-              LoanPropagation.getLoans(OEF->getEscapedOriginID(), OEF)
-                  .contains(*EntryLoan)) {
-            SummaryBuilder->addCapturedByAssertion(
-                P, Level::Value, ParamOrThis::forThis(), Level::Value);
-            return;
-          }
+      if (std::optional<FieldSet> Fields = getCapturingFields(P))
+        SummaryBuilder->addCapturedByAssertion(
+            P, Level::Value, ParamOrThis::forThis(), Level::Value,
+            std::move(*Fields));
     };
 
     for (const ParmVarDecl *PVD : FDecl->parameters()) {

@@ -140,13 +140,14 @@ struct CapturedByAssertion {
 };
 
 /// Whether the users of summaries support the assertion. They must ignore the
-/// others.
+/// others. They abstract the field sets away, i.e., read every assertion as one
+/// on the whole object.
 // FIXME: Support the other levels and the field sets.
 inline bool isSupportedLifetimeBoundSummary(const LifetimeBoundAssertion &A) {
-  return A.L == Level::Value && A.F.isAll();
+  return A.L == Level::Value;
 }
 inline bool isSupportedCapturedBySummary(const CapturedByAssertion &A) {
-  return A.L == Level::Value && A.QL == Level::Value && A.F.isAll();
+  return A.L == Level::Value && A.QL == Level::Value;
 }
 
 /// The assertions on one parameter P or on `this`.
