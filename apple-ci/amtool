@@ -134,6 +134,16 @@ class MergeId:
     def merge_candidate_ref_name(self):
         return self.prefix + "/merge-candidate/" + self.merge_id
 
+    @property
+    def target_branch_ref_name(self):
+        """ Local copy of the target branch tip, refreshed by
+            fetch_ref_name(). This tool fetches from a URL rather than from a
+            named remote, which means it never updates the remote-tracking
+            refs, so this is usually a much closer ancestor of the merge
+            candidate than refs/remotes/origin/<target branch> is.
+        """
+        return self.prefix + "/target/" + self.target_branch
+
     def negotiation_tips(self):
         """ Local refs to negotiate against when fetching a merge candidate.
 
@@ -146,7 +156,8 @@ class MergeId:
             the target branch, which the merge candidate is built on top of,
             avoids that.
         """
-        candidates = ['refs/remotes/origin/' + self.target_branch]
+        candidates = [self.target_branch_ref_name,
+                      'refs/remotes/origin/' + self.target_branch]
         return [ref for ref in candidates if ref_exists(ref)]
 
     def get_previous_merge_id(self):
@@ -169,7 +180,11 @@ class MergeId:
 
     def fetch_ref_name(self):
         refspec = self.ref_name + ":" + self.ref_name
-        return self.fetch(REMOTE, self.target_branch, refspec)
+        # Keep a local copy of the target branch tip; the merge candidate
+        # fetch negotiates against it.
+        target_refspec = ("+refs/heads/" + self.target_branch + ":"
+                          + self.target_branch_ref_name)
+        return self.fetch(REMOTE, self.target_branch, refspec, target_refspec)
 
     def fetch_merge_candidate_ref_name(self):
         refspec = "+" + self.merge_candidate_ref_name + ":" + self.merge_candidate_ref_name
