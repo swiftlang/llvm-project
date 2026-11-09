@@ -28,6 +28,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <optional>
 
 namespace clang::lifetimes::internal {
 
@@ -61,6 +62,20 @@ static auto referenceParams(const FunctionDecl *FD) {
   });
 }
 
+/// \return the FieldSet of the placeholder base of \p L. Undefined if the base
+/// is not a placeholder.
+/// If \p L does not represent fields of the base, the field set is empty.
+/// If \p L represents sub-objects of fields of the base, the field set only
+/// consists of direct fields of the base.
+FieldSet getFieldsOfPlaceholderBaseForSummary(const Loan &L) {
+  const AccessPath &Path = L.getAccessPath();
+  llvm::ArrayRef<PathElement> Elements = Path.getElements();
+
+  if (Elements.empty() || !Elements.front().isField())
+    return FieldSet{};
+  return FieldSet::of(Elements.front().getFieldDecl());
+}
+
 using AnnotationTarget =
     llvm::PointerUnion<const ParmVarDecl *, const CXXMethodDecl *>;
 using EscapingTarget = LifetimeSafetySemaHelper::EscapingTarget;
@@ -88,6 +103,9 @@ private:
     // Persistent origins can always be found at the exit block.
     llvm::DenseMap<OriginID, LoanSet> PostState;
   } ParamLoans;
+  // The parameters and `this` that the function may invalidate, with the
+  // fields of `this` for the invalidated fields.
+  llvm::DenseMap<ParamOrThis, FieldSet> InvalidatedEntities;
   const LoanPropagationAnalysis &LoanPropagation;
   const MovedLoansAnalysis &MovedLoans;
   const LiveOriginsAnalysis &LiveOrigins;
@@ -136,8 +154,11 @@ public:
           checkInvalidation(IOF);
         else if (const auto *OEF = F->getAs<OriginEscapesFact>())
           checkAnnotations(OEF);
-        if (SummaryBuilder)
+        if (SummaryBuilder) {
           recordParamLoans(F);
+          if (const auto *IOF = F->getAs<InvalidateOriginFact>())
+            recordInvalidatedEntities(IOF);
+        }
       }
     if (SummaryBuilder) {
       addToInferenceSummary();
@@ -269,6 +290,9 @@ public:
         return;
       }
       ParamOrThis P = ParamOrThis::forParam(cast<ParmVarDecl>(D));
+      // A parameter that the function may invalidate is not lifetimebound.
+      if (InvalidatedEntities.contains(P))
+        return;
       std::optional<FieldSet> Fields;
 
       if (isa<CXXConstructorDecl>(FDecl))
@@ -296,6 +320,35 @@ public:
 
     // Add CapturedBy:
     addCapturedByHelper(FDecl);
+
+    // Add Invalidated:
+    for (auto &[P, F] : InvalidatedEntities)
+      SummaryBuilder->addInvalidated(P, std::move(F));
+  }
+
+  /// Records what \p IOF may invalidate, from the placeholder loans that the
+  /// invalidated origin holds: a parameter, `this`, or a field of `this`.
+  void recordInvalidatedEntities(const InvalidateOriginFact *IOF) {
+    auto Add = [&](ParamOrThis P, FieldSet F) {
+      InvalidatedEntities.try_emplace(P, F).first->second.merge(F);
+    };
+    for (LoanID LID :
+         LoanPropagation.getLoans(IOF->getInvalidatedOrigin(), IOF)) {
+      const Loan *L = FactMgr.getLoanMgr().getLoan(LID);
+      const auto *PB = L->getAccessPath().getAsPlaceholderBase();
+
+      if (!PB)
+        continue;
+
+      FieldSet Fields = getFieldsOfPlaceholderBaseForSummary(*L);
+
+      if (const auto *PVD = PB->getParmVarDecl()) {
+        Add(ParamOrThis::forParam(PVD), Fields);
+      } else if (PB->getImplicitThisParent())
+        Add(ParamOrThis::forThis(), Fields);
+      else if (const FieldDecl *Field = PB->getFieldDecl())
+        Add(ParamOrThis::forThis(), FieldSet::of(Field));
+    }
   }
 
   /// \return the origins of the value of \p Q

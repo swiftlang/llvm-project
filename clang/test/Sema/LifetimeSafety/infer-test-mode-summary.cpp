@@ -6,7 +6,7 @@
 
 #include "Inputs/lifetime-analysis.h"
 
-// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 56; failed to infer (lifetimebound 2, noescape 0, lifetime_capture_by 2); inferred 63 in total}}
+// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 57; failed to infer (lifetimebound 4, noescape 0, lifetime_capture_by 2); inferred 65 in total}}
 
 // The expected notes mark the oracles that inference misses so far: referent-
 // level flow is not inferred.
@@ -370,3 +370,21 @@ struct CaptureByThis {
 // escape.
 int *noescape_inner(int *&pp [[clang::noescape]]) { return pp; }
 } // namespace inner_level
+
+// A parameter that a function may invalidate is not inferred lifetimebound.
+namespace invalidation {
+int *keep(int *p [[clang::lifetimebound]]) { return p; }
+
+int *drop(int *p [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+  delete p;
+  return p;
+}
+
+void release(int *p) { delete p; }
+
+// The invalidation reaches the caller through the summary of the callee.
+int *drop_through_call(int *p [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+  release(p);
+  return p;
+}
+} // namespace invalidation

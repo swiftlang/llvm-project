@@ -40,6 +40,8 @@ enum class NotDirectViewReason {
   MethodInconsistentBorrow,
   // A member function captures parameters in multiple fields:
   MethodMultipleBorrow,
+  // A member function (dtors included) may invalidate the borrow capturer P:
+  BorrowInvalidated,
 };
 
 // The results of the analysis. They are emitted together by flush(), after all
@@ -205,6 +207,33 @@ bool checkMethod(const CXXRecordDecl *R, const CXXMethodDecl *M,
          checkCapturesInSameField(I, P, Out);
 }
 
+// Rule: no member function of \p R, dtors included, may invalidate the borrow
+// capturer \p P. The skipped ones: static, implicit and deleted ones, those
+// without a summary, and members of an instantiated record that are not yet
+// instantiated.
+// \return false if one may, reporting why.
+bool checkNoBorrowInvalidation(const CXXRecordDecl *R,
+                               const LifetimeInference &LI, const FieldT &P,
+                               Reports &Out) {
+  for (const CXXMethodDecl *M : R->methods()) {
+    if (M->isStatic() || M->isImplicit() || M->isDeleted() ||
+        (M->isTemplateInstantiation() && !M->isDefined()))
+      continue;
+    const FunctionDecl *Def = M->getDefinition();
+    const FunctionSummary *Sum = Def ? LI.getSummary(Def) : nullptr;
+    if (!Sum)
+      continue;
+    const FieldSet *Invalidated =
+        Sum->getInvalidatedFor(ParamOrThis::forThis());
+    if (Invalidated && (Invalidated->isAll() ||
+                        llvm::is_contained(Invalidated->fields(), P))) {
+      Out.whyNotDirectView(R, NotDirectViewReason::BorrowInvalidated, M, P);
+      return false;
+    }
+  }
+  return true;
+}
+
 // Records whether \p R is a direct view or, if known, why it is not.
 void checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
                  Reports &Out) {
@@ -216,7 +245,7 @@ void checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
       return;
   if (P.isNull())
     Out.whyNotDirectView(R, NotDirectViewReason::MethodNoBorrow, R, P);
-  else
+  else if (checkNoBorrowInvalidation(R, LI, P, Out))
     Out.directView(R);
 }
 
@@ -226,6 +255,9 @@ void DirectViewInference::run(TranslationUnitDecl *TU,
                               DiagnosticsEngine &Diags) {
   // Only the summaries matter, so the analysis checks nothing.
   LifetimeSafetyOpts Opts;
+  // The placeholder loans of the fields tell which field a function
+  // invalidates.
+  Opts.CheckFieldOriginEscape = true;
   Opts.MaxCFGBlocks =
       TU->getASTContext().getLangOpts().LifetimeSafetyMaxCFGBlocks;
   auto AnalyzeF = LI.getLifetimeInferenceAnalyzeLambda(

@@ -140,6 +140,12 @@ private:
   void handleInvalidatingCall(const Expr *Call, const FunctionDecl *FD,
                               ArrayRef<const Expr *> Args);
 
+  // Invalidates the arguments that the summary of \p FD says it may invalidate:
+  // `this` or a parameter.
+  void handleSummaryInferredInvalidatingCall(const Expr *Call,
+                                             const FunctionDecl *FD,
+                                             ArrayRef<const Expr *> Args);
+
   // Detect explicit destructor calls/`std::destroy_at`
   void handleDestructiveCall(const Expr *Call, const FunctionDecl *FD,
                              ArrayRef<const Expr *> Args);

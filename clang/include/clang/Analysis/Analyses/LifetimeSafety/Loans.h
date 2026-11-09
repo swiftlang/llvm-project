@@ -82,6 +82,10 @@ class PlaceholderBase : public llvm::FoldingSetNode {
 public:
   PlaceholderBase(const ParmVarDecl *PVD) : ParamMethodOrField(PVD) {}
   PlaceholderBase(const CXXMethodDecl *MD) : ParamMethodOrField(MD) {}
+  // FIXME: Base `this` + element `.f` in an AccessPath conflicts with `f` as a
+  // base. Either `this` or a field must not be a base, otherwise an access
+  // path to a member of `*this` is ambiguous. Both dump as `$this.f`, and only
+  // the field-as-base form is built.
   PlaceholderBase(const FieldDecl *FD) : ParamMethodOrField(FD) {}
 
   const ParmVarDecl *getParmVarDecl() const {

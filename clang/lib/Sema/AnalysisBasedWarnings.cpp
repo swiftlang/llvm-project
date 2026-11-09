@@ -3850,6 +3850,9 @@ LifetimeSafetyTUAnalysis(Sema &S, TranslationUnitDecl *TU,
 static void runLifetimeInference(Sema &S, TranslationUnitDecl *TU) {
   // The default options turn off all the checks and suggestions.
   lifetimes::LifetimeSafetyOpts Opts;
+  // The placeholder loans of the fields tell which field a function
+  // invalidates.
+  Opts.CheckFieldOriginEscape = true;
   Opts.MaxCFGBlocks = S.getLangOpts().LifetimeSafetyMaxCFGBlocks;
 
   auto AnalyzeF = S.AnalysisWarnings.getLifetimeInference()

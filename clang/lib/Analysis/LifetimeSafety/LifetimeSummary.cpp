@@ -8,6 +8,7 @@
 
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -149,6 +150,12 @@ static std::string name(const FunctionDecl *FD, ParamOrThis P) {
   return ("#" + llvm::Twine(Idx)).str();
 }
 
+static std::string name(FieldT F) {
+  if (const auto *D = dyn_cast<const Decl *>(F))
+    return cast<NamedDecl>(D)->getNameAsString();
+  return cast<const CXXBaseSpecifier *>(F)->getType().getAsString();
+}
+
 void FunctionSummary::dump(llvm::raw_ostream &OS,
                            const FunctionDecl *FD) const {
   OS << FD->getQualifiedNameAsString() << ":\n";
@@ -161,8 +168,16 @@ void FunctionSummary::dump(llvm::raw_ostream &OS,
          << "@" << levelNumber(A.QL) << ")";
     for (Level L : getNoEscapeFor(P))
       OS << " noescape(" << levelNumber(L) << ")";
-    if (getInvalidatedFor(P))
+    if (const FieldSet *F = getInvalidatedFor(P)) {
       OS << " invalidated";
+      if (!F->isAll()) {
+        OS << "(";
+        llvm::ListSeparator Sep;
+        for (FieldT Field : F->fields())
+          OS << Sep << name(Field);
+        OS << ")";
+      }
+    }
     OS << "\n";
   };
   if (const auto *MD = dyn_cast<CXXMethodDecl>(FD);

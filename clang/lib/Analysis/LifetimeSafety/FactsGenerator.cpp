@@ -1048,6 +1048,18 @@ void FactsGenerator::handleMovedArgsInCall(const FunctionDecl *FD,
   }
 }
 
+void FactsGenerator::handleSummaryInferredInvalidatingCall(
+    const Expr *Call, const FunctionDecl *FD, ArrayRef<const Expr *> Args) {
+  if (const FunctionSummary *Summary = Summaries(FD))
+    for (unsigned I = 0; I < Args.size(); ++I) {
+      if (!Summary->getInvalidatedFor(getParamOrThisForArg(FD, I)))
+        continue;
+      if (OriginList *List = getOriginsList(*Args[I]))
+        CurrentBlockFacts.push_back(FactMgr.createFact<InvalidateOriginFact>(
+            List->getOuterOriginID(), Call));
+    }
+}
+
 void FactsGenerator::handleInvalidatingCall(const Expr *Call,
                                             const FunctionDecl *FD,
                                             ArrayRef<const Expr *> Args) {
@@ -1249,6 +1261,7 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
   if (!FD)
     return;
   handleInvalidatingCall(Call, FD, Args);
+  handleSummaryInferredInvalidatingCall(Call, FD, Args);
   handleDestructiveCall(Call, FD, Args);
   handleMovedArgsInCall(FD, Args);
   handleImplicitObjectFieldUses(Call, FD);

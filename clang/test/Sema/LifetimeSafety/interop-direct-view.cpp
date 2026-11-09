@@ -85,6 +85,37 @@ public:
   PlainPtr(Plain *q) : p(q) {}
 };
 
+class Deletes { // explain-remark {{'Deletes' is not a direct view type}}
+  int *p;
+public:
+  Deletes(int *q) : p(q) {}
+  void reset() { delete p; } // explain-note {{this member function may invalidate 'p'}}
+};
+
+class DeletesInDtor { // explain-remark {{'DeletesInDtor' is not a direct view type}}
+  int *p;
+public:
+  DeletesInDtor(int *q) : p(q) {}
+  ~DeletesInDtor() { delete p; } // explain-note {{this member function may invalidate 'p'}}
+};
+
+void release(int *x) { delete x; }
+
+// The invalidation reaches the dtor through the summary of the callee.
+class DeletesInCallee { // explain-remark {{'DeletesInCallee' is not a direct view type}}
+  int *p;
+public:
+  DeletesInCallee(int *q) : p(q) {}
+  ~DeletesInCallee() { release(p); } // explain-note {{this member function may invalidate 'p'}}
+};
+
+class DeletesOther { // expected-remark {{'DeletesOther' is a direct view type}}
+  int *p;
+public:
+  DeletesOther(int *q) : p(q) {}
+  void other(int *x) { delete x; }
+};
+
 // Instantiates the templates in the header.
 int foo(std::span<int> sp, std::string_view sv) {
   int arr[3] = {1, 2, 3};
