@@ -62,6 +62,7 @@ static void fatal_error_handler(void *user_data, const char *reason,
 namespace {
 struct RegisterFatalErrorHandler {
   RegisterFatalErrorHandler() {
+    llvm::remove_fatal_error_handler();
     llvm::install_fatal_error_handler(fatal_error_handler, nullptr);
   }
 };
