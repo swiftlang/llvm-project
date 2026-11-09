@@ -11351,6 +11351,21 @@ def remark_interop_lifetime_inference_oracle_summary
 def note_interop_lifetime_inference_missed_oracle
     : Note<"lifetime attribute %0 was not inferred in the test mode">;
 
+def remark_interop_direct_view
+    : Remark<"%0 is a direct view type">,
+      InGroup<InteropTypeInferenceDirectView>,
+      DefaultIgnore;
+
+def remark_interop_not_direct_view
+    : Remark<"%0 is not a direct view type">,
+      InGroup<InteropTypeInferenceDirectViewExplain>,
+      DefaultIgnore;
+def note_interop_not_direct_view_reason
+    : Note<"%select{no member function captures an owning pointer parameter "
+           "in a field|member function captures an owning pointer parameter in "
+           "a field other than %1, where another member function captures "
+           "one|member function captures parameters in multiple fields}0">;
+
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;
 

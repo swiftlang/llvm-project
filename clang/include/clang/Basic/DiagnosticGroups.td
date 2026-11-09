@@ -792,6 +792,20 @@ In interop-lifetime-inference-test-mode, reports how the lifetime contracts infe
   }];
 }
 
+def InteropTypeInferenceDirectView
+    : DiagGroup<"interop-type-inference-direct-view"> {
+  code Documentation = [{
+Reports C++ record types that interop type inference infers to be direct view types.
+  }];
+}
+
+def InteropTypeInferenceDirectViewExplain
+    : DiagGroup<"interop-type-inference-direct-view-explain"> {
+  code Documentation = [{
+Explains why interop type inference does not infer a C++ record type to be a direct view type.
+  }];
+}
+
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def DllexportExplicitInstantiation :

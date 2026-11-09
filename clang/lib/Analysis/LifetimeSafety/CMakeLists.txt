@@ -1,5 +1,6 @@
 add_clang_library(clangAnalysisLifetimeSafety
   Checker.cpp
+  DirectViewInference.cpp
   Facts.cpp
   FactsGenerator.cpp
   LifetimeAnnotations.cpp

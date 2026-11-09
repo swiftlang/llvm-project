@@ -3938,6 +3938,8 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
     runLifetimeInference(S, TU);
     getLifetimeInference().reportOracleSummary(Diags);
   }
+  if (auto *DVI = getDirectViewInference())
+    DVI->run(TU, Diags);
 }
 
 void clang::sema::AnalysisBasedWarnings::IssueWarningsForImplicitFunction(
