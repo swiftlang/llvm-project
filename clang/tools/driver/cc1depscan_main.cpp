@@ -1009,7 +1009,6 @@ int ScanServer::listen() {
                       &SecondsSinceLastClose, &SharedOS,
                       &AcceptLock](unsigned I) {
     std::optional<tooling::DependencyScanningTool> Tool;
-    SmallString<256> Message;
     while (true) {
       if (ShutDown.load())
         return;
