@@ -8874,10 +8874,6 @@ static bool checkDynamicCountPointerAsParameter(Sema &S, FunctionDecl *FDecl,
                                                 CallExpr *Call) {
   if (Call->containsErrors())
     return false;
-  // Initialize argument/parameter information
-  llvm::SmallPtrSet<const ValueDecl *, 2> OutCountDecls;
-  using PointerOutPair = llvm::PointerIntPair<const ValueDecl *, 1>;
-  llvm::SmallPtrSet<PointerOutPair, 2> PointerDecls;
 
   llvm::SmallVector<DynamicBoundArgumentInfo, 2> CallArgInfos;
   DynamicBoundArgumentInfo::DeclIndexMapTy DeclIndexMap;
@@ -9091,8 +9087,6 @@ static bool checkDynamicCountPointerAsParameter(Sema &S, FunctionDecl *FDecl,
 
 static bool checkDynamicRangePointerAsParameter(Sema &S, FunctionDecl *FDecl,
                                                 CallExpr *Call) {
-  llvm::SmallPtrSet<const ValueDecl *, 2> OutPointerDecls;
-
   llvm::SmallVector<DynamicBoundArgumentInfo, 2> CallArgInfos;
   DynamicBoundArgumentInfo::DeclIndexMapTy DeclIndexMap;
 
