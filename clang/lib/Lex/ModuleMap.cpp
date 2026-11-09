@@ -1334,7 +1334,6 @@ Module *ModuleMap::createShadowedModule(StringRef Name, bool IsFramework,
   Result->ShadowingModule = ShadowingModule;
   Result->markUnavailable(/*Unimportable*/true);
   ModuleScopeIDs[Result] = CurrentModuleScopeID;
-  ShadowModules.push_back(Result);
 
   return Result;
 }
