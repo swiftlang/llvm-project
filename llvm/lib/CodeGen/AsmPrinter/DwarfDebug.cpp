@@ -1514,6 +1514,14 @@ void DwarfDebug::endModule() {
   assert(CurFn == nullptr);
   assert(CurMI == nullptr);
 
+  // All functions have been processed, so it is known now which subprograms
+  // have abstract DIEs. Move DIEs of function-local entities created while
+  // processing functions to their final parents.
+  AllFunctionsProcessed = true;
+  for (DwarfFile *Holder : {&InfoHolder, &SkeletonHolder})
+    for (const auto &CU : Holder->getUnits())
+      CU->resolvePendingLocalScopeDIEs();
+
   const Module *M = MMI->getModule();
 
   // Collect global variables info.
