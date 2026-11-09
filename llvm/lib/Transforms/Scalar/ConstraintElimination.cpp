@@ -1284,7 +1284,7 @@ bool ConstraintInfo::isKnownPositive(Value *V) {
 }
 
 std::optional<bool> ConstraintInfo::getKnownSign(Value *V) {
-  KnownBits Known = computeKnownBits(V, DL);
+  KnownBits Known = computeKnownBits(V, State.DL);
   if (Known.isNonNegative())
     return false;
   if (Known.isNegative())
