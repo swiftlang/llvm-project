@@ -13,6 +13,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -45,6 +46,16 @@ class APINotesReader;
 /// operation is \c findAPINotes(), which finds the API notes reader that
 /// provides information about the declarations at that location.
 class APINotesManager {
+public:
+  /// Callback that provides API notes of an imported top-level module.
+  ///
+  /// \returns the API notes buffers, possibly none, or \c std::nullopt if it
+  /// has no answer.
+  using ImportedModuleAPINotesLoader =
+      llvm::unique_function<std::optional<llvm::SmallVector<StringRef, 2>>(
+          const Module &TopLevelModule)>;
+
+private:
   using ReaderEntry = llvm::PointerUnion<DirectoryEntryRef, APINotesReader *>;
 
   SourceManager &SM;
@@ -135,6 +146,21 @@ class APINotesManager {
                                                   llvm::StringRef FrameworkName,
                                                   bool Public);
 
+  ImportedModuleAPINotesLoader GetImportedModuleAPINotes;
+
+  /// A mapping from imported top-level modules to their API notes readers.
+  llvm::DenseMap<
+      const Module *,
+      std::optional<llvm::SmallVector<std::unique_ptr<APINotesReader>, 2>>>
+      ImportedModuleReaders;
+
+  /// Attempt to find API notes for the given imported top-level module.
+  ///
+  /// \returns the API notes readers, or \c std::nullopt if the loader has no
+  /// answer.
+  std::optional<ArrayRef<std::unique_ptr<APINotesReader>>>
+  findImportedModuleAPINotes(const Module &TopLevelModule);
+
 public:
   APINotesManager(SourceManager &SM, const LangOptions &LangOpts);
   ~APINotesManager();
@@ -175,6 +201,11 @@ public:
   ///
   /// \returns true if API notes were successfully loaded, \c false otherwise.
   bool loadCurrentModuleAPINotesFromBuffer(ArrayRef<StringRef> Buffers);
+
+  /// Set the callback that provides the API notes of imported modules.
+  void setImportedModuleAPINotesLoader(ImportedModuleAPINotesLoader Loader) {
+    GetImportedModuleAPINotes = std::move(Loader);
+  }
 
   /// Retrieve the set of API notes readers for the current module.
   ArrayRef<APINotesReader *> getCurrentModuleReaders() const {
