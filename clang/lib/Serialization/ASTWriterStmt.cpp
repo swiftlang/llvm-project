@@ -3280,6 +3280,12 @@ void ASTStmtWriter::VisitOMPTargetParallelGenericLoopDirective(
   Code = serialization::STMT_OMP_TARGET_PARALLEL_GENERIC_LOOP_DIRECTIVE;
 }
 
+void ASTStmtWriter::VisitOMPTargetGenericLoopDirective(
+    OMPTargetGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
+  Code = serialization::STMT_OMP_TARGET_GENERIC_LOOP_DIRECTIVE;
+}
+
 //===----------------------------------------------------------------------===//
 // OpenACC Constructs/Directives.
 //===----------------------------------------------------------------------===//

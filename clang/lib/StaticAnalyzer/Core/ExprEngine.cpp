@@ -1962,6 +1962,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPTargetTeamsGenericLoopDirectiveClass:
     case Stmt::OMPParallelGenericLoopDirectiveClass:
     case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
+    case Stmt::OMPTargetGenericLoopDirectiveClass:
     case Stmt::CapturedStmtClass:
     case Stmt::SYCLKernelCallStmtClass:
     case Stmt::UnresolvedSYCLKernelCallStmtClass:
