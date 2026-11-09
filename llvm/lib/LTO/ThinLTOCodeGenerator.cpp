@@ -394,7 +394,7 @@ static std::unique_ptr<MemoryBuffer> codegenModule(Module &TheModule,
   // CodeGen
   {
     raw_svector_ostream OS(OutputBuffer);
-    if (runCodeGenPipeline(TM, TheModule, OS, nullptr,
+    if (runCodeGenPipeline(TM, TheModule, OS, nullptr, nullptr,
                            CodeGenFileType::ObjectFile))
       report_fatal_error("Failed to run codegen");
   }
