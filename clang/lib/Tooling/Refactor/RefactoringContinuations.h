@@ -304,7 +304,7 @@ private:
   gatherQueries(std::index_sequence<Is...>) {
     assert(Inputs && "TU-dependent state is already converted");
     std::vector<indexer::IndexerQuery *> Queries;
-    std::make_tuple(gatherQueries(Queries, std::get<Is>(*Inputs))...);
+    (gatherQueries(Queries, std::get<Is>(*Inputs)), ...);
     return Queries;
   }
 
@@ -315,7 +315,7 @@ private:
                                              std::index_sequence<Is...> Seq) {
     assert(State && "TU-independent state is not yet produced");
     detail::PersistentToASTSpecificStateConverter Converter(Context);
-    (void)std::make_tuple(Converter.addConvertible(std::get<Is>(*State))...);
+    (Converter.addConvertible(std::get<Is>(*State)), ...);
     Converter.runCoalescedConversions();
     auto Results = std::make_tuple(Converter.convert(std::get<Is>(*State))...);
     // TODO: Check for errors?
