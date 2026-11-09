@@ -119,8 +119,9 @@ inline bool ShouldCheckDestructorUses(Sema &S, const Decl *D) {
   constexpr unsigned DiagIDs[] = {
       diag::warn_lifetime_safety_destructor_use_after_scope,
       diag::warn_lifetime_safety_destructor_use_after_invalidation};
+  // Don't enable this via -Weverything - see rdar://190623069.
   for (unsigned DiagID : DiagIDs)
-    if (!Diags.isIgnored(DiagID, D->getBeginLoc()))
+    if (IsDiagEnabledExcludingWeverything(Diags, DiagID, D->getBeginLoc()))
       return true;
   return false;
 }
