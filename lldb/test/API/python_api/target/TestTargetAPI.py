@@ -184,7 +184,6 @@ class TargetAPITestCase(TestBase):
         process = target.LaunchSimple(
             ["foo", "bar"], ["baz"], self.get_process_working_directory()
         )
-        process.Continue()
         self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertIn("arg: foo", output)
@@ -194,7 +193,6 @@ class TargetAPITestCase(TestBase):
         self.runCmd("setting set target.run-args foo")
         self.runCmd("setting set target.env-vars bar=baz")
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
-        process.Continue()
         self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertIn("arg: foo", output)
@@ -203,14 +201,12 @@ class TargetAPITestCase(TestBase):
         # Clear all the run args set above.
         self.runCmd("setting clear target.run-args")
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
-        process.Continue()
         self.assertEqual(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertNotIn("arg: foo", output)
 
         self.runCmd("settings set target.disable-stdio true")
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
-        process.Continue()
         self.assertState(process.GetState(), lldb.eStateExited)
         output = process.GetSTDOUT(9999)
         self.assertEqual(output, "")
