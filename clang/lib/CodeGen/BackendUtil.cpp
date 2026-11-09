@@ -1307,10 +1307,11 @@ void EmitAssemblyHelper::RunCodegenPipeline(
   }
 
   TimeCodegenPasses([&]() {
-    Error CodeGenError = runCodeGenPipeline(
-        *TM, *TheModule, *OS, DwoOS ? &DwoOS->os() : nullptr, CasIDOS.get(),
-        CGFT, !CodeGenOpts.VerifyModule, /*DisableSimplifyLibCalls=*/false,
-        CI.getVirtualFileSystemPtr());
+    Error CodeGenError =
+        runCodeGenPipeline(*TM, *TheModule, *OS, DwoOS ? &DwoOS->os() : nullptr,
+                           CasIDOS.get(), CGFT, !CodeGenOpts.VerifyModule,
+                           /*DisableSimplifyLibCalls=*/false, /*MSI=*/nullptr,
+                           CI.getVirtualFileSystemPtr());
     if (CodeGenError)
       Diags.Report(diag::err_fe_unable_to_interface_with_target);
   });
