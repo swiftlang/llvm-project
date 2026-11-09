@@ -4657,23 +4657,23 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
     return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
                                          Op2Info, Args, CxtI);
 
-  if (CtxI && CtxI->getOpcode() == Opcode && !CtxI->use_empty() &&
+  if (CxtI && CxtI->getOpcode() == Opcode && !CxtI->use_empty() &&
       useNeonVector(Ty)) {
     // The Ands of a bit select are folded into the BSL that the Or becomes.
     Instruction *MainAnd, *OtherAnd;
     Value *A, *B;
-    if (Opcode == Instruction::And && CtxI->hasOneUse() &&
-        matchBSL(CtxI->user_back(), MainAnd, OtherAnd, A, B))
+    if (Opcode == Instruction::And && CxtI->hasOneUse() &&
+        matchBSL(CxtI->user_back(), MainAnd, OtherAnd, A, B))
       return 0;
 
     // A Not is folded into the BIC, ORN or BSL of each And/Or using it, unless
     // that And/Or negates both of its operands.
-    if (match(CtxI, m_Not(m_Value())) &&
-        all_of(CtxI->users(), [&](const User *U) {
+    if (match(CxtI, m_Not(m_Value())) &&
+        all_of(CxtI->users(), [&](const User *U) {
           const auto *UI = cast<Instruction>(U);
           return is_contained({Instruction::And, Instruction::Or},
                               UI->getOpcode()) &&
-                 UI->getParent() == CtxI->getParent() &&
+                 UI->getParent() == CxtI->getParent() &&
                  !match(UI, m_BinOp(m_Not(m_Value()), m_Not(m_Value())));
         }))
       return 0;
