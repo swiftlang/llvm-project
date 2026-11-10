@@ -308,7 +308,9 @@ inline bool IsFloat(swift::Demangle::NodePointer node) {
   NodePointer module = node->getChild(0);
   NodePointer ident = node->getChild(1);
   if (module && module->hasText() && module->getText() == swift::STDLIB_NAME)
-    if (ident && ident->hasText() && ident->getText().starts_with("Float"))
+    if (ident && ident->hasText() &&
+        (ident->getText().starts_with("Float") ||
+         ident->getText() == "Double"))
       return true;
   return false;
 }

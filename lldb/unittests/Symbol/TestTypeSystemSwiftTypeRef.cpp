@@ -414,6 +414,17 @@ TEST_F(TestTypeSystemSwiftTypeRef, Scalar) {
   }
 }
 
+TEST_F(TestTypeSystemSwiftTypeRef, Double) {
+  CompilerType double_type = GetCompilerType("$sSdD");
+  ASSERT_TRUE(double_type.IsFloatingPointType());
+  bool is_signed = true;
+  ASSERT_FALSE(double_type.IsIntegerType(is_signed));
+  ASSERT_TRUE(double_type.IsScalarType());
+  ASSERT_EQ(double_type.GetTypeInfo() &
+                (eTypeIsFloat | eTypeIsScalar | eTypeHasValue),
+            eTypeIsFloat | eTypeIsScalar | eTypeHasValue);
+}
+
 TEST_F(TestTypeSystemSwiftTypeRef, ScalarAddress) {
   using namespace swift::Demangle;
   Demangler dem;

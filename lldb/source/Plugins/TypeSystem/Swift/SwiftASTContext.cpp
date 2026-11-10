@@ -7002,7 +7002,7 @@ SwiftASTContext::GetTypeInfo(opaque_compiler_type_t type,
           StringRef name = ndecl->getNameStr();
           if (name.starts_with("UInt") || name.starts_with("Int"))
             swift_flags |= eTypeIsScalar | eTypeIsInteger | eTypeHasValue;
-          else if (name.starts_with("Float"))
+          else if (name.starts_with("Float") || name == "Double")
             swift_flags |= eTypeIsScalar | eTypeIsFloat | eTypeHasValue;
         }
     }
