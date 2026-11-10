@@ -40,7 +40,6 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -255,6 +254,16 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   auto Clang = std::make_unique<CompilerInstance>(std::move(Invocation),
                                                   std::move(PCHOps));
 
+  if (!Clang->getFrontendOpts().TimeTracePath.empty()) {
+    llvm::TimeTraceCompression Compress =
+        Clang->getFrontendOpts().TimeTraceCompress;
+    if (Compress == llvm::TimeTraceCompression::Infer)
+      Compress = llvm::inferTimeTraceCompressionFromPath(
+          Clang->getFrontendOpts().TimeTracePath);
+    llvm::timeTraceProfilerInitialize(
+        Clang->getFrontendOpts().TimeTraceGranularity, Argv0,
+        Clang->getFrontendOpts().TimeTraceVerbose, Compress);
+  }
   // --print-supported-cpus takes priority over the actual compilation.
   if (Clang->getFrontendOpts().PrintSupportedCPUs)
     return PrintSupportedCPUs(Clang->getTargetOpts().Triple);
@@ -283,6 +292,16 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   // Create the actual diagnostics engine.
   Clang->createDiagnostics();
 
+  // Set an error handler, so that any LLVM backend diagnostics go through our
+  // error handler.
+  llvm::install_fatal_error_handler(LLVMErrorHandler,
+                                  static_cast<void*>(&Clang->getDiagnostics()));
+
+  // Un-register error handler before exiting to ensure clang-cache wrapper
+  // works in process.
+  llvm::scope_exit FinishDiagnosticClientScope(
+      [&]() { llvm::remove_fatal_error_handler(); });
+
   DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
   if (!Success)
     return 1;
@@ -294,25 +313,6 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   // Check for a cache hit.
   if (std::optional<int> Status = JobCache.tryReplayCachedResult(*Clang))
     return *Status; // FIXME: Should write out timers before exiting!
-
-  // Initialize process-global state only after the early-return paths above.
-  if (!Clang->getFrontendOpts().TimeTracePath.empty()) {
-    llvm::TimeTraceCompression Compress =
-        Clang->getFrontendOpts().TimeTraceCompress;
-    if (Compress == llvm::TimeTraceCompression::Infer)
-      Compress = llvm::inferTimeTraceCompressionFromPath(
-          Clang->getFrontendOpts().TimeTracePath);
-    llvm::timeTraceProfilerInitialize(
-        Clang->getFrontendOpts().TimeTraceGranularity, Argv0,
-        Clang->getFrontendOpts().TimeTraceVerbose, Compress);
-  }
-
-  // Set an error handler, so that any LLVM backend diagnostics go through our
-  // error handler.
-  auto ErrorHandler = std::make_unique<llvm::ScopedFatalErrorHandler>(
-      LLVMErrorHandler, &Clang->getDiagnostics());
-  llvm::CrashRecoveryContextCleanupRegistrar<llvm::ScopedFatalErrorHandler>
-      ErrorHandlerCleanup(ErrorHandler.get());
 
   // Execute the frontend actions.
   Success = ExecuteCompilerInvocation(Clang.get());
@@ -353,15 +353,9 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
                                        .setNoAtomicWrite()))) {
       llvm::timeTraceProfilerWrite(*profilerOutput);
       llvm::consumeError(profilerOutput->keep());
+      llvm::timeTraceProfilerCleanup();
     }
-    llvm::timeTraceProfilerCleanup();
   }
-
-  // Our error handler depends on the Diagnostics object, which we're
-  // potentially about to delete. Uninstall the handler now so that any
-  // later errors use the default handling behavior instead.
-  ErrorHandlerCleanup.unregister();
-  ErrorHandler.reset();
 
   // When running with -disable-free, don't do any destruction or shutdown.
   if (Clang->getFrontendOpts().DisableFree) {
