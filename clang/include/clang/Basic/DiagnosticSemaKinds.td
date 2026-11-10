@@ -11374,10 +11374,13 @@ def remark_interop_not_direct_view
       DefaultIgnore;
 def note_interop_not_direct_view_reason
     : Note<"%select{no member function captures an owning pointer parameter "
-           "in a field, and there is no single public pointer-like field|member function captures an owning pointer parameter in "
-           "a field other than %1, where another member function captures "
-           "one|member function captures parameters in multiple fields|this "
-           "member function may invalidate %1}0">;
+           "in a field, and there is no single public pointer-like field|"
+           "member function captures an owning pointer parameter in a field "
+           "other than %1, where another member function captures one|member "
+           "function captures parameters in multiple fields|this member "
+           "function may invalidate %1|member function captures an owning "
+           "pointer parameter in a field, while the direct view base class %1 "
+           "is the borrow capturer}0">;
 
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;

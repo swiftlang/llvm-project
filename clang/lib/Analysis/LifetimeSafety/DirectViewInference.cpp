@@ -8,9 +8,10 @@
 //
 // TODOs (read before changing the rules):
 //  - Base subobject capturers: LSA does not treat a base initializer as
-//    capturing into `this`, so `Derived(int *q) : Base(q)` has no capture (a
-//    false "no member function captures"). Inherited ctors (`using
-//    Base::Base`) are not in CXXRecordDecl::ctors() either.
+//    capturing into `this`, so a direct view base is assumed to borrow, e.g.
+//    `Derived() : Base(new int)` passes. Inherited ctors (`using Base::Base`)
+//    are not in CXXRecordDecl::ctors() either. Only the first direct view
+//    base counts.
 //  - View-type pointees and view-type fields are not owning pointers yet.
 //    Self-contained types are only the arithmetic and the explicitly
 //    swift_attr("Escapable") ones; none is inferred.
@@ -43,6 +44,9 @@ enum class NotDirectViewReason {
   MethodMultipleBorrow,
   // A member function (dtors included) may invalidate the borrow capturer P:
   BorrowInvalidated,
+  // A member function captures an owning parameter in a field, while a direct
+  // view base class is the borrow capturer P:
+  MethodBorrowBesidesBase,
 };
 
 // \p RD is explicitly marked self-contained: swift_attr("Escapable").
@@ -157,6 +161,17 @@ struct MethodInfo {
   }
 };
 
+// Rule: no member function captures in a field if a direct view base class is
+// the borrow capturer \p P.
+bool checkNoBorrowBesidesBase(const MethodInfo &I, const FieldT &P,
+                              Reports &Out) {
+  if (!dyn_cast_if_present<const CXXBaseSpecifier *>(P))
+    return true;
+  Out.whyNotDirectView(I.Record, NotDirectViewReason::MethodBorrowBesidesBase,
+                       I.Method, P);
+  return false;
+}
+
 // Rule: the member function captures parameters in one field only.
 bool checkCapturesInOneField(const MethodInfo &I, const FieldT &P,
                              Reports &Out) {
@@ -185,7 +200,7 @@ bool checkCapturesInSameField(const MethodInfo &I, FieldT &P, Reports &Out) {
 /// ones, and sets \p P if it is the first to capture. Only the captures of
 /// owning parameters count; a function without one has nothing to check. The
 /// rules are the check* functions, applied in order:
-///   CapturesInOneField, CapturesInSameField.
+///   NoBorrowBesidesBase, CapturesInOneField, CapturesInSameField.
 /// The skipped member functions: destructors, implicit and deleted ones,
 /// those without parameters, defaulted copy/move operations, those without a
 /// summary (no body, or not analyzed), and members of an instantiated record
@@ -217,8 +232,26 @@ bool checkMethod(const CXXRecordDecl *R, const CXXMethodDecl *M,
       I.Captured.push_back(Idx);
   if (I.Captured.empty())
     return true;
-  return checkCapturesInOneField(I, P, Out) &&
+  return checkNoBorrowBesidesBase(I, P, Out) &&
+         checkCapturesInOneField(I, P, Out) &&
          checkCapturesInSameField(I, P, Out);
+}
+
+// \p F is \p P, or \p F is a subobject of \p P.
+bool isPartOf(FieldT F, FieldT P) {
+  if (F == P)
+    return true;
+  const auto *B = dyn_cast_if_present<const CXXBaseSpecifier *>(P);
+  const auto *FD =
+      dyn_cast_if_present<FieldDecl>(dyn_cast_if_present<const Decl *>(F));
+  if (!B || !FD)
+    return false;
+  const CXXRecordDecl *BaseRD = B->getType()->getAsCXXRecordDecl();
+  const auto *Parent = dyn_cast<CXXRecordDecl>(FD->getParent());
+  BaseRD = BaseRD ? BaseRD->getDefinition() : nullptr;
+  return BaseRD && Parent &&
+         (BaseRD->getCanonicalDecl() == Parent->getCanonicalDecl() ||
+          BaseRD->isDerivedFrom(Parent));
 }
 
 // Rule: no member function of \p R, dtors included, may invalidate the borrow
@@ -239,8 +272,10 @@ bool checkNoBorrowInvalidation(const CXXRecordDecl *R,
       continue;
     const FieldSet *Invalidated =
         Sum->getInvalidatedFor(ParamOrThis::forThis());
-    if (Invalidated && (Invalidated->isAll() ||
-                        llvm::is_contained(Invalidated->fields(), P))) {
+    if (Invalidated &&
+        (Invalidated->isAll() ||
+         llvm::any_of(Invalidated->fields(),
+                      [&](FieldT F) { return isPartOf(F, P); }))) {
       Out.whyNotDirectView(R, NotDirectViewReason::BorrowInvalidated, M, P);
       return false;
     }
@@ -281,6 +316,13 @@ bool checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
   if (!R->hasDefinition() || !R->isCompleteDefinition())
     return false;
   FieldT P; // The capturer all member functions agree on.
+  // A direct view base is the borrow capturer. Bases are checked first, so an
+  // inferred one is marked.
+  for (const CXXBaseSpecifier &B : R->bases())
+    if (isGslPointerType(B.getType())) {
+      P = &B;
+      break;
+    }
   for (const CXXMethodDecl *M : R->methods())
     if (!checkMethod(R, M, LI, P, Out))
       return false;

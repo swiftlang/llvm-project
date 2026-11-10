@@ -21,15 +21,28 @@ public:
 };
 
 class Base { // expected-remark {{'Base' is a direct view type}}
+protected:
   int *p;
 public:
   Base(int *q) : p(q) {}
 };
-// LSA does not treat a base initializer as capturing into `this` yet, so this
-// is a false positive.
-class Derived : Base { // explain-remark {{'Derived' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+// A direct view base is the borrow capturer.
+class Derived : Base { // expected-remark {{'Derived' is a direct view type}}
 public:
   Derived(int *q) : Base(q) {}
+};
+
+class DerivedBorrows : Base { // explain-remark {{'DerivedBorrows' is not a direct view type}}
+  int *r;
+public:
+  DerivedBorrows(int *q) : Base(q), r(q) {} // explain-note {{member function captures an owning pointer parameter in a field, while the direct view base class 'Base' is the borrow capturer}}
+};
+
+// Invalidating a field of the base invalidates the base.
+class DerivedDeletes : Base { // explain-remark {{'DerivedDeletes' is not a direct view type}}
+public:
+  DerivedDeletes(int *q) : Base(q) {}
+  void reset() { delete p; } // explain-note {{this member function may invalidate 'Base'}}
 };
 
 class TwoFields { // explain-remark {{'TwoFields' is not a direct view type}}
