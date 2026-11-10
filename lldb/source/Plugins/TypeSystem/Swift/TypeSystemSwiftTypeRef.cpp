@@ -3984,6 +3984,8 @@ size_t TypeSystemSwiftTypeRef::GetNumberOfFunctionArguments(
         node = node->getFirstChild();
         if (node->getKind() == Node::Kind::Tuple)
           return node->getNumChildren();
+        // A single argument is not a tuple.
+        return 1;
       }
     }
     return num_args;
@@ -4031,6 +4033,8 @@ TypeSystemSwiftTypeRef::GetFunctionArgumentAtIndex(opaque_compiler_type_t type,
               ++num_args;
             }
           }
+        else if (index == 0)
+          return RemangleAsType(dem, child->getFirstChild(), flavor);
       }
     }
     return {};
@@ -4574,12 +4578,15 @@ CompilerType TypeSystemSwiftTypeRef::GetFunctionTypeFromMangledSymbol(
   // not the mangled function type.
   else if (global->getNumChildren() != 1)
     return {};
+  if (entity->getKind() == Node::Kind::Static && entity->hasChildren())
+    entity = entity->getFirstChild();
   switch (entity->getKind()) {
   case Node::Kind::Function:
   case Node::Kind::Allocator:
   case Node::Kind::Constructor:
   case Node::Kind::ExplicitClosure:
   case Node::Kind::ImplicitClosure:
+  case Node::Kind::Getter:
     break;
   default:
     // A type metadata accessor, for example, ends in the type of its
@@ -4589,6 +4596,22 @@ CompilerType TypeSystemSwiftTypeRef::GetFunctionTypeFromMangledSymbol(
   if (!entity->hasChildren())
     return {};
   NodePointer type = entity->getLastChild();
+  // A getter mangles the type of its variable.
+  if (entity->getKind() == Node::Kind::Getter &&
+      type->getKind() == Node::Kind::Variable && type->hasChildren() &&
+      type->getLastChild()->getKind() == Node::Kind::Type) {
+    NodePointer args_ty = dem.createNode(Node::Kind::Type);
+    args_ty->addChild(dem.createNode(Node::Kind::Tuple), dem);
+    NodePointer args = dem.createNode(Node::Kind::ArgumentTuple);
+    args->addChild(args_ty, dem);
+    NodePointer rett = dem.createNode(Node::Kind::ReturnType);
+    rett->addChild(type->getLastChild(), dem);
+    NodePointer fnty = dem.createNode(Node::Kind::FunctionType);
+    fnty->addChild(args, dem);
+    fnty->addChild(rett, dem);
+    type = dem.createNode(Node::Kind::Type);
+    type->addChild(fnty, dem);
+  }
   if (type->getKind() != Node::Kind::Type)
     return {};
   return RemangleAsType(dem, type,

@@ -2,7 +2,9 @@ class C {
   init(x: Int) {}
   func method(_ a: Int) -> String { return "" }
   static func staticMethod() -> Int { return 1 }
-  var computed: Int { return 2 }
+  var computed: Int {
+    return 2 // break in getter
+  }
 }
 
 struct S {
