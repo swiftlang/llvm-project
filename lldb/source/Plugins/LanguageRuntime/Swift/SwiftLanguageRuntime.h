@@ -668,6 +668,10 @@ protected:
   void RegisterAnonymousClangType(const char *key, CompilerType clang_type);
   /// Look up an anonymous Clang type with a name key into a side table.
   CompilerType LookupAnonymousClangType(const char *key);
+  /// If the Swift type \p type was imported from a Clang type, return that
+  /// Clang type with typedefs resolved. Otherwise return an invalid type.
+  CompilerType GetImportedClangType(CompilerType type,
+                                    TypeSystemSwiftTypeRef &ts);
 
   std::optional<const swift::reflection::TypeInfo *>
   lookupClangTypeInfo(CompilerType clang_type);

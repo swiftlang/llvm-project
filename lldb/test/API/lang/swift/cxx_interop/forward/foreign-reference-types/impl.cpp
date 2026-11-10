@@ -15,6 +15,17 @@ ImmortalFRT &ImmortalFRT::get() {
   return instance;
 }
 
+namespace {
+struct MoreDerivedThanVirtualBaseFRT : VirtualBaseFRT {
+  int extra = 22;
+};
+} // namespace
+
+VirtualBaseFRT &VirtualBaseFRT::get() {
+  static MoreDerivedThanVirtualBaseFRT instance;
+  return instance;
+}
+
 UnsafeFRT *UnsafeFRT::create() { return new UnsafeFRT(); }
 
 NonPrimaryFRT *NonPrimaryFRT::create(int value) {
