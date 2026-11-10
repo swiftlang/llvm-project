@@ -4561,12 +4561,19 @@ CompilerType TypeSystemSwiftTypeRef::GetFunctionTypeFromMangledSymbol(
   using namespace swift::Demangle;
   Demangler dem;
   NodePointer global = dem.demangleSymbol(mangled_name);
-  // TODO: Thunks, specializations and async funclets have a second child. Their
-  // signature is not the mangled function type.
   if (!global || global->getKind() != Node::Kind::Global ||
-      global->getNumChildren() != 1)
+      !global->hasChildren())
     return {};
   NodePointer entity = global->getFirstChild();
+  // An async funclet is a part of the function in the second child.
+  if (global->getNumChildren() == 2 &&
+      (entity->getKind() == Node::Kind::AsyncAwaitResumePartialFunction ||
+       entity->getKind() == Node::Kind::AsyncSuspendResumePartialFunction))
+    entity = global->getChild(1);
+  // TODO: Thunks and specializations have a second child. Their signature is
+  // not the mangled function type.
+  else if (global->getNumChildren() != 1)
+    return {};
   switch (entity->getKind()) {
   case Node::Kind::Function:
   case Node::Kind::Allocator:
