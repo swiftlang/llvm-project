@@ -233,6 +233,63 @@ TEST_F(TestTypeSystemSwiftTypeRef, DumpThinFunctionValue) {
   ASSERT_EQ(s.GetString(), "0x0000000000001234");
 }
 
+TEST_F(TestTypeSystemSwiftTypeRef, GetFunctionTypeFromMangledSymbol) {
+  CompilerType int_type = GetCompilerType("$sSiD");
+  {
+    // func mayThrow(_ x: Int) throws -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M8mayThrowyS2iKF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) throws -> Swift.Int");
+    ASSERT_EQ(t.GetFunctionReturnType(), int_type);
+  }
+  {
+    // C.m(_ a: Int) -> String
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CC1mySSSiF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$sSSD"));
+  }
+  {
+    // C.init(x: Int)
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CC1xACSi_tcfc");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$s1M1CCD"));
+  }
+  {
+    // closure #1 (Int) -> Int in clo() -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M3cloSiyFS2icfU_");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) -> Swift.Int");
+    ASSERT_EQ(t.GetFunctionReturnType(), int_type);
+  }
+  {
+    // Embedded Swift: func mayThrow(_ x: Int) throws -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$e1M8mayThrowyS2iKF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$eSiD"));
+  }
+  {
+    // func gen<T>(_ t: T) -> T
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M3genyxxlF");
+    ASSERT_TRUE(t);
+    ASSERT_FALSE(t.IsFunctionType());
+  }
+  // TODO: Async funclet, generic specialization, destructor and getter.
+  for (const char *symbol : {"$s1M3asyyS2iYaFTQ0_", "$s1M3genyxxlFSi_Tg5",
+                             "$s1M1CCfd", "$s1M1CC1pSivg"})
+    ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol))
+        << symbol;
+  // Type metadata accessor for C.
+  ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CCMa"));
+  // A symbol that isn't Swift.
+  ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol("main"));
+}
+
 TEST_F(TestTypeSystemSwiftTypeRef, GetTypeInfo) {
   using namespace swift::Demangle;
   Demangler dem;
