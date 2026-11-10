@@ -1977,16 +1977,10 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
     if (m_process_sp) {
       m_process_sp->ModulesDidLoad(module_list);
     }
-    // Notify all the ASTContext(s).
-    auto notify_callback = [&](lldb::TypeSystemSP type_system) {
-      // BEGIN SWIFT
-      if (type_system)
-        type_system->ModulesDidLoad(module_list);
-      // END SWIFT
+    m_scratch_type_system_map.ForEach([&](lldb::TypeSystemSP type_system) {
+      type_system->ModulesDidLoad(module_list);
       return true;
-    };
-    m_scratch_type_system_map.ForEach(notify_callback);
-
+    });
     module_list.ClearModuleDependentCaches();
     RunModuleHooks(/*is_load=*/true);
     auto data_sp =
