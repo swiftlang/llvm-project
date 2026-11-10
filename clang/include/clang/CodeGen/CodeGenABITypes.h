@@ -110,6 +110,12 @@ getCXXDestructorImplicitParam(CodeGenModule &CGM, llvm::BasicBlock *InsertBlock,
                               const CXXDestructorDecl *D, CXXDtorType Type,
                               bool ForVirtualBase, bool Delegating);
 
+/// Returns a function that initializes the vtable pointers of an object of the
+/// polymorphic class \p RD, which must not have virtual bases, the way the
+/// constructors of \p RD do once its base subobjects are constructed.
+llvm::Function *getOrCreateVTablePointerInitializer(CodeGenModule &CGM,
+                                                    const CXXRecordDecl *RD);
+
 /// Returns null if the function type is incomplete and can't be lowered.
 llvm::FunctionType *convertFreeFunctionType(CodeGenModule &CGM,
                                             const FunctionDecl *FD);
