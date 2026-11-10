@@ -103,3 +103,17 @@ class TestCase(lldbtest.TestBase):
         _, _, thread, _ = lldbutil.run_to_name_breakpoint(self, "f_int")
         thread.StepOut()
         self.expect("thread info", patterns=[r"Return value: \(Int\) \$R\d+ = 42\n"])
+
+    @swiftTest
+    @expectedFailureAll
+    def test_known_problems(self):
+        """Test the values lldb gets wrong"""
+        functions = [
+            # FIXME: TypeSystemSwift reports no homogeneous aggregates.
+            "f_two_double",
+            "f_two_float",
+            "f_wrapped_double",
+            # FIXME: Swift returns the float in a floating-point register.
+            "f_float_int",
+        ]
+        self.assertEqual(self.return_value_problems(functions), [])

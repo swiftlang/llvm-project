@@ -27,6 +27,25 @@ struct HasClass {
   var k = K()
 }
 
+struct TwoDouble {
+  var a = 1.5
+  var b = 2.5
+}
+
+struct TwoFloat {
+  var a: Float = 1.5
+  var b: Float = 2.5
+}
+
+struct WrappedDouble {
+  var value = 3.5
+}
+
+struct FloatInt {
+  var f: Float = 1.5
+  var i = 7
+}
+
 enum NoPayload { case a, b, c }
 enum RawValue: Int { case x = 10, y = 20 }
 
@@ -64,6 +83,10 @@ func f_two_int() -> TwoInt { return TwoInt() }
 func f_bool_int32() -> BoolInt32 { return BoolInt32() }
 func f_has_class() -> HasClass { return HasClass() }
 func f_closure() -> () -> Int { return { 12 } }
+func f_two_double() -> TwoDouble { return TwoDouble() }
+func f_two_float() -> TwoFloat { return TwoFloat() }
+func f_wrapped_double() -> WrappedDouble { return WrappedDouble() }
+func f_float_int() -> FloatInt { return FloatInt() }
 func f_throws() throws -> Int { return 14 }
 func f_throwing() throws -> Int { throw E() }
 func f_typed_throws() throws(E) -> Int { return 17 }
@@ -91,6 +114,10 @@ func main() {
   let v_bool_int32 = f_bool_int32()
   let v_has_class = f_has_class()
   let v_closure = f_closure()
+  let v_two_double = f_two_double()
+  let v_two_float = f_two_float()
+  let v_wrapped_double = f_wrapped_double()
+  let v_float_int = f_float_int()
   let v_throws = try! f_throws()
   let v_typed_throws = try! f_typed_throws()
   let v_typed_throws_large = try! f_typed_throws_large()
@@ -114,10 +141,11 @@ func main() {
   let v_increment = counter.increment()
   _ = (v_int, v_int8, v_uint32, v_bool, v_float, v_double, v_class, v_string,
        v_long_string, v_two_int8, v_two_int, v_bool_int32,
-       v_has_class, v_closure, v_throws, v_typed_throws,
-       v_typed_throws_large, v_no_payload, v_raw_value,
-       v_optional_int, v_optional_nil, v_optional_class, v_optional_string,
-       v_tuple, v_answer, v_staticAnswer, v_computed, v_increment)
+       v_has_class, v_closure, v_two_double, v_two_float, v_wrapped_double,
+       v_float_int, v_throws, v_typed_throws, v_typed_throws_large,
+       v_no_payload, v_raw_value, v_optional_int, v_optional_nil,
+       v_optional_class, v_optional_string, v_tuple, v_answer, v_staticAnswer,
+       v_computed, v_increment)
 }
 
 main()
