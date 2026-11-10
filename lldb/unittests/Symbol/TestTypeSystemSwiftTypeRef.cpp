@@ -15,6 +15,11 @@
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/Host/FileSystem.h"
+#include "lldb/Host/HostInfo.h"
+#include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/StreamString.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/Demangling/Demangler.h"
 #include "swift/Strings.h"
@@ -202,6 +207,30 @@ TEST_F(TestTypeSystemSwiftTypeRef, Function) {
     ASSERT_TRUE(impl_void_int.IsFunctionType());
     ASSERT_EQ(impl_void_int.GetFunctionReturnType(), int_type);
   }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, DumpThinFunctionValue) {
+  // Dumping a hex value reads a target setting.
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
+  using namespace swift::Demangle;
+  Demangler dem;
+  TestingNodeBuilder b(dem);
+  NodePointer n = b.GlobalType(
+      b.Node(Node::Kind::ThinFunctionType,
+             b.Node(Node::Kind::ArgumentTuple,
+                    b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple))),
+             b.Node(Node::Kind::ReturnType,
+                    b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple)))));
+  CompilerType thin = GetCompilerType(b.Mangle(n));
+  uint64_t function_pointer = 0x1234;
+  lldb_private::DataExtractor data(&function_pointer, sizeof(function_pointer),
+                                   endian::InlHostByteOrder(),
+                                   sizeof(function_pointer));
+  StreamString s;
+  ASSERT_TRUE(thin.DumpTypeValue(&s, eFormatHex, data, 0,
+                                 sizeof(function_pointer), 0, 0, nullptr,
+                                 false));
+  ASSERT_EQ(s.GetString(), "0x0000000000001234");
 }
 
 TEST_F(TestTypeSystemSwiftTypeRef, GetTypeInfo) {
