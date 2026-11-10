@@ -279,9 +279,15 @@ TEST_F(TestTypeSystemSwiftTypeRef, GetFunctionTypeFromMangledSymbol) {
     ASSERT_TRUE(t);
     ASSERT_FALSE(t.IsFunctionType());
   }
-  // TODO: Async funclet, generic specialization, destructor and getter.
-  for (const char *symbol : {"$s1M3asyyS2iYaFTQ0_", "$s1M3genyxxlFSi_Tg5",
-                             "$s1M1CCfd", "$s1M1CC1pSivg"})
+  // Await and suspend resume partial functions of
+  // func asy(_ x: Int) async -> Int
+  for (const char *symbol : {"$s1M3asyyS2iYaFTQ0_", "$s1M3asyyS2iYaFTY0_"}) {
+    CompilerType t = m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol);
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) async -> Swift.Int") << symbol;
+  }
+  // TODO: Generic specialization, destructor and getter.
+  for (const char *symbol :
+       {"$s1M3genyxxlFSi_Tg5", "$s1M1CCfd", "$s1M1CC1pSivg"})
     ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol))
         << symbol;
   // Type metadata accessor for C.
