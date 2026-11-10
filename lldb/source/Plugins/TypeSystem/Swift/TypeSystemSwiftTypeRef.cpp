@@ -4556,6 +4556,38 @@ CompilerType TypeSystemSwiftTypeRef::GetVoidFunctionType(
   return RemangleAsType(dem, type, flavor);
 }
 
+CompilerType TypeSystemSwiftTypeRef::GetFunctionTypeFromMangledSymbol(
+    llvm::StringRef mangled_name) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  NodePointer global = dem.demangleSymbol(mangled_name);
+  // TODO: Thunks, specializations and async funclets have a second child. Their
+  // signature is not the mangled function type.
+  if (!global || global->getKind() != Node::Kind::Global ||
+      global->getNumChildren() != 1)
+    return {};
+  NodePointer entity = global->getFirstChild();
+  switch (entity->getKind()) {
+  case Node::Kind::Function:
+  case Node::Kind::Allocator:
+  case Node::Kind::Constructor:
+  case Node::Kind::ExplicitClosure:
+  case Node::Kind::ImplicitClosure:
+    break;
+  default:
+    // A type metadata accessor, for example, ends in the type of its
+    // metadata.
+    return {};
+  }
+  if (!entity->hasChildren())
+    return {};
+  NodePointer type = entity->getLastChild();
+  if (type->getKind() != Node::Kind::Type)
+    return {};
+  return RemangleAsType(dem, type,
+                        SwiftLanguageRuntime::GetManglingFlavor(mangled_name));
+}
+
 // Exploring the type
 llvm::Expected<uint64_t>
 TypeSystemSwiftTypeRef::GetBitSize(opaque_compiler_type_t type,
