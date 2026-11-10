@@ -62,6 +62,13 @@ protected:
   virtual Expected<std::unique_ptr<OutputFileImpl>>
   createFileImpl(StringRef Path, std::optional<OutputConfig> Config) = 0;
 
+  /// Create the file for \p Path on disk, honoring \p Config, like
+  /// \a OnDiskOutputBackend with the default settings. A backend that writes
+  /// outputs on disk can use \a OutputFile::fillAndKeep() to put the
+  /// content in it more cheaply than by writing it.
+  static Expected<std::unique_ptr<OutputFileImpl>>
+  createFileOnDisk(StringRef Path, std::optional<OutputConfig> Config);
+
   OutputBackend() = default;
 
 public:
