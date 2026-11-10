@@ -242,6 +242,8 @@ TEST_F(TestTypeSystemSwiftTypeRef, GetFunctionTypeFromMangledSymbol) {
     ASSERT_TRUE(t.IsFunctionType());
     ASSERT_EQ(t.GetTypeName(), "(Swift.Int) throws -> Swift.Int");
     ASSERT_EQ(t.GetFunctionReturnType(), int_type);
+    ASSERT_EQ(t.GetNumberOfFunctionArguments(), 1u);
+    ASSERT_EQ(t.GetFunctionArgumentAtIndex(0), int_type);
   }
   {
     // C.m(_ a: Int) -> String
@@ -285,9 +287,14 @@ TEST_F(TestTypeSystemSwiftTypeRef, GetFunctionTypeFromMangledSymbol) {
     CompilerType t = m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol);
     ASSERT_EQ(t.GetTypeName(), "(Swift.Int) async -> Swift.Int") << symbol;
   }
-  // TODO: Generic specialization, destructor and getter.
+  // C.p.getter, static C.p.getter and static C.s() -> Int
   for (const char *symbol :
-       {"$s1M3genyxxlFSi_Tg5", "$s1M1CCfd", "$s1M1CC1pSivg"})
+       {"$s1M1CC1pSivg", "$s1M1CC1pSivgZ", "$s1M1CC1sSiyFZ"}) {
+    CompilerType t = m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol);
+    ASSERT_EQ(t.GetTypeName(), "() -> Swift.Int") << symbol;
+  }
+  // TODO: Generic specialization and destructor.
+  for (const char *symbol : {"$s1M3genyxxlFSi_Tg5", "$s1M1CCfd"})
     ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol))
         << symbol;
   // Type metadata accessor for C.
