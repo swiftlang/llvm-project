@@ -389,6 +389,9 @@ let Class = FunctionProtoType in {
   def : Property<"AArch64SMEAttributes", UInt32> {
     let Read = [{ node->getAArch64SMEAttributes() }];
   }
+  def : Property<"RISCVAttributes", UInt32> {
+    let Read = [{ node->getRISCVAttributes() }];
+  }
   def : Property<"functionEffects", Array<FunctionEffect>> {
     let Read = [{ node->getFunctionEffectsWithoutConditions() }];
   }
@@ -412,6 +415,7 @@ let Class = FunctionProtoType in {
     epi.ExtParameterInfos =
       extParameterInfo.empty() ? nullptr : extParameterInfo.data();
     epi.AArch64SMEAttributes = AArch64SMEAttributes;
+    epi.RISCVAttributes = RISCVAttributes;
     epi.FunctionEffects = FunctionEffectsRef::create(functionEffects, functionEffectConds);
     return ctx.getFunctionType(returnType, parameters, epi);
   }]>;
