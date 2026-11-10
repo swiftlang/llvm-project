@@ -1903,7 +1903,7 @@ static Value *simplifyAndOrWithICmpEq(unsigned Opcode, Value *Op0, Value *Op1,
          "Must be and/or");
   CmpPredicate Pred;
   Value *A, *B;
-  if (!match(Op0, m_ICmp(Pred, m_Value(A), m_Value(B))) ||
+  if (!match(Op0, m_ICmpLike(Pred, m_Value(A), m_Value(B))) ||
       !ICmpInst::isEquality(Pred))
     return nullptr;
 
