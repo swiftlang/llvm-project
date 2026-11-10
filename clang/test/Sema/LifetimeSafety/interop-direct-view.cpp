@@ -1,6 +1,7 @@
 // RUN: rm -rf %t && split-file %s %t
 // RUN: %clang_cc1 -I %t -std=c++17 -fsyntax-only -finterop-type-inference -Rinterop-type-inference-direct-view -verify %t/main.cpp
 // RUN: %clang_cc1 -I %t -std=c++17 -fsyntax-only -finterop-type-inference -Rinterop-type-inference-direct-view-explain -verify=explain %t/main.cpp
+// RUN: %clang_cc1 -I %t -std=c++17 -fsyntax-only -finterop-type-inference -Winterop-type-inference-contradicts-existing-attributes -verify=attr %t/main.cpp
 
 //--- main.cpp
 #include "std_span_string_view.h"
@@ -114,6 +115,35 @@ class DeletesOther { // expected-remark {{'DeletesOther' is a direct view type}}
 public:
   DeletesOther(int *q) : p(q) {}
   void other(int *x) { delete x; }
+};
+
+// X is analyzed first and becomes an implicit gsl::Pointer, so Y captures into
+// its field `x`.
+class X { // expected-remark {{'X' is a direct view type}}
+  int *p;
+public:
+  X(int *q) : p(q) {}
+};
+class Y { // expected-remark {{'Y' is a direct view type}}
+  X x;
+public:
+  Y(int *q) : x(q) {}
+};
+
+// A single public pointer-like field makes a direct view without a capturing
+// member function.
+struct [[gsl::Pointer]] PointerThinWrapper { // expected-remark {{'PointerThinWrapper' is a direct view type}}
+  int *p;
+};
+
+// A type annotated gsl::Pointer that is not inferred to be a direct view.
+struct [[gsl::Pointer]] Annotated { // explain-remark {{'Annotated' is not a direct view type}} explain-note {{there is no single public pointer-like field}} attr-warning {{'Annotated' is annotated 'gsl::Pointer' but is not inferred to be a direct view type}}
+  int *p, *q;
+};
+
+// A type annotated self-contained that is inferred to be a direct view.
+struct __attribute__((swift_attr("Escapable"))) EscView { // expected-remark {{'EscView' is a direct view type}} attr-warning {{'EscView' is annotated self-contained ('swift_attr("Escapable")') but is inferred to be a direct view type}}
+  int *p;
 };
 
 // Instantiates the templates in the header.

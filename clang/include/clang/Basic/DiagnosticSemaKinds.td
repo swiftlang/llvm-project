@@ -11356,13 +11356,25 @@ def remark_interop_direct_view
       InGroup<InteropTypeInferenceDirectView>,
       DefaultIgnore;
 
+def warn_interop_gsl_pointer_not_direct_view
+    : Warning<"%0 is annotated 'gsl::Pointer' but is not inferred to be a "
+              "direct view type">,
+      InGroup<InteropTypeInferenceContradictsExistingAttributes>,
+      DefaultIgnore;
+
+def warn_interop_self_contained_direct_view
+    : Warning<"%0 is annotated self-contained ('swift_attr(\"Escapable\")') "
+              "but is inferred to be a direct view type">,
+      InGroup<InteropTypeInferenceContradictsExistingAttributes>,
+      DefaultIgnore;
+
 def remark_interop_not_direct_view
     : Remark<"%0 is not a direct view type">,
       InGroup<InteropTypeInferenceDirectViewExplain>,
       DefaultIgnore;
 def note_interop_not_direct_view_reason
     : Note<"%select{no member function captures an owning pointer parameter "
-           "in a field|member function captures an owning pointer parameter in "
+           "in a field, and there is no single public pointer-like field|member function captures an owning pointer parameter in "
            "a field other than %1, where another member function captures "
            "one|member function captures parameters in multiple fields|this "
            "member function may invalidate %1}0">;

@@ -14,27 +14,28 @@
 //  - View-type pointees and view-type fields are not owning pointers yet.
 //    Self-contained types are only the arithmetic and the explicitly
 //    swift_attr("Escapable") ones; none is inferred.
-//  - [[gsl::Pointer]] is the attribute of a view type. Mark inferred direct
-//    views with an implicit [[gsl::Pointer]] so that other records and TUs see
-//    them.
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/Analyses/LifetimeSafety/DirectViewInference.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/CallGraphFixPoint.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 
 namespace clang::lifetimes {
 namespace {
 
 enum class NotDirectViewReason {
-  // No member function (but dtors) captures an owning parameter in a field:
-  MethodNoBorrow,
+  // No member function (but dtors) captures an owning parameter in a field,
+  // and there is no single public pointer-like field:
+  NoBorrowNoPublicPointer,
   // Member functions capture owning parameters in different fields. At is the
   // member function capturing in a field other than P, of the prior ones:
   MethodInconsistentBorrow,
@@ -44,27 +45,43 @@ enum class NotDirectViewReason {
   BorrowInvalidated,
 };
 
+// \p RD is explicitly marked self-contained: swift_attr("Escapable").
+bool hasSelfContainedAttr(const CXXRecordDecl *RD) {
+  return llvm::any_of(RD->specific_attrs<SwiftAttrAttr>(),
+                      [](const SwiftAttrAttr *A) {
+                        return A->getAttribute() == "Escapable";
+                      });
+}
+
 // The results of the analysis. They are emitted together by flush(), after all
 // records are analyzed.
 class Reports {
 public:
   // \p RD is a direct view type.
-  void directView(const CXXRecordDecl *RD) { Items.push_back({RD}); }
+  void directView(const CXXRecordDecl *RD) { Items[RD] = {RD}; }
 
   // Explains why \p RD is not a direct view type. \p At is the declaration at
   // fault. \p P is the capturer of the prior member functions, if known.
   void whyNotDirectView(const CXXRecordDecl *RD, NotDirectViewReason Why,
                         const Decl *At, FieldT P) {
-    Items.push_back({RD, Why, At, P});
+    Items[RD] = {RD, Why, At, P};
   }
 
   void flush(DiagnosticsEngine &Diags) const {
-    for (const Item &I : Items) {
+    for (const auto &[_, I] : Items) {
       if (!I.At) {
+        if (hasSelfContainedAttr(I.RD))
+          Diags.Report(I.RD->getLocation(),
+                       diag::warn_interop_self_contained_direct_view)
+              << I.RD;
         Diags.Report(I.RD->getLocation(), diag::remark_interop_direct_view)
             << I.RD;
         continue;
       }
+      if (I.RD->hasAttr<PointerAttr>())
+        Diags.Report(I.RD->getLocation(),
+                     diag::warn_interop_gsl_pointer_not_direct_view)
+            << I.RD;
       Diags.Report(I.RD->getLocation(), diag::remark_interop_not_direct_view)
           << I.RD;
       auto DB = Diags.Report(I.At->getLocation(),
@@ -81,11 +98,12 @@ public:
 private:
   struct Item {
     const CXXRecordDecl *RD;
-    NotDirectViewReason Why = NotDirectViewReason::MethodNoBorrow;
+    NotDirectViewReason Why = NotDirectViewReason::NoBorrowNoPublicPointer;
     const Decl *At = nullptr; // Null if RD is a direct view type.
     FieldT P = {};
   };
-  llvm::SmallVector<Item> Items;
+  // The latest result of each record, in the order of the first one.
+  llvm::MapVector<const CXXRecordDecl *, Item> Items;
 };
 
 // \p T is self-contained, i.e., Swift escapable: an arithmetic type, or a
@@ -95,10 +113,7 @@ bool isSelfContained(QualType T) {
     return true;
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
   RD = RD ? RD->getDefinition() : nullptr;
-  return RD && llvm::any_of(RD->specific_attrs<SwiftAttrAttr>(),
-                            [](const SwiftAttrAttr *A) {
-                              return A->getAttribute() == "Escapable";
-                            });
+  return RD && hasSelfContainedAttr(RD);
 }
 
 // \p PVD is an owning pointer: a pointer or reference to a self-contained
@@ -148,8 +163,8 @@ bool checkCapturesInOneField(const MethodInfo &I, const FieldT &P,
   if (I.Captured.size() == 1 &&
       I.fieldsOf(I.Captured.front()).fields().size() == 1)
     return true;
-  Out.whyNotDirectView(
-      I.Record, NotDirectViewReason::MethodMultipleBorrow, I.Method, P);
+  Out.whyNotDirectView(I.Record, NotDirectViewReason::MethodMultipleBorrow,
+                       I.Method, P);
   return false;
 }
 
@@ -158,9 +173,8 @@ bool checkCapturesInOneField(const MethodInfo &I, const FieldT &P,
 bool checkCapturesInSameField(const MethodInfo &I, FieldT &P, Reports &Out) {
   FieldT Curr = I.fieldsOf(I.Captured.front()).fields().front();
   if (!P.isNull() && Curr != P) {
-    Out.whyNotDirectView(I.Record,
-                         NotDirectViewReason::MethodInconsistentBorrow,
-                         I.Method, P);
+    Out.whyNotDirectView(
+        I.Record, NotDirectViewReason::MethodInconsistentBorrow, I.Method, P);
     return false;
   }
   P = Curr;
@@ -234,19 +248,110 @@ bool checkNoBorrowInvalidation(const CXXRecordDecl *R,
   return true;
 }
 
+// Marks the direct view \p R, unless it is already a gsl::Owner or Pointer.
+void addImplicitGslPointerAttr(const CXXRecordDecl *R) {
+  if (R->hasAttr<OwnerAttr>() || R->hasAttr<PointerAttr>())
+    return;
+  ASTContext &Ctx = R->getASTContext();
+  for (Decl *Redecl : const_cast<CXXRecordDecl *>(R)->redecls())
+    Redecl->addAttr(PointerAttr::CreateImplicit(Ctx, /*DerefType=*/nullptr));
+}
+
+// \return the only public pointer-like field of \p R, or null if there is none
+// or more than one. A pointer-like type is a pointer or a gsl::Pointer type.
+const FieldDecl *getSinglePublicPointerField(const CXXRecordDecl *R) {
+  const FieldDecl *Found = nullptr;
+  for (const FieldDecl *F : R->fields()) {
+    QualType T = F->getType();
+    if (F->getAccess() != AS_public ||
+        !(T->isPointerType() || isGslPointerType(T)))
+      continue;
+    if (Found)
+      return nullptr;
+    Found = F;
+  }
+  return Found;
+}
+
 // Records whether \p R is a direct view or, if known, why it is not.
-void checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
+// A direct view gets an implicit [[gsl::Pointer]].
+// \return true if \p R is a direct view.
+bool checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
                  Reports &Out) {
   if (!R->hasDefinition() || !R->isCompleteDefinition())
-    return;
+    return false;
   FieldT P; // The capturer all member functions agree on.
   for (const CXXMethodDecl *M : R->methods())
     if (!checkMethod(R, M, LI, P, Out))
-      return;
+      return false;
+  // Without a capturing member function, the public pointer field is P.
   if (P.isNull())
-    Out.whyNotDirectView(R, NotDirectViewReason::MethodNoBorrow, R, P);
-  else if (checkNoBorrowInvalidation(R, LI, P, Out))
-    Out.directView(R);
+    if (const FieldDecl *F = getSinglePublicPointerField(R))
+      P = F;
+  if (P.isNull()) {
+    Out.whyNotDirectView(R, NotDirectViewReason::NoBorrowNoPublicPointer, R, P);
+    return false;
+  }
+  if (!checkNoBorrowInvalidation(R, LI, P, Out))
+    return false;
+  Out.directView(R);
+  addImplicitGslPointerAttr(R);
+  return true;
+}
+
+// Calls \p Use on each record that type \p T mentions: through pointers,
+// references, arrays, and the type arguments of template specializations.
+void forEachRecordIn(
+    QualType T, llvm::function_ref<void(const CXXRecordDecl *)> CollectFn) {
+  while (T->isPointerType() || T->isReferenceType())
+    T = T->getPointeeType();
+  if (const ArrayType *AT = T->getAsArrayTypeUnsafe())
+    return forEachRecordIn(AT->getElementType(), CollectFn);
+  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+  if (!RD)
+    return;
+  CollectFn(RD);
+  if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(RD))
+    for (const TemplateArgument &A : Spec->getTemplateArgs().asArray()) {
+      if (A.getKind() == TemplateArgument::Type)
+        forEachRecordIn(A.getAsType(), CollectFn);
+      else if (A.getKind() == TemplateArgument::Pack)
+        for (const TemplateArgument &E : A.pack_elements())
+          if (E.getKind() == TemplateArgument::Type)
+            forEachRecordIn(E.getAsType(), CollectFn);
+    }
+}
+
+// Orders \p Records, dependencies first. A record depends on the records that
+// its declaration uses: base classes, fields, and the parameter and return
+// types of its member functions.
+FixPoint<const CXXRecordDecl *>
+buildRecordDependencyGraph(llvm::ArrayRef<const CXXRecordDecl *> Records) {
+  llvm::DenseSet<const CXXRecordDecl *> InSet(Records.begin(), Records.end());
+  llvm::DenseMap<const CXXRecordDecl *,
+                 llvm::SmallVector<const CXXRecordDecl *, 2>>
+      Dependents;
+
+  for (const CXXRecordDecl *R : Records) {
+    llvm::SmallPtrSet<const CXXRecordDecl *, 8> Seen;
+    auto Collect = [&](const CXXRecordDecl *V) {
+      V = V->getDefinition();
+      if (V && V != R && InSet.contains(V) && Seen.insert(V).second)
+        Dependents[V].push_back(R);
+    };
+    for (const CXXBaseSpecifier &B : R->bases())
+      forEachRecordIn(B.getType(), Collect);
+    for (const FieldDecl *F : R->fields())
+      forEachRecordIn(F->getType(), Collect);
+    for (const CXXMethodDecl *M : R->methods()) {
+      if (M->isImplicit())
+        continue;
+      forEachRecordIn(M->getReturnType(), Collect);
+      for (const ParmVarDecl *PVD : M->parameters())
+        forEachRecordIn(PVD->getType(), Collect);
+    }
+  }
+  return FixPoint<const CXXRecordDecl *>(Records, std::move(Dependents));
 }
 
 } // namespace
@@ -268,8 +373,11 @@ void DirectViewInference::run(TranslationUnitDecl *TU,
       setLifetimeSafetyCFGBuildOptions);
   CallGraphFixPoint(TU).run(AnalyzeF);
 
+  // TODO: the status of a record is not monotonic yet, so no fix-point: each
+  // record is checked once, dependencies first.
   Reports Out;
-  for (const CXXRecordDecl *R : Records)
+  auto Graph = buildRecordDependencyGraph(Records);
+  for (const CXXRecordDecl *R : Graph.getOrder())
     checkRecord(R, LI, Out);
   Out.flush(Diags);
 }

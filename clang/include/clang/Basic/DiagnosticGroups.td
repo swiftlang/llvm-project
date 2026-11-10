@@ -806,6 +806,13 @@ Explains why interop type inference does not infer a C++ record type to be a dir
   }];
 }
 
+def InteropTypeInferenceContradictsExistingAttributes
+    : DiagGroup<"interop-type-inference-contradicts-existing-attributes"> {
+  code Documentation = [{
+Warns about C++ record types whose written attributes contradict what interop type inference infers: a gsl::Pointer type not inferred to be a direct view type, or a self-contained (swift_attr("Escapable")) type inferred to be one.
+  }];
+}
+
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def DllexportExplicitInstantiation :
