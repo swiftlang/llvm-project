@@ -31,6 +31,7 @@ func main() {
   let shared = SharedFRT.create(1)
   let immortal = ImmortalFRT.get()
   let unsafe = UnsafeFRT.create()
+  let virtualBase = VirtualBaseFRT.get()
   let maybeShared: SharedFRT? = SharedFRT.create(4)
   let noShared: SharedFRT? = nil
   var reassigned: SharedFRT? = nil
@@ -55,7 +56,7 @@ func main() {
   let classWithFRTs = ClassWithFRTs(shared: shared, immortal: immortal)
 
   print("break here")
-  use((shared, immortal, unsafe, maybeShared, noShared, reassigned, member,
+  use((shared, immortal, unsafe, virtualBase, maybeShared, noShared, reassigned, member,
        virtualRC, derived, upcast, nonPrimary, nonPrimaryBase, incomplete,
        opaque, optionalOnly, holder, structWithFRTs, classWithFRTs))
   generic(shared)
