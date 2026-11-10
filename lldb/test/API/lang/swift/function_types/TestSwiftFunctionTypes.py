@@ -84,3 +84,18 @@ class TestCase(lldbtest.TestBase):
             "() -> (Swift.Int) -> Swift.Int",
             "(Swift.Int) -> Swift.Int",
         )
+
+    @swiftTest
+    # With PDB, all function types are wrong, see test().
+    @skipIf(debug_info=["pdb"])
+    @expectedFailureAll
+    def test_known_problems(self):
+        """Test the function types lldb doesn't compute"""
+        self.build()
+        self.createTestTarget()
+        problems = []
+        # FIXME: A generic function mangles a DependentGenericType.
+        generic = self.function("generic", "a.generic<").GetType()
+        if generic.GetName() == "() -> ()":
+            problems.append("generic function: " + generic.GetName())
+        self.assertEqual(problems, [])
