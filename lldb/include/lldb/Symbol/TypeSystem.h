@@ -95,6 +95,10 @@ public:
   /// removing all the TypeSystems from the TypeSystemMap.
   virtual void Finalize() {}
 
+  /// Called on a target's scratch type systems when the target loads the
+  /// modules in \p module_list.
+  virtual void ModulesDidLoad(ModuleList &module_list) {}
+
   virtual plugin::dwarf::DWARFASTParser *GetDWARFParser() { return nullptr; }
 
   virtual PDBASTParser *GetPDBParser() { return nullptr; }
@@ -627,8 +631,6 @@ public:
   virtual void SetTriple(const SymbolContext &sc, const llvm::Triple triple) {}
 
   virtual void ClearModuleDependentCaches() {}
-
-  virtual void ModulesDidLoad(ModuleList &module_list) {}
 
   // END SWIFT
 
