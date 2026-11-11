@@ -1062,10 +1062,8 @@ public:
     PersistentExpressionState *persistent_state = nullptr;
 
     if (m_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
-#ifdef LLDB_ENABLE_SWIFT
       persistent_state = target_sp->GetPersistentExpressionStateForLanguage(
           lldb::eLanguageTypeSwift);
-#endif // LLDB_ENABLE_SWIFT
     } else {
       auto type_system_or_err =
           target_sp->GetScratchTypeSystemForLanguage(m_type.GetMinimumLanguage());
