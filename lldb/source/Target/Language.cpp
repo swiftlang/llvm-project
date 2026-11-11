@@ -22,9 +22,12 @@
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/Version/Version.h"
 
+#include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/Threading.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -179,6 +182,22 @@ void Language::ForEach(
     if (callback(lang) == IterationAction::Stop)
       break;
   }
+}
+
+std::string Language::GetVersionWithLanguageInfo() {
+  std::string version;
+  llvm::raw_string_ostream os(version);
+  os << lldb_private::GetVersion();
+  llvm::StringSet<> plugin_names;
+  ForEach([&](Language *language) {
+    if (!plugin_names.insert(language->GetPluginName()).second)
+      return IterationAction::Continue;
+    std::string info = language->GetVersionInfo();
+    if (!info.empty())
+      os << '\n' << info;
+    return IterationAction::Continue;
+  });
+  return version;
 }
 
 llvm::Expected<LanguageType>

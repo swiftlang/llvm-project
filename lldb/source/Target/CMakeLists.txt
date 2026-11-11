@@ -107,6 +107,7 @@ add_lldb_library(lldbTarget
     lldbSymbol
     lldbUtility
     lldbValueObject
+    lldbVersion
     lldbPluginProcessUtility
   )
 if(CMAKE_CXX_COMPILER_ID STREQUAL Clang)
