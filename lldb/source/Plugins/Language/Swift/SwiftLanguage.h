@@ -155,6 +155,8 @@ public:
 
   FormatEntity::Entry GetFunctionNameFormat() const override;
 
+  std::string GetVersionInfo() const override;
+
   /// Override that skips breakpoints inside await resume ("Q") async funclets.
   void FilterForLineBreakpoints(
       llvm::SmallVectorImpl<SymbolContext> &) const override;
