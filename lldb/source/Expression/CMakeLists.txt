@@ -1,11 +1,4 @@
-set(SWIFT_LIBS lldbPluginExpressionParserSwift)
-set(PLUGIN_DEPENDENCY_ARG)
-if(NOT LLDB_ENABLE_SWIFT_SUPPORT)
-  unset(SWIFT_LIBS)
-  set(PLUGIN_DEPENDENCY_ARG NO_PLUGIN_DEPENDENCIES)
-endif()
-
-add_lldb_library(lldbExpression ${PLUGIN_DEPENDENCY_ARG}
+add_lldb_library(lldbExpression NO_PLUGIN_DEPENDENCIES
   DiagnosticManager.cpp
   DWARFExpression.cpp
   DWARFExpressionList.cpp
@@ -43,10 +36,6 @@ add_lldb_library(lldbExpression ${PLUGIN_DEPENDENCY_ARG}
     lldbTarget
     lldbUtility
     lldbValueObject
-
-    ## BEGIN SWIFT
-    ${SWIFT_LIBS}
-    ## END SWIFT
 
   LINK_COMPONENTS
     Core
