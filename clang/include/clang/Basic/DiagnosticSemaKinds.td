@@ -11345,6 +11345,48 @@ def warn_lifetime_safety_destructor_use_after_invalidation
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;
 
+// Diagnostics of the ownership inference analyses.
+def warn_ownership_inference_annotation_mismatch : Warning<
+  "type %q0 has annotation '%1' but inferred as '%2'">,
+  InGroup<OwnershipInferenceAnnotationMismatch>, DefaultIgnore;
+
+def warn_ownership_inference_failed_to_infer : Warning<
+  "type %q0 failed to infer">,
+  InGroup<OwnershipInferenceFailedToInfer>, DefaultIgnore;
+
+def warn_ownership_inference_suggest_trivially_self_contained : Warning<
+  "type %q0 was trivially inferred as 'self-contained'">,
+  InGroup<OwnershipInferenceSuggestTriviallySelfContained>, DefaultIgnore;
+
+def warn_ownership_inference_suggest_self_contained : Warning<
+  "type %q0 was inferred as 'self-contained'">,
+  InGroup<OwnershipInferenceSuggestSelfContained>, DefaultIgnore;
+
+def warn_ownership_inference_suggest_view : Warning<
+  "type %q0 was inferred as 'view'">,
+  InGroup<OwnershipInferenceSuggestView>, DefaultIgnore;
+
+def note_ownership_inference_holds_field_inferred : Note<
+  "holds field %quoted0 of type %q1 that was "
+  "%select{inferred|annotated}2 as '%select{view|unknown}3'">;
+
+def note_ownership_inference_derives_from_base_inferred : Note<
+  "derives from class %q0 that was "
+  "%select{inferred|annotated}1 as '%select{view|unknown}2'">;
+
+def note_ownership_inference_holds_field : Note<
+  "holds %select{reference|unmanaged raw-pointer|managed raw-pointer}0 "
+  "field %quoted1">;
+
+def note_ownership_inference_opaque_dtor : Note<"declares opaque destructor">;
+
+def note_ownership_inference_not_instantiated_dtor : Note<
+  "destructor was not instantiated for this specialization">;
+
+def note_ownership_inference_decomposed_template_argument : Note<
+  "decomposed into template argument %0 of type %1 that was "
+  "%select{inferred|annotated}2 as '%select{view|unknown}3'">;
+
 // For non-floating point, expressions of the form x == x or x != x
 // should result in a warning, since these always evaluate to a constant.
 // Array comparisons have similar warnings

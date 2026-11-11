@@ -14,7 +14,6 @@
 
 #include "clang/Sema/AnalysisBasedWarnings.h"
 // TO_UPSTREAM(BoundsSafety)
-#include "clang/Sema/BoundsSafetySuggestions.h"
 #include "SemaLifetimeSafety.h"
 #include "TypeLocBuilder.h"
 #include "clang/AST/Decl.h"
@@ -35,6 +34,7 @@
 #include "clang/Analysis/Analyses/CalledOnceCheck.h"
 #include "clang/Analysis/Analyses/Consumed.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
+#include "clang/Analysis/Analyses/Ownership/SelfContainment.h"
 #include "clang/Analysis/Analyses/ReachableCode.h"
 #include "clang/Analysis/Analyses/ThreadSafety.h"
 #include "clang/Analysis/Analyses/UninitializedValues.h"
@@ -45,9 +45,11 @@
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "clang/Basic/DiagnosticUtils.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/BoundsSafetySuggestions.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -3906,6 +3908,9 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
 
   if (lifetimes::IsLifetimeSafetyEnabled(S, TU))
     LifetimeSafetyTUAnalysis(S, TU, LSStats);
+
+  if (ownership::shouldRunSelfContainmentInference(S))
+    ownership::inferClassSelfContainment(S.getASTContext());
 }
 
 void clang::sema::AnalysisBasedWarnings::IssueWarningsForImplicitFunction(

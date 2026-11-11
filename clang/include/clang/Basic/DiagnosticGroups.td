@@ -786,6 +786,26 @@ Turns on all the warnings in the lifetime-safety umbrella.
   }];
 }
 
+// Groups for the ownership inference analyses.
+def OwnershipInferenceAnnotationMismatch
+    : DiagGroup<"ownership-inference-annotation-mismatch">;
+def OwnershipInferenceFailedToInfer
+    : DiagGroup<"ownership-inference-failed-to-infer">;
+def OwnershipInferenceSuggestTriviallySelfContained
+    : DiagGroup<"ownership-inference-suggest-trivially-self-contained">;
+def OwnershipInferenceSuggestSelfContained
+    : DiagGroup<"ownership-inference-suggest-self-contained">;
+def OwnershipInferenceSuggestView
+    : DiagGroup<"ownership-inference-suggest-view">;
+def OwnershipInferenceSuggestions
+    : DiagGroup<"ownership-inference-suggestions",
+                [OwnershipInferenceSuggestTriviallySelfContained,
+                 OwnershipInferenceSuggestSelfContained,
+                 OwnershipInferenceSuggestView]>;
+def OwnershipInference
+    : DiagGroup<"ownership-inference", [OwnershipInferenceAnnotationMismatch,
+                                        OwnershipInferenceFailedToInfer]>;
+
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def DllexportExplicitInstantiation :
