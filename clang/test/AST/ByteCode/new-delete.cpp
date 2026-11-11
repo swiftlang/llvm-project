@@ -1137,7 +1137,7 @@ namespace NewNegSizeNothrow {
 
   constexpr bool test_nothrow_neg_size() {
     int x = get_neg_size();
-    int* p = new (std::nothrow) int[x]; 
+    int* p = new (std::nothrow) int[x];
     return p == nullptr;
   }
 

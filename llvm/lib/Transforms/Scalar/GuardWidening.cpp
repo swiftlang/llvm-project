@@ -604,7 +604,7 @@ static std::optional<BasicBlock::iterator>
 getFreezeInsertPt(Value *V, const DominatorTree &DT) {
   auto *I = dyn_cast<Instruction>(V);
   if (!I)
-    return DT.getRoot()->getFirstNonPHIOrDbgOrAlloca()->getIterator();
+    return DT.getRoot()->getFirstNonPHIOrAlloca()->getIterator();
 
   std::optional<BasicBlock::iterator> Res = I->getInsertionPointAfterDef();
   // If there is no place to add freeze - return nullptr.
@@ -792,7 +792,7 @@ Value *GuardWideningImpl::hoistChecks(SmallVectorImpl<Value *> &ChecksToHoist,
                                       Value *OldCondition,
                                       BasicBlock::iterator InsertPt) {
   assert(!ChecksToHoist.empty());
-  IRBuilder<> Builder(InsertPt->getParent(), InsertPt);
+  IRBuilder<> Builder(InsertPt);
   makeAvailableAt(ChecksToHoist, InsertPt);
   makeAvailableAt(OldCondition, InsertPt);
   Value *Result = Builder.CreateAnd(ChecksToHoist);

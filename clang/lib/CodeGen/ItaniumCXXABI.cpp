@@ -29,6 +29,7 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/PointerAuthOptions.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalPtrAuthInfo.h"
@@ -2208,10 +2209,10 @@ ItaniumCXXABI::getVTableAddressPoint(BaseSubobject Base,
       CGM.getItaniumVTableContext().getVTableLayout(VTableClass);
   VTableLayout::AddressPointLocation AddressPoint =
       Layout.getAddressPoint(Base);
-  llvm::Value *Indices[] = {
-    llvm::ConstantInt::get(CGM.Int32Ty, 0),
-    llvm::ConstantInt::get(CGM.Int32Ty, AddressPoint.VTableIndex),
-    llvm::ConstantInt::get(CGM.Int32Ty, AddressPoint.AddressPointIndex),
+  llvm::Constant *Indices[] = {
+      llvm::ConstantInt::get(CGM.Int32Ty, 0),
+      llvm::ConstantInt::get(CGM.Int32Ty, AddressPoint.VTableIndex),
+      llvm::ConstantInt::get(CGM.Int32Ty, AddressPoint.AddressPointIndex),
   };
 
   // Add inrange attribute to indicate that only the VTableIndex can be
@@ -2225,7 +2226,8 @@ ItaniumCXXABI::getVTableAddressPoint(BaseSubobject Base,
       llvm::APInt(32, (int)-Offset, true),
       llvm::APInt(32, (int)(VTableSize - Offset), true));
   return llvm::ConstantExpr::getGetElementPtr(
-      VTable->getValueType(), VTable, Indices, /*InBounds=*/true, InRange);
+      CGM.getDataLayout(), VTable->getValueType(), VTable, Indices,
+      llvm::GEPNoWrapFlags::inBounds(), InRange);
 }
 
 llvm::Value *ItaniumCXXABI::getVTableAddressPointInStructorWithVTT(
@@ -2249,12 +2251,9 @@ llvm::Value *ItaniumCXXABI::getVTableAddressPointInStructorWithVTT(
       CGF.Builder.CreateAlignedLoad(CGF.GlobalsVoidPtrTy, VTT,
                                     CGF.getPointerAlign());
 
-  if (auto &Schema = CGF.CGM.getCodeGenOpts().PointerAuth.CXXVTTVTablePointers) {
-    CGPointerAuthInfo PointerAuth = CGF.EmitPointerAuthInfo(Schema, VTT,
-                                                            GlobalDecl(),
-                                                            QualType());
-    AP = CGF.EmitPointerAuthAuth(PointerAuth, AP);
-  }
+  if (auto PointerAuth = CGM.getVTablePointerAuthInfo(&CGF, VTableClass, VTT,
+                                                      /*IsVTTEntry=*/true))
+    AP = CGF.EmitPointerAuthAuth(*PointerAuth, AP);
 
   return AP;
 }
@@ -4142,8 +4141,9 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty,
     VTable = llvm::ConstantExpr::getInBoundsPtrAdd(VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.GlobalsInt8PtrTy,
-                                                          VTable, Two);
+    VTable = llvm::ConstantExpr::getGetElementPtr(
+        CGM.getDataLayout(), CGM.GlobalsInt8PtrTy, VTable, Two,
+        llvm::GEPNoWrapFlags::inBounds());
   }
 
   if (const auto &Schema =

@@ -317,7 +317,7 @@ bool CheckBCPResult(InterpState &S, const Pointer &Ptr) {
   if (Ptr.getType()->isAnyComplexType())
     return true;
 
-  if (const Expr *Base = Ptr.getDeclDesc()->asExpr())
+  if (const Expr *Base = Ptr.getRootExpr())
     return isa<StringLiteral>(Base) && Ptr.getIndex() == 0;
   return false;
 }
@@ -1262,18 +1262,8 @@ bool CheckNewDeleteForms(InterpState &S, CodePtr OpPC,
   return false;
 }
 
-bool CheckDeleteSource(InterpState &S, CodePtr OpPC, const Expr *Source,
-                       const Pointer &Ptr) {
-  // Regular new type(...) call.
-  if (isa_and_nonnull<CXXNewExpr>(Source))
-    return true;
-  // operator new.
-  if (const auto *CE = dyn_cast_if_present<CallExpr>(Source);
-      CE && CE->getBuiltinCallee() == Builtin::BI__builtin_operator_new)
-    return true;
-  // std::allocator.allocate() call
-  if (const auto *MCE = dyn_cast_if_present<CXXMemberCallExpr>(Source);
-      MCE && MCE->getMethodDecl()->getIdentifier()->isStr("allocate"))
+bool CheckDeleteSource(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
+  if (Ptr.isBlockPointer() && Ptr.block()->isDynamic())
     return true;
 
   // Whatever this is, we didn't heap allocate it.
@@ -1436,7 +1426,7 @@ bool Free(InterpState &S, CodePtr OpPC, bool DeleteIsArrayForm,
     QualType InitialType = Ptr.getType();
     Ptr = Ptr.expand().stripBaseCasts();
 
-    Source = Ptr.getDeclDesc()->asExpr();
+    Source = Ptr.getRootExpr();
     BlockToDelete = Ptr.block();
 
     // Check that new[]/delete[] or new/delete were used, not a mixture.
@@ -1469,7 +1459,7 @@ bool Free(InterpState &S, CodePtr OpPC, bool DeleteIsArrayForm,
       return false;
     }
 
-    if (!CheckDeleteSource(S, OpPC, Source, Ptr))
+    if (!CheckDeleteSource(S, OpPC, Ptr))
       return false;
 
     // For a class type with a virtual destructor, the selected operator delete
@@ -2852,8 +2842,8 @@ bool arePotentiallyOverlappingStringLiterals(const Pointer &LHS,
 
   unsigned LHSOffset = LHS.isOnePastEnd() ? LHS.getNumElems() : LHS.getIndex();
   unsigned RHSOffset = RHS.isOnePastEnd() ? RHS.getNumElems() : RHS.getIndex();
-  const auto *LHSLit = cast<StringLiteral>(LHS.getDeclDesc()->asExpr());
-  const auto *RHSLit = cast<StringLiteral>(RHS.getDeclDesc()->asExpr());
+  const auto *LHSLit = cast<StringLiteral>(LHS.getRootExpr());
+  const auto *RHSLit = cast<StringLiteral>(RHS.getRootExpr());
 
   StringRef LHSStr(LHSLit->getBytes());
   unsigned LHSLength = LHSStr.size();

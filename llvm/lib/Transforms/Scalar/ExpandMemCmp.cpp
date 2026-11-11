@@ -567,7 +567,7 @@ void MemCmpExpansion::emitMemCmpResultBlock() {
   // need to be calculated and can simply return 1.
   if (IsUsedForZeroCmp) {
     BasicBlock::iterator InsertPt = ResBlock.BB->getFirstInsertionPt();
-    Builder.SetInsertPoint(ResBlock.BB, InsertPt);
+    Builder.SetInsertPoint(InsertPt);
     Value *Res = ConstantInt::get(Type::getInt32Ty(CI->getContext()), 1);
     PhiRes->addIncoming(Res, ResBlock.BB);
     Builder.CreateBr(EndBlock);
@@ -576,7 +576,7 @@ void MemCmpExpansion::emitMemCmpResultBlock() {
     return;
   }
   BasicBlock::iterator InsertPt = ResBlock.BB->getFirstInsertionPt();
-  Builder.SetInsertPoint(ResBlock.BB, InsertPt);
+  Builder.SetInsertPoint(InsertPt);
 
   Value *Cmp = Builder.CreateICmp(ICmpInst::ICMP_ULT, ResBlock.PhiSrc1,
                                   ResBlock.PhiSrc2);
@@ -604,7 +604,7 @@ void MemCmpExpansion::setupResultBlockPHINodes() {
 }
 
 void MemCmpExpansion::setupEndBlockPHINodes() {
-  Builder.SetInsertPoint(EndBlock, EndBlock->begin());
+  Builder.SetInsertPoint(EndBlock->begin());
   PhiRes = Builder.CreatePHI(Type::getInt32Ty(CI->getContext()), 2, "phi.res");
 }
 

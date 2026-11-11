@@ -1218,10 +1218,10 @@ TYPE_PARSER(construct<OmpDefaultClause::DataSharingAttribute>(
     "NONE" >> pure(OmpDefaultClause::DataSharingAttribute::None)))
 
 TYPE_PARSER(construct<OmpDefaultClause>(
-    construct<OmpDefaultClause>(
-        Parser<OmpDefaultClause::DataSharingAttribute>{}) ||
-    construct<OmpDefaultClause>(
-        indirect(OmpDirectiveSpecificationParser(/*allowCommas=*/false)))))
+    Parser<OmpDefaultClause::DataSharingAttribute>{}))
+
+TYPE_PARSER(construct<OmpDefaultVariantClause>(
+    indirect(OmpDirectiveSpecificationParser(/*allowCommas=*/false))))
 
 TYPE_PARSER(construct<OmpDynGroupprivateClause>(
     maybe(nonemptyList(Parser<OmpDynGroupprivateClause::Modifier>{}) / ":"),
@@ -1524,8 +1524,12 @@ TYPE_PARSER( //
                     parenthesized(Parser<OmpObjectList>{}))) ||
     "COPYPRIVATE" >> construct<OmpClause>(construct<OmpClause::Copyprivate>(
                          (parenthesized(Parser<OmpObjectList>{})))) ||
-    "DEFAULT"_id >> construct<OmpClause>(construct<OmpClause::Default>(
-                        parenthesized(Parser<OmpDefaultClause>{}))) ||
+    "DEFAULT"_id >>
+        // Default or DefaultVariant depending on the argument.
+        (construct<OmpClause>(construct<OmpClause::Default>(
+             parenthesized(Parser<OmpDefaultClause>{}))) ||
+            construct<OmpClause>(construct<OmpClause::DefaultVariant>(
+                parenthesized(Parser<OmpDefaultVariantClause>{})))) ||
     "DEFAULTMAP" >> construct<OmpClause>(construct<OmpClause::Defaultmap>(
                         parenthesized(Parser<OmpDefaultmapClause>{}))) ||
     "DEPEND" >> construct<OmpClause>(construct<OmpClause::Depend>(
@@ -2622,19 +2626,16 @@ TYPE_CONTEXT_PARSER("OpenMP construct"_en_US,
                     Parser<OmpDelimitedMetadirectiveDirective>{}))))
 
 static constexpr DirectiveSet GetLoopDirectives() {
-  using Directive = llvm::omp::Directive;
   using SourceLanguage = llvm::omp::SourceLanguage;
   DirectiveSet loopDirectives;
 
-  for (auto dirVal{llvm::to_underlying(Directive::First_)};
-      dirVal != llvm::to_underlying(Directive::Last_) + 1; ++dirVal) {
-    auto dirId{static_cast<Directive>(dirVal)};
+  for (auto dirId : llvm::omp::directives()) {
     auto assoc{getDirectiveAssociation(dirId)};
     if (assoc == llvm::omp::Association::LoopNest ||
         assoc == llvm::omp::Association::LoopSeq) {
       auto langs{getDirectiveLanguages(dirId)};
       if (llvm::to_underlying(langs & SourceLanguage::Fortran) != 0) {
-        loopDirectives.set(dirVal);
+        loopDirectives.set(llvm::to_underlying(dirId));
       }
     }
   }

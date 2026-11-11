@@ -945,7 +945,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       (CodeGenOpts.DebugPassManager || DebugPassStructure),
       CodeGenOpts.VerifyEach, PrintPassOpts);
   SI.registerCallbacks(PIC, &MAM);
-  PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC, CI.getVirtualFileSystemPtr());
+  PassBuilder PB(TheModule->getContext(), TM.get(), PTO, PGOOpt, &PIC,
+                 CI.getVirtualFileSystemPtr());
 
   // Handle the assignment tracking feature options.
   switch (CodeGenOpts.getAssignmentTrackingMode()) {
@@ -1332,8 +1333,8 @@ void EmitAssemblyHelper::RunCodegenPipelineNewPM(
   PassInstrumentationCallbacks PIC;
   PipelineTuningOptions PTOptions;
   TargetMachine *TMPointer = TM.get();
-  PassBuilder PB(TMPointer, PTOptions, std::nullopt, &PIC,
-                 CI.getVirtualFileSystemPtr());
+  PassBuilder PB(TheModule->getContext(), TMPointer, PTOptions, std::nullopt,
+                 &PIC, CI.getVirtualFileSystemPtr());
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);

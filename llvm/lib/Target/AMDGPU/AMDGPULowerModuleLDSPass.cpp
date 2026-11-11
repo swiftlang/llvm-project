@@ -286,7 +286,7 @@ class AMDGPULowerModuleLDS {
     // codegen would suffice for that, but one would still need to ensure that
     // the variables are allocated in the anticipated order.
     BasicBlock *Entry = &Func->getEntryBlock();
-    IRBuilder<> Builder(Entry, Entry->getFirstNonPHIIt());
+    IRBuilder<> Builder(Entry->getFirstNonPHIIt());
 
     Function *Decl = Intrinsic::getOrInsertDeclaration(
         Func->getParent(), Intrinsic::donothing, {});
@@ -523,7 +523,7 @@ public:
     // block to spare deduplicating it later.
     auto [It, Inserted] = tableKernelIndexCache.try_emplace(F);
     if (Inserted) {
-      auto InsertAt = F->getEntryBlock().getFirstNonPHIOrDbgOrAlloca();
+      auto InsertAt = F->getEntryBlock().getFirstNonPHIOrAlloca();
       IRBuilder<> Builder(&*InsertAt);
 
       It->second = Builder.CreateIntrinsic(Intrinsic::amdgcn_lds_kernel_id, {});
@@ -1403,7 +1403,8 @@ private:
     for (size_t I = 0; I < LocalVars.size(); I++) {
       GlobalVariable *GV = LocalVars[I];
       Constant *GEPIdx[] = {ConstantInt::get(I32, 0), ConstantInt::get(I32, I)};
-      Constant *GEP = ConstantExpr::getGetElementPtr(LDSTy, SGV, GEPIdx, true);
+      Constant *GEP = ConstantExpr::getGetElementPtr(
+          DL, LDSTy, SGV, GEPIdx, GEPNoWrapFlags::inBounds());
       if (IsPaddingField[I]) {
         assert(GV->use_empty());
         GV->eraseFromParent();

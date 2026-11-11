@@ -34,6 +34,7 @@
 namespace llvm {
 class StringRef;
 class AAManager;
+class LLVMContext;
 class TargetMachine;
 class ModuleSummaryIndex;
 
@@ -112,6 +113,7 @@ public:
 /// of the built-in passes, and those may reference these members during
 /// construction.
 class PassBuilder {
+  LLVMContext &Context;
   TargetMachine *TM;
   PipelineTuningOptions PTO;
   std::optional<PGOOptions> PGOOpt;
@@ -132,9 +134,12 @@ public:
     std::vector<PipelineElement> InnerPipeline;
   };
 
+  /// The pipelines read the library options of \p Context, which must outlive
+  /// the PassBuilder. If \p PTO is not given, it reads its defaults from
+  /// \p Context.
   LLVM_ABI explicit PassBuilder(
-      TargetMachine *TM = nullptr,
-      PipelineTuningOptions PTO = PipelineTuningOptions(),
+      LLVMContext &Context, TargetMachine *TM = nullptr,
+      std::optional<PipelineTuningOptions> PTO = std::nullopt,
       std::optional<PGOOptions> PGOOpt = std::nullopt,
       PassInstrumentationCallbacks *PIC = nullptr,
       IntrusiveRefCntPtr<vfs::FileSystem> FS = vfs::getRealFileSystem());
@@ -641,6 +646,8 @@ public:
                                        bool AtomicCounterUpdate,
                                        std::string ProfileFile,
                                        std::string ProfileRemappingFile);
+
+  LLVMContext &getContext() const { return Context; }
 
   /// Returns PIC. External libraries can use this to register pass
   /// instrumentation callbacks.

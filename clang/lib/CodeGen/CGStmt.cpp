@@ -304,8 +304,11 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPScanDirectiveClass:
     EmitOMPScanDirective(cast<OMPScanDirective>(*S));
     break;
-  case Stmt::OMPOrderedDirectiveClass:
-    EmitOMPOrderedDirective(cast<OMPOrderedDirective>(*S));
+  case Stmt::OMPOrderedStandaloneDirectiveClass:
+    EmitOMPOrderedStandaloneDirective(cast<OMPOrderedStandaloneDirective>(*S));
+    break;
+  case Stmt::OMPOrderedBlockAssocDirectiveClass:
+    EmitOMPOrderedBlockAssocDirective(cast<OMPOrderedBlockAssocDirective>(*S));
     break;
   case Stmt::OMPAtomicDirectiveClass:
     EmitOMPAtomicDirective(cast<OMPAtomicDirective>(*S));
@@ -2872,7 +2875,7 @@ void AsmConstraintsInfo::EmitAsmStmt() {
   if (IsGCCAsmGoto && !CBRRegResults.empty()) {
     for (llvm::BasicBlock *Succ : CBR->getIndirectDests()) {
       llvm::IRBuilderBase::InsertPointGuard IPG(Builder);
-      Builder.SetInsertPoint(Succ, --(Succ->end()));
+      Builder.SetInsertPoint(--(Succ->end()));
       EmitAsmStores(CBRRegResults[Succ]);
     }
   }

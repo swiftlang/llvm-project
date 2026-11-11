@@ -15,11 +15,11 @@
 #define LLVM_CODEGEN_DROPPEDVARIABLESTATSIR_H
 
 #include "llvm/IR/DroppedVariableStats.h"
+#include "llvm/IR/IRUnitRef.h"
 #include "llvm/Support/Compiler.h"
 
 namespace llvm {
 
-class Any;
 class StringRef;
 class PassInstrumentationCallbacks;
 class Function;
@@ -34,9 +34,9 @@ public:
   DroppedVariableStatsIR(bool DroppedVarStatsEnabled)
       : llvm::DroppedVariableStats(DroppedVarStatsEnabled) {}
 
-  void runBeforePass(StringRef P, Any IR);
+  void runBeforePass(StringRef P, IRUnitRef IR);
 
-  void runAfterPass(StringRef P, Any IR);
+  void runAfterPass(StringRef P, IRUnitRef IR);
 
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
 
@@ -75,8 +75,6 @@ private:
 
   /// Override base class method to run on #dbg_values specifically.
   void visitEveryDebugRecord(DenseSet<VarID> &VarIDSet) override;
-
-  template <typename IRUnitT> static const IRUnitT *unwrapIR(Any IR);
 };
 
 } // namespace llvm

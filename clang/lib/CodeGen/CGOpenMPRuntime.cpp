@@ -1198,7 +1198,7 @@ struct PushAndPopStackRAII {
     // The FiniCB will still be needed but at the point where the
     // OpenMPIRBuilder is asked to construct a parallel (or similar) construct.
     auto FiniCB = [&CGF](llvm::OpenMPIRBuilder::InsertPointTy IP) {
-      assert(IP.getBlock()->end() == IP.getPoint() &&
+      assert(IP == IP.getNodeParent()->end() &&
              "Clang CG should cause non-terminated block!");
       CGBuilderTy::InsertPointGuard IPG(CGF.Builder);
       CGF.Builder.restoreIP(IP);
@@ -1417,7 +1417,7 @@ llvm::Value *CGOpenMPRuntime::getThreadID(CodeGenFunction &CGF,
   // the clang invariants used below might be broken.
   if (CGM.getLangOpts().OpenMPIRBuilder) {
     SmallString<128> Buffer;
-    OMPBuilder.updateToLocation(CGF.Builder.saveIP());
+    OMPBuilder.updateToLocation(CGF.Builder);
     uint32_t SrcLocStrSize;
     auto *SrcLocStr = OMPBuilder.getOrCreateSrcLocStr(
         getIdentStringFromSourceLocation(CGF, Loc, Buffer), SrcLocStrSize);
@@ -2427,10 +2427,10 @@ void CGOpenMPRuntime::emitOrderedRegion(CodeGenFunction &CGF,
                               CGM.getModule(), OMPRTL___kmpc_end_ordered),
                           Args);
     OrderedOpGen.setAction(Action);
-    emitInlinedDirective(CGF, OMPD_ordered, OrderedOpGen);
+    emitInlinedDirective(CGF, OMPD_ordered_blockassoc, OrderedOpGen);
     return;
   }
-  emitInlinedDirective(CGF, OMPD_ordered, OrderedOpGen);
+  emitInlinedDirective(CGF, OMPD_ordered_blockassoc, OrderedOpGen);
 }
 
 unsigned CGOpenMPRuntime::getDefaultFlagsForBarriers(OpenMPDirectiveKind Kind) {
@@ -6543,7 +6543,8 @@ const Expr *CGOpenMPRuntime::getNumTeamsExprForTargetDirective(
   case OMPD_parallel_for_simd:
   case OMPD_cancel:
   case OMPD_cancellation_point:
-  case OMPD_ordered:
+  case OMPD_ordered_standalone:
+  case OMPD_ordered_blockassoc:
   case OMPD_threadprivate:
   case OMPD_allocate:
   case OMPD_task:
@@ -10387,10 +10388,8 @@ static void emitOffloadingArraysAndArgs(
   CodeGenModule &CGM = CGF.CGM;
 
   using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
-  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getParent(),
-                         CGF.AllocaInsertPt->getIterator());
-  InsertPointTy CodeGenIP(CGF.Builder.GetInsertBlock(),
-                          CGF.Builder.GetInsertPoint());
+  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getIterator());
+  InsertPointTy CodeGenIP(CGF.Builder.GetInsertPoint());
 
   auto DeviceAddrCB = [&](unsigned int I, llvm::Value *NewDecl) {
     if (const ValueDecl *DevVD = CombinedInfo.DevicePtrDecls[I]) {
@@ -10466,7 +10465,8 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_parallel_for_simd:
     case OMPD_cancel:
     case OMPD_cancellation_point:
-    case OMPD_ordered:
+    case OMPD_ordered_standalone:
+    case OMPD_ordered_blockassoc:
     case OMPD_threadprivate:
     case OMPD_allocate:
     case OMPD_task:
@@ -10992,7 +10992,7 @@ static void emitTargetCallKernelLaunch(
         OMPRuntime->emitTargetNumIterationsCall(CGF, D, SizeEmitter);
     auto [DynCGroupMem, DynCGroupMemFallback] = emitDynCGroupMem(D, CGF);
     llvm::OpenMPIRBuilder::InsertPointTy AllocaIP(
-        CGF.AllocaInsertPt->getParent(), CGF.AllocaInsertPt->getIterator());
+        CGF.AllocaInsertPt->getIterator());
 
     llvm::OpenMPIRBuilder::TargetDataRTArgs RTArgs(
         BasePointersArray, PointersArray, SizesArray, MapTypesArray,
@@ -11202,7 +11202,8 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_parallel_for_simd:
     case OMPD_cancel:
     case OMPD_cancellation_point:
-    case OMPD_ordered:
+    case OMPD_ordered_standalone:
+    case OMPD_ordered_blockassoc:
     case OMPD_threadprivate:
     case OMPD_allocate:
     case OMPD_task:
@@ -11675,8 +11676,7 @@ void CGOpenMPRuntime::emitTargetDataCalls(
       }
       break;
     }
-    return InsertPointTy(CGF.Builder.GetInsertBlock(),
-                         CGF.Builder.GetInsertPoint());
+    return InsertPointTy(CGF.Builder.GetInsertPoint());
   };
 
   auto DeviceAddrCB = [&](unsigned int I, llvm::Value *NewDecl) {
@@ -11698,11 +11698,9 @@ void CGOpenMPRuntime::emitTargetDataCalls(
   // Source location for the ident struct
   llvm::Value *RTLoc = emitUpdateLocation(CGF, D.getBeginLoc());
 
-  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getParent(),
-                         CGF.AllocaInsertPt->getIterator());
-  InsertPointTy CodeGenIP(CGF.Builder.GetInsertBlock(),
-                          CGF.Builder.GetInsertPoint());
-  llvm::OpenMPIRBuilder::LocationDescription OmpLoc(CodeGenIP);
+  InsertPointTy AllocaIP(CGF.AllocaInsertPt->getIterator());
+  InsertPointTy CodeGenIP(CGF.Builder.GetInsertPoint());
+  llvm::OpenMPIRBuilder::LocationDescription OmpLoc(CGF.Builder);
   llvm::OpenMPIRBuilder::InsertPointTy AfterIP =
       cantFail(OMPBuilder.createTargetData(
           OmpLoc, AllocaIP, CodeGenIP, /*DeallocBlocks=*/{}, DeviceID,
@@ -11777,7 +11775,8 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_parallel_for_simd:
     case OMPD_cancel:
     case OMPD_cancellation_point:
-    case OMPD_ordered:
+    case OMPD_ordered_standalone:
+    case OMPD_ordered_blockassoc:
     case OMPD_threadprivate:
     case OMPD_allocate:
     case OMPD_task:
