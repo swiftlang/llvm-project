@@ -82,10 +82,6 @@
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "swift/Basic/Version.h"
-#endif
-
 using namespace lldb;
 using namespace lldb_private;
 using namespace std::chrono;
