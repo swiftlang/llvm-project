@@ -98,3 +98,6 @@ class TestCase(lldbtest.TestBase):
             # rdar://192368824
             functions.append("f_throwing")
         self.assertEqual(self.return_value_problems(functions), [])
+        _, _, thread, _ = lldbutil.run_to_name_breakpoint(self, "f_int")
+        thread.StepOut()
+        self.expect("thread info", patterns=[r"Return value: \(Int\) \$R\d+ = 42\n"])
