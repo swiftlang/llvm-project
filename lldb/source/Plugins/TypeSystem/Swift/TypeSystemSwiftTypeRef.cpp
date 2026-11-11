@@ -598,10 +598,8 @@ NodePointer TypeSystemSwiftTypeRef::CreateBoundGenericStruct(
   return outer_type;
 }
 
-CompilerType
-TypeSystemSwiftTypeRef::CreateClangStructType(llvm::StringRef name) {
-  auto flavor = SwiftLanguageRuntime::GetManglingFlavor(name);
-
+CompilerType TypeSystemSwiftTypeRef::CreateClangStructType(
+    llvm::StringRef name, swift::Mangle::ManglingFlavor flavor) {
   using namespace swift::Demangle;
   Demangler dem;
   NodePointer module = dem.createNodeWithAllocatedText(
