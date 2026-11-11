@@ -62,14 +62,6 @@
 namespace lldb_private {
 
 class ClangModulesDeclVendor;
-// BEGIN SWIFT
-class SwiftPersistentExpressionState;
-class SharedMutex;
-class TypeSystemSwiftTypeRefForExpressions;
-typedef std::shared_ptr<TypeSystemSwiftTypeRefForExpressions>
-    TypeSystemSwiftTypeRefForExpressionsSP;
-// END SWIFT
-
 
 OptionEnumValues GetDynamicValueTypes();
 
