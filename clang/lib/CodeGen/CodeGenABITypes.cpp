@@ -17,6 +17,7 @@
 
 #include "clang/CodeGen/CodeGenABITypes.h"
 #include "CGCXXABI.h"
+#include "CGDebugInfo.h"
 #include "CGRecordLayout.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
@@ -98,6 +99,85 @@ CodeGen::getImplicitCXXConstructorArgs(CodeGenModule &CGM,
     implicitArgs.Suffix.push_back(arg.Value);
   }
   return implicitArgs;
+}
+
+llvm::Function *
+CodeGen::getOrCreateVTablePointerInitializer(CodeGenModule &CGM,
+                                             const CXXRecordDecl *RD) {
+  assert(RD->isDynamicClass() && "class has no vtable");
+  // The vtable pointers of virtual bases depend on the constructor that
+  // initializes them (e.g. through a VTT).
+  assert(!RD->getNumVBases() && "class has virtual bases");
+
+  ASTContext &Ctx = CGM.getContext();
+  CanQualType RecordTy = Ctx.getCanonicalTagType(RD);
+
+  SmallString<128> Name("__clang_vtable_ptr_init.");
+  {
+    llvm::raw_svector_ostream Out(Name);
+    CGM.getCXXABI().getMangleContext().mangleCanonicalTypeName(RecordTy, Out);
+  }
+  if (llvm::Function *Fn = CGM.getModule().getFunction(Name))
+    return Fn;
+
+  if (!CGM.getVTables().isVTableExternal(RD))
+    CGM.EmitVTable(const_cast<CXXRecordDecl *>(RD));
+
+  auto *ThisDecl =
+      ImplicitParamDecl::Create(Ctx, Ctx.VoidPtrTy, ImplicitParamKind::Other);
+  FunctionArgList Args{ThisDecl};
+  const CGFunctionInfo &FI =
+      CGM.getTypes().arrangeBuiltinFunctionDeclaration(Ctx.VoidTy, Args);
+  llvm::Function *Fn = llvm::Function::Create(
+      CGM.getTypes().GetFunctionType(FI), llvm::GlobalValue::LinkOnceODRLinkage,
+      Name, &CGM.getModule());
+  Fn->setVisibility(llvm::GlobalValue::HiddenVisibility);
+  Fn->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+  if (CGM.supportsCOMDAT())
+    Fn->setComdat(CGM.getModule().getOrInsertComdat(Name));
+  CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Fn, /*IsThunk=*/false);
+  CGM.SetLLVMFunctionAttributesForDefinition(nullptr, Fn);
+  Fn->setDoesNotThrow();
+
+  CodeGenFunction CGF(CGM);
+  CGF.StartFunction(GlobalDecl(), Ctx.VoidTy, Fn, FI, Args);
+  auto AL = ApplyDebugLocation::CreateArtificial(CGF);
+  Address This(CGF.Builder.CreateLoad(CGF.GetAddrOfLocalVar(ThisDecl)),
+               CGF.ConvertTypeForMem(RecordTy),
+               CGM.getClassPointerAlignment(RD), KnownNonNull);
+
+  // This follows CodeGenFunction::InitializeVTablePointers, for an object that
+  // is not `this` and that has no virtual bases.
+  if (CGM.getCXXABI().doStructorsInitializeVPtrs(RD)) {
+    unsigned GlobalsAS = CGM.getDataLayout().getDefaultGlobalsAddressSpace();
+    llvm::Type *PtrTy = llvm::PointerType::get(CGM.getLLVMContext(), GlobalsAS);
+    for (const CodeGenFunction::VPtr &Vptr : CGF.getVTablePointers(RD)) {
+      llvm::Value *AddressPoint =
+          CGM.getCXXABI().getVTableAddressPointInStructor(
+              CGF, Vptr.VTableClass, Vptr.Base, Vptr.NearestVBase);
+      if (!AddressPoint)
+        continue;
+
+      Address VTableField =
+          CGF.Builder
+              .CreateConstInBoundsByteGEP(This.withElementType(CGF.Int8Ty),
+                                          Vptr.Base.getBaseOffset())
+              .withElementType(PtrTy);
+      if (auto AuthInfo = CGM.getVTablePointerAuthInfo(
+              &CGF, Vptr.Base.getBase(), VTableField.emitRawPointer(CGF)))
+        AddressPoint = CGF.EmitPointerAuthSign(*AuthInfo, AddressPoint);
+
+      llvm::StoreInst *Store = CGF.Builder.CreateStore(AddressPoint, VTableField);
+      CGM.DecorateInstructionWithTBAA(Store,
+                                      CGM.getTBAAVTablePtrAccessInfo(PtrTy));
+      if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
+          CGM.getCodeGenOpts().StrictVTablePointers)
+        CGM.DecorateInstructionWithInvariantGroup(Store, Vptr.VTableClass);
+    }
+  }
+
+  CGF.FinishFunction();
+  return Fn;
 }
 
 llvm::FunctionType *
