@@ -1,3 +1,7 @@
+/// Not supported in MCCAS: it splits __debug_info into compile units, and the
+/// __debug_info below is not a well-formed one.
+// REQUIRES: !mccas
+
 // With -macho-relocatable-dwarf, a reference from one DWARF section into
 // another is a relocation, and every __DWARF section is numbered from address 0
 // so that the relocated field holds the DWARF offset. The section data keeps
