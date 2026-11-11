@@ -80,6 +80,7 @@ set(hexagon_files
   hexagon_circ_brev_intrinsics.h
   hexagon_protos.h
   hexagon_types.h
+  hlx_hexagon_protos.h
   hvx_hexagon_protos.h
   )
 
