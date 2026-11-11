@@ -36,7 +36,7 @@ class TestCase(lldbtest.TestBase):
         thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
         while thread:
             function = re.search(
-                r"(\w+)(\(|\.getter)", thread.frames[0].GetFunctionName()
+                r"(\w+)(<[^>]*>)?(\(|\.getter)", thread.frames[0].GetFunctionName()
             )[1]
             seen.append(function)
             call_line = thread.frames[1].GetLineEntry().GetLine()
@@ -95,6 +95,7 @@ class TestCase(lldbtest.TestBase):
                 "f_optional_nil",
                 "f_optional_class",
                 "f_optional_string",
+                "f_array",
             ]
         else:
             # rdar://192368824
@@ -115,5 +116,29 @@ class TestCase(lldbtest.TestBase):
             "f_wrapped_double",
             # FIXME: Swift returns the float in a floating-point register.
             "f_float_int",
+            "f_float_int_tuple",
+            # FIXME: Swift returns up to four registers, not two.
+            "f_three_int",
+            "f_payload",
+            # FIXME: Swift returns this in memory, at an address lldb doesn't
+            # know after the return.
+            "f_existential",
+            # FIXME: This function has the type () -> ().
+            "f_generic",
         ]
+        if not self.isEmbeddedSwift():
+            # FIXME: These have a value only in Embedded Swift. Printing the
+            # dictionary there crashes the type system validation.
+            functions += [
+                "f_optional_int",
+                "f_optional_nil",
+                "f_optional_class",
+                "f_optional_string",
+                "f_array",
+                "f_dictionary",
+            ]
+        else:
+            # FIXME: In Embedded Swift, lldb shows no thrown error.
+            # rdar://192368824
+            functions.append("f_throwing")
         self.assertEqual(self.return_value_problems(functions), [])
