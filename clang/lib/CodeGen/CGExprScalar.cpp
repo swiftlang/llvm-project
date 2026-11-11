@@ -6752,9 +6752,13 @@ Address CodeGenFunction::EmitCheckedInBoundsGEP(
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
+/// \p PD describes the conversion being performed. It provides the leading
+/// arguments to the `trap_bs_terminated_by_from_indexable_*` trap
+/// diagnostics.
 static llvm::Value *EmitTerminatedByFromIndexable(CodeGenFunction &CGF,
                                                   const Expr *PtrExpr,
-                                                  const llvm::APSInt &TermVal) {
+                                                  const llvm::APSInt &TermVal,
+                                                  const PartialDiagnostic &PD) {
   auto &Builder = CGF.Builder;
 
   llvm::Value *Upper = nullptr;
@@ -6771,9 +6775,13 @@ static llvm::Value *EmitTerminatedByFromIndexable(CodeGenFunction &CGF,
   llvm::BasicBlock *End = CGF.createBasicBlock("terminated_by.loop_end");
 
   // Ensure that Ptr < Upper.
-  CGF.EmitBoundsSafetyBoundsCheck(ElemTy, Ptr, Upper, /*Lower=*/nullptr,
-                               /*AcceptPtrAndUpperNull=*/false,
-                               BoundsSafetyTrapCtx::TERMINATED_BY_FROM_INDEXABLE);
+  PartialDiagnostic BoundsCheckPD = PD;
+  BoundsCheckPD.setDiagID(diag::trap_bs_terminated_by_from_indexable_ptr);
+  BoundsCheckPD << /*%4=*/PtrExpr;
+  CGF.EmitBoundsSafetyBoundsCheck(
+      ElemTy, Ptr, Upper, /*Lower=*/nullptr,
+      /*AcceptPtrAndUpperNull=*/false,
+      BoundsSafetyTrapCtx::TERMINATED_BY_FROM_INDEXABLE, &BoundsCheckPD);
 
   RawAddress CurAllocaAddr =
       CGF.CreateDefaultAlignTempAlloca(Ptr->getType(), "terminated_by.cur");
@@ -6797,8 +6805,13 @@ static llvm::Value *EmitTerminatedByFromIndexable(CodeGenFunction &CGF,
                                            "terminated_by.one_past_cur");
     AccessCheck =
         Builder.CreateICmpULE(OnePastCur, Upper, "terminated_by.check_access");
+    TrapReason TR;
+    CGF.CGM.BuildTrapReason(diag::trap_bs_terminated_by_from_indexable_term, TR)
+        << /*%0-%3=*/PD << /*%4=*/PtrExpr
+        << /*%5=*/diag::BoundsSafetyTermCheckKind::NotFound;
     CGF.EmitBoundsSafetyTrapCheck(AccessCheck,
-                               BNS_TRAP_TERMINATED_BY_FROM_INDEXABLE_TERM);
+                                  BNS_TRAP_TERMINATED_BY_FROM_INDEXABLE_TERM,
+                                  BoundsSafetyTrapCtx::UNKNOWN, &TR);
   }
 
   // Check terminator.
@@ -6829,7 +6842,8 @@ static llvm::Value *EmitTerminatedByFromIndexableWithPtrToTerm(
   auto BuildTermPtrTrapReason = [&](TrapReason &TR, unsigned Kind) {
     CGF.CGM.BuildTrapReason(diag::trap_bs_terminated_by_from_indexable_term_ptr,
                             TR)
-        << PD << PtrToTermExpr << PtrExpr << Kind;
+        << /*%0-%3=*/PD << /*%4=*/PtrToTermExpr << /*%5=*/PtrExpr
+        << /*%6=*/Kind;
   };
 
   llvm::Value *Upper = nullptr;
@@ -6906,8 +6920,13 @@ static llvm::Value *EmitTerminatedByFromIndexableWithPtrToTerm(
     llvm::Value *Term = CGF.EmitTerminator(TermVal, ElemTy);
     TermCheck =
         Builder.CreateICmpEQ(Elem, Term, "terminated_by.check_terminator");
+    TrapReason TR;
+    CGF.CGM.BuildTrapReason(diag::trap_bs_terminated_by_from_indexable_term, TR)
+        << /*%0-%3=*/PD << /*%4=*/PtrToTermExpr
+        << /*%5=*/diag::BoundsSafetyTermCheckKind::NotTerm;
     CGF.EmitBoundsSafetyTrapCheck(TermCheck,
-                               BNS_TRAP_TERMINATED_BY_FROM_INDEXABLE_TERM);
+                                  BNS_TRAP_TERMINATED_BY_FROM_INDEXABLE_TERM,
+                                  BoundsSafetyTrapCtx::UNKNOWN, &TR);
   }
 
   return Ptr;
@@ -6921,21 +6940,21 @@ Value *ScalarExprEmitter::VisitTerminatedByFromIndexableExpr(
   const auto *VTT = E->getType()->getAs<ValueTerminatedType>();
   llvm::APSInt TermVal = VTT->getTerminatorValue(CGF.getContext());
 
-  if (const auto *PtrToTermExpr = E->getPointerToTerminator()) {
-    // Describe the conversion for the trap reasons. The `__terminated_by` type
-    // is described using its pointee type and terminator value because the
-    // type printer's spelling of it (e.g.
-    // `'const char *__single __terminated_by(0)' (aka 'const char *__single')`)
-    // isn't how users normally write the type.
-    auto PD = CGF.CGM.BuildPartialTrapReason();
-    PD << E->getPointer()->getType()
-       << E->getType()->getPointeeType().getAsString(
-              CGF.getContext().getPrintingPolicy())
-       << !TermVal.isZero() << toString(TermVal, /*Radix=*/10);
+  // Describe the conversion for the trap reasons. The `__terminated_by` type is
+  // described using its pointee type and terminator value because the type
+  // printer's spelling of it (e.g.
+  // `'const char *__single __terminated_by(0)' (aka 'const char *__single')`)
+  // isn't how users normally write the type.
+  auto PD = CGF.CGM.BuildPartialTrapReason();
+  PD << /*%0=*/E->getPointer()->getType()
+     << /*%1=*/E->getType()->getPointeeType().getAsString(
+            CGF.getContext().getPrintingPolicy())
+     << /*%2=*/!TermVal.isZero() << /*%3=*/toString(TermVal, /*Radix=*/10);
 
+  if (const auto *PtrToTermExpr = E->getPointerToTerminator()) {
     return EmitTerminatedByFromIndexableWithPtrToTerm(
         CGF, E->getPointer(), PtrToTermExpr, TermVal, PD);
   }
-  return EmitTerminatedByFromIndexable(CGF, E->getPointer(), TermVal);
+  return EmitTerminatedByFromIndexable(CGF, E->getPointer(), TermVal, PD);
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */

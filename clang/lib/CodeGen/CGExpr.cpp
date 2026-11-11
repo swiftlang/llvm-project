@@ -146,6 +146,11 @@ void CodeGenFunction::EmitBoundsSafetyBoundsCheck(
     return;
   assert(TrapCtx != BoundsSafetyTrapCtx::UNKNOWN);
 
+  // `PD` provides the trap diagnostic to use and all of its arguments except
+  // the last which is the check that failed (`diag::BoundsSafetyPtrCheckKind`).
+  assert((!PD || PD->getDiagID() != 0) &&
+         "PD must specify the trap diagnostic");
+
   // rdar://109574814: opt-remarks could be added here.
   llvm::BasicBlock *NullBB = nullptr;
   if (AcceptNullPtr) {
@@ -181,11 +186,9 @@ void CodeGenFunction::EmitBoundsSafetyBoundsCheck(
       TrapReason OverflowTR;
       TrapReason UpperBoundTR;
       if (PD) {
-        CGM.BuildTrapReason(diag::trap_bs_upper_lower_overflow_bound,
-                            UpperBoundTR)
+        CGM.BuildTrapReason(PD->getDiagID(), UpperBoundTR)
             << *PD << diag::BoundsSafetyPtrCheckKind::Upper;
-        CGM.BuildTrapReason(diag::trap_bs_upper_lower_overflow_bound,
-                            OverflowTR)
+        CGM.BuildTrapReason(PD->getDiagID(), OverflowTR)
             << *PD << diag::BoundsSafetyPtrCheckKind::Overflow;
       }
 
@@ -225,7 +228,7 @@ void CodeGenFunction::EmitBoundsSafetyBoundsCheck(
 
       TrapReason UpperTR;
       if (PD) {
-        CGM.BuildTrapReason(diag::trap_bs_upper_lower_overflow_bound, UpperTR)
+        CGM.BuildTrapReason(PD->getDiagID(), UpperTR)
             << *PD << diag::BoundsSafetyPtrCheckKind::Upper;
       }
 
@@ -240,8 +243,7 @@ void CodeGenFunction::EmitBoundsSafetyBoundsCheck(
 
     TrapReason LowerBoundTR;
     if (PD) {
-      CGM.BuildTrapReason(diag::trap_bs_upper_lower_overflow_bound,
-                          LowerBoundTR)
+      CGM.BuildTrapReason(PD->getDiagID(), LowerBoundTR)
           << *PD << diag::BoundsSafetyPtrCheckKind::Lower;
     }
 
@@ -5803,7 +5805,8 @@ CodeGenFunction::EmitWidePtrArraySubscriptExpr(const ArraySubscriptExpr *E,
     }
     assert(!!Upper && !!Lower);
     llvm::Type *ElemTy = ConvertTypeForMem(E->getType());
-    auto PD = CGM.BuildPartialTrapReason();
+    auto PD =
+        CGM.BuildPartialTrapReason(diag::trap_bs_upper_lower_overflow_bound);
     PD << diag::BoundsCheckContextKind::Indexing << E;
     EmitBoundsSafetyBoundsCheck(ElemTy, Addr.getBasePointer(), Upper, Lower,
                                 /*AcceptNullPtr=*/false,
