@@ -411,7 +411,8 @@ public:
                              swift::Mangle::ManglingFlavor flavor) override;
 
   /// Create a __C imported struct type.
-  CompilerType CreateClangStructType(llvm::StringRef name);
+  CompilerType CreateClangStructType(llvm::StringRef name,
+                                     swift::Mangle::ManglingFlavor flavor);
 
   /// Builds a bound generic struct demangle tree with the name, module name,
   /// and the struct's elements.
