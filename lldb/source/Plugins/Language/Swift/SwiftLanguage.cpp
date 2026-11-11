@@ -46,6 +46,7 @@
 #include "lldb/lldb-enumerations.h"
 #include "swift/AST/ImportCache.h"
 #include "swift/Basic/InitializeSwiftModules.h"
+#include "swift/Basic/Version.h"
 #include "swift/Demangling/ManglingMacros.h"
 #include "llvm/Support/ConvertUTF.h"
 
@@ -2366,6 +2367,10 @@ static PluginProperties &GetGlobalPluginProperties() {
 
 FormatEntity::Entry SwiftLanguage::GetFunctionNameFormat() const {
   return GetGlobalPluginProperties().GetFunctionNameFormat();
+}
+
+std::string SwiftLanguage::GetVersionInfo() const {
+  return swift::version::getSwiftFullVersion();
 }
 
 void SwiftLanguage::DebuggerInitialize(Debugger &debugger) {
