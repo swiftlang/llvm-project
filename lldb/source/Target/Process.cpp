@@ -2250,11 +2250,13 @@ void Process::VerifyMemoryRead(addr_t addr, const void *cache_buf,
 
 size_t Process::ReadMemory(const ProcessAddress &process_addr, void *buf,
                            size_t size, Status &error) {
-  lldb::addr_t addr = process_addr.GetValue();
-  if (ABISP abi_sp = GetABI())
-    addr = abi_sp->FixAnyAddress(addr);
-
   error.Clear();
+
+  const lldb::addr_t addr = FixAnyAddress(process_addr.GetValue());
+
+  if (!ShouldUseMemoryCache(addr))
+    return DoReadMemory(addr, buf, size, error);
+
   if (GetDisableMemoryCache())
     return ReadMemoryFromInferior(addr, buf, size, error);
 
