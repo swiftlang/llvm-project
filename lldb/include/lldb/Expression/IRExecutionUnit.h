@@ -19,7 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/ADT/StringMap.h"
 
-#include "lldb/Core/ModuleList.h"
+#include "lldb/Expression/ExternalSymbolResolver.h"
 #include "lldb/Expression/IRMemoryMap.h"
 #include "lldb/Expression/ObjectFileJIT.h"
 #include "lldb/Symbol/SymbolContext.h"
@@ -103,7 +103,9 @@ public:
   /// Accessor for the mutex that guards LLVM::getGlobalContext()
   static std::recursive_mutex &GetLLVMGlobalContextMutex();
 
-  lldb::addr_t FindSymbol(ConstString name, bool &missing_weak);
+  lldb::addr_t FindSymbol(ConstString name, bool &missing_weak) {
+    return m_external_symbol_resolver.FindSymbol(name, missing_weak);
+  }
 
   void GetStaticInitializers(std::vector<lldb::addr_t> &static_initializers);
 
@@ -164,9 +166,7 @@ public:
   }
 
   void AppendPreferredSymbolContexts(SymbolContextList const &contexts) {
-    for (auto const &ctx : contexts)
-      if (ctx.module_sp)
-        m_preferred_modules.Append(ctx.module_sp);
+    m_external_symbol_resolver.AppendPreferredSymbolContexts(contexts);
   }
 
   // BEGIN SWIFT
@@ -229,24 +229,12 @@ private:
 
   Status DisassembleFunction(Stream &stream, lldb::ProcessSP &process_sp);
 
-  void CollectCandidateCNames(std::vector<ConstString> &C_names,
-                              ConstString name);
-
-  void CollectCandidateCPlusPlusNames(std::vector<ConstString> &CPP_names,
-                                      const std::vector<ConstString> &C_names,
-                                      const SymbolContext &sc);
-
-  lldb::addr_t FindInSymbols(const std::vector<ConstString> &names,
-                             const lldb_private::SymbolContext &sc,
-                             bool &symbol_was_missing_weak);
-
-  lldb::addr_t FindInRuntimes(const std::vector<ConstString> &names,
-                              const lldb_private::SymbolContext &sc);
-
-  lldb::addr_t FindInUserDefinedSymbols(const std::vector<ConstString> &names,
-                                        const lldb_private::SymbolContext &sc);
-
   void ReportSymbolLookupError(ConstString name);
+
+  // BEGIN SWIFT
+  /// Remove the modules that symbol lookups for this unit must not search.
+  void ExcludeModulesFromSymbolLookup(ModuleList &non_local_images);
+  // END SWIFT
 
   class MemoryManager : public llvm::SectionMemoryManager {
   public:
@@ -395,7 +383,7 @@ private:
                                                                ///JITted into
                                                                ///machine code
   const ConstString m_name;
-  SymbolContext m_sym_ctx; ///< Used for symbol lookups
+  ExternalSymbolResolver m_external_symbol_resolver;
   std::vector<ConstString> m_failed_lookups;
 
   std::atomic<bool> m_did_jit;
@@ -407,8 +395,6 @@ private:
   lldb::addr_t m_function_load_addr;
   lldb::addr_t m_function_end_load_addr;
 
-  bool m_strip_underscore = true; ///< True for platforms where global symbols
-                                  ///  have a _ prefix
   bool m_reported_allocations; ///< True after allocations have been reported.
                                ///It is possible that
   ///< sections will be allocated when this is true, in which case they weren't
@@ -418,10 +404,6 @@ private:
   ///< opportunity for relocation.
 
   llvm::StringMap<uint64_t> m_section_size_map;
-  ///< Any Module in this list will be used for symbol/function lookup
-  ///< before any other module (except for the module corresponding to the
-  ///< current frame).
-  ModuleList m_preferred_modules;
 };
 
 } // namespace lldb_private

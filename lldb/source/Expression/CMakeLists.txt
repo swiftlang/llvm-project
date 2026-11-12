@@ -13,6 +13,7 @@ add_lldb_library(lldbExpression ${PLUGIN_DEPENDENCY_ARG}
   ExpressionParser.cpp
   ExpressionTypeSystemHelper.cpp
   ExpressionVariable.cpp
+  ExternalSymbolResolver.cpp
   FunctionCaller.cpp
   IRExecutionUnit.cpp
   IRInterpreter.cpp
