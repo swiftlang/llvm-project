@@ -3,11 +3,9 @@
 // enables just that one, and -Weverything doesn't enable the suggestions.
 
 // RUN: %clang_cc1 -fsyntax-only -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
-// RUN:   -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis -Weverything \
-// RUN:   -verify=none %s
+// RUN:   -Weverything -verify=none %s
 // RUN: %clang_cc1 -fsyntax-only -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
-// RUN:   -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis -Weverything \
-// RUN:   -Wownership-inference-annotation-mismatch -verify=mismatch %s
+// RUN:   -Weverything -Wownership-inference-annotation-mismatch -verify=mismatch %s
 
 // none-no-diagnostics
 

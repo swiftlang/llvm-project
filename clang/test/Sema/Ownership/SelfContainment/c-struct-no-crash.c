@@ -1,7 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     -Wlifetime-safety-experimental-field-origin-escape \
-// RUN:     %s -verify -Wownership-inference -Wownership-inference-suggestions
+// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
 
 // expected-warning@+1 {{type 'RawPtr' was inferred as 'view'}}
 struct RawPtr {

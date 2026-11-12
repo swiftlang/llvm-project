@@ -1,6 +1,4 @@
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     %s -verify -Wownership-inference -Wownership-inference-suggestions
+// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
 
 // Fields are looked through arrays, complex, vector and atomic types to find
 // the element that decides the outcome.

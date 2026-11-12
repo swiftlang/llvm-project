@@ -1,6 +1,4 @@
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     %s -verify -Wownership-inference -Wownership-inference-suggestions
+// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
 
 // Holding a closure by value forces the analysis to visit the closure type
 // (via field folding); the closure is inferred 'view' and the note names the capture.

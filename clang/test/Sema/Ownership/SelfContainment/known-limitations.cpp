@@ -1,6 +1,4 @@
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     %s -verify -Wownership-inference -Wownership-inference-suggestions
+// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
 
 // A destructor-managed raw pointer makes the owner as self-contained as the
 // object it owns: owning a view yields a view, like embedding it by value.
