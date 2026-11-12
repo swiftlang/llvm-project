@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
 namespace llvm::vfs {
@@ -31,7 +32,7 @@ class FileSystem;
 /// current working directory of \p UnderlyingFS at creation time.
 /// The check for whether a path is contained within one of the \p AllowedPaths
 /// is case-sensitive, and there's no path canonicalization happening.
-Expected<std::unique_ptr<FileSystem>>
+LLVM_ABI Expected<std::unique_ptr<FileSystem>>
 createSandboxingFileSystem(IntrusiveRefCntPtr<FileSystem> UnderlyingFS,
                            ArrayRef<StringRef> AllowedPaths);
 
