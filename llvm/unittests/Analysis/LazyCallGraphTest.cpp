@@ -3072,20 +3072,144 @@ TEST(LazyCallGraphTest, AddSplitFunctions6) {
   LazyCallGraph::Node *G2N = CG.lookup(*G2);
   EXPECT_TRUE(G2N);
 
-  // The new functions are still treated as mutually ref-recursive, linked by
-  // a spurious g2 -ref-> g1 edge.
-  LazyCallGraph::Edge *E = (*G2N)->lookup(*G1N);
-  ASSERT_TRUE(E);
-  EXPECT_FALSE(E->isCall());
+  // g1 and g2 do not reference each other mutually, so they are in separate
+  // RefSCCs, ordered after their successors.
+  EXPECT_FALSE((*G2N)->lookup(*G1N));
 
   I = CG.postorder_ref_scc_begin();
   LazyCallGraph::RefSCC *RC1 = &*I++;
-  EXPECT_EQ(2, RC1->size());
-  EXPECT_EQ(RC1, CG.lookupRefSCC(*G1N));
+  EXPECT_EQ(1, RC1->size());
   EXPECT_EQ(RC1, CG.lookupRefSCC(*G2N));
   LazyCallGraph::RefSCC *RC2 = &*I++;
-  EXPECT_EQ(RC2, ORC);
-  EXPECT_EQ(RC2, CG.lookupRefSCC(FN));
+  EXPECT_EQ(1, RC2->size());
+  EXPECT_EQ(RC2, CG.lookupRefSCC(*G1N));
+  LazyCallGraph::RefSCC *RC3 = &*I++;
+  EXPECT_EQ(RC3, ORC);
+  EXPECT_EQ(RC3, CG.lookupRefSCC(FN));
   EXPECT_EQ(CG.postorder_ref_scc_end(), I);
+}
+
+TEST(LazyCallGraphTest, AddSplitFunctions7) {
+  LLVMContext Context;
+  std::unique_ptr<Module> M = parseAssembly(Context, "define void @f() {\n"
+                                                     "  ret void\n"
+                                                     "}\n");
+  LazyCallGraph CG = buildCG(*M);
+
+  Function &F = lookupFunction(*M, "f");
+  LazyCallGraph::Node &FN = CG.get(F);
+
+  // Force the graph to be fully expanded.
+  CG.buildRefSCCs();
+  auto I = CG.postorder_ref_scc_begin();
+  LazyCallGraph::RefSCC *ORC = &*I++;
+  EXPECT_EQ(CG.postorder_ref_scc_end(), I);
+
+  auto *G1 = Function::Create(F.getFunctionType(), F.getLinkage(),
+                              F.getAddressSpace(), "g1", F.getParent());
+  auto *G2 = Function::Create(F.getFunctionType(), F.getLinkage(),
+                              F.getAddressSpace(), "g2", F.getParent());
+  auto *G3 = Function::Create(F.getFunctionType(), F.getLinkage(),
+                              F.getAddressSpace(), "g3", F.getParent());
+  BasicBlock *G1BB = BasicBlock::Create(Context, "", G1);
+  BasicBlock *G2BB = BasicBlock::Create(Context, "", G2);
+  BasicBlock *G3BB = BasicBlock::Create(Context, "", G3);
+  // Create g1 -ref-> g2, g2 -ref-> g1, and g2 -ref-> g3, as for a loop
+  // containing a suspend point followed by straight-line code.
+  (void)CastInst::CreatePointerCast(G2, PointerType::getUnqual(Context), "",
+                                    G1BB);
+  (void)CastInst::CreatePointerCast(G1, PointerType::getUnqual(Context), "",
+                                    G2BB);
+  (void)CastInst::CreatePointerCast(G3, PointerType::getUnqual(Context), "",
+                                    G2BB);
+  (void)ReturnInst::Create(Context, G1BB);
+  (void)ReturnInst::Create(Context, G2BB);
+  (void)ReturnInst::Create(Context, G3BB);
+
+  // Create f -ref-> g1, f -ref-> g2, and f -ref-> g3.
+  for (Function *G : {G1, G2, G3})
+    (void)CastInst::CreatePointerCast(G, PointerType::getUnqual(Context), "",
+                                      F.getEntryBlock().begin());
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CG.addSplitRefRecursiveFunctions(F,
+                                   SmallVector<Function *, 1>({G1, G2, G3}));
+
+  LazyCallGraph::Node *G1N = CG.lookup(*G1);
+  EXPECT_TRUE(G1N);
+  LazyCallGraph::Node *G2N = CG.lookup(*G2);
+  EXPECT_TRUE(G2N);
+  LazyCallGraph::Node *G3N = CG.lookup(*G3);
+  EXPECT_TRUE(G3N);
+
+  I = CG.postorder_ref_scc_begin();
+  LazyCallGraph::RefSCC *RC1 = &*I++;
+  EXPECT_EQ(1, RC1->size());
+  EXPECT_EQ(RC1, CG.lookupRefSCC(*G3N));
+  LazyCallGraph::RefSCC *RC2 = &*I++;
+  EXPECT_EQ(2, RC2->size());
+  EXPECT_EQ(RC2, CG.lookupRefSCC(*G1N));
+  EXPECT_EQ(RC2, CG.lookupRefSCC(*G2N));
+  LazyCallGraph::RefSCC *RC3 = &*I++;
+  EXPECT_EQ(RC3, ORC);
+  EXPECT_EQ(RC3, CG.lookupRefSCC(FN));
+  EXPECT_EQ(CG.postorder_ref_scc_end(), I);
+}
+
+TEST(LazyCallGraphTest, AddSplitFunctions8) {
+  LLVMContext Context;
+  std::unique_ptr<Module> M = parseAssembly(Context, "define void @f() {\n"
+                                                     "  ret void\n"
+                                                     "}\n");
+  LazyCallGraph CG = buildCG(*M);
+
+  Function &F = lookupFunction(*M, "f");
+  LazyCallGraph::Node &FN = CG.get(F);
+
+  // Force the graph to be fully expanded.
+  CG.buildRefSCCs();
+  auto I = CG.postorder_ref_scc_begin();
+  LazyCallGraph::RefSCC *ORC = &*I++;
+  EXPECT_EQ(CG.postorder_ref_scc_end(), I);
+
+  auto *G1 = Function::Create(F.getFunctionType(), F.getLinkage(),
+                              F.getAddressSpace(), "g1", F.getParent());
+  auto *G2 = Function::Create(F.getFunctionType(), F.getLinkage(),
+                              F.getAddressSpace(), "g2", F.getParent());
+  BasicBlock *G1BB = BasicBlock::Create(Context, "", G1);
+  BasicBlock *G2BB = BasicBlock::Create(Context, "", G2);
+  // Create g1 -ref-> g2 and g2 -ref-> f. g1 reaches the original function's
+  // RefSCC only through g2, but both must join it.
+  (void)CastInst::CreatePointerCast(G2, PointerType::getUnqual(Context), "",
+                                    G1BB);
+  (void)CastInst::CreatePointerCast(&F, PointerType::getUnqual(Context), "",
+                                    G2BB);
+  (void)ReturnInst::Create(Context, G1BB);
+  (void)ReturnInst::Create(Context, G2BB);
+
+  // Create f -ref-> g1 and f -ref-> g2.
+  (void)CastInst::CreatePointerCast(G1, PointerType::getUnqual(Context), "",
+                                    F.getEntryBlock().begin());
+  (void)CastInst::CreatePointerCast(G2, PointerType::getUnqual(Context), "",
+                                    F.getEntryBlock().begin());
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CG.addSplitRefRecursiveFunctions(F, SmallVector<Function *, 1>({G1, G2}));
+
+  LazyCallGraph::Node *G1N = CG.lookup(*G1);
+  EXPECT_TRUE(G1N);
+  LazyCallGraph::Node *G2N = CG.lookup(*G2);
+  EXPECT_TRUE(G2N);
+
+  I = CG.postorder_ref_scc_begin();
+  LazyCallGraph::RefSCC *RC = &*I++;
+  EXPECT_EQ(RC, ORC);
+  EXPECT_EQ(CG.postorder_ref_scc_end(), I);
+  EXPECT_EQ(3, RC->size());
+  EXPECT_EQ(RC, CG.lookupRefSCC(FN));
+  EXPECT_EQ(RC, CG.lookupRefSCC(*G1N));
+  EXPECT_EQ(RC, CG.lookupRefSCC(*G2N));
 }
 }

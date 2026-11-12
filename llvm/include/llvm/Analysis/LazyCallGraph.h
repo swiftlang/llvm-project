@@ -1078,15 +1078,16 @@ public:
   LLVM_ABI void addSplitFunction(Function &OriginalFunction,
                                  Function &NewFunction);
 
-  /// Add new ref-recursive functions split/outlined from an existing function.
+  /// Add new functions split/outlined from an existing function, which may
+  /// reference each other.
   ///
   /// The new functions may only reference other functions that the original
   /// function did. The new functions may reference (not call) the original
   /// function.
   ///
   /// The original function must reference (not call) all new functions.
-  /// The new functions may reference (not call) each other. They are treated
-  /// as mutually ref-recursive even if they do not reference each other.
+  /// The new functions may reference (not call) each other, and are grouped
+  /// into RefSCCs according to those references.
   LLVM_ABI void
   addSplitRefRecursiveFunctions(Function &OriginalFunction,
                                 ArrayRef<Function *> NewFunctions);

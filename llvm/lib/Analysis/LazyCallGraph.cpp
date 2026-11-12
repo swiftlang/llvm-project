@@ -1713,66 +1713,59 @@ void LazyCallGraph::addSplitRefRecursiveFunctions(
   });
 #endif
 
-  bool ExistsRefToOriginalRefSCC = false;
-
+  SmallVector<Node *, 4> NewNodes;
   for (Function *NewFunction : NewFunctions) {
     Node &NewN = initNode(*NewFunction);
-
     OriginalN->insertEdgeInternal(NewN, Edge::Kind::Ref);
-
-    // Check if there is any edge from any new function back to any function in
-    // the original function's RefSCC.
-    for (Edge &E : *NewN) {
-      if (lookupRefSCC(E.getNode()) == OriginalRC) {
-        ExistsRefToOriginalRefSCC = true;
-        break;
-      }
-    }
+    NewN.DFSNumber = NewN.LowLink = 0;
+    NewNodes.push_back(&NewN);
   }
 
-  // The new functions need not reference each other directly (for example,
-  // the splitter may have already pruned unreachable code from them), but
-  // they are treated as mutually ref-recursive. Link them with a cycle of
-  // (possibly spurious) ref edges so that they form a valid RefSCC.
-  for (auto [I, NewFunction] : enumerate(NewFunctions)) {
-    Node &NewN = get(*NewFunction);
-    Node &NextN = get(*NewFunctions[(I + 1) % NewFunctions.size()]);
-    if (&NextN != &NewN && !NewN->lookup(NextN))
-      NewN->insertEdgeInternal(NextN, Edge::Kind::Ref);
-  }
+  // Group the new functions into RefSCCs according to their references to
+  // each other. Every other node they can reference already belongs to a
+  // RefSCC, so the DFS only walks the new nodes, and it forms the groups in
+  // postorder.
+  SmallVector<RefSCC *, 4> NewRCs;
+  buildGenericSCCs(
+      NewNodes, [](Node &N) { return N->begin(); },
+      [](Node &N) { return N->end(); },
+      [](EdgeSequence::iterator I) -> Node & { return I->getNode(); },
+      [&](node_stack_range Nodes) {
+        // A group that can reach the original function's RefSCC joins it,
+        // since the original function references every new function.
+        bool RefsOriginalRC = any_of(Nodes, [&](Node *N) {
+          return any_of(**N, [&](Edge &E) {
+            return lookupRefSCC(E.getNode()) == OriginalRC;
+          });
+        });
+        if (!RefsOriginalRC) {
+          RefSCC *NewRC = createRefSCC(*this);
+          buildSCCs(*NewRC, Nodes);
+          NewRCs.push_back(NewRC);
+          return;
+        }
+        for (Node *N : Nodes) {
+          N->DFSNumber = N->LowLink = -1;
+          // There are no call edges between new functions, so each one is in
+          // its own SCC. These are either sibling or parent SCCs to all
+          // existing SCCs in the RefSCC, so they can go at the back of the
+          // postorder SCC list.
+          SCC *NewC = createSCC(*OriginalRC, SmallVector<Node *, 1>({N}));
+          OriginalRC->SCCIndices[NewC] = OriginalRC->SCCs.size();
+          OriginalRC->SCCs.push_back(NewC);
+          SCCMap[N] = NewC;
+        }
+      });
 
-  RefSCC *NewRC;
-  if (ExistsRefToOriginalRefSCC) {
-    // If there is any edge from any new function to any function in the
-    // original function's RefSCC, all new functions will be in the same RefSCC
-    // as the original function.
-    NewRC = OriginalRC;
-  } else {
-    // Otherwise the new functions are in their own RefSCC.
-    NewRC = createRefSCC(*this);
-    // The new RefSCC goes before the original function's RefSCC in postorder
-    // since there are only edges from the original function's RefSCC to the new
-    // RefSCC.
+  // The new RefSCCs, already in postorder among themselves, go just before the
+  // original function's RefSCC, which is the only other RefSCC that
+  // references them.
+  if (!NewRCs.empty()) {
     auto OriginalRCIndex = RefSCCIndices.find(OriginalRC)->second;
-    PostOrderRefSCCs.insert(PostOrderRefSCCs.begin() + OriginalRCIndex, NewRC);
+    PostOrderRefSCCs.insert(PostOrderRefSCCs.begin() + OriginalRCIndex,
+                            NewRCs.begin(), NewRCs.end());
     for (int I = OriginalRCIndex, Size = PostOrderRefSCCs.size(); I < Size; ++I)
       RefSCCIndices[PostOrderRefSCCs[I]] = I;
-  }
-
-  for (Function *NewFunction : NewFunctions) {
-    Node &NewN = get(*NewFunction);
-    // Each new function is in its own new SCC. The original function can only
-    // have a ref edge to new functions, and no other existing functions can
-    // have references to new functions. Each new function only has a ref edge
-    // to the other new functions.
-    SCC *NewC = createSCC(*NewRC, SmallVector<Node *, 1>({&NewN}));
-    // The new SCCs are either sibling SCCs or parent SCCs to all other existing
-    // SCCs in the RefSCC. Either way, they can go at the back of the postorder
-    // SCC list.
-    auto Index = NewRC->SCCIndices.size();
-    NewRC->SCCIndices[NewC] = Index;
-    NewRC->SCCs.push_back(NewC);
-    SCCMap[&NewN] = NewC;
   }
 
 #ifndef NDEBUG
