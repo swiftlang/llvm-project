@@ -33,8 +33,20 @@ public:
   bool TraverseDecl(Decl *D) {
     if (!D)
       return true;
-    if (isa<DeclContext>(D) && !D->isImplicit())
-      collectDeclIfInRange(D);
+    if (!D->isImplicit()) {
+      SourceRange Range = getFileRange(D);
+      if (Range.isValid()) {
+        if (isRangeOfInterest(Range)) {
+          if (isa<DeclContext>(D))
+            Matches.emplace_back(D, CurrentDecl, Range);
+        } else if (!isa<ObjCContainerDecl>(D)) {
+          // Nothing written outside the location or selection of interest can
+          // be of interest. Objective-C containers are still traversed because
+          // they might contain declarations written after them.
+          return true;
+        }
+      }
+    }
     // TODO: Handle Lambda/Blocks.
     if (!isa<FunctionDecl>(D) && !isa<ObjCMethodDecl>(D)) {
       RecursiveASTVisitor::TraverseDecl(D);
@@ -120,30 +132,31 @@ public:
     End = getPreciseTokenLocEnd(End, SM, Context.getLangOpts());
     if (!isPairOfFileLocations(Start, End))
       return;
-    if (SelectionRange.isValid()) {
-      if (!areRangesOverlapping(SelectionRange, SourceRange(Start, End),
-                                Context.getSourceManager()))
-        return;
-    } else if (!isPointWithin(Location, Start, End, Context.getSourceManager()))
+    if (!isRangeOfInterest(SourceRange(Start, End)))
       return;
     Matches.emplace_back(S, ParentStmt, CurrentDecl, SourceRange(Start, End));
   }
 
-  void collectDeclIfInRange(const Decl *D) {
+  /// Returns the file range of the given declaration, or an invalid range if
+  /// it doesn't start and end at file locations.
+  SourceRange getFileRange(const Decl *D) const {
+    const auto &SM = Context.getSourceManager();
     SourceLocation Start = D->getSourceRange().getBegin();
     SourceLocation End = getPreciseTokenLocEnd(
-        getLexicalEndLocForDecl(D, Context.getSourceManager(),
-                                Context.getLangOpts()),
-        Context.getSourceManager(), Context.getLangOpts());
+        getLexicalEndLocForDecl(D, SM, Context.getLangOpts()), SM,
+        Context.getLangOpts());
     if (!isPairOfFileLocations(Start, End))
-      return;
-    if (SelectionRange.isValid()) {
-      if (!areRangesOverlapping(SelectionRange, SourceRange(Start, End),
-                                Context.getSourceManager()))
-        return;
-    } else if (!isPointWithin(Location, Start, End, Context.getSourceManager()))
-      return;
-    Matches.emplace_back(D, CurrentDecl, SourceRange(Start, End));
+      return SourceRange();
+    return SourceRange(Start, End);
+  }
+
+  /// Returns true if the given file range overlaps with the selection range,
+  /// or contains the location of interest when there's no selection.
+  bool isRangeOfInterest(SourceRange Range) const {
+    const auto &SM = Context.getSourceManager();
+    if (SelectionRange.isValid())
+      return areRangesOverlapping(SelectionRange, Range, SM);
+    return isPointWithin(Location, Range.getBegin(), Range.getEnd(), SM);
   }
 
   SmallVector<ASTSlice::Node, 16> Matches;
