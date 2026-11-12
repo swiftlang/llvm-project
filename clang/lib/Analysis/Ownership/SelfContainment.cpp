@@ -271,7 +271,7 @@ public:
   explicit SelfContainmentAnalysis(DiagnosticsEngine &Diags) : Diags(Diags) {
     ShouldVisitTemplateInstantiations = true;
     ShouldWalkTypesOfTypeLocs = false;
-    ShouldVisitImplicitCode = false;
+    ShouldVisitImplicitCode = true;
     ShouldVisitLambdaBody = true;
   }
 
