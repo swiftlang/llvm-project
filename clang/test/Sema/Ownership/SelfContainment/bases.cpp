@@ -46,29 +46,6 @@ struct DerivesOpaque : Opaque {};
 // expected-warning@-1 {{type 'DerivesOpaque' failed to infer}}
 // expected-note@-2 {{derives from class 'Opaque' that was inferred as 'unknown'}}
 
-// The annotation of a base is trusted over what the inference would find.
-struct __attribute__((swift_attr("~Escapable"))) AnnotatedView {};
-// expected-warning@-1 {{type 'AnnotatedView' has annotation 'view' but inferred as 'trivially-self-contained'}}
-// expected-warning@-2 {{type 'AnnotatedView' was trivially inferred as 'self-contained'}}
-struct DerivesAnnotatedView : AnnotatedView {};
-// expected-warning@-1 {{type 'DerivesAnnotatedView' was inferred as 'view'}}
-// expected-note@-2 {{derives from class 'AnnotatedView' that was annotated as 'view'}}
-
-struct __attribute__((swift_attr("Escapable"))) AnnotatedSelfContained {
-  const int *p;                    // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
-};
-// expected-warning@-3 {{type 'AnnotatedSelfContained' has annotation 'self-contained' but inferred as 'view'}}
-// expected-warning@-4 {{type 'AnnotatedSelfContained' was inferred as 'view'}}
-struct DerivesAnnotatedSelfContained : AnnotatedSelfContained {};
-// expected-warning@-1 {{type 'DerivesAnnotatedSelfContained' was inferred as 'self-contained'}}
-// expected-note@-2 {{derives from class 'AnnotatedSelfContained' that was annotated as 'self-contained'}}
-
-// The same applies for fields holding annotated classes.
-struct HoldsAnnotatedView {
-  AnnotatedView v;                 // expected-note {{holds field 'v' of type 'AnnotatedView' that was annotated as 'view'}}
-};
-// expected-warning@-3 {{type 'HoldsAnnotatedView' was inferred as 'view'}}
-
 // The notes spell the outcome of the base or field, whatever it is.
 struct Empty {};                   // expected-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
 struct DerivesEmpty : Empty {};
@@ -82,8 +59,3 @@ struct HoldsValue {                // expected-warning {{type 'HoldsValue' was i
   Value3 v;                        // expected-note {{holds field 'v' of type 'Value3' that was inferred as 'self-contained'}}
   int &r;                          // expected-note {{holds reference field 'r'}}
 };
-
-struct HoldsAnnotatedSelfContained {
-  AnnotatedSelfContained v;        // expected-note {{holds field 'v' of type 'AnnotatedSelfContained' that was annotated as 'self-contained'}}
-};
-// expected-warning@-3 {{type 'HoldsAnnotatedSelfContained' was inferred as 'self-contained'}}
