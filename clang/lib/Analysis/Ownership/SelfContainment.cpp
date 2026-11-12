@@ -26,6 +26,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <cassert>
 #include <optional>
 #include <variant>
 
@@ -92,6 +93,10 @@ static StringRef fieldDisplayName(const FieldDecl *F) {
         return "this";
       if (Cap.capturesVariable())
         return Cap.getCapturedVar()->getName();
+      // Unreachable: the only capture that is neither 'this' nor a variable is
+      // a VLA bound, whose implicit field is an integer.
+      // We only name the reference, pointer and record fields.
+      assert(false && "unexpected capture kind for a reported field");
       break; // fall through
     }
   }
