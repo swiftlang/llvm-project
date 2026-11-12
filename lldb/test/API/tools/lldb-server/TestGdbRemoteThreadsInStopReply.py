@@ -180,7 +180,6 @@ class TestGdbRemoteThreadsInStopReply(gdbremote_testcase.GdbRemoteTestCaseBase):
             self.assertIn(tid, stop_reply_threads)
 
     @skipIfNetBSD
-    @skipIfWindows  # Flaky on Windows
     def test_stop_reply_contains_thread_pcs(self):
         self.build()
         self.set_inferior_startup_launch()
