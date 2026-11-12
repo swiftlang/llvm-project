@@ -13,6 +13,9 @@ class TestSwiftGenericPersistentResult(TestBase):
     @swiftTest
     @skipIfWindows
     @skipEmbeddedSwift
+    # The importer doesn't affect what this test exercises, and the noclang
+    # variant is not reliable on Linux.
+    @skipIf(swift_module_importer="noclang")
     def test_generic_persistent_result(self):
         self.build()
         target, process, _, _ = lldbutil.run_to_source_breakpoint(
