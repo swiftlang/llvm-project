@@ -115,11 +115,6 @@ struct HoldsUnmanagedRawPtrField {
   void report(DiagnosticsEngine &Diags) const;
 };
 
-struct HoldsManagedRawPtrField {
-  const FieldDecl *Field;
-  void report(DiagnosticsEngine &Diags) const;
-};
-
 struct DerivesFrom {
   CXXBaseSpecifier Base;
   Result Outcome;
@@ -156,26 +151,18 @@ struct OpaqueUserDeclaredDestructor {
 };
 } // namespace
 
-// holds {reference|unmanaged raw-pointer|managed raw-pointer} field %
+// holds {reference|unmanaged raw-pointer} field %
 void HoldsReferenceField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_holds_field)
       << /*reference=*/0 << fieldDisplayName(Field) << SourceRange(Loc);
 }
 
-// holds {reference|unmanaged raw-pointer|managed raw-pointer} field %
+// holds {reference|unmanaged raw-pointer} field %
 void HoldsUnmanagedRawPtrField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_holds_field)
       << /*unmanaged raw-pointer=*/1 << fieldDisplayName(Field)
-      << SourceRange(Loc);
-}
-
-// holds {reference|unmanaged raw-pointer|managed raw-pointer} field %
-void HoldsManagedRawPtrField::report(DiagnosticsEngine &Diags) const {
-  SourceLocation Loc = Field->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_holds_field)
-      << /*managed raw-pointer=*/2 << fieldDisplayName(Field)
       << SourceRange(Loc);
 }
 
@@ -216,7 +203,6 @@ class Note {
 public:
   /*implicit*/ Note(HoldsReferenceField R) : Data{std::move(R)} {}
   /*implicit*/ Note(HoldsUnmanagedRawPtrField R) : Data{std::move(R)} {}
-  /*implicit*/ Note(HoldsManagedRawPtrField R) : Data{std::move(R)} {}
   /*implicit*/ Note(DerivesFrom R) : Data{std::move(R)} {}
   /*implicit*/ Note(HoldsField R) : Data{std::move(R)} {}
   /*implicit*/ Note(NotInstantiatedDestructor R) : Data{std::move(R)} {}
@@ -227,9 +213,9 @@ public:
   }
 
 private:
-  std::variant<HoldsReferenceField, HoldsUnmanagedRawPtrField,
-               HoldsManagedRawPtrField, DerivesFrom, HoldsField,
-               NotInstantiatedDestructor, OpaqueUserDeclaredDestructor>
+  std::variant<HoldsReferenceField, HoldsUnmanagedRawPtrField, DerivesFrom,
+               HoldsField, NotInstantiatedDestructor,
+               OpaqueUserDeclaredDestructor>
       Data;
 };
 } // namespace

@@ -11375,7 +11375,7 @@ def note_ownership_inference_derives_from_base_inferred : Note<
   "%select{inferred|annotated}1 as '%2'">;
 
 def note_ownership_inference_holds_field : Note<
-  "holds %select{reference|unmanaged raw-pointer|managed raw-pointer}0 "
+  "holds %select{reference|unmanaged raw-pointer}0 "
   "field %quoted1">;
 
 def note_ownership_inference_opaque_dtor : Note<"declares opaque destructor">;
