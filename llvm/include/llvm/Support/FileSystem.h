@@ -1250,13 +1250,14 @@ tryLockFile(int FD,
             std::chrono::milliseconds Timeout = std::chrono::milliseconds(0),
             LockKind Kind = LockKind::Exclusive);
 
-/// Get RealPath from file handle.
+/// Get the real path of an open file from its handle.
 ///
 /// @param Handle      The descriptor representing the file.
 /// @param RealPath    RealPath is stored in this location on success.
-/// @returns errc::success if RealPath is successfully obtained.
-std::error_code getRealPathFromHandle(file_t Handle,
-                                      SmallVectorImpl<char> &RealPath);
+/// @returns success if the real path is successfully obtained,
+///          errc::not_supported if the platform cannot get it from a handle.
+LLVM_ABI std::error_code getRealPathFromHandle(file_t Handle,
+                                               SmallVectorImpl<char> &RealPath);
 
 /// Lock the file.
 ///
