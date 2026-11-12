@@ -291,30 +291,31 @@ public:
   }
 
   /// Diagnose annotations that mismatch with the inference.
+  /// \p R may be just a declaration, but only definitions will be inferred.
   bool VisitRecordDecl(RecordDecl *R) final;
 
 private:
   /// Take the annotation of the class or infer one otherwise.
+  /// \p R may be just a declaration.
   Result useOfClass(const RecordDecl *R);
 
   /// Report the inference outcome as a warning or a warning about failed
   /// inference.
-  void reportSuggestionOrFailure(const RecordDecl *R, const State &Res);
+  void reportSuggestionOrFailure(const RecordDecl *Def, const State &Res);
 
   /// Infer from the fields of record \p R.
   /// \p RawPointerFields gathers the raw-pointers in the process.
-  State inferFieldsOfRecord(const RecordDecl *R,
+  State inferFieldsOfRecord(const RecordDecl *Def,
                             SmallVector<const FieldDecl *> &RawPointerFields);
-  State inferBaseClassesOfRecord(const CXXRecordDecl *R);
+  State inferBaseClassesOfRecord(const CXXRecordDecl *Def);
 
   /// Infer from the definition \p R and report the outcome.
   /// The result is cached, so each record is inferred and reported only once.
-  /// \pre \p R is a definition.
-  State inferDefinitionOfClass(const RecordDecl *R);
+  State inferDefinitionOfRecord(const RecordDecl *Def);
 
   /// The check each raw-pointer field and decide if any of them are left
   /// unmanaged by the destructor.
-  State handleRawPointerFields(const CXXRecordDecl *R,
+  State handleRawPointerFields(const CXXRecordDecl *Def,
                                ArrayRef<const FieldDecl *> RawPointerFields);
 
   DiagnosticsEngine &Diags;
@@ -332,7 +333,7 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
     return true;
 
   // Always infer (even if the record has an attribute) to look for mismatches.
-  State InferenceResult = inferDefinitionOfClass(R);
+  State InferenceResult = inferDefinitionOfRecord(R);
 
   std::optional<Result> Annotation = hasEitherViewOrSelfContainedAttr(R);
 
@@ -367,13 +368,13 @@ Result SelfContainmentAnalysis::useOfClass(const RecordDecl *R) {
 
   // Infer if it didn't have one.
   if (const RecordDecl *Def = R->getDefinition())
-    return inferDefinitionOfClass(Def).Outcome;
+    return inferDefinitionOfRecord(Def).Outcome;
 
   // Well, couldn't infer one and it also didn't have an explicit.
   return Result::Unknown;
 }
 
-void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *R,
+void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
                                                         const State &Res) {
   unsigned DiagID;
   switch (Res.Outcome) {
@@ -391,19 +392,20 @@ void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *R,
     break;
   }
 
-  SourceLocation Loc = R->getLocation();
+  SourceLocation Loc = Def->getLocation();
   if (!IsDiagEnabledExcludingWeverything(Diags, DiagID, Loc))
     return;
 
-  Diags.Report(Loc, DiagID) << R << SourceRange(Loc);
+  Diags.Report(Loc, DiagID) << Def << SourceRange(Loc);
   emitNotes(Diags, Res.Notes);
 }
 
 State SelfContainmentAnalysis::inferBaseClassesOfRecord(
-    const CXXRecordDecl *R) {
+    const CXXRecordDecl *Def) {
+  assert(Def->isThisDeclarationADefinition());
   State BasesRes;
 
-  for (const CXXBaseSpecifier &BaseSpec : R->bases()) {
+  for (const CXXBaseSpecifier &BaseSpec : Def->bases()) {
     CXXRecordDecl *Base = BaseSpec.getType()->getAsCXXRecordDecl();
     Result BaseRes = useOfClass(Base);
     BasesRes.join(State{BaseRes, {DerivesFrom{BaseSpec, BaseRes}}});
@@ -413,14 +415,15 @@ State SelfContainmentAnalysis::inferBaseClassesOfRecord(
 }
 
 State SelfContainmentAnalysis::inferFieldsOfRecord(
-    const RecordDecl *R, SmallVector<const FieldDecl *> &RawPointerFields) {
+    const RecordDecl *Def, SmallVector<const FieldDecl *> &RawPointerFields) {
+  assert(Def->isThisDeclarationADefinition());
   State FieldsRes;
 
   // We only want to mark a class trivially self-contained if it has no fields.
-  if (!R->field_empty())
+  if (!Def->field_empty())
     FieldsRes.cantBeTriviallySelfContained();
 
-  for (const auto *F : R->fields()) {
+  for (const auto *F : Def->fields()) {
     QualType Ty = getTransitiveElementOrValueType(F->getType());
 
     // Reference fields are not self-contained.
@@ -452,7 +455,8 @@ static bool hasDefaultedDestructor(const CXXDestructorDecl *Dtor) {
 }
 
 State SelfContainmentAnalysis::handleRawPointerFields(
-    const CXXRecordDecl *R, ArrayRef<const FieldDecl *> RawPointerFields) {
+    const CXXRecordDecl *Def, ArrayRef<const FieldDecl *> RawPointerFields) {
+  assert(Def->isThisDeclarationADefinition());
   State RawPointerFieldResult;
 
   // If we don't have any fields to manage, then preserve the current outcome.
@@ -468,16 +472,16 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   };
 
   // Plain old classes can't manage memory, thus the fields.
-  if (!R)
+  if (!Def)
     return WithUnmanagedFields(Result::View);
 
   // Classes without destructors also can't manage memory.
-  const CXXDestructorDecl *Dtor = R->getDestructor();
+  const CXXDestructorDecl *Dtor = Def->getDestructor();
   if (!Dtor)
     return WithUnmanagedFields(Result::View);
 
   // Implicit or defaulted destructor: the raw pointer fields are unmanaged.
-  if (!R->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor)) {
+  if (!Def->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor)) {
     return WithUnmanagedFields(Result::View);
   }
 
@@ -503,22 +507,21 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   return WithUnmanagedFields(Result::Unknown);
 }
 
-State SelfContainmentAnalysis::inferDefinitionOfClass(const RecordDecl *R) {
-  assert(R->isThisDeclarationADefinition() && "expected a definition");
-
-  if (auto It = Cache.find(R); It != Cache.end())
+State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
+  assert(Def->isThisDeclarationADefinition());
+  if (auto It = Cache.find(Def); It != Cache.end())
     return It->second;
 
   State ClassRes;
 
   // Decompose into the base classes.
-  if (const auto *Class = dyn_cast<CXXRecordDecl>(R))
+  if (const auto *Class = dyn_cast<CXXRecordDecl>(Def))
     if (Class->isCompleteDefinition())
       ClassRes.join(inferBaseClassesOfRecord(Class));
 
   // Decompose into the fields.
   SmallVector<const FieldDecl *> RawPointerFields;
-  ClassRes.join(inferFieldsOfRecord(R, RawPointerFields));
+  ClassRes.join(inferFieldsOfRecord(Def, RawPointerFields));
 
   // TODO: Also check the type of the pointee. Even if the pointer is managed in
   // the dtor, the pointee type must be self-contained to conclude that our
@@ -526,16 +529,17 @@ State SelfContainmentAnalysis::inferDefinitionOfClass(const RecordDecl *R) {
 
   // Check each raw-pointer field if they are managed by the destructor.
   ClassRes.join(
-      handleRawPointerFields(dyn_cast<CXXRecordDecl>(R), RawPointerFields));
+      handleRawPointerFields(dyn_cast<CXXRecordDecl>(Def), RawPointerFields));
 
-  // Whatever our outcome, surface that as a warning. Only do it once per record
-  // to avoid repeating the diagnostics for each use of the record.
-  reportSuggestionOrFailure(R, ClassRes);
+  // Whatever our outcome, surface that as a warning.
+  // Caching makes sure we only report these once per record.
+  reportSuggestionOrFailure(Def, ClassRes);
 
   // Don't hold references into the cache across recursive inference, because
   // that can grow the map.
-  Cache.try_emplace(R, ClassRes);
-  return ClassRes;
+  auto [Place, Inserted] = Cache.try_emplace(Def, std::move(ClassRes));
+  assert(Inserted);
+  return Place->second;
 }
 
 void ownership::inferClassSelfContainment(ASTContext &Ctx) {
