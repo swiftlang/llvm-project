@@ -18,3 +18,11 @@ template struct Box<int>;
 // keeps only the declaration, even though the template has a body for it.
 // Point that out instead of claiming the destructor is opaque.
 unsigned long size = sizeof(Box<char>);
+
+// A destructor that is declared, but defined nowhere, has no body to
+// instantiate. Unlike above, there is no pattern body, so it is opaque.
+template <class T> struct DeclaredOnly { // expected-warning {{type 'DeclaredOnly<char>' failed to infer}}
+  T *p;                            // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~DeclaredOnly();                 // expected-note {{declares opaque destructor}}
+};
+unsigned long size2 = sizeof(DeclaredOnly<char>);
