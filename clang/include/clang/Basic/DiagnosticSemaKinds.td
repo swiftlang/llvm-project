@@ -11383,10 +11383,6 @@ def note_ownership_inference_opaque_dtor : Note<"declares opaque destructor">;
 def note_ownership_inference_not_instantiated_dtor : Note<
   "destructor was not instantiated for this specialization">;
 
-def note_ownership_inference_decomposed_template_argument : Note<
-  "decomposed into template argument %0 of type %1 that was "
-  "%select{inferred|annotated}2 as '%select{view|unknown}3'">;
-
 // For non-floating point, expressions of the form x == x or x != x
 // should result in a warning, since these always evaluate to a constant.
 // Array comparisons have similar warnings
