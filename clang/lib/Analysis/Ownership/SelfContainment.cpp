@@ -251,7 +251,7 @@ struct State {
 };
 } // namespace
 
-static const Type *getUnderlyingTypeOnce(const Type *T) {
+static const Type *getElementOrValueTypeSingleStep(const Type *T) {
   if (const auto *AT = T->getAsCanonical<ArrayType>())
     return AT->getElementType().getTypePtr();
   if (const auto *CT = T->getAsCanonical<ComplexType>())
@@ -262,11 +262,11 @@ static const Type *getUnderlyingTypeOnce(const Type *T) {
     return AT->getValueType().getTypePtr();
   return T;
 }
-static QualType getUnderlyingType(QualType Ty) {
+static QualType getTransitiveElementOrValueType(QualType Ty) {
   CanQualType CanonicalTy = Ty->getCanonicalTypeUnqualified();
   const Type *T = CanonicalTy->getTypePtr();
   while (true) {
-    const Type *Curr = getUnderlyingTypeOnce(T);
+    const Type *Curr = getElementOrValueTypeSingleStep(T);
     if (Curr == T)
       return QualType{T, /*Quals=*/0};
     T = Curr;
@@ -408,7 +408,7 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
     FieldsRes.cantBeTriviallySelfContained();
 
   for (const auto *F : R->fields()) {
-    QualType Ty = getUnderlyingType(F->getType());
+    QualType Ty = getTransitiveElementOrValueType(F->getType());
 
     // Reference fields are not self-contained.
     if (Ty->isReferenceType()) {
