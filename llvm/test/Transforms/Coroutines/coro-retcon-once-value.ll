@@ -179,7 +179,7 @@ declare void @print(i32)
 ; CHECK-NEXT:    [[ARRAY_RELOAD:%.*]] = load ptr, ptr [[TMP2]], align 8
 ; CHECK-NEXT:    store i32 0, ptr [[ARRAY_RELOAD]], align 4
 ; CHECK-NEXT:    br label [[COROEND]]
-; CHECK:       CoroEnd:
+; CHECK:       cleanup:
 ; CHECK-NEXT:    [[VAL_RELOAD_ADDR:%.*]] = getelementptr inbounds nuw i8, ptr [[TMP2]], i64 8
 ; CHECK-NEXT:    [[VAL_RELOAD:%.*]] = load i32, ptr [[VAL_RELOAD_ADDR]], align 4
 ; CHECK-NEXT:    [[NEW_VAL:%.*]] = add i32 [[VAL_RELOAD]], 123
@@ -197,7 +197,7 @@ declare void @print(i32)
 ; CHECK-NEXT:    [[ARRAY_RELOAD:%.*]] = load ptr, ptr [[TMP2]], align 8
 ; CHECK-NEXT:    store i32 10, ptr [[ARRAY_RELOAD]], align 4
 ; CHECK-NEXT:    br label [[COROEND]]
-; CHECK:       CoroEnd:
+; CHECK:       cleanup:
 ; CHECK-NEXT:    [[VAL_RELOAD_ADDR:%.*]] = getelementptr inbounds nuw i8, ptr [[TMP2]], i64 8
 ; CHECK-NEXT:    [[VAL_RELOAD:%.*]] = load i32, ptr [[VAL_RELOAD_ADDR]], align 4
 ; CHECK-NEXT:    [[NEW_VAL:%.*]] = add i32 [[VAL_RELOAD]], 123
