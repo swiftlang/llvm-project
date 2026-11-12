@@ -36,7 +36,8 @@ public:
   DummyProcess(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp)
       : Process(target_sp, listener_sp) {}
   bool CanDebug(lldb::TargetSP, bool) override { return true; }
-  size_t DoReadMemory(lldb::addr_t, void *, size_t, Status &) override {
+  size_t DoReadMemory(const ProcessAddress &, void *, size_t,
+                      Status &) override {
     return 0;
   }
   Status DoDestroy() override { return {}; }

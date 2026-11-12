@@ -46,14 +46,15 @@ struct MockProcess : Process {
   MockProcess(TargetSP target_sp, ListenerSP listener_sp,
               llvm::DenseMap<addr_t, addr_t> &&memory_map)
       : Process(target_sp, listener_sp), memory_map(memory_map) {}
-  size_t DoReadMemory(addr_t vm_addr, void *buf, size_t size,
-                      Status &error) override {
+  size_t DoReadMemory(const ProcessAddress &process_addr, void *buf,
+                      size_t size, Status &error) override {
+    addr_t vm_addr = process_addr.GetValue();
     assert(memory_map.contains(vm_addr));
     assert(size == sizeof(addr_t));
     *reinterpret_cast<addr_t *>(buf) = memory_map[vm_addr];
     return sizeof(addr_t);
   }
-  size_t ReadMemory(addr_t addr, void *buf, size_t size,
+  size_t ReadMemory(const ProcessAddress &addr, void *buf, size_t size,
                     Status &status) override {
     return DoReadMemory(addr, buf, size, status);
   }
