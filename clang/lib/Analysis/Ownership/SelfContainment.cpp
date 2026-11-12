@@ -427,17 +427,15 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
     QualType Ty = getTransitiveElementOrValueType(F->getType());
 
     // Reference fields are not self-contained.
-    if (Ty->isReferenceType()) {
+    if (Ty->isReferenceType() && !Ty->isFunctionReferenceType()) {
       FieldsRes.join(State{Result::View, {HoldsReferenceField{F}}});
       continue;
     }
 
     // Pointer fields might or might not be self-contained.
     // It depends if they are properly managed or not so check them later.
-    if (Ty->isPointerType()) {
-      if (!Ty->isFunctionPointerType() && !Ty->isMemberPointerType()) {
-        RawPointerFields.push_back(F);
-      }
+    if (Ty->isPointerType() && !Ty->isFunctionPointerType()) {
+      RawPointerFields.push_back(F);
     }
 
     // Handle record fields.
