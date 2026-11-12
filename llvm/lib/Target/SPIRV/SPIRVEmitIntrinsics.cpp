@@ -461,7 +461,7 @@ static bool isSpvAggrPlaceholder(const Value *V) {
 
 static void setInsertPointSkippingPhis(IRBuilder<> &B, Instruction *I) {
   if (isa<PHINode>(I))
-    B.SetInsertPoint(I->getParent()->getFirstNonPHIOrDbgOrAlloca());
+    B.SetInsertPoint(I->getParent()->getFirstNonPHIOrAlloca());
   else
     B.SetInsertPoint(I);
 }
@@ -612,7 +612,7 @@ CallInst *SPIRVEmitIntrinsics::buildSpvPtrcast(Function *F, Value *Op,
     B.SetInsertPointPastAllocas(OpA->getParent());
     B.SetCurrentDebugLocation(DebugLoc());
   } else {
-    B.SetInsertPoint(F->getEntryBlock().getFirstNonPHIOrDbgOrAlloca());
+    B.SetInsertPoint(F->getEntryBlock().getFirstNonPHIOrAlloca());
   }
   Type *OpTy = Op->getType();
   SmallVector<Type *, 2> Types = {OpTy, OpTy};
@@ -3503,7 +3503,7 @@ void SPIRVEmitIntrinsics::applyDemangledPtrArgTypes(IRBuilder<> &B) {
           B.SetInsertPoint(CI->getParent()
                                ->getParent()
                                ->getEntryBlock()
-                               .getFirstNonPHIOrDbgOrAlloca());
+                               .getFirstNonPHIOrAlloca());
           GR->buildAssignPtr(B, ElemTy, Param);
         }
         CallInst *Ref = dyn_cast<CallInst>(Param);
@@ -3630,6 +3630,13 @@ bool SPIRVEmitIntrinsics::runOnFunction(Function &Func) {
   // Data structure for dead instructions that were simplified and replaced.
   SmallPtrSet<Instruction *, 4> DeadInsts;
   for (auto &I : instructions(Func)) {
+    if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
+      Type *ElTy = SI->getValueOperand()->getType();
+      if (ElTy->isAggregateType() || ElTy->isVectorTy())
+        AggrStores.insert(&I);
+      continue;
+    }
+
     auto *GEP = dyn_cast<GetElementPtrInst>(&I);
     auto *SGEP = dyn_cast<StructuredGEPInst>(&I);
 
@@ -3657,19 +3664,7 @@ bool SPIRVEmitIntrinsics::runOnFunction(Function &Func) {
     I->eraseFromParent();
   }
 
-  // StoreInst's operand type can be changed during the next
-  // transformations, so we need to store it in the set. Also store already
-  // transformed types.
-  for (auto &I : instructions(Func)) {
-    StoreInst *SI = dyn_cast<StoreInst>(&I);
-    if (!SI)
-      continue;
-    Type *ElTy = SI->getValueOperand()->getType();
-    if (ElTy->isAggregateType() || ElTy->isVectorTy())
-      AggrStores.insert(&I);
-  }
-
-  B.SetInsertPoint(&Func.getEntryBlock(), Func.getEntryBlock().begin());
+  B.SetInsertPoint(Func.getEntryBlock().begin());
   for (auto &GV : Func.getParent()->globals())
     processGlobalValue(GV, B);
 

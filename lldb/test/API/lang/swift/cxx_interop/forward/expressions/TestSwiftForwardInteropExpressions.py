@@ -37,6 +37,9 @@ class TestSwiftForwardInteropExpressions(TestBase):
         # Check that we can call methods.
         self.expect('expr cxxClass.sum()', substrs=['CInt', '201'])
 
+        # A const method borrows self in place.
+        self.expect('expr cxxClass.constSum()', substrs=['CInt', '201'])
+
         # Check that we can access a C++ type's ivars
         self.expect('expr cxxClass.a', substrs=['CInt', '100'])
         self.expect('expr cxxSubclass.a', substrs=['CInt', '100'])

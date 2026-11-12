@@ -1152,7 +1152,7 @@ public:
 
   PersistentExpressionState *GetPersistentExpressionState() override;
 
-  void ModulesDidLoad(ModuleList &module_list);
+  void ModulesDidLoad(ModuleList &module_list) override;
 
   typedef llvm::StringMap<swift::AttributedImport<swift::ImportedModule>>
       HandLoadedModuleSet;

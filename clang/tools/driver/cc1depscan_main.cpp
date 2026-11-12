@@ -910,11 +910,31 @@ void ScanServer::start(bool Exclusive, ArrayRef<const char *> CASArgs) {
       llvm::consumeError(std::move(Err));
       return;
     }
-    ExitOnErr(llvm::cas::validateOnDiskUnifiedCASDatabasesIfNeeded(
-        CASPath, /*CheckHash=*/true,
-        /*AllowRecovery=*/true,
-        /*Force=*/getenv("LLVM_CAS_FORCE_VALIDATION"),
-        findLLVMCasBinary(Argv0, LLVMCasStorage)));
+    bool Forced = getenv("LLVM_CAS_FORCE_VALIDATION");
+    // If `llvm-cas` tool can be located, validate out-of-process. Otherwise do
+    // in-process validation.
+    if (auto Exec = findLLVMCasBinary(Argv0, LLVMCasStorage)) {
+      SmallVector<StringRef> Args{*Exec,          "validate-if-needed",
+                                  "--cas",        CASPath,
+                                  "--check-hash", "--allow-recovery"};
+      if (Forced)
+        Args.push_back("--force");
+
+      int Result = llvm::sys::ExecuteAndWait(*Exec, Args, /*Env=*/std::nullopt,
+                                             /*Redirects*/ {},
+                                             /*SecondsToWait=*/120);
+      if (Result != 0)
+        reportError("cas validation failed");
+
+      return;
+    }
+    auto Result = llvm::cas::validateOnDiskUnifiedCASDatabasesIfNeeded(
+        CASPath, /*CheckHash=*/true, Forced);
+    if (Result)
+      return;
+
+    llvm::consumeError(Result.takeError());
+    ExitOnErr(llvm::cas::recoverOnDiskUnifiedCASDatabases(CASPath));
   });
 
   // Check the pidfile.

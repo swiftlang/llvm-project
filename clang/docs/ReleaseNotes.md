@@ -699,6 +699,9 @@ features cannot lower the translation-unit ABI level;
   - `-Wlifetime-safety-experimental-field-origin-escape`, which warns when a
     member function returns a value derived from a pointer, reference, or view
     field rather than from `*this`.
+  - `-Wlifetime-safety-experimental-destructor-use`, which warns when an object
+    whose non-trivial destructor may read a borrow is destroyed after the
+    storage it borrows from.
 
 - Lifetime safety analysis is now enabled for C by default. The `-fexperimental-lifetime-safety-c`
   flag is renamed to `-flifetime-safety-c`. Use `-fno-lifetime-safety-c` to disable it.
@@ -896,6 +899,8 @@ features cannot lower the translation-unit ABI level;
 - Fixed `__builtin_offsetof` incorrectly sign-extending unsigned array indices
   with the high bit set (e.g. `uint8_t` values >= 128), which produced wrong
   offset values in constant expressions. (#GH199319)
+- Fix a crash when using `__builtin_assume_aligned` with dynamic allocations
+  during constant evaluation. (#GH173767)
 
 
 #### Bug Fixes to Attribute Support
@@ -1102,6 +1107,10 @@ features cannot lower the translation-unit ABI level;
 - On AArch64 Windows targets, `-mbranch-protection=standard` and `-mbranch-protection=pac-ret`
   now uses the B-key by default.
 
+- Added support for pointer authentication discrimination of C++ virtual table
+  pointers stored in VTTs via the `-fptrauth-vtt-vtable-pointer-discrimination`
+  option.
+
 #### Android Support
 
 #### Windows Support
@@ -1180,6 +1189,11 @@ features cannot lower the translation-unit ABI level;
   for POWER9 targets (requires including `bcd.h`):
   `__builtin_bcdshift`, `__builtin_bcdshiftround`, `__builtin_bcdtruncate`,
   `__builtin_bcdunsignedtruncate`, and `__builtin_bcdunsignedshift`.
+
+- Clang now provides device-side definitions of `__cxa_pure_virtual()` and
+  `__cxa_deleted_virtual()`; previously, any (potential) call to a pure/deleted
+  virtual function that could not be optimised out would cause the program to
+  fail to assemble. This is now fixed. (#GH49183) (#GH67533)
 
 #### AIX Support
 

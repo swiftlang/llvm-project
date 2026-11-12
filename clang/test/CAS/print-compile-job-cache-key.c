@@ -25,12 +25,14 @@
 
 // RUN: clang-cas-test -print-include-tree -cas %t/cas @%t/include-tree-id | FileCheck %s -check-prefix=INCLUDE_TREE -DSRC_FILE=%s
 
+// DEFINE: %{cas_plugin} = %llvmshlibdir/CASPluginTest%pluginext
+
 // Print key from plugin CAS.
 // RUN: %clang -cc1depscan -fdepscan=inline -o %t/inc-plugin.rsp -cc1-args -cc1 -triple x86_64-apple-macos11 -emit-obj \
-// RUN:   %s -o %t/output-plugin.o -fcas-path %t/cas-plugin -fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext
+// RUN:   %s -o %t/output-plugin.o -fcas-path %t/cas-plugin -fcas-plugin-path %{cas_plugin}
 // RUN: %clang @%t/inc-plugin.rsp -Rcompile-job-cache-miss 2> %t/output-plugin.txt
 // RUN: cat %t/output-plugin.txt | sed \
 // RUN:   -e "s/^.*miss for '//" \
 // RUN:   -e "s/' .*$//" > %t/cache-key-plugin
 // RUN: clang-cas-test -print-compile-job-cache-key -cas %t/cas-plugin @%t/cache-key-plugin \
-// RUN:   -fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext | FileCheck %s -check-prefix=INCLUDE_TREE_KEY -check-prefix=INCLUDE_TREE -DSRC_FILE=%s
+// RUN:   -fcas-plugin-path %{cas_plugin} | FileCheck %s -check-prefix=INCLUDE_TREE_KEY -check-prefix=INCLUDE_TREE -DSRC_FILE=%s

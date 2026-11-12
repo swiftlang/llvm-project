@@ -86,11 +86,6 @@
 #include <set>
 #include <sstream>
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
-#include "Plugins/ExpressionParser/Swift/SwiftPersistentExpressionState.h"
-#endif // LLDB_ENABLE_SWIFT
-
 using namespace lldb;
 using namespace lldb_private;
 
@@ -1982,20 +1977,10 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
     if (m_process_sp) {
       m_process_sp->ModulesDidLoad(module_list);
     }
-    // Notify all the ASTContext(s).
-    auto notify_callback = [&](lldb::TypeSystemSP type_system) {
-#ifdef LLDB_ENABLE_SWIFT
-      auto *swift_scratch_ctx =
-          llvm::dyn_cast_or_null<TypeSystemSwiftTypeRefForExpressions>(
-              type_system.get());
-      if (!swift_scratch_ctx)
-        return true;
-      swift_scratch_ctx->ModulesDidLoad(module_list);
-#endif // LLDB_ENABLE_SWIFT
+    m_scratch_type_system_map.ForEach([&](lldb::TypeSystemSP type_system) {
+      type_system->ModulesDidLoad(module_list);
       return true;
-    };
-    m_scratch_type_system_map.ForEach(notify_callback);
-
+    });
     module_list.ClearModuleDependentCaches();
     RunModuleHooks(/*is_load=*/true);
     auto data_sp =

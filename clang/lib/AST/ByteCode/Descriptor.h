@@ -13,6 +13,8 @@
 #ifndef LLVM_CLANG_AST_INTERP_DESCRIPTOR_H
 #define LLVM_CLANG_AST_INTERP_DESCRIPTOR_H
 
+#include "../ExprConstShared.h"
+#include "DeclOrExpr.h"
 #include "InitMap.h"
 #include "PrimType.h"
 #include "clang/AST/Decl.h"
@@ -25,8 +27,6 @@ class Record;
 class SourceInfo;
 struct Descriptor;
 enum PrimType : uint8_t;
-
-using DeclTy = llvm::PointerUnion<const Decl *, const Expr *>;
 
 /// Invoked whenever a block is created. The constructor method fills in the
 /// inline descriptors of all fields and array elements. It also initializes
@@ -123,7 +123,7 @@ static_assert(sizeof(GlobalInlineDescriptor) != sizeof(InlineDescriptor), "");
 struct Descriptor final {
 private:
   /// Original declaration, used to emit the error message.
-  const DeclTy Source;
+  const DeclOrExpr Source;
   const Type *SourceType = nullptr;
   /// Size of an element, in host bytes.
   const unsigned ElemSize;
@@ -174,34 +174,33 @@ public:
   const BlockDtorFn DtorFn = nullptr;
 
   /// Allocates a descriptor for a primitive.
-  Descriptor(const DeclTy &D, const Type *SourceTy, PrimType Type,
-             MetadataSize MD, bool IsConst, bool IsTemporary, bool IsMutable,
-             bool IsVolatile);
+  Descriptor(DeclOrExpr D, const Type *SourceTy, PrimType Type, MetadataSize MD,
+             bool IsConst, bool IsTemporary, bool IsMutable, bool IsVolatile);
 
   /// Allocates a descriptor for an array of primitives.
-  Descriptor(const DeclTy &D, const Type *SourceTy, PrimType Type,
-             MetadataSize MD, size_t NumElems, bool IsConst, bool IsTemporary,
-             bool IsMutable, bool IsVolatile);
+  Descriptor(DeclOrExpr D, const Type *SourceTy, PrimType Type, MetadataSize MD,
+             size_t NumElems, bool IsConst, bool IsTemporary, bool IsMutable,
+             bool IsVolatile);
 
   /// Allocates a descriptor for an array of primitives of unknown size.
-  Descriptor(const DeclTy &D, PrimType Type, MetadataSize MDSize, bool IsConst,
+  Descriptor(DeclOrExpr D, PrimType Type, MetadataSize MDSize, bool IsConst,
              bool IsTemporary, UnknownSize);
 
   /// Allocates a descriptor for an array of composites.
-  Descriptor(const DeclTy &D, const Type *SourceTy, const Descriptor *Elem,
+  Descriptor(DeclOrExpr D, const Type *SourceTy, const Descriptor *Elem,
              MetadataSize MD, unsigned NumElems, bool IsConst, bool IsTemporary,
              bool IsMutable);
 
   /// Allocates a descriptor for an array of composites of unknown size.
-  Descriptor(const DeclTy &D, const Descriptor *Elem, MetadataSize MD,
+  Descriptor(DeclOrExpr D, const Descriptor *Elem, MetadataSize MD,
              bool IsTemporary, UnknownSize);
 
   /// Allocates a descriptor for a record.
-  Descriptor(const DeclTy &D, const Record *R, MetadataSize MD, bool IsConst,
+  Descriptor(DeclOrExpr D, const Record *R, MetadataSize MD, bool IsConst,
              bool IsTemporary, bool IsMutable, bool IsVolatile);
 
   /// Allocates a dummy descriptor.
-  Descriptor(const DeclTy &D, MetadataSize MD = std::nullopt);
+  Descriptor(DeclOrExpr D, MetadataSize MD = std::nullopt);
 
   QualType getType() const;
   QualType getElemQualType() const;
@@ -209,9 +208,9 @@ public:
   SourceLocation getLocation() const;
   SourceInfo getLoc() const;
 
-  const Decl *asDecl() const { return dyn_cast<const Decl *>(Source); }
-  const Expr *asExpr() const { return dyn_cast<const Expr *>(Source); }
-  const DeclTy &getSource() const { return Source; }
+  const Decl *asDecl() const { return Source.asDecl(); }
+  const Expr *asExpr() const { return Source.asExpr(); }
+  DeclOrExpr getSource() const { return Source; }
 
   const ValueDecl *asValueDecl() const {
     return dyn_cast_if_present<ValueDecl>(asDecl());
@@ -282,6 +281,18 @@ public:
 
   /// Whether variables of this descriptor need their destructor called or not.
   bool hasTrivialDtor() const;
+
+  /// Returns the kind of dynamic allocation source of this block.
+  static DynAllocKind getDynAllocKindForExpr(const Expr *E);
+  /// Returns the kind of dynamic allocation source of this block.
+  DynAllocKind getDynAllocKind() const {
+    return asExpr() ? getDynAllocKindForExpr(asExpr()) : DynAllocKind::None;
+  }
+  /// Checks if the descriptor is of a dynamic allocation.
+  bool isDynAlloc() const { return getDynAllocKind() != DynAllocKind::None; }
+
+  /// Compute the alignment for a dynamic allocation.
+  CharUnits computeAlignForDynamicAlloc(const ASTContext &Ctx) const;
 
   void dump() const;
   void dump(llvm::raw_ostream &OS) const;

@@ -1,4 +1,4 @@
-/*===-- llvm-c/CAS/PluginAPI_functions.h - CAS Plugin Functions Interface -===*\
+/*===----------------------------------------------------------------------===*\
 |*                                                                            *|
 |* Part of the LLVM Project, under the Apache License v2.0 with LLVM          *|
 |* Exceptions.                                                                *|
@@ -140,6 +140,66 @@ llcas_cas_set_ondisk_size_limit(llcas_cas_t, int64_t size_limit, char **error);
  * \returns true if there was an error, false otherwise.
  */
 LLCAS_PUBLIC bool llcas_cas_prune_ondisk_data(llcas_cas_t, char **error);
+
+/**
+ * Validate the CAS contents.
+ *
+ * \param check_hash if true, the hash of each object is recomputed and compared
+ * against the one it is stored under.
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns true if there was an error, false otherwise.
+ */
+LLCAS_PUBLIC bool llcas_cas_validate(llcas_cas_t, bool check_hash,
+                                     char **error);
+
+/**
+ * Validate the on-disk CAS and action cache contents in-process, if needed.
+ *
+ * This is called without a \c llcas_cas_t being created for the given
+ * options. The implementation decides whether validation is needed, e.g.
+ * whether the contents have already been validated since the last system boot,
+ * and should record a successful validation so that it can be skipped next
+ * time. A validation that fails or crashes should be detectable by
+ * \c llcas_cas_recover_ondisk_data, e.g. by recording that validation is
+ * pending before validating and only clearing it once validation succeeds.
+ *
+ * Clients that want to be resilient to unexpected crashes during validation
+ * may call this from a separate process and call
+ * \c llcas_cas_recover_ondisk_data if it fails or crashes.
+ *
+ * \param check_hash if true, the hash of each object is recomputed and compared
+ * against the one it is stored under.
+ * \param force if true, validation is performed even if it is not needed.
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns \c LLCAS_VALIDATION_RESULT_VALID or
+ * \c LLCAS_VALIDATION_RESULT_SKIPPED, or \c LLCAS_VALIDATION_RESULT_ERROR if
+ * validation could not be performed or the data is invalid.
+ */
+LLCAS_PUBLIC llcas_validation_result_t llcas_cas_validate_if_needed(
+    llcas_cas_options_t, bool check_hash, bool force, char **error);
+
+/**
+ * Recover from invalid on-disk CAS and action cache contents after
+ * \c llcas_cas_validate_if_needed failed or crashed, e.g. by discarding them.
+ *
+ * This is called without a \c llcas_cas_t being created for the given
+ * options. Multiple processes may attempt recovery concurrently after a failed
+ * validation; the implementation should skip recovery if the contents have
+ * been recovered or successfully validated in the meantime.
+ *
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns \c LLCAS_VALIDATION_RESULT_RECOVERED or
+ * \c LLCAS_VALIDATION_RESULT_SKIPPED, or \c LLCAS_VALIDATION_RESULT_ERROR if
+ * recovery could not be performed.
+ */
+LLCAS_PUBLIC llcas_validation_result_t
+llcas_cas_recover_ondisk_data(llcas_cas_options_t, char **error);
 
 /**
  * \returns the hash schema name that the plugin is using. The string memory it
@@ -410,6 +470,16 @@ LLCAS_PUBLIC bool llcas_actioncache_put_for_digest(llcas_cas_t,
 LLCAS_PUBLIC void llcas_actioncache_put_for_digest_async(
     llcas_cas_t, llcas_digest_t key, llcas_objectid_t value, bool globally,
     void *ctx_cb, llcas_actioncache_put_cb, llcas_cancellable_t *cancel_tok);
+
+/**
+ * Validate the action cache contents.
+ *
+ * \param error optional pointer to receive an error message if an error
+ * occurred. If set, the memory it points to needs to be released via
+ * \c llcas_string_dispose.
+ * \returns true if there was an error, false otherwise.
+ */
+LLCAS_PUBLIC bool llcas_actioncache_validate(llcas_cas_t, char **error);
 
 LLVM_C_EXTERN_C_END
 

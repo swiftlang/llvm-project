@@ -21,6 +21,7 @@
 #include "clang/CIR/Dialect/IR/CIRAttrs.h"
 #include "clang/CIR/Dialect/IR/CIRDataLayout.h"
 #include "clang/CIR/MissingFeatures.h"
+#include "clang/CodeGenUtils/CodeGenUtils.h"
 #include "llvm/Support/Casting.h"
 
 #include <memory>
@@ -89,10 +90,6 @@ struct CIRRecordLowering final {
                       RecordDecl::field_iterator fieldEnd);
 
   mlir::Type getVFPtrType();
-
-  bool isAAPCS() const {
-    return astContext.getTargetInfo().getABI().starts_with("aapcs");
-  }
 
   /// Helper function to check if the target machine is BigEndian.
   bool isBigEndian() const { return astContext.getTargetInfo().isBigEndian(); }
@@ -944,7 +941,7 @@ bool CIRRecordLowering::hasOwnStorage(const CXXRecordDecl *decl,
 /// Enforcing the width restriction can be disabled using
 /// -fno-aapcs-bitfield-width.
 void CIRRecordLowering::computeVolatileBitfields() {
-  if (!isAAPCS() ||
+  if (!CodeGenUtils::isAAPCS(astContext.getTargetInfo()) ||
       !cirGenTypes.getCGModule().getCodeGenOpts().AAPCSBitfieldWidth)
     return;
 

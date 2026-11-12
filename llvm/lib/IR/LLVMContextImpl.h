@@ -40,6 +40,7 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1549,6 +1550,9 @@ public:
   /// frontends, etc.). This should only be used by the specific streamers, and
   /// never directly.
   std::unique_ptr<remarks::RemarkStreamer> MainRemarkStreamer;
+
+  /// The virtual file system used for inputs.
+  IntrusiveRefCntPtr<vfs::FileSystem> FS;
 
   std::unique_ptr<DiagnosticHandler> DiagHandler;
   bool RespectDiagnosticFilters = false;

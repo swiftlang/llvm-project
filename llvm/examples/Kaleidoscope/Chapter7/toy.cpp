@@ -744,8 +744,7 @@ Function *getFunction(std::string Name) {
 /// the function.  This is used for mutable variables etc.
 static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction,
                                           StringRef VarName) {
-  IRBuilder<> TmpB(&TheFunction->getEntryBlock(),
-                   TheFunction->getEntryBlock().begin());
+  IRBuilder<> TmpB(TheFunction->getEntryBlock().begin());
   return TmpB.CreateAlloca(Type::getDoubleTy(*TheContext), nullptr, VarName);
 }
 
@@ -1154,7 +1153,7 @@ static void InitializeModuleAndManagers() {
   TheFPM->addPass(SimplifyCFGPass());
 
   // Register analysis passes used in these transform passes.
-  PassBuilder PB;
+  PassBuilder PB(*TheContext);
   PB.registerModuleAnalyses(*TheMAM);
   PB.registerFunctionAnalyses(*TheFAM);
   PB.crossRegisterProxies(*TheLAM, *TheFAM, *TheCGAM, *TheMAM);

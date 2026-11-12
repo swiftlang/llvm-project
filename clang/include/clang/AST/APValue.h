@@ -22,6 +22,7 @@
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/Support/AlignOf.h"
 
 namespace clang {
@@ -62,33 +63,68 @@ public:
   void print(llvm::raw_ostream &Out, const PrintingPolicy &Policy) const;
 };
 
+/// Kind of source for a dynamic allocation.
+enum class DynAllocKind {
+  New,                // new expression
+  ArrayNew,           // new[] expression
+  StdAllocator,       // std::allocator::allocate call
+  None,               // not a dynamic allocation
+  BuiltinOperatorNew, // __operator_builtin_new call
+  ALLOC_KIND_MAX = BuiltinOperatorNew
+};
+
 /// Symbolic representation of a dynamic allocation.
 class DynamicAllocLValue {
-  unsigned Index;
+public:
+  // TO_UPSTREAM(BoundsSafety) Upstream uses 2. Keep 3 low bits free so that
+  // DynamicAllocOrForgedPtrLValue can encode its tag above the 2 bits used by
+  // APValue::LValueBase.
+  static constexpr int NumLowBitsAvailable = 3;
+  static constexpr int NumAllocKindBits = 3;
+  static_assert((1 << NumAllocKindBits) - 1 >=
+                static_cast<int>(DynAllocKind::ALLOC_KIND_MAX));
+
+private:
+  // lower NumAlignmentBits: alignment exponent
+  // remaining bits: allocation index incremented by one
+  // value of zero indicates distinct empty state
+  LLVM_PREFERRED_TYPE(DynAllocKind)
+  uintptr_t AllocKind : NumAllocKindBits;
+  uintptr_t Index : sizeof(uintptr_t) * CHAR_BIT - NumAllocKindBits;
 
 public:
-  DynamicAllocLValue() : Index(0) {}
-  explicit DynamicAllocLValue(unsigned Index) : Index(Index + 1) {}
-  unsigned getIndex() { return Index - 1; }
+  DynamicAllocLValue() : AllocKind(0), Index(0) {}
+  explicit DynamicAllocLValue(unsigned Idx, DynAllocKind AllocKind)
+      : AllocKind(llvm::to_underlying(AllocKind)), Index(Idx + 1) {
+    assert(Idx <= getMaxIndex() && "Index is out of range");
+  }
+  unsigned getIndex() const { return Index - 1; }
+  DynAllocKind getAllocKind() const {
+    return static_cast<DynAllocKind>(AllocKind);
+  }
 
   explicit operator bool() const { return Index != 0; }
 
   const void *getOpaqueValue() const {
-    return reinterpret_cast<const void *>(static_cast<uintptr_t>(Index)
-                                          << NumLowBitsAvailable);
+    return reinterpret_cast<const void *>(
+        (Index << NumAllocKindBits | AllocKind) << NumLowBitsAvailable);
   }
   static DynamicAllocLValue getFromOpaqueValue(const void *Value) {
     DynamicAllocLValue V;
-    V.Index = reinterpret_cast<uintptr_t>(Value) >> NumLowBitsAvailable;
+    uintptr_t Combined =
+        reinterpret_cast<uintptr_t>(Value) >> NumLowBitsAvailable;
+    V.AllocKind = Combined & ((1 << NumAllocKindBits) - 1);
+    V.Index = Combined >> NumAllocKindBits;
     return V;
   }
 
-  static unsigned getMaxIndex() {
-    return (std::numeric_limits<unsigned>::max() >> NumLowBitsAvailable) - 1;
+  static uintptr_t getMaxIndex() {
+    return (std::numeric_limits<uintptr_t>::max() >>
+            (NumLowBitsAvailable + NumAllocKindBits)) -
+           1;
   }
-
-  static constexpr int NumLowBitsAvailable = 3;
 };
+static_assert(sizeof(DynamicAllocLValue) == sizeof(uintptr_t));
 
 /* TO_UPSTREAM(BoundsSafety) ON*/
 /// Symbolic representation of a size forged pointer
@@ -187,7 +223,8 @@ template <> struct PointerLikeTypeTraits<clang::DynamicAllocOrForgedPtrLValue> {
   static clang::DynamicAllocOrForgedPtrLValue getFromVoidPointer(void *P) {
     return clang::DynamicAllocOrForgedPtrLValue::getFromOpaqueValue(P);
   }
-  static constexpr int NumLowBitsAvailable = 2;
+  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<
+      clang::DynamicAllocOrForgedPtrLValue::BaseTy>::NumLowBitsAvailable;
 };
 /* TO_UPSTREAM(BoundsSafety) OFF*/
 }

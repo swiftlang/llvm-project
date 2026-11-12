@@ -132,7 +132,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   // Create pass pipeline
   //
 
-  PassBuilder PB(TM.get());
+  PassBuilder PB(Context, TM.get());
 
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -211,7 +211,8 @@ extern "C" LLVM_ATTRIBUTE_USED int LLVMFuzzerInitialize(int *argc,
     exit(1);
   }
 
-  PassBuilder PB(TM.get());
+  LLVMContext Context;
+  PassBuilder PB(Context, TM.get());
   ModulePassManager MPM;
   if (auto Err = PB.parsePassPipeline(MPM, PassPipeline)) {
     errs() << ExecName << ": " << toString(std::move(Err)) << "\n";

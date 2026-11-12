@@ -2,12 +2,12 @@
 
 void (^blockptr)(void);
 
-// CHECK: [[INVOCATION_1:@.*]] =  private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1:@.*]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
+// CHECK: [[INVOCATION_1:@.*]] =  private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr [[GLOBAL_BLOCK_1:@.*]], i64 16) to i64), i64 0 }, section "llvm.ptrauth"
 // CHECK: [[GLOBAL_BLOCK_1]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr @_NSConcreteGlobalBlock, i32 1342177280, i32 0, ptr [[INVOCATION_1]],
 void (^globalblock)(void) = ^{};
 
-// CHECK: [[COPYDISPOSE_COPY:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR:@.*]], i32 0, i32 2) to i64), i64 0 }, section "llvm.ptrauth"
-// CHECK: [[COPYDISPOSE_DISPOSE:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ i64, i64, ptr, ptr, ptr, i64 }, ptr [[COPYDISPOSE_DESCRIPTOR]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
+// CHECK: [[COPYDISPOSE_COPY:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr [[COPYDISPOSE_DESCRIPTOR:@.*]], i64 16) to i64), i64 0 }, section "llvm.ptrauth"
+// CHECK: [[COPYDISPOSE_DISPOSE:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr [[COPYDISPOSE_DESCRIPTOR]], i64 24) to i64), i64 0 }, section "llvm.ptrauth"
 // CHECK: [[COPYDISPOSE_DESCRIPTOR:@.*]] = linkonce_odr hidden unnamed_addr constant { i64, i64, ptr, ptr, ptr, i64 } { i64 0, i64 40, ptr [[COPYDISPOSE_COPY]], ptr [[COPYDISPOSE_DISPOSE]],
 
 @interface A

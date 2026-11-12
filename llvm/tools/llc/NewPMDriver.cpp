@@ -141,7 +141,7 @@ int llvm::compileModuleWithNewPM(
 
   MAM.registerPass([&] { return MachineModuleAnalysis(MMI); });
 
-  PassBuilder PB(Target.get(), PipelineTuningOptions(), std::nullopt, &PIC);
+  PassBuilder PB(Context, Target.get(), std::nullopt, std::nullopt, &PIC);
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);

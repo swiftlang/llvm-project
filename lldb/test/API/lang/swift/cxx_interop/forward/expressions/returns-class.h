@@ -19,6 +19,10 @@ struct CxxClass {
   int sum() {
     return a + b;
   }
+
+  int constSum() const {
+    return a + b;
+  }
 };
 
 struct CxxSubclass: public CxxClass {

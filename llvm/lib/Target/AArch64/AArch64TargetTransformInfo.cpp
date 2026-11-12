@@ -2986,6 +2986,33 @@ static std::optional<Instruction *> instCombineSVESDIV(InstCombiner &IC,
   return std::nullopt;
 }
 
+/// Match Or(And(MASK, A), And(Not(MASK), B)), which ISel selects as
+/// BSL/BIT/BIF. Both Ands must have one use and be in the Or's block. MainAnd,
+///
+/// OtherAnd, A and B are out parameters with the corresponding instructions.
+/// MainAnd refers to And that has Not as one of its operands.
+static bool matchBSL(const Instruction *I, Instruction *&MainAnd,
+                     Instruction *&OtherAnd, Value *&A, Value *&B) {
+  Value *MaskValue;
+  if (!match(I,
+             m_c_Or(m_OneUse(m_Instruction(OtherAnd)),
+                    m_OneUse(m_c_And(m_Not(m_Value(MaskValue)), m_Value(A))))))
+    return false;
+
+  if (!match(OtherAnd, m_c_And(m_Specific(MaskValue), m_Value(B))))
+    return false;
+
+  MainAnd = I->getOperand(0) == OtherAnd ? cast<Instruction>(I->getOperand(1))
+                                         : cast<Instruction>(I->getOperand(0));
+
+  // Both Ands should be in same basic block as Or
+  if (I->getParent() != MainAnd->getParent() ||
+      I->getParent() != OtherAnd->getParent())
+    return false;
+
+  return true;
+}
+
 bool SimplifyValuePattern(SmallVector<Value *> &Vec, bool AllowPoison) {
   size_t VecSize = Vec.size();
   if (VecSize == 1)
@@ -3144,7 +3171,7 @@ static std::optional<Instruction *> instCombineDMB(InstCombiner &IC,
     NI = NI->getNextNode();
     if (!NI) {
       if (auto *SuccBB = NIBB->getUniqueSuccessor())
-        NI = &*SuccBB->getFirstNonPHIOrDbgOrLifetime();
+        NI = &*SuccBB->getFirstNonPHIOrLifetime();
       else
         break;
     }
@@ -3581,47 +3608,94 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
   assert(ISD && "Invalid opcode");
   // If the cast is observable, and it is used by a widening instruction (e.g.,
   // uaddl, saddw, etc.), it may be free.
-  if (I && I->hasOneUser()) {
-    auto *SingleUser = cast<Instruction>(*I->user_begin());
-    SmallVector<const Value *, 4> Operands(SingleUser->operand_values());
-    if (Type *ExtTy = isBinExtWideningInstruction(
-            SingleUser->getOpcode(), Dst, Operands,
-            Src != I->getOperand(0)->getType() ? Src : nullptr)) {
-      // The cost from Src->Src*2 needs to be added if required, the cost from
-      // Src*2->ExtTy is free.
-      if (ExtTy->getScalarSizeInBits() > Src->getScalarSizeInBits() * 2) {
-        Type *DoubleSrcTy =
-            Src->getWithNewBitWidth(Src->getScalarSizeInBits() * 2);
-        return getCastInstrCost(Opcode, DoubleSrcTy, Src,
-                                TTI::CastContextHint::None, CostKind);
-      }
+  if (I && !I->users().empty()) {
+    // Determine whether Usr can absorb the cast from Src to Dst into a
+    // widening instruction (e.g. uaddl, saddw, urhadd), making the cast free
+    // with respect to that user.
+    auto GetUserAbsorbedCastCost =
+        [&](const Instruction *Usr) -> std::optional<InstructionCost> {
+      SmallVector<const Value *, 4> Operands(Usr->operand_values());
 
-      return 0;
-    }
+      if (Type *ExtTy = isBinExtWideningInstruction(
+              Usr->getOpcode(), Dst, Operands,
+              Src != I->getOperand(0)->getType() ? Src : nullptr)) {
+        // The cost from Src->Src*2 needs to be added if required, the cost
+        // from Src*2->ExtTy is free.
+        if (ExtTy->getScalarSizeInBits() > Src->getScalarSizeInBits() * 2) {
+          Type *DoubleSrcTy =
+              Src->getWithNewBitWidth(Src->getScalarSizeInBits() * 2);
+          return getCastInstrCost(Opcode, DoubleSrcTy, Src,
+                                  TTI::CastContextHint::None, CostKind);
+        }
 
-    if (isSingleExtWideningInstruction(
-            SingleUser->getOpcode(), Dst, Operands,
-            Src != I->getOperand(0)->getType() ? Src : nullptr)) {
-      // For adds only count the second operand as free if both operands are
-      // extends but not the same operation. (i.e both operands are not free in
-      // add(sext, zext)).
-      if (SingleUser->getOpcode() == Instruction::Add) {
-        if (I == SingleUser->getOperand(1) ||
-            (isa<CastInst>(SingleUser->getOperand(1)) &&
-             cast<CastInst>(SingleUser->getOperand(1))->getOpcode() == Opcode))
-          return 0;
-      } else {
-        // Others are free so long as isSingleExtWideningInstruction
-        // returned true.
         return 0;
       }
+
+      if (isSingleExtWideningInstruction(
+              Usr->getOpcode(), Dst, Operands,
+              Src != I->getOperand(0)->getType() ? Src : nullptr)) {
+        // For adds only count the second operand as free if both operands
+        // are extends but not the same operation. (i.e both operands are
+        // not free in add(sext, zext)).
+        if (Usr->getOpcode() == Instruction::Add) {
+          if (I == Usr->getOperand(1) ||
+              (isa<CastInst>(Usr->getOperand(1)) &&
+               cast<CastInst>(Usr->getOperand(1))->getOpcode() == Opcode))
+            return 0;
+        } else {
+          // Others are free so long as isSingleExtWideningInstruction
+          // returned true.
+          return 0;
+        }
+      }
+
+      if (!isa<ZExtInst, SExtInst>(I))
+        return std::nullopt;
+
+      // The cast will be free for the s/urhadd instructions
+      if (isExtPartOfAvgExpr(Usr, Dst, Src))
+        return 0;
+
+      // [US]SHLL/SHLL fold a doubling extend into a shift left by a splat
+      // immediate of at most the source element width.
+      const APInt *ShAmt;
+      unsigned SrcBits = Src->getScalarSizeInBits();
+      if (match(Usr, m_Shl(m_Specific(I), m_APInt(ShAmt))) &&
+          ShAmt->ule(SrcBits) && useNeonVector(Dst) &&
+          Dst->getScalarSizeInBits() == 2 * SrcBits &&
+          getTypeLegalizationCost(Src).second.getScalarSizeInBits() == SrcBits)
+        return 0;
+
+      return std::nullopt;
+    };
+
+    InstructionCost MaxAbsorbedCost = 0;
+    bool AllUsersAbsorbCast = true;
+    for (const User *U : I->users()) {
+      auto *Usr = cast<Instruction>(U);
+      std::optional<InstructionCost> UserCost = GetUserAbsorbedCastCost(Usr);
+      if (!UserCost) {
+        AllUsersAbsorbCast = false;
+        break;
+      }
+      MaxAbsorbedCost = std::max(MaxAbsorbedCost, *UserCost);
     }
 
-    // The cast will be free for the s/urhadd instructions
-    if ((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
-        isExtPartOfAvgExpr(SingleUser, Dst, Src))
-      return 0;
+    if (AllUsersAbsorbCast)
+      return MaxAbsorbedCost;
   }
+
+  // A vector compare already produces a lane mask (CMxx/FCMxx), so sign
+  // extending it to the compare width is free. That only holds while the
+  // result stays a vector; scalarized lanes still need a CSETM each.
+  const Instruction *Cmp;
+  const Value *CmpOp;
+  if (I && useNeonVector(Dst) &&
+      match(I, m_SExt(m_Instruction(Cmp, m_Cmp(m_Value(CmpOp), m_Value())))) &&
+      Cmp->getParent() == I->getParent() &&
+      CmpOp->getType()->getScalarSizeInBits() == Dst->getScalarSizeInBits() &&
+      getTypeLegalizationCost(Dst).second.isVector())
+    return 0;
 
   EVT SrcTy = TLI->getValueType(DL, Src);
   EVT DstTy = TLI->getValueType(DL, Dst);
@@ -4582,6 +4656,28 @@ InstructionCost AArch64TTIImpl::getArithmeticInstrCost(
   if (CostKind != TTI::TCK_RecipThroughput)
     return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
                                          Op2Info, Args, CxtI);
+
+  if (CxtI && CxtI->getOpcode() == Opcode && !CxtI->use_empty() &&
+      useNeonVector(Ty)) {
+    // The Ands of a bit select are folded into the BSL that the Or becomes.
+    Instruction *MainAnd, *OtherAnd;
+    Value *A, *B;
+    if (Opcode == Instruction::And && CxtI->hasOneUse() &&
+        matchBSL(CxtI->user_back(), MainAnd, OtherAnd, A, B))
+      return 0;
+
+    // A Not is folded into the BIC, ORN or BSL of each And/Or using it, unless
+    // that And/Or negates both of its operands.
+    if (match(CxtI, m_Not(m_Value())) &&
+        all_of(CxtI->users(), [&](const User *U) {
+          const auto *UI = cast<Instruction>(U);
+          return is_contained({Instruction::And, Instruction::Or},
+                              UI->getOpcode()) &&
+                 UI->getParent() == CxtI->getParent() &&
+                 !match(UI, m_BinOp(m_Not(m_Value()), m_Not(m_Value())));
+        }))
+      return 0;
+  }
 
   // Legalize the type.
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Ty);
@@ -7450,35 +7546,16 @@ bool AArch64TTIImpl::isProfitableToSinkOperands(
     // Pattern: Or(And(MaskValue, A), And(Not(MaskValue), B)) ->
     // bitselect(MaskValue, A, B) where Not(MaskValue) = Xor(MaskValue, -1)
     if (ST->hasNEON()) {
-      Instruction *OtherAnd, *IA, *IB;
-      Value *MaskValue;
       // MainAnd refers to And instruction that has 'Not' as one of its operands
-      if (match(I, m_c_Or(m_OneUse(m_Instruction(OtherAnd)),
-                          m_OneUse(m_c_And(m_OneUse(m_Not(m_Value(MaskValue))),
-                                           m_Instruction(IA)))))) {
-        if (match(OtherAnd,
-                  m_c_And(m_Specific(MaskValue), m_Instruction(IB)))) {
-          Instruction *MainAnd = I->getOperand(0) == OtherAnd
-                                     ? cast<Instruction>(I->getOperand(1))
-                                     : cast<Instruction>(I->getOperand(0));
+      Instruction *MainAnd, *OtherAnd;
+      Value *A, *B;
+      if (matchBSL(I, MainAnd, OtherAnd, A, B)) {
+        Ops.push_back(
+            &MainAnd->getOperandUse(MainAnd->getOperand(0) == A ? 1 : 0));
+        Ops.push_back(&I->getOperandUse(0));
+        Ops.push_back(&I->getOperandUse(1));
 
-          // Both Ands should be in same basic block as Or
-          if (I->getParent() != MainAnd->getParent() ||
-              I->getParent() != OtherAnd->getParent())
-            return false;
-
-          // Non-mask operands of both Ands should also be in same basic block
-          if (I->getParent() != IA->getParent() ||
-              I->getParent() != IB->getParent())
-            return false;
-
-          Ops.push_back(
-              &MainAnd->getOperandUse(MainAnd->getOperand(0) == IA ? 1 : 0));
-          Ops.push_back(&I->getOperandUse(0));
-          Ops.push_back(&I->getOperandUse(1));
-
-          return true;
-        }
+        return true;
       }
     }
 

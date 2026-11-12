@@ -52,6 +52,8 @@ struct LifetimeSafetyOpts {
   /// Issue placeholder loans for the fields of the enclosing class, without
   /// reporting anything about them.
   bool IssueFieldPlaceholderLoans = false;
+  /// Whether to model non-trivial destructors at scope exit as uses.
+  bool CheckDestructorUses = false;
 };
 
 /// Enum to track functions visible across or within TU.
@@ -75,14 +77,7 @@ public:
   LifetimeSafetySemaHelper() = default;
   virtual ~LifetimeSafetySemaHelper() = default;
 
-  virtual void reportUseAfterScope(const Expr *IssueExpr, const Expr *UseExpr,
-                                   const Expr *MovedExpr,
-                                   SourceLocation FreeLoc,
-                                   llvm::ArrayRef<const Expr *> ExprChain) {}
-
-  // Overload for a use with only a location and no expression (e.g. a borrow
-  // captured into the object and still held at the capturing method's exit).
-  virtual void reportUseAfterScope(const Expr *IssueExpr, SourceLocation UseLoc,
+  virtual void reportUseAfterScope(const Expr *IssueExpr, const UseSite &Use,
                                    const Expr *MovedExpr,
                                    SourceLocation FreeLoc,
                                    llvm::ArrayRef<const Expr *> ExprChain) {}
@@ -111,19 +106,11 @@ public:
   // Reports when a reference/iterator is used after the container operation
   // that invalidated it.
   virtual void
-  reportUseAfterInvalidation(const Expr *IssueExpr, const Expr *UseExpr,
+  reportUseAfterInvalidation(const Expr *IssueExpr, const UseSite &Use,
                              const Expr *InvalidationExpr,
                              llvm::ArrayRef<const Expr *> ExprChain) {}
   virtual void
-  reportUseAfterInvalidation(const ParmVarDecl *PVD, const Expr *UseExpr,
-                             const Expr *InvalidationExpr,
-                             llvm::ArrayRef<const Expr *> ExprChain) {}
-  virtual void
-  reportUseAfterInvalidation(const Expr *IssueExpr, SourceLocation UseLoc,
-                             const Expr *InvalidationExpr,
-                             llvm::ArrayRef<const Expr *> ExprChain) {}
-  virtual void
-  reportUseAfterInvalidation(const ParmVarDecl *PVD, SourceLocation UseLoc,
+  reportUseAfterInvalidation(const ParmVarDecl *PVD, const UseSite &Use,
                              const Expr *InvalidationExpr,
                              llvm::ArrayRef<const Expr *> ExprChain) {}
   virtual void reportInvalidatedField(const Expr *IssueExpr,

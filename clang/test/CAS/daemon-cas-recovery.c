@@ -3,9 +3,9 @@
 // RUN: rm -rf %t && mkdir -p %t
 
 /// Construct a malformed CAS to recovery from.
-// RUN: echo "abc" | llvm-cas --cas %t/cas --make-blob --data -
+// RUN: echo "abc" | llvm-cas make-blob --cas %t/cas --data -
 // RUN: rm %t/cas/v1.1/data.v1
-// RUN: not llvm-cas --cas %t/cas --validate --check-hash
+// RUN: not llvm-cas validate --cas %t/cas --check-hash
 
 // RUN: env LLVM_CACHE_CAS_PATH=%t/cas LLVM_CAS_FORCE_VALIDATION=1 CLANG_CACHE_DISABLE_MCCAS=1 %clang-cache \
 // RUN:   %clang -fsyntax-only -x c %s

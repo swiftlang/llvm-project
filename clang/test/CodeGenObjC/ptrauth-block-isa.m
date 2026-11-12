@@ -2,7 +2,7 @@
 
 void (^globalblock)(void) = ^{};
 // CHECK: @_NSConcreteGlobalBlock.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_NSConcreteGlobalBlock, i32 2, i64 ptrtoint (ptr [[GLOBAL_BLOCK_1:@.*]] to i64), i64 27361 }, section "llvm.ptrauth", align 8
-// CHECK: [[INVOCATION_1:@.*]] =  private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ ptr, i32, i32, ptr, ptr }, ptr [[GLOBAL_BLOCK_1]], i32 0, i32 3) to i64), i64 0 }, section "llvm.ptrauth"
+// CHECK: [[INVOCATION_1:@.*]] = private constant { ptr, i32, i64, i64 } { ptr {{@.*}}, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr [[GLOBAL_BLOCK_1]], i64 16) to i64), i64 0 }, section "llvm.ptrauth"
 // CHECK: [[GLOBAL_BLOCK_1]] = internal constant { ptr, i32, i32, ptr, ptr } { ptr @_NSConcreteGlobalBlock.ptrauth, i32 1342177280, i32 0, ptr [[INVOCATION_1]],
 
 @interface A

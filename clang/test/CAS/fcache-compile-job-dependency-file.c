@@ -1,6 +1,6 @@
 // RUN: rm -rf %t && mkdir -p %t
 // RUN: split-file %s %t/src
-// RUN: llvm-cas --cas %t/cas --ingest %t/src > %t/casid
+// RUN: llvm-cas ingest --cas %t/cas %t/src > %t/casid
 //
 // RUN: %clang -cc1depscan -fdepscan=inline -o %t.rsp -cc1-args \
 // RUN:   -cc1 -triple x86_64-apple-macos11 \

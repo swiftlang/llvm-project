@@ -23,6 +23,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Expression/Expression.h"
@@ -93,6 +94,10 @@ public:
   /// Free up any resources associated with this TypeSystem.  Done before
   /// removing all the TypeSystems from the TypeSystemMap.
   virtual void Finalize() {}
+
+  /// Called on a target's scratch type systems when the target loads the
+  /// modules in \p module_list.
+  virtual void ModulesDidLoad(ModuleList &module_list) {}
 
   virtual plugin::dwarf::DWARFASTParser *GetDWARFParser() { return nullptr; }
 
@@ -620,6 +625,14 @@ public:
   bool GetHasForcefullyCompletedTypes() const {
     return m_has_forcefully_completed_types;
   }
+
+  // BEGIN SWIFT
+  // Let core lldb reach the Swift type systems without naming them.
+  virtual void SetTriple(const SymbolContext &sc, const llvm::Triple triple) {}
+
+  virtual void ClearModuleDependentCaches() {}
+
+  // END SWIFT
 
 protected:
   /// Used for reporting statistics.

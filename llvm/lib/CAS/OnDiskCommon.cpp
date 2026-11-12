@@ -40,8 +40,7 @@
 #endif
 
 #ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
+#include "llvm/Support/Windows/WindowsSupport.h"
 #endif
 
 using namespace llvm;
@@ -245,13 +244,13 @@ Expected<uint64_t> cas::ondisk::getBootTime() {
     return createFileError("/proc", EC);
   return Status.getLastModificationTime().time_since_epoch().count();
 #elif defined(_WIN32)
-  // Windows: Calculate boot time from current time minus uptime
-  // GetTickCount64() returns milliseconds since boot
-  auto now = std::chrono::system_clock::now();
-  ULONGLONG uptimeMs = GetTickCount64();
-  auto bootTime = now - std::chrono::milliseconds(uptimeMs);
+  // Compute it from the current time and the time since boot, which includes
+  // time spent asleep.
+  auto Uptime = std::chrono::milliseconds(GetTickCount64());
+  auto Boot = std::chrono::system_clock::now() - Uptime;
   return std::chrono::duration_cast<std::chrono::seconds>(
-      bootTime.time_since_epoch()).count();
+             Boot.time_since_epoch())
+      .count();
 #else
   return 0;
 #endif
@@ -265,13 +264,12 @@ cas::ondisk::UniqueTempFile::createAndCopyFrom(StringRef ParentPath,
   // for \c clonefile to write to.
   // FIXME: Instead of creating a dummy file, add a new file system API for
   // copying to a unique path that can loop while checking EEXIST.
-  SmallString<256> UniqueTmpPath;
   SmallString<256> Model;
   Model += ParentPath;
   sys::path::append(Model, "%%%%%%%.tmp");
   if (std::error_code EC = sys::fs::createUniqueFile(Model, UniqueTmpPath))
     return createFileError(Model, EC);
-  TmpPath = std::move(UniqueTmpPath);
+  TmpPath = UniqueTmpPath;
   TmpPath += ".tmp"; // modify so that there's no file at that path.
   // \c copy_file will use \c clonefile when applicable.
   if (std::error_code EC = sys::fs::copy_file(CopyFromPath, TmpPath))

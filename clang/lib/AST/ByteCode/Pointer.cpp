@@ -205,9 +205,9 @@ APValue Pointer::toAPValue(const ASTContext &ASTCtx) const {
     Base = VD;
   else if (const auto *E = Desc->asExpr()) {
     if (block()->isDynamic()) {
-      QualType AllocatedType = getDeclPtr().getFieldDesc()->getDataType(ASTCtx);
-      DynamicAllocLValue DA(*block()->DynAllocId);
-      Base = APValue::LValueBase::getDynamicAlloc(DA, AllocatedType);
+      DynamicAllocLValue DA(*block()->DynAllocId, Desc->getDynAllocKind());
+      Base =
+          APValue::LValueBase::getDynamicAlloc(DA, Desc->getDataType(ASTCtx));
     } else {
       Base = E;
     }
@@ -1100,6 +1100,12 @@ std::optional<APValue> Pointer::toRValue(const Context &Ctx,
 const VarDecl *Pointer::getRootVarDecl() const {
   if (isBlockPointer())
     return getDeclDesc()->asVarDecl();
+  return nullptr;
+}
+
+const Expr *Pointer::getRootExpr() const {
+  if (isBlockPointer())
+    return getDeclDesc()->asExpr();
   return nullptr;
 }
 

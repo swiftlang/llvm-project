@@ -1252,7 +1252,7 @@ bool AMDGPUTargetMachine::splitModule(
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
 
-  PassBuilder PB(this);
+  PassBuilder PB(M.getContext(), this);
   PB.registerModuleAnalyses(MAM);
   PB.registerFunctionAnalyses(FAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);

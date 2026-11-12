@@ -110,6 +110,12 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
         self.expect_expr("holder.member.x", result_value="6")
         self.expect_expr("derived.x", result_value="7")
         self.expect_expr("classNC.member.x", result_value="10")
+
+        # A const method borrows a ~Copyable self in place.
+        self.expect_expr("nonCopyable.method(3)", result_value="15")
+        self.expect_expr("holder.member.method(2)", result_value="12")
+        self.expect_expr("derived.method(2)", result_value="14")
+        self.expect_var_path("nonCopyable.x", value="5")
         self.expect("expr let $nc = NonCopyable(33)")
         self.expect_expr("$nc.x", result_value="33")
         self.expect_expr("NonCopyable(34).x", result_value="34")
@@ -123,6 +129,9 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
             # Calling a method on a ~Copyable C++ value asserts in
             # DiagnoseStaticExclusivity.
             self.expect_expr("nonCopyable.method(3)", result_value="15")
+        if False:  # rdar://190470866
+            self.expect_var_path("derived.x", value="7")
+            self.expect_var_path("virtualBase.baseValue", value="20")
 
         if False:  # rdar://177433184
             # Reflection can't resolve the ~Copyable field types. Embedded

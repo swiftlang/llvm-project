@@ -3,13 +3,15 @@ REQUIRES: symlinks
 RUN: rm -rf %t
 RUN: mkdir %t
 
-RUN: llvm-cas --cas %t/cas --ingest %S/Inputs > %t/cas.id
-RUN: llvm-cas --cas %t/cas --ls-tree-recursive @%t/cas.id | FileCheck %s
+RUN: llvm-cas ingest --cas %t/cas %S/Inputs > %t/cas.id
+RUN: llvm-cas ls-tree-recursive --cas %t/cas @%t/cas.id | FileCheck %s
+
+DEFINE: %{cas_plugin} = %llvmshlibdir/CASPluginTest%pluginext
 
 // Using the plugin.
-RUN: llvm-cas --cas plugin://%llvmshlibdir/libCASPluginTest%pluginext?ondisk-path=%t/cas-plugin --ingest %S/Inputs > %t/cas-plugin.id
-RUN: llvm-cas --cas plugin://%llvmshlibdir/libCASPluginTest%pluginext?ondisk-path=%t/cas-plugin --ls-tree-recursive @%t/cas-plugin.id | FileCheck %s
-RUN: llvm-cas --cas %t/cas-plugin -fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext --ls-tree-recursive @%t/cas-plugin.id | FileCheck %s
+RUN: llvm-cas ingest --cas plugin://%{cas_plugin}?ondisk-path=%t/cas-plugin %S/Inputs > %t/cas-plugin.id
+RUN: llvm-cas ls-tree-recursive --cas plugin://%{cas_plugin}?ondisk-path=%t/cas-plugin @%t/cas-plugin.id | FileCheck %s
+RUN: llvm-cas ls-tree-recursive --cas %t/cas-plugin -fcas-plugin-path %{cas_plugin} @%t/cas-plugin.id | FileCheck %s
 
 CHECK: syml
 CHECK-SAME: broken_symlink -> missing
@@ -26,23 +28,23 @@ CHECK-SAME: self -> .
 CHECK: syml
 CHECK-SAME: sym_dir -> directory
 
-RUN: llvm-cas --cas %t/cas --get-cas-id --data %S/Inputs/directory/file @%t/cas.id > %t/file.casid
-RUN: llvm-cas --cas %t/cas --cat-node-data @%t/file.casid | FileCheck %s --check-prefix=CHECK-TEST-FILE
+RUN: llvm-cas get-cas-id --cas %t/cas --data %S/Inputs/directory/file @%t/cas.id > %t/file.casid
+RUN: llvm-cas cat-node-data --cas %t/cas @%t/file.casid | FileCheck %s --check-prefix=CHECK-TEST-FILE
 
 CHECK-TEST-FILE: test
 
-RUN: not llvm-cas --cas  %t/cas --get-cas-id --data %s @%t/cas.id 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+RUN: not llvm-cas get-cas-id --cas %t/cas --data %s @%t/cas.id 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 
 CHECK-ERROR: llvm-cas: get-cas-id: No such file or directory
 
-RUN: llvm-cas --cas  %t/cas --ls-node-refs @%t/cas.id 2>&1 | FileCheck %s --check-prefix=CHECK-NODE-REFS
+RUN: llvm-cas ls-node-refs --cas %t/cas @%t/cas.id 2>&1 | FileCheck %s --check-prefix=CHECK-NODE-REFS
 CHECK-NODE-REFS: llvmcas://
 CHECK-NODE-REFS: llvmcas://
 
 // Test exporting the entire tree.
-RUN: llvm-cas --cas %t/new-cas --fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext --upstream-cas %t/cas --import @%t/cas.id > %t/plugin.id
-RUN: llvm-cas --cas %t/new-cas --fcas-plugin-path %llvmshlibdir/libCASPluginTest%pluginext --ls-tree-recursive @%t/plugin.id | FileCheck %s
+RUN: llvm-cas import --cas %t/new-cas --fcas-plugin-path %{cas_plugin} --upstream-cas %t/cas @%t/cas.id > %t/plugin.id
+RUN: llvm-cas ls-tree-recursive --cas %t/new-cas --fcas-plugin-path %{cas_plugin} @%t/plugin.id | FileCheck %s
 
-RUN: llvm-cas --cas %t/cas --ingest %S/Inputs/broken_symlink > %t/cas-symlink.id
-RUN: llvm-cas --cas %t/cas --ls-tree-recursive @%t/cas.id | FileCheck %s --check-prefix=CHECK-SYMLINK
+RUN: llvm-cas ingest --cas %t/cas %S/Inputs/broken_symlink > %t/cas-symlink.id
+RUN: llvm-cas ls-tree-recursive --cas %t/cas @%t/cas.id | FileCheck %s --check-prefix=CHECK-SYMLINK
 CHECK-SYMLINK: broken_symlink -> missing

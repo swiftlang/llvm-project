@@ -861,7 +861,7 @@ static Value *NegateValue(Value *V, Instruction *BI,
     } else {
       InsertPt = TheNeg->getFunction()
                      ->getEntryBlock()
-                     .getFirstNonPHIOrDbg()
+                     .getFirstNonPHIOrPseudoProbe()
                      ->getIterator();
     }
 

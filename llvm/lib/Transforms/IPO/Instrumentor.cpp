@@ -323,7 +323,7 @@ bool InstrumentorImpl::instrumentFunction(Function &Fn) {
     ++IIRB.Epoch;
 
     IIRB.IRB.SetInsertPoint(
-        cast<Function>(FPtr)->getEntryBlock().getFirstNonPHIOrDbgOrAlloca());
+        cast<Function>(FPtr)->getEntryBlock().getFirstNonPHIOrAlloca());
     ensureDbgLoc(IIRB.IRB);
     IO->instrument(FPtr, Changed, IConf, IIRB, ICaches);
     IIRB.returnAllocas();
@@ -364,7 +364,7 @@ bool InstrumentorImpl::instrumentModule() {
         IConf.getRTName(Ctor ? "ctor" : "dtor", ""), M);
 
     auto *EntryBB = BasicBlock::Create(IIRB.Ctx, "entry", YtorFn);
-    IIRB.IRB.SetInsertPoint(EntryBB, EntryBB->begin());
+    IIRB.IRB.SetInsertPoint(EntryBB->begin());
     ensureDbgLoc(IIRB.IRB);
     IIRB.IRB.CreateRetVoid();
 
@@ -1586,7 +1586,7 @@ Value *GlobalVarIO::setAddress(Value &V, Value &NewV,
     if (!Reload) {
       Reload = new LoadInst(
           GV.getType(), ShadowGV, GV.getName() + ".shadow_load",
-          UserI->getFunction()->getEntryBlock().getFirstNonPHIOrDbgOrAlloca());
+          UserI->getFunction()->getEntryBlock().getFirstNonPHIOrAlloca());
       IIRB.NewInsts.insert({Reload, IIRB.Epoch});
     }
     Worklist.push_back({UserI, &UserU});

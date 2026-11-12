@@ -27,9 +27,9 @@
 // CHECK: @gmethod2 = global { i64, i64 } { i64 ptrtoint (ptr @_ZN5Base08virtual1Ev_vfpthunk_.ptrauth to i64), i64 0 }, align 8
 
 // CHECK: @_ZTV5Base0 = constant { [5 x ptr] } { [5 x ptr] [ptr null, ptr @_ZTI5Base0, ptr @_ZN5Base08virtual1Ev.ptrauth, ptr @_ZN5Base08virtual3Ev.ptrauth, ptr @_ZN5Base016virtual_variadicEiz.ptrauth] }, align 8
-// CHECK: @_ZN5Base08virtual1Ev.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base08virtual1Ev, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ [5 x ptr] }, ptr @_ZTV5Base0, i32 0, i32 0, i32 2) to i64), i64 55600 }, section "llvm.ptrauth", align 8
-// CHECK: @_ZN5Base08virtual3Ev.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base08virtual3Ev, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ [5 x ptr] }, ptr @_ZTV5Base0, i32 0, i32 0, i32 3) to i64), i64 53007 }, section "llvm.ptrauth", align 8
-// CHECK: @_ZN5Base016virtual_variadicEiz.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base016virtual_variadicEiz, i32 0, i64 ptrtoint (ptr getelementptr inbounds ({ [5 x ptr] }, ptr @_ZTV5Base0, i32 0, i32 0, i32 4) to i64), i64 7464 }, section "llvm.ptrauth", align 8
+// CHECK: @_ZN5Base08virtual1Ev.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base08virtual1Ev, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @_ZTV5Base0, i64 16) to i64), i64 55600 }, section "llvm.ptrauth", align 8
+// CHECK: @_ZN5Base08virtual3Ev.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base08virtual3Ev, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @_ZTV5Base0, i64 24) to i64), i64 53007 }, section "llvm.ptrauth", align 8
+// CHECK: @_ZN5Base016virtual_variadicEiz.ptrauth = private constant { ptr, i32, i64, i64 } { ptr @_ZN5Base016virtual_variadicEiz, i32 0, i64 ptrtoint (ptr getelementptr inbounds (i8, ptr @_ZTV5Base0, i64 32) to i64), i64 7464 }, section "llvm.ptrauth", align 8
 
 struct Base0 {
   void nonvirtual0();
