@@ -11,6 +11,7 @@
 #include "clang/Basic/DiagnosticCAS.h"
 #include "clang/CAS/IncludeTree.h"
 #include "clang/DependencyScanning/CachingActions.h"
+#include "clang/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/DependencyScanning/ScanAndUpdateArgs.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
@@ -41,13 +42,16 @@ private:
 
   void initializeScanInvocation(CompilerInvocation &ScanInvocation) override;
   bool initialize(CompilerInstance &ScanInstance,
-                  CompilerInvocation &NewInvocation) override;
+                  CompilerInvocation &NewInvocation,
+                  DependencyScanningWorkerFilesystem *DepFS) override;
   bool finalize(CompilerInstance &ScanInstance,
                 CowCompilerInvocation &NewInvocation) override;
   std::optional<std::string>
   getCacheKey(const CompilerInvocation &NewInvocation) override;
 
-  bool initializeModuleBuild(CompilerInstance &ModuleScanInstance) override;
+  bool
+  initializeModuleBuild(CompilerInstance &ModuleScanInstance,
+                        DependencyScanningWorkerFilesystem *DepFS) override;
   bool finalizeModuleBuild(CompilerInstance &ModuleScanInstance) override;
   bool finalizeModuleInvocation(CompilerInstance &ScanInstance,
                                 CowCompilerInvocation &CI,
@@ -75,8 +79,10 @@ private:
 /// popping builders from the stack as modules are required.
 class IncludeTreeBuilder {
 public:
-  IncludeTreeBuilder(cas::ObjectStore &DB, llvm::PrefixMapper &PrefixMapper)
-      : DB(DB), PrefixMapper(PrefixMapper) {}
+  IncludeTreeBuilder(cas::ObjectStore &DB,
+                     DependencyScanningWorkerFilesystem *DepFS,
+                     llvm::PrefixMapper &PrefixMapper)
+      : DB(DB), DepFS(DepFS), PrefixMapper(PrefixMapper) {}
 
   Expected<cas::IncludeTreeRoot>
   finishIncludeTree(CompilerInstance &ScanInstance,
@@ -111,6 +117,8 @@ private:
   getObjectForFileNonCached(FileManager &FM, const SrcMgr::FileInfo &FI);
   Expected<cas::ObjectRef> getObjectForBuffer(const SrcMgr::FileInfo &FI);
   Expected<cas::ObjectRef> addToFileList(FileManager &FM, FileEntryRef FE);
+  Expected<cas::ObjectRef> getObjectRefForFileContents(FileManager &FM,
+                                                       FileEntryRef FE);
   Expected<cas::IncludeTree> getCASTreeForFileIncludes(FilePPState &&PPState);
   Expected<cas::IncludeTree::File> createIncludeFile(StringRef Filename,
                                                      cas::ObjectRef Contents);
@@ -127,6 +135,9 @@ private:
 
 private:
   cas::ObjectStore &DB;
+  /// If non-null, the scanning filesystem the compilation reads files
+  /// through. It holds the CAS references it captured when it read each file.
+  DependencyScanningWorkerFilesystem *DepFS;
   llvm::PrefixMapper &PrefixMapper;
 
   std::optional<cas::ObjectRef> PCHRef;
@@ -317,7 +328,8 @@ void IncludeTreeActionController::initializeScanInvocation(
 }
 
 bool IncludeTreeActionController::initialize(
-    CompilerInstance &ScanInstance, CompilerInvocation &NewInvocation) {
+    CompilerInstance &ScanInstance, CompilerInvocation &NewInvocation,
+    DependencyScanningWorkerFilesystem *DepFS) {
   DepscanPrefixMapping::configurePrefixMapper(NewInvocation, PrefixMapper);
 
   auto ensurePathRemapping = [&]() {
@@ -340,7 +352,7 @@ bool IncludeTreeActionController::initialize(
   ensurePathRemapping();
 
   BuilderStack.push_back(
-      std::make_unique<IncludeTreeBuilder>(DB, PrefixMapper));
+      std::make_unique<IncludeTreeBuilder>(DB, DepFS, PrefixMapper));
 
   // Attach callbacks for the IncludeTree of the TU. The preprocessor
   // does not exist yet, so we need to indirect this via DependencyCollector.
@@ -417,9 +429,10 @@ std::optional<std::string> IncludeTreeActionController::getCacheKey(
 }
 
 bool IncludeTreeActionController::initializeModuleBuild(
-    CompilerInstance &ModuleScanInstance) {
+    CompilerInstance &ModuleScanInstance,
+    DependencyScanningWorkerFilesystem *DepFS) {
   BuilderStack.push_back(
-      std::make_unique<IncludeTreeBuilder>(DB, PrefixMapper));
+      std::make_unique<IncludeTreeBuilder>(DB, DepFS, PrefixMapper));
 
   // Attach callbacks for the IncludeTree of the module. The preprocessor
   // does not exist yet, so we need to indirect this via DependencyCollector.
@@ -718,10 +731,14 @@ Expected<cas::IncludeTreeRoot> IncludeTreeBuilder::finishIncludeTree(
     if (PPOpts.ImplicitPCHInclude.empty())
       return Error::success(); // no need for additional work.
 
-    llvm::ErrorOr<cas::ObjectRef> CASContents =
-        FM.getObjectRefForFileContent(PPOpts.ImplicitPCHInclude);
+    Expected<FileEntryRef> PCHEntry = FM.getFileRef(PPOpts.ImplicitPCHInclude);
+    if (!PCHEntry)
+      return llvm::createFileError(PPOpts.ImplicitPCHInclude,
+                                   PCHEntry.takeError());
+    Expected<cas::ObjectRef> CASContents =
+        getObjectRefForFileContents(FM, *PCHEntry);
     if (!CASContents)
-      return llvm::createFileError(PPOpts.ImplicitPCHInclude, CASContents.getError());
+      return CASContents.takeError();
 
     // Use a unique 'filename' for the PCH to make sure there are no conflicts
     // during lookup if there is another chained parent PCH.
@@ -915,6 +932,26 @@ IncludeTreeBuilder::getObjectForBuffer(const SrcMgr::FileInfo &FI) {
   return FileNode->getRef();
 }
 
+/// Get the CAS reference for the contents of \p FE.
+///
+/// The contents are read through \p FM, so the file is resolved exactly as the
+/// compilation resolves it. If they came through the scanning filesystem, the
+/// reference it captured when it read them is reused; otherwise the contents
+/// are stored in the CAS here.
+Expected<cas::ObjectRef>
+IncludeTreeBuilder::getObjectRefForFileContents(FileManager &FM,
+                                                FileEntryRef FE) {
+  auto Buffer = FM.getBufferForFile(FE);
+  if (!Buffer)
+    return llvm::createFileError(FE.getName(), Buffer.getError());
+  StringRef Contents = (*Buffer)->getBuffer();
+  if (DepFS)
+    if (std::optional<cas::ObjectRef> Ref =
+            DepFS->getObjectRefForContents(FE.getUniqueID(), Contents))
+      return *Ref;
+  return DB.storeFromString({}, Contents);
+}
+
 Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
                                                            FileEntryRef FE) {
   SmallString<128> PathStorage;
@@ -929,10 +966,9 @@ Expected<cas::ObjectRef> IncludeTreeBuilder::addToFileList(FileManager &FM,
     Filename = PathStorage;
   }
 
-  llvm::ErrorOr<cas::ObjectRef> CASContents =
-      FM.getObjectRefForFileContent(Filename);
+  Expected<cas::ObjectRef> CASContents = getObjectRefForFileContents(FM, FE);
   if (!CASContents)
-    return llvm::createFileError(Filename, CASContents.getError());
+    return CASContents.takeError();
 
   auto addFile = [&](StringRef Filename) -> Expected<cas::ObjectRef> {
     assert(!Filename.empty());
