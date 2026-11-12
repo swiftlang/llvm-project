@@ -524,11 +524,11 @@ static int scanAndUpdateCC1Inline(
     return 1;
 
   dependencies::DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [] {
-    auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-    return llvm::vfs::createPhysicalFileSystem();
-  };
-  Opts.Compilation = dependencies::IncludeTreeCompilation{CASOpts, DB, Cache};
+  Opts.Compilation = dependencies::IncludeTreeCompilation{
+      CASOpts, DB, Cache, [] {
+        auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
+        return llvm::vfs::createPhysicalFileSystem();
+      }};
   Opts.AsCompilation = true;
   dependencies::DependencyScanningService Service(std::move(Opts));
   tooling::DependencyScanningTool Tool(Service);
@@ -985,11 +985,11 @@ int ScanServer::listen() {
     reportError("cannot create ActionCache");
 
   dependencies::DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [] {
-    auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-    return llvm::vfs::createPhysicalFileSystem();
-  };
-  Opts.Compilation = dependencies::IncludeTreeCompilation{CASOpts, CAS, Cache};
+  Opts.Compilation = dependencies::IncludeTreeCompilation{
+      CASOpts, CAS, Cache, [] {
+        auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
+        return llvm::vfs::createPhysicalFileSystem();
+      }};
   Opts.AsCompilation = true;
   dependencies::DependencyScanningService Service(std::move(Opts));
 

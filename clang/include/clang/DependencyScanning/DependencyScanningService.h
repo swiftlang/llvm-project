@@ -65,7 +65,20 @@ enum class ScanningOptimizations {
   FullIncludeTreeIrrelevant = HeaderSearch | VFS,
 };
 
-struct RegularCompilation {};
+#undef DSS_LAST_BITMASK_ENUM
+
+/// The function invoked to create each worker's VFS. This function and the
+/// VFS itself must be thread-safe whenever using multiple workers concurrently
+/// or whenever \c DependencyScanningServiceOptions::AsyncScanModules is true.
+using MakeVFSFn = std::function<IntrusiveRefCntPtr<llvm::vfs::FileSystem>()>;
+
+/// Scan for a regular compilation that reads its inputs from the file system.
+struct RegularCompilation {
+  /// Creates the VFS the scanner reads inputs from. The resulting compilation
+  /// reads the same paths, so they must be accessible to it too.
+  MakeVFSFn MakeVFS = [] { return llvm::vfs::createPhysicalFileSystem(); };
+};
+/// Scan for a compilation that reads its inputs from a CAS-based include tree.
 struct IncludeTreeCompilation {
   /// The CAS configuration.
   CASOptions CASOpts;
@@ -73,11 +86,13 @@ struct IncludeTreeCompilation {
   std::shared_ptr<cas::ObjectStore> CAS;
   /// The CAS cache to use.
   std::shared_ptr<cas::ActionCache> Cache;
+  /// Creates the VFS the scanner reads inputs from. Their contents are stored
+  /// in \c CAS as they are read.
+  MakeVFSFn MakeVFS = [] { return llvm::vfs::createPhysicalFileSystem(); };
 };
+/// What compilation the scan is for, and where it reads its inputs from.
 using CompilationMode =
     std::variant<RegularCompilation, IncludeTreeCompilation>;
-
-#undef DSS_LAST_BITMASK_ENUM
 
 bool shouldCacheNegativeStatsDefault();
 
@@ -89,14 +104,9 @@ bool shouldCacheNegativeStatsForPath(StringRef Path);
 struct DependencyScanningServiceOptions {
   DependencyScanningServiceOptions();
 
-  /// The function invoked to create each worker's VFS. This function and the
-  /// VFS itself must be thread-safe whenever using multiple workers
-  /// concurrently or whenever \c AsyncScanModules is true.
-  std::function<IntrusiveRefCntPtr<llvm::vfs::FileSystem>()>
-      MakeVFS; // = [] { return llvm::vfs::createPhysicalFileSystem(); }
   /// Whether to use optimized dependency directive scan or full preprocessing.
   ScanningMode Mode = ScanningMode::DependencyDirectivesScan;
-  /// How to compile the resulting modules and translation units.
+  /// What compilation to scan for, and where to read its inputs from.
   CompilationMode Compilation = RegularCompilation{};
   /// How to optimize resulting explicit module command lines.
   ScanningOptimizations OptimizeArgs = ScanningOptimizations::Default;

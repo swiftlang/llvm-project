@@ -233,7 +233,7 @@ TEST(DependencyScanner, ScanDepsWithFS) {
                llvm::MemoryBuffer::getMemBuffer("#include \"header.h\"\n"));
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [&] { return VFS; };
+  Opts.Compilation = RegularCompilation{[&] { return VFS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -393,7 +393,7 @@ TEST(DependencyScanner, ScanDepsWithModuleLookup) {
   auto InterceptFS = llvm::makeIntrusiveRefCnt<InterceptorFS>(VFS);
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [&] { return InterceptFS; };
+  Opts.Compilation = RegularCompilation{[&] { return InterceptFS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -430,7 +430,7 @@ TEST(DependencyScanner, NoNegativeCache) {
                llvm::MemoryBuffer::getMemBuffer("#include \"header.h\""));
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [VFS] { return VFS; };
+  Opts.Compilation = RegularCompilation{[VFS] { return VFS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -493,8 +493,8 @@ TEST(DependencyScanner, NoNegativeCacheCAS) {
                llvm::MemoryBuffer::getMemBuffer("#include \"header.h\""));
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [VFS] { return VFS; };
-  Opts.Compilation = IncludeTreeCompilation{CASOptions(), DB, Cache};
+  Opts.Compilation =
+      IncludeTreeCompilation{CASOptions(), DB, Cache, [VFS] { return VFS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -547,7 +547,7 @@ TEST(DependencyScanner, ScanDepsTUBufferOverlayReachesScan) {
   VFS->setCurrentWorkingDirectory(CWD);
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [&] { return VFS; };
+  Opts.Compilation = RegularCompilation{[&] { return VFS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 
@@ -693,7 +693,7 @@ private:
   static DependencyScanningServiceOptions
   makeServiceOptions(IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> VFS) {
     DependencyScanningServiceOptions Opts;
-    Opts.MakeVFS = [VFS] { return VFS; };
+    Opts.Compilation = RegularCompilation{[VFS] { return VFS; }};
     return Opts;
   }
 };

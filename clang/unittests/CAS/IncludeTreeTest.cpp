@@ -49,8 +49,8 @@ TEST(IncludeTree, IncludeTreeScan) {
   add("sys_indirect.h", "");
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [FS] { return FS; };
-  Opts.Compilation = IncludeTreeCompilation{CASOpts, DB, Cache};
+  Opts.Compilation =
+      IncludeTreeCompilation{CASOpts, DB, Cache, [FS] { return FS; }};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);
 

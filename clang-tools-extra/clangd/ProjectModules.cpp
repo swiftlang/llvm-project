@@ -154,7 +154,8 @@ public:
       const ThreadsafeFS &TFS)
       : CDB(CDB), Service([&TFS] {
           dependencies::DependencyScanningServiceOptions Opts;
-          Opts.MakeVFS = [&] { return TFS.view(std::nullopt); };
+          Opts.Compilation = dependencies::RegularCompilation{
+              [&] { return TFS.view(std::nullopt); }};
           Opts.Mode = dependencies::ScanningMode::CanonicalPreprocessing;
           Opts.EmitWarnings = false;
           Opts.ReportAbsolutePaths = false;

@@ -133,6 +133,14 @@ public:
 /// Create the dependency collector that will collect the produced
 /// dependencies. May return the created ModuleDepCollector depending
 /// on the scanning format.
+/// Creates the VFS a new worker reads its inputs from.
+static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+makeBaseVFS(const DependencyScanningService &Service) {
+  return std::visit(
+      [](const auto &Compilation) { return Compilation.MakeVFS(); },
+      Service.getOpts().Compilation);
+}
+
 static std::shared_ptr<ModuleDepCollector>
 initializeScanInstanceDependencyCollector(
     CompilerInstance &ScanInstance,
@@ -771,7 +779,7 @@ struct AsyncModuleCompile : PPCallbacks {
       return;
     // We should build the PCM.
     auto DepFS = llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
-        Service, Service.getOpts().MakeVFS());
+        Service, makeBaseVFS(Service));
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
         createVFSFromCompilerInvocation(CI.getInvocation(), CI.getDiagnostics(),
                                         DepFS, Service.getCAS());
@@ -1294,7 +1302,7 @@ DependencyScanningWorker::DependencyScanningWorker(
   // The scanner itself writes only raw ast files.
   PCHContainerOps->registerWriter(std::make_unique<RawPCHContainerWriter>());
 
-  auto BaseFS = Service.getOpts().MakeVFS();
+  auto BaseFS = makeBaseVFS(Service);
 
   if (Service.getOpts().TraceVFS) {
     TracingFS = llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(
