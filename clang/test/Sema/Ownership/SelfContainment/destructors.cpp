@@ -27,13 +27,15 @@ struct D3 {
 // Class templates.
 template <class T> void release(T *) OWNERSHIP_TAKES(1);
 
-template <class T> struct Box {    // expected-warning {{type 'Box<char>' failed to infer}}
-  T *p;                            // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
-  ~Box() { release(p); }           // expected-note {{destructor was not instantiated for this specialization}}
+template <class T>
+struct Box { // expected-warning {{type 'Box<char>' failed to infer}}
+  T *p; // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
+  ~Box() { release(p); }
+  // expected-note@-1 {{destructor was not instantiated for this specialization}}
 };
 
-// The destructor of an explicit instantiation has a body. The analysis can't
-// yet tell what that body does.
+// The destructor of an explicit instantiation has a body.
+// The analysis can't yet tell what that body does.
 template struct Box<int>;
 // expected-warning@-1 {{type 'Box<int>' failed to infer}}
 
@@ -44,8 +46,9 @@ unsigned long size = sizeof(Box<char>);
 
 // A destructor that is declared, but defined nowhere, has no body to
 // instantiate. Unlike above, there is no pattern body, so it is opaque.
-template <class T> struct DeclaredOnly { // expected-warning {{type 'DeclaredOnly<char>' failed to infer}}
-  T *p;                            // expected-note {{holds unmanaged raw-pointer field 'p'}}
-  ~DeclaredOnly();                 // expected-note {{declares opaque destructor}}
+// expected-warning@+1 {{type 'DeclaredOnly<char>' failed to infer}}
+template <class T> struct DeclaredOnly {
+  T *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~DeclaredOnly(); // expected-note {{declares opaque destructor}}
 };
 unsigned long size2 = sizeof(DeclaredOnly<char>);
