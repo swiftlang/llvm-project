@@ -65,6 +65,7 @@ add_llvm_unittest(CASTests
   NamedValuesSchemaTest.cpp
   ObjectStoreTest.cpp
   OnDiskCommonUtils.cpp
+  TracingCASBackedFileSystemTest.cpp
   TreeSchemaTest.cpp
   UniqueTempFileTest.cpp
 
