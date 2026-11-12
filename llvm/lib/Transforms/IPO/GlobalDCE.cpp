@@ -506,6 +506,14 @@ void GlobalDCEPass::PropagateLivenessToConditionallyUsed(Module &M) {
     if (NewSize == OldSize) break;
   }
 
+  // setUsedInitializer replaces @llvm.used with a new global and deletes the
+  // old one. The old one was already marked live and has dependency edges, so
+  // forget it before it is freed; otherwise the next liveness propagation would
+  // start from a dangling pointer. Everything it kept alive has already been
+  // marked live by the propagation above, and the globals added to the new
+  // array were marked live explicitly.
+  AliveGlobals.erase(Used);
+  GVDependencies.erase(Used);
   Used = setUsedInitializer(*Used, NewUsedArray);
   MarkLive(*Used);
 }
