@@ -296,8 +296,7 @@ public:
 
 private:
   /// Take the annotation of the class or infer one otherwise.
-  /// \p R may be just a declaration.
-  Result useOfClass(const RecordDecl *R);
+  Result useOfClass(const RecordDecl *Def);
 
   /// Report the inference outcome as a warning or a warning about failed
   /// inference.
@@ -361,17 +360,15 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
   return true;
 }
 
-Result SelfContainmentAnalysis::useOfClass(const RecordDecl *R) {
+Result SelfContainmentAnalysis::useOfClass(const RecordDecl *Def) {
+  assert(Def->isThisDeclarationADefinition());
+
   // If has explicit annotation, trust that for the current use.
-  if (auto TrustedResult = hasEitherViewOrSelfContainedAttr(R))
+  if (auto TrustedResult = hasEitherViewOrSelfContainedAttr(Def))
     return TrustedResult.value();
 
   // Infer if it didn't have one.
-  if (const RecordDecl *Def = R->getDefinition())
-    return inferDefinitionOfRecord(Def).Outcome;
-
-  // Well, couldn't infer one and it also didn't have an explicit.
-  return Result::Unknown;
+  return inferDefinitionOfRecord(Def).Outcome;
 }
 
 void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
