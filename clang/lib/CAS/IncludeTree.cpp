@@ -135,7 +135,7 @@ Expected<IncludeTree> IncludeTree::create(
   Refs.reserve(Includes.size() + 2);
   Refs.push_back(BaseFile);
   SmallString<64> Buffer;
-  Buffer.reserve(Includes.size() * sizeof(uint32_t) + 1);
+  Buffer.reserve(Includes.size() * (sizeof(uint32_t) + sizeof(NodeKind)) + 1);
 
   Buffer += Kind;
 
@@ -151,7 +151,7 @@ Expected<IncludeTree> IncludeTree::create(
             SpuriousImport::isValid(DB, Include.Ref)));
     Refs.push_back(Include.Ref);
     Writer.write(Include.Offset);
-    static_assert(sizeof(uint8_t) == sizeof(Kind));
+    static_assert(sizeof(uint8_t) == sizeof(Include.Kind));
     Writer.write(static_cast<uint8_t>(Include.Kind));
   }
 
