@@ -11368,11 +11368,11 @@ def warn_ownership_inference_suggest_view : Warning<
 
 def note_ownership_inference_holds_field_inferred : Note<
   "holds field %quoted0 of type %q1 that was "
-  "%select{inferred|annotated}2 as '%select{view|unknown}3'">;
+  "%select{inferred|annotated}2 as '%3'">;
 
 def note_ownership_inference_derives_from_base_inferred : Note<
   "derives from class %q0 that was "
-  "%select{inferred|annotated}1 as '%select{view|unknown}2'">;
+  "%select{inferred|annotated}1 as '%2'">;
 
 def note_ownership_inference_holds_field : Note<
   "holds %select{reference|unmanaged raw-pointer|managed raw-pointer}0 "

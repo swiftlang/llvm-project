@@ -123,7 +123,9 @@ struct DerivesFrom {
     return Base.getType()->getAsCXXRecordDecl();
   }
 
-  bool trustedViewAttribute() const { return hasViewAttr(asDecl()); }
+  bool wasAnnotated() const {
+    return hasEitherViewOrSelfContainedAttr(asDecl()).has_value();
+  }
   void report(DiagnosticsEngine &Diags) const;
 };
 
@@ -132,7 +134,9 @@ struct HoldsField {
   const RecordDecl *CheckedRecord;
   Result Outcome;
 
-  bool trustedViewAttribute() const { return hasViewAttr(CheckedRecord); }
+  bool wasAnnotated() const {
+    return hasEitherViewOrSelfContainedAttr(CheckedRecord).has_value();
+  }
   void report(DiagnosticsEngine &Diags) const;
 };
 
@@ -170,24 +174,22 @@ void HoldsManagedRawPtrField::report(DiagnosticsEngine &Diags) const {
       << SourceRange(Loc);
 }
 
-// derives from class % that was {inferred|annotated} as '{view|unknown}'
+// derives from class % that was {inferred|annotated} as '%'
 void DerivesFrom::report(DiagnosticsEngine &Diags) const {
-  auto ResultSelect = [](Result R) { return R == Result::View ? 0 : 1; };
   // Point at the base-specifier (where the inheritance is expressed),
   // not the base class's own definition.
   SourceLocation Loc = Base.getBaseTypeLoc();
   Diags.Report(Loc, diag::note_ownership_inference_derives_from_base_inferred)
-      << asDecl() << trustedViewAttribute() << ResultSelect(Outcome)
+      << asDecl() << wasAnnotated() << asString(Outcome)
       << SourceRange(Loc);
 }
 
-// holds field % of type % that was {inferred|annotated} as '{view|unknown}'
+// holds field % of type % that was {inferred|annotated} as '%'
 void HoldsField::report(DiagnosticsEngine &Diags) const {
-  auto ResultSelect = [](Result R) { return R == Result::View ? 0 : 1; };
   SourceLocation Loc = Field->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_holds_field_inferred)
-      << fieldDisplayName(Field) << CheckedRecord << trustedViewAttribute()
-      << ResultSelect(Outcome) << SourceRange(Loc);
+      << fieldDisplayName(Field) << CheckedRecord << wasAnnotated()
+      << asString(Outcome) << SourceRange(Loc);
 }
 
 // destructor was not instantiated for this specialization

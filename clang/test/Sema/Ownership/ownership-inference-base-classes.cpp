@@ -24,8 +24,7 @@ struct DerivesView : View {};
 // even though the derived class has no fields of its own.
 struct DerivesValue : Value {};
 // expected-warning@-1 {{type 'DerivesValue' was inferred as 'self-contained'}}
-// FIXME: the note should say 'self-contained', it can only say 'view' or 'unknown'.
-// expected-note@-3 {{derives from class 'Value' that was inferred as 'unknown'}}
+// expected-note@-2 {{derives from class 'Value' that was inferred as 'self-contained'}}
 
 // Every base contributes, the worst outcome wins.
 struct View2 {                     // expected-warning 2 {{type 'View2' was inferred as 'view'}}
@@ -36,9 +35,8 @@ struct Value2 {                    // expected-warning 2 {{type 'Value2' was inf
 };
 struct DerivesBoth : Value2, View2 {};
 // expected-warning@-1 {{type 'DerivesBoth' was inferred as 'view'}}
-// FIXME: the note should say 'self-contained', it can only say 'view' or 'unknown'.
-// expected-note@-3 {{derives from class 'Value2' that was inferred as 'unknown'}}
-// expected-note@-4 {{derives from class 'View2' that was inferred as 'view'}}
+// expected-note@-2 {{derives from class 'Value2' that was inferred as 'self-contained'}}
+// expected-note@-3 {{derives from class 'View2' that was inferred as 'view'}}
 
 // A base whose inference was inconclusive taints the derived class.
 struct Opaque {                    // expected-warning 2 {{type 'Opaque' failed to infer}}
@@ -64,11 +62,29 @@ struct __attribute__((swift_attr("Escapable"))) AnnotatedSelfContained {
 // expected-warning@-4 {{type 'AnnotatedSelfContained' was inferred as 'view'}}
 struct DerivesAnnotatedSelfContained : AnnotatedSelfContained {};
 // expected-warning@-1 {{type 'DerivesAnnotatedSelfContained' was inferred as 'self-contained'}}
-// FIXME: the note should say 'self-contained', it can only say 'view' or 'unknown'.
-// expected-note@-3 {{derives from class 'AnnotatedSelfContained' that was inferred as 'unknown'}}
+// expected-note@-2 {{derives from class 'AnnotatedSelfContained' that was annotated as 'self-contained'}}
 
 // The same applies for fields holding annotated classes.
 struct HoldsAnnotatedView {
   AnnotatedView v;                 // expected-note {{holds field 'v' of type 'AnnotatedView' that was annotated as 'view'}}
 };
 // expected-warning@-3 {{type 'HoldsAnnotatedView' was inferred as 'view'}}
+
+// The notes spell the outcome of the base or field, whatever it is.
+struct Empty {};                   // expected-warning 2 {{type 'Empty' was trivially inferred as 'self-contained'}}
+struct DerivesEmpty : Empty {};
+// expected-warning@-1 {{type 'DerivesEmpty' was trivially inferred as 'self-contained'}}
+// expected-note@-2 {{derives from class 'Empty' that was inferred as 'trivially-self-contained'}}
+
+struct Value3 {                    // expected-warning 2 {{type 'Value3' was inferred as 'self-contained'}}
+  int x;
+};
+struct HoldsValue {                // expected-warning {{type 'HoldsValue' was inferred as 'view'}}
+  Value3 v;                        // expected-note {{holds field 'v' of type 'Value3' that was inferred as 'self-contained'}}
+  int &r;                          // expected-note {{holds reference field 'r'}}
+};
+
+struct HoldsAnnotatedSelfContained {
+  AnnotatedSelfContained v;        // expected-note {{holds field 'v' of type 'AnnotatedSelfContained' that was annotated as 'self-contained'}}
+};
+// expected-warning@-3 {{type 'HoldsAnnotatedSelfContained' was inferred as 'self-contained'}}
