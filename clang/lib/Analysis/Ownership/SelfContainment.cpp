@@ -86,20 +86,10 @@ hasEitherViewOrSelfContainedAttr(const RecordDecl *R) {
 static StringRef fieldDisplayName(const FieldDecl *F) {
   const auto *RD = dyn_cast_or_null<CXXRecordDecl>(F->getParent());
   if (RD && RD->isLambda()) {
-    for (const auto &[Field, Cap] : zip_equal(RD->fields(), RD->captures())) {
-      if (Field != F)
-        continue;
-      if (Cap.capturesThis())
-        return "this";
-      if (Cap.capturesVariable())
-        return Cap.getCapturedVar()->getName();
-      // Unreachable: the only capture that is neither 'this' nor a variable is
-      // a VLA bound, whose implicit field is an integer.
-      // We only name the reference, pointer and record fields.
-      assert(false && "unexpected capture kind for a reported field");
-      break; // fall through
-    }
+    const LambdaCapture *Cap = RD->getCapture(F->getFieldIndex());
+    return Cap->capturesThis() ? "this" : Cap->getCapturedVar()->getName();
   }
+
   return F->getName();
 }
 
