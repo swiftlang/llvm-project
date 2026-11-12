@@ -55,28 +55,35 @@ DependencyScanningService::DependencyScanningService(
   // Include-tree compilation completely subsumes header search and VFS
   // optimizations due to how it works. Disable these optimizations so we're not
   // doing unneeded work.
-  if (std::holds_alternative<IncludeTreeCompilation>(Opts.Compilation))
+  if (!std::holds_alternative<RegularCompilation>(Opts.Compilation))
     Opts.OptimizeArgs &= ~ScanningOptimizations::FullIncludeTreeIrrelevant;
 }
 
-CASOptions DependencyScanningService::getCASOpts() const {
+/// Returns \p Get applied to the include-tree configuration of \p Compilation,
+/// or a default-constructed value for a regular compilation.
+template <typename GetT>
+static auto getFromIncludeTree(const CompilationMode &Compilation, GetT Get) {
+  using ResultT = decltype(Get(std::declval<const IncludeTreeCompilation &>()));
+  if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(&Compilation))
+    return Get(*IncludeTree);
   if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Opts.Compilation))
-    return IncludeTree->CASOpts;
-  return {};
+          std::get_if<CASFSIncludeTreeCompilation>(&Compilation))
+    return Get(*IncludeTree);
+  return ResultT();
+}
+
+CASOptions DependencyScanningService::getCASOpts() const {
+  return getFromIncludeTree(Opts.Compilation,
+                            [](const auto &IT) { return IT.CASOpts; });
 }
 
 std::shared_ptr<cas::ObjectStore> DependencyScanningService::getCAS() const {
-  if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Opts.Compilation))
-    return IncludeTree->CAS;
-  return nullptr;
+  return getFromIncludeTree(Opts.Compilation,
+                            [](const auto &IT) { return IT.CAS; });
 }
 
 std::shared_ptr<cas::ActionCache>
 DependencyScanningService::getActionCache() const {
-  if (auto *IncludeTree =
-          std::get_if<IncludeTreeCompilation>(&Opts.Compilation))
-    return IncludeTree->Cache;
-  return nullptr;
+  return getFromIncludeTree(Opts.Compilation,
+                            [](const auto &IT) { return IT.Cache; });
 }

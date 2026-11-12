@@ -8,6 +8,7 @@
 
 #include "clang/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/DependencyScanning/DependencyScanningService.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"
@@ -52,6 +53,22 @@ DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
   }
 
   return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
+}
+
+llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
+DependencyScanningWorkerFilesystem::readFileWithObjectRef(
+    StringRef Filename, llvm::vfs::Status Stat,
+    llvm::cas::CASBackedFileSystem &FS) {
+  auto MaybeBufferAndRef = FS.getBufferAndObjectRefForFile(Filename);
+  if (!MaybeBufferAndRef)
+    return llvm::errorToErrorCode(MaybeBufferAndRef.takeError());
+  auto [Buffer, Ref] = std::move(*MaybeBufferAndRef);
+
+  // If the file size changed between read and stat, pretend it didn't.
+  if (Stat.getSize() != Buffer->getBufferSize())
+    Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
+
+  return TentativeEntry(Stat, std::move(Buffer), Ref);
 }
 
 bool DependencyScanningWorkerFilesystem::ensureDirectiveTokensArePopulated(
@@ -261,6 +278,20 @@ DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
   updateWorkingDirForCacheLookup();
 }
 
+DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
+    DependencyScanningService &Service,
+    IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> FS,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS)
+    : DependencyScanningWorkerFilesystem(
+          Service, IntrusiveRefCntPtr<llvm::vfs::FileSystem>(FS),
+          std::move(LocalFS)) {
+  assert(CAS && "references from a CAS-backed filesystem are only used by "
+                "an include-tree compilation");
+  assert(&FS->getCAS() == CAS &&
+         "the filesystem must be backed by the CAS of the compilation");
+  CASFS = FS.get();
+}
+
 const CachedFileSystemEntry *DependencyScanningWorkerFilesystem::createEntry(
     llvm::ErrorOr<TentativeEntry> &TEntry,
     llvm::SpecificBumpPtrAllocator<CachedFileContents> &ContentsStorage,
@@ -293,7 +324,8 @@ DependencyScanningWorkerFilesystem::resolveUIDThroughSharedCache(
   auto UIDProducer = std::move(std::get<SlotProducer>(UIDSlot));
 
   auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                                   : readFile(OriginalFilename, *BaseFS, CAS);
+                : CASFS ? readFileWithObjectRef(OriginalFilename, Stat, *CASFS)
+                        : readFile(OriginalFilename, *BaseFS, CAS);
 
   // Allocate the entry and bind the UID slot under one shard-lock acquisition
   // (BumpPtrAllocator isn't thread-safe). On read-failure, the entry wraps

@@ -15,6 +15,7 @@
 #include "clang/DependencyScanning/InProcessModuleCache.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/CAS/ActionCache.h"
+#include "llvm/CAS/CASFileSystem.h"
 
 #include <variant>
 
@@ -90,9 +91,33 @@ struct IncludeTreeCompilation {
   /// in \c CAS as they are read.
   MakeVFSFn MakeVFS = [] { return llvm::vfs::createPhysicalFileSystem(); };
 };
+
+/// The function invoked to create each worker's CAS-backed VFS, with the same
+/// thread-safety requirements as \c MakeVFSFn.
+using MakeCASFSFn =
+    std::function<IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem>()>;
+
+/// Scan for a compilation that reads its inputs from a CAS-based include tree,
+/// reading them from a filesystem that already knows their CAS references.
+///
+/// The scanner uses those references instead of storing the contents in the
+/// CAS itself. Since the files may exist nowhere but in the CAS, there is no
+/// equivalent for a regular compilation.
+struct CASFSIncludeTreeCompilation {
+  /// The CAS configuration.
+  CASOptions CASOpts;
+  /// The CAS database to use. Must be the CAS the filesystems created by
+  /// \c MakeCASFS are backed by.
+  std::shared_ptr<cas::ObjectStore> CAS;
+  /// The CAS cache to use.
+  std::shared_ptr<cas::ActionCache> Cache;
+  /// Creates the VFS the scanner reads inputs from.
+  MakeCASFSFn MakeCASFS;
+};
+
 /// What compilation the scan is for, and where it reads its inputs from.
-using CompilationMode =
-    std::variant<RegularCompilation, IncludeTreeCompilation>;
+using CompilationMode = std::variant<RegularCompilation, IncludeTreeCompilation,
+                                     CASFSIncludeTreeCompilation>;
 
 bool shouldCacheNegativeStatsDefault();
 

@@ -22,6 +22,7 @@
 #include "clang/Serialization/ObjectFilePCHContainerReader.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/CAS/TracingCASBackedFileSystem.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/AdvisoryLock.h"
 #include "llvm/Support/CrashRecoveryContext.h"
@@ -133,12 +134,42 @@ public:
 /// Create the dependency collector that will collect the produced
 /// dependencies. May return the created ModuleDepCollector depending
 /// on the scanning format.
-/// Creates the VFS a new worker reads its inputs from.
-static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
-makeBaseVFS(const DependencyScanningService &Service) {
-  return std::visit(
-      [](const auto &Compilation) { return Compilation.MakeVFS(); },
-      Service.getOpts().Compilation);
+/// Creates a scanning VFS over a new VFS for reading inputs, as configured by
+/// the compilation mode of \p Service. If \p TracingFS is non-null, the calls
+/// made to the new VFS are traced, and \p *TracingFS is set to the VFS that
+/// holds their counts.
+static IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> makeDepFS(
+    DependencyScanningService &Service,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS = nullptr,
+    IntrusiveRefCntPtr<llvm::vfs::TracingFileSystem> *TracingFS = nullptr) {
+  const CompilationMode &Compilation = Service.getOpts().Compilation;
+  if (auto *CASFSIncludeTree =
+          std::get_if<CASFSIncludeTreeCompilation>(&Compilation)) {
+    IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> BaseFS =
+        CASFSIncludeTree->MakeCASFS();
+    if (TracingFS) {
+      auto Tracing =
+          llvm::makeIntrusiveRefCnt<llvm::cas::TracingCASBackedFileSystem>(
+              std::move(BaseFS));
+      *TracingFS = &Tracing->getTracingFS();
+      BaseFS = std::move(Tracing);
+    }
+    return llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
+        Service, std::move(BaseFS), std::move(LocalFS));
+  }
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS;
+  if (auto *Regular = std::get_if<RegularCompilation>(&Compilation))
+    BaseFS = Regular->MakeVFS();
+  else
+    BaseFS = std::get<IncludeTreeCompilation>(Compilation).MakeVFS();
+  if (TracingFS) {
+    *TracingFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(BaseFS);
+    BaseFS = *TracingFS;
+  }
+  return llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
+      Service, std::move(BaseFS), std::move(LocalFS));
 }
 
 static std::shared_ptr<ModuleDepCollector>
@@ -778,8 +809,7 @@ struct AsyncModuleCompile : PPCallbacks {
     if (!LockErr && !Owned)
       return;
     // We should build the PCM.
-    auto DepFS = llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
-        Service, makeBaseVFS(Service));
+    auto DepFS = makeDepFS(Service);
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
         createVFSFromCompilerInvocation(CI.getInvocation(), CI.getDiagnostics(),
                                         DepFS, Service.getCAS());
@@ -1302,16 +1332,8 @@ DependencyScanningWorker::DependencyScanningWorker(
   // The scanner itself writes only raw ast files.
   PCHContainerOps->registerWriter(std::make_unique<RawPCHContainerWriter>());
 
-  auto BaseFS = makeBaseVFS(Service);
-
-  if (Service.getOpts().TraceVFS) {
-    TracingFS = llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(
-        std::move(BaseFS));
-    BaseFS = TracingFS;
-  }
-
-  DepFS = llvm::makeIntrusiveRefCnt<DependencyScanningWorkerFilesystem>(
-      Service, std::move(BaseFS), std::move(LocalFS));
+  DepFS = makeDepFS(Service, std::move(LocalFS),
+                    Service.getOpts().TraceVFS ? &TracingFS : nullptr);
 }
 
 DependencyScanningWorker::~DependencyScanningWorker() = default;

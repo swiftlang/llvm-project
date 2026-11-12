@@ -2,6 +2,7 @@
 #include "clang/DependencyScanning/ScanAndUpdateArgs.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Tooling/DependencyScanningTool.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -191,6 +192,125 @@ TEST(IncludeTree, IncludeTreeScan) {
   EXPECT_EQ(Files[4].second, SysDirectiveContents.size());
   EXPECT_EQ(Files[5].first.getRef(), SysIndirectFile->getRef());
   EXPECT_EQ(Files[5].second, IncludeTree::FileList::FileSizeTy(0));
+}
+
+namespace {
+/// A CAS-backed filesystem over an in-memory one that already knows the CAS
+/// references of the files it provides, and counts how they are read.
+class KnownRefsFileSystem final : public llvm::cas::CASBackedFileSystem {
+public:
+  KnownRefsFileSystem(ObjectStore &CAS) : CAS(CAS) {
+    FS->setCurrentWorkingDirectory("/root");
+  }
+
+  void addFile(StringRef Path, StringRef Contents) {
+    FS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Contents));
+    KnownRefs.try_emplace(Contents,
+                          llvm::cantFail(CAS.storeFromString({}, Contents)));
+  }
+
+  unsigned NumOpenFileForReadCalls = 0;
+  unsigned NumGetBufferAndObjectRefCalls = 0;
+
+  llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override {
+    return FS->status(Path);
+  }
+  llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
+  openFileForRead(const Twine &Path) override {
+    ++NumOpenFileForReadCalls;
+    return FS->openFileForRead(Path);
+  }
+  llvm::vfs::directory_iterator dir_begin(const Twine &Dir,
+                                          std::error_code &EC) override {
+    return FS->dir_begin(Dir, EC);
+  }
+  llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override {
+    return FS->getCurrentWorkingDirectory();
+  }
+  std::error_code setCurrentWorkingDirectory(const Twine &Path) override {
+    return FS->setCurrentWorkingDirectory(Path);
+  }
+  std::error_code getRealPath(const Twine &Path,
+                              SmallVectorImpl<char> &Output) override {
+    return FS->getRealPath(Path, Output);
+  }
+
+  Expected<std::pair<std::unique_ptr<llvm::MemoryBuffer>, ObjectRef>>
+  getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                               bool RequiresNullTerminator, bool IsVolatile,
+                               bool IsText) override {
+    ++NumGetBufferAndObjectRefCalls;
+    auto Buffer = FS->getBufferForFile(Name, FileSize, RequiresNullTerminator,
+                                       IsVolatile, IsText);
+    if (!Buffer)
+      return llvm::errorCodeToError(Buffer.getError());
+    auto Ref = KnownRefs.find((*Buffer)->getBuffer());
+    if (Ref == KnownRefs.end())
+      return llvm::createStringError("no known reference for " + Name);
+    return std::pair{std::move(*Buffer), Ref->second};
+  }
+  ObjectStore &getCAS() const override { return CAS; }
+  IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem>
+  createThreadSafeProxyFS() override {
+    llvm_unreachable("not used by the scanner");
+  }
+
+private:
+  ObjectStore &CAS;
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  llvm::StringMap<ObjectRef> KnownRefs;
+};
+} // namespace
+
+TEST(IncludeTree, IncludeTreeScanCASFS) {
+  CASOptions CASOpts;
+  auto [DB, Cache] =
+      llvm::cantFail(CASOpts.CASConfiguration::createDatabases());
+  auto FS = llvm::makeIntrusiveRefCnt<KnownRefsFileSystem>(*DB);
+  StringRef MainContents = "#include \"a.h\"\n";
+  StringRef AContents = "int a;\n";
+  FS->addFile("t.cpp", MainContents);
+  FS->addFile("a.h", AContents);
+
+  DependencyScanningServiceOptions Opts;
+  Opts.Compilation =
+      CASFSIncludeTreeCompilation{CASOpts, DB, Cache, [FS] { return FS; }};
+  Opts.TraceVFS = true;
+  DependencyScanningService Service(std::move(Opts));
+  DependencyScanningTool ScanTool(Service);
+
+  TextDiagnosticBuffer DiagConsumer;
+  std::vector<std::string> CommandLine = {
+      "clang", "-target", "x86_64-apple-macos11", "-c", "t.cpp", "-o", "t.o"};
+  std::optional<IncludeTreeRoot> Root;
+  ASSERT_THAT_ERROR(
+      ScanTool.getIncludeTree(CommandLine, /*CWD*/ "", nullptr, DiagConsumer)
+          .moveInto(Root),
+      llvm::Succeeded());
+
+  // Every file was read together with the reference the filesystem knows for
+  // it, rather than read and then stored in the CAS again.
+  EXPECT_EQ(FS->NumOpenFileForReadCalls, 0u);
+  EXPECT_EQ(FS->NumGetBufferAndObjectRefCalls, 2u);
+
+  std::optional<IncludeTree> Main;
+  ASSERT_THAT_ERROR(Root->getMainFileTree().moveInto(Main), llvm::Succeeded());
+  IncludeTree::FileInfo MainFI;
+  ASSERT_THAT_ERROR(Main->getBaseFileInfo().moveInto(MainFI),
+                    llvm::Succeeded());
+  EXPECT_EQ(MainFI.Contents, MainContents);
+  ASSERT_EQ(Main->getNumIncludes(), uint32_t(2));
+  std::optional<IncludeTree> A;
+  ASSERT_THAT_ERROR(Main->getIncludeTree(1).moveInto(A), llvm::Succeeded());
+  IncludeTree::FileInfo AFI;
+  ASSERT_THAT_ERROR(A->getBaseFileInfo().moveInto(AFI), llvm::Succeeded());
+  EXPECT_EQ(AFI.Contents, AContents);
+
+  // The reads are traced, even though they bypass openFileForRead().
+  llvm::vfs::TracingFileSystem *Tracing = ScanTool.getWorkerTracingVFS();
+  ASSERT_TRUE(Tracing);
+  EXPECT_EQ(Tracing->NumOpenFileForReadCalls, 2u);
 }
 
 TEST(IncludeTree, IncludeTreeFileList) {

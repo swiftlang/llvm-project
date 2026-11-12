@@ -553,10 +553,10 @@ std::unique_ptr<DependencyActionController>
 DependencyScanningTool::createActionController(
     DependencyScanningWorker &Worker,
     LookupModuleOutputCallback LookupModuleOutput) {
-  if (auto *IncludeTree = std::get_if<IncludeTreeCompilation>(
-          &Worker.getService().getOpts().Compilation))
-    return createIncludeTreeActionController(
-        LookupModuleOutput, IncludeTree->CASOpts, *IncludeTree->CAS);
+  const DependencyScanningService &Service = Worker.getService();
+  if (std::shared_ptr<cas::ObjectStore> CAS = Service.getCAS())
+    return createIncludeTreeActionController(LookupModuleOutput,
+                                             Service.getCASOpts(), *CAS);
   return std::make_unique<CallbackActionController>(LookupModuleOutput);
 }
 

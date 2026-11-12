@@ -24,6 +24,7 @@
 #include <variant>
 
 namespace llvm::cas {
+class CASBackedFileSystem;
 class ObjectStore;
 } // namespace llvm::cas
 
@@ -348,6 +349,15 @@ public:
       IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
       IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS = nullptr);
 
+  /// Files that go through the shared cache are read together with the CAS
+  /// references \p FS already knows for them, instead of being stored in the
+  /// CAS again. \p Service must perform an include-tree compilation in the
+  /// CAS that \p FS is backed by.
+  DependencyScanningWorkerFilesystem(
+      DependencyScanningService &Service,
+      IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem> FS,
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS = nullptr);
+
   llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override;
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const Twine &Path) override;
@@ -445,6 +455,14 @@ private:
                                                 llvm::vfs::FileSystem &FS,
                                                 cas::ObjectStore *CAS);
 
+  /// Reads the file at the given path together with the CAS reference \p FS
+  /// knows for its contents. \p Stat is the status of that file, as reported
+  /// by \p FS. Enforces consistency between the file size in status and size
+  /// of read contents.
+  static llvm::ErrorOr<TentativeEntry>
+  readFileWithObjectRef(StringRef Filename, llvm::vfs::Status Stat,
+                        llvm::cas::CASBackedFileSystem &FS);
+
   void printImpl(raw_ostream &OS, PrintType Type,
                  unsigned IndentLevel) const override {
     printIndent(OS, IndentLevel);
@@ -488,6 +506,10 @@ private:
   /// global shared cache are stored in it when read, so each is stored exactly
   /// once per service. Owned by \c Service.
   cas::ObjectStore *CAS;
+
+  /// \c BaseFS, if it is backed by \c CAS and provides the CAS references of
+  /// the files it reads, or null.
+  llvm::cas::CASBackedFileSystem *CASFS = nullptr;
 
   /// The backing storage for cached entries resolved from local FS only.
   llvm::SpecificBumpPtrAllocator<CachedFileSystemEntry> LocalEntryStorage;
