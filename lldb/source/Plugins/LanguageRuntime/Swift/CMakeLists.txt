@@ -1,4 +1,9 @@
-set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES Language)
+# The ExpressionParser dependency is part of a loop
+# (LanguageRuntime<->ExpressionParser).
+set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES
+  Language
+  ExpressionParser
+)
 
 add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
   LLDBMemoryReader.cpp
@@ -23,6 +28,7 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
     lldbTarget
     lldbUtility
     lldbPluginExpressionParserClang
+    lldbPluginExpressionParserSwift
     lldbPluginProcessUtility
     lldbPluginSwiftLanguage
 )

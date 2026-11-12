@@ -1,3 +1,9 @@
+# This dependency is part of a loop (TypeSystem<->ExpressionParser).
+set_property(DIRECTORY PROPERTY LLDB_TOLERATED_PLUGIN_DEPENDENCIES
+  SymbolFile
+  ExpressionParser
+)
+
 add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
   LLDBExplicitModuleLoader.cpp
   LLDBImplicitModuleLoader.cpp
@@ -11,6 +17,7 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbSymbol
     lldbTarget
     lldbUtility
+    lldbPluginExpressionParserSwift
 
   LINK_COMPONENTS
     Support
