@@ -48,7 +48,7 @@ struct SelfRecursiveNode {
 // The pointee may be incomplete, unlike a by-value field: nothing is known.
 struct Incomplete;
 void derefIncomplete(Incomplete *) __attribute__((ownership_takes(release, 1)));
-// expected-warning@+1 {{type 'OwnsIncomplete' failed to infer}} FIXME: should be unknown because Incomplete is an incomplete type
+// expected-warning@+1 {{type 'OwnsIncomplete' failed to infer}}
 struct OwnsIncomplete {
   ~OwnsIncomplete() { derefIncomplete(m_ptr); }
   Incomplete *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}
