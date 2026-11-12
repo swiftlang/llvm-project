@@ -307,6 +307,9 @@ private:
                             SmallVector<const FieldDecl *> &RawPointerFields);
   State inferBaseClassesOfRecord(const CXXRecordDecl *R);
 
+  /// Infer from the definition \p R and report the outcome.
+  /// The result is cached, so each record is inferred and reported only once.
+  /// \pre \p R is a definition.
   State inferDefinitionOfClass(const RecordDecl *R);
 
   /// The check each raw-pointer field and decide if any of them are left
@@ -315,6 +318,9 @@ private:
                                ArrayRef<const FieldDecl *> RawPointerFields);
 
   DiagnosticsEngine &Diags;
+
+  /// The inference result of each record definition we have seen.
+  DenseMap<const RecordDecl *, State> Cache;
 };
 } // namespace
 
@@ -360,8 +366,8 @@ Result SelfContainmentAnalysis::useOfClass(const RecordDecl *R) {
     return TrustedResult.value();
 
   // Infer if it didn't have one.
-  if (R->getDefinition())
-    return inferDefinitionOfClass(R).Outcome;
+  if (const RecordDecl *Def = R->getDefinition())
+    return inferDefinitionOfClass(Def).Outcome;
 
   // Well, couldn't infer one and it also didn't have an explicit.
   return Result::Unknown;
@@ -498,6 +504,11 @@ State SelfContainmentAnalysis::handleRawPointerFields(
 }
 
 State SelfContainmentAnalysis::inferDefinitionOfClass(const RecordDecl *R) {
+  assert(R->isThisDeclarationADefinition() && "expected a definition");
+
+  if (auto It = Cache.find(R); It != Cache.end())
+    return It->second;
+
   State ClassRes;
 
   // Decompose into the base classes.
@@ -517,8 +528,13 @@ State SelfContainmentAnalysis::inferDefinitionOfClass(const RecordDecl *R) {
   ClassRes.join(
       handleRawPointerFields(dyn_cast<CXXRecordDecl>(R), RawPointerFields));
 
-  // Whatever out outcome, surface that as a warning.
+  // Whatever our outcome, surface that as a warning. Only do it once per record
+  // to avoid repeating the diagnostics for each use of the record.
   reportSuggestionOrFailure(R, ClassRes);
+
+  // Don't hold references into the cache across recursive inference, because
+  // that can grow the map.
+  Cache.try_emplace(R, ClassRes);
   return ClassRes;
 }
 

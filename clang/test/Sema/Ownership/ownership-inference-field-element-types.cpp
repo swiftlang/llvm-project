@@ -5,8 +5,8 @@
 // Fields are looked through arrays, complex, vector and atomic types to find
 // the element that decides the outcome.
 
-struct View {                      // expected-warning 2 {{type 'View' was inferred as 'view'}}
-  const int *p;                    // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
+struct View {                      // expected-warning {{type 'View' was inferred as 'view'}}
+  const int *p;                    // expected-note {{holds unmanaged raw-pointer field 'p'}}
 };
 
 // Arrays of raw pointers.

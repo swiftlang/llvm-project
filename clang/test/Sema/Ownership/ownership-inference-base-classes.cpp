@@ -4,14 +4,13 @@
 
 // The outcome of a class is joined with the outcome of each of its bases.
 //
-// Note: a class used as a base is inferred again for that use, so its
-// diagnostics are emitted once for the definition and once per use as a base.
+// Each record is reported once, no matter how many times it is used as a base.
 
-struct View {                      // expected-warning 2 {{type 'View' was inferred as 'view'}}
-  const int *p;                    // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
+struct View {                      // expected-warning {{type 'View' was inferred as 'view'}}
+  const int *p;                    // expected-note {{holds unmanaged raw-pointer field 'p'}}
 };
 
-struct Value {                     // expected-warning 2 {{type 'Value' was inferred as 'self-contained'}}
+struct Value {                     // expected-warning {{type 'Value' was inferred as 'self-contained'}}
   int x;
 };
 
@@ -27,10 +26,10 @@ struct DerivesValue : Value {};
 // expected-note@-2 {{derives from class 'Value' that was inferred as 'self-contained'}}
 
 // Every base contributes, the worst outcome wins.
-struct View2 {                     // expected-warning 2 {{type 'View2' was inferred as 'view'}}
-  int &r;                          // expected-note 2 {{holds reference field 'r'}}
+struct View2 {                     // expected-warning {{type 'View2' was inferred as 'view'}}
+  int &r;                          // expected-note {{holds reference field 'r'}}
 };
-struct Value2 {                    // expected-warning 2 {{type 'Value2' was inferred as 'self-contained'}}
+struct Value2 {                    // expected-warning {{type 'Value2' was inferred as 'self-contained'}}
   int x;
 };
 struct DerivesBoth : Value2, View2 {};
@@ -39,9 +38,9 @@ struct DerivesBoth : Value2, View2 {};
 // expected-note@-3 {{derives from class 'View2' that was inferred as 'view'}}
 
 // A base whose inference was inconclusive taints the derived class.
-struct Opaque {                    // expected-warning 2 {{type 'Opaque' failed to infer}}
-  int *p;                          // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
-  ~Opaque();                       // expected-note 2 {{declares opaque destructor}}
+struct Opaque {                    // expected-warning {{type 'Opaque' failed to infer}}
+  int *p;                          // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~Opaque();                       // expected-note {{declares opaque destructor}}
 };
 struct DerivesOpaque : Opaque {};
 // expected-warning@-1 {{type 'DerivesOpaque' failed to infer}}
@@ -71,12 +70,12 @@ struct HoldsAnnotatedView {
 // expected-warning@-3 {{type 'HoldsAnnotatedView' was inferred as 'view'}}
 
 // The notes spell the outcome of the base or field, whatever it is.
-struct Empty {};                   // expected-warning 2 {{type 'Empty' was trivially inferred as 'self-contained'}}
+struct Empty {};                   // expected-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
 struct DerivesEmpty : Empty {};
 // expected-warning@-1 {{type 'DerivesEmpty' was trivially inferred as 'self-contained'}}
 // expected-note@-2 {{derives from class 'Empty' that was inferred as 'trivially-self-contained'}}
 
-struct Value3 {                    // expected-warning 2 {{type 'Value3' was inferred as 'self-contained'}}
+struct Value3 {                    // expected-warning {{type 'Value3' was inferred as 'self-contained'}}
   int x;
 };
 struct HoldsValue {                // expected-warning {{type 'HoldsValue' was inferred as 'view'}}
