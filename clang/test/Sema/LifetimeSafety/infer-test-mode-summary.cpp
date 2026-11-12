@@ -6,10 +6,7 @@
 
 #include "Inputs/lifetime-analysis.h"
 
-// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 57; failed to infer (lifetimebound 4, noescape 0, lifetime_capture_by 2); inferred 65 in total}}
-
-// The expected notes mark the oracles that inference misses so far: referent-
-// level flow is not inferred.
+// expected-remark@*:* {{lifetime attribute inference vs. already-written oracle: matched 63; failed to infer (lifetimebound 0, noescape 0, lifetime_capture_by 0); inferred 68 in total}}
 
 // From lifetimebound-violation.cpp.
 namespace lifetimebound_violation {
@@ -338,8 +335,11 @@ void f_capture(const std::string &x [[clang::lifetime_capture_by(s)]],
 } // namespace capture_by
 
 // The pointer that `ptr` refers to flows to the return value of `exchange`,
-// i.e. one indirection level into the argument. Callers must infer the same
-// attributes as if they used the pointer itself. `exchange` has no oracle.
+// i.e. `exchange` is lifetimebound at the referent level of `ptr`, one
+// indirection level into the argument. `exchange` has no oracle: a hand-written
+// lifetimebound on `ptr` would mean its reference level. This is due to the
+// expressiveness issue of lifetimebound attributes. We use other data
+// structures to track this contract.
 namespace inner_level {
 int *exchange(int *&ptr, int *newValue) {
   int *oldValue = ptr;
@@ -347,21 +347,21 @@ int *exchange(int *&ptr, int *newValue) {
   return oldValue;
 }
 
-int *ret(int *p [[clang::lifetimebound]]) { return exchange(p, nullptr); } // expected-note {{'clang::lifetimebound'}}
+int *ret(int *p [[clang::lifetimebound]]) { return exchange(p, nullptr); }
 
 struct Escape {
   int *f;
-  Escape(int *p [[clang::lifetimebound]]) : f(exchange(p, nullptr)) {} // expected-note {{'clang::lifetimebound'}}
+  Escape(int *p [[clang::lifetimebound]]) : f(exchange(p, nullptr)) {}
 };
 
-void capture_by_param(int *p [[clang::lifetime_capture_by(out)]], // expected-note {{'clang::lifetime_capture_by'}}
+void capture_by_param(int *p [[clang::lifetime_capture_by(out)]],
                       int *&out [[clang::noescape]]) {
   out = exchange(p, nullptr);
 }
 
 struct CaptureByThis {
   int *f;
-  void capture(int *p [[clang::lifetime_capture_by_this]]) { // expected-note {{'clang::lifetime_capture_by_this'}}
+  void capture(int *p [[clang::lifetime_capture_by_this]]) {
     f = exchange(p, nullptr);
   }
 };
@@ -371,11 +371,11 @@ struct CaptureByThis {
 int *noescape_inner(int *&pp [[clang::noescape]]) { return pp; }
 } // namespace inner_level
 
-// A parameter that a function may invalidate is not inferred lifetimebound.
+// Invalidating a parameter does not stop it from being inferred lifetimebound.
 namespace invalidation {
 int *keep(int *p [[clang::lifetimebound]]) { return p; }
 
-int *drop(int *p [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+int *drop(int *p [[clang::lifetimebound]]) {
   delete p;
   return p;
 }
@@ -383,7 +383,7 @@ int *drop(int *p [[clang::lifetimebound]]) { // expected-note {{'clang::lifetime
 void release(int *p) { delete p; }
 
 // The invalidation reaches the caller through the summary of the callee.
-int *drop_through_call(int *p [[clang::lifetimebound]]) { // expected-note {{'clang::lifetimebound'}}
+int *drop_through_call(int *p [[clang::lifetimebound]]) {
   release(p);
   return p;
 }

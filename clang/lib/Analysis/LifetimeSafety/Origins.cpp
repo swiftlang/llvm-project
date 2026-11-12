@@ -108,8 +108,7 @@ private:
     // The summary adds to the attributes.
     if (const FunctionSummary *Summary = Summaries(FD)) {
       auto IsBound = [&](ParamOrThis P) {
-        return llvm::any_of(Summary->getLifetimeBoundFor(P),
-                            isSupportedLifetimeBoundSummary);
+        return !Summary->getLifetimeBoundFor(P).empty();
       };
       auto IsBoundForParmIdx = [&IsBound](unsigned Idx) {
         return IsBound(ParamOrThis::forParam(Idx));

@@ -26,6 +26,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <optional>
@@ -62,6 +63,14 @@ static auto referenceParams(const FunctionDecl *FD) {
   });
 }
 
+/// \return true if \p L is a placeholder loan of an inner origin of a
+/// parameter (`$p.*`).
+bool isInnerPlaceholderLoan(const Loan &L) {
+  const AccessPath &Path = L.getAccessPath();
+  return Path.getAsPlaceholderBase() && !Path.getElements().empty() &&
+         Path.getElements().front().isInterior();
+}
+
 /// \return the FieldSet of the placeholder base of \p L. Undefined if the base
 /// is not a placeholder.
 /// If \p L does not represent fields of the base, the field set is empty.
@@ -76,9 +85,23 @@ FieldSet getFieldsOfPlaceholderBaseForSummary(const Loan &L) {
   return FieldSet::of(Elements.front().getFieldDecl());
 }
 
+/// A parameter or `this`, and a Level
+using LeveledParamOrThis = std::pair<ParamOrThis, Level>;
+
 using AnnotationTarget =
     llvm::PointerUnion<const ParmVarDecl *, const CXXMethodDecl *>;
 using EscapingTarget = LifetimeSafetySemaHelper::EscapingTarget;
+
+LeveledParamOrThis getLeveledParamOrThisFromLoan(const Loan &L) {
+  const PlaceholderBase *PB = L.getAccessPath().getAsPlaceholderBase();
+  assert(PB && "not a placeholder loan");
+  if (const auto *PVD = PB->getParmVarDecl())
+    return {ParamOrThis::forParam(PVD),
+            isInnerPlaceholderLoan(L) ? Level::ReferentValue : Level::Value};
+  assert(PB->getImplicitThisParent() && !isInnerPlaceholderLoan(L) &&
+         "not a parameter or `this` loan");
+  return {ParamOrThis::forThis(), Level::Value};
+}
 
 class LifetimeChecker {
 private:
@@ -87,6 +110,9 @@ private:
   llvm::DenseMap<const ParmVarDecl *, EscapingTarget> NoescapeWarningsMap;
   llvm::DenseMap<const FieldDecl *, const Expr *> FieldOriginEscapesMap;
   llvm::DenseSet<const Decl *> VerifiedLiftimeboundEscapes;
+  // The params/`this`, at a level, that the return value may depend on, with
+  // the fields they are stored in.
+  llvm::DenseMap<LeveledParamOrThis, FieldSet> LifetimeBoundSumAsserts;
   // The parameters whose loans reach any escape sink, moved or not.
   llvm::DenseSet<const ParmVarDecl *> MayEscapeParams;
   // The loans of parameters and 'this' at function entry and exit, to find
@@ -95,8 +121,9 @@ private:
     // The block-local origins of the value of the reference parameters. Only
     // reference type parameters can capture.
     llvm::DenseSet<OriginID> BlockOriginsOfInterest;
-    // Parameter or 'this' -> its placeholder loan, at entry.
-    llvm::DenseMap<ParamOrThis, LoanID> PreState;
+    // Origin of a parameter or 'this' (at any level) -> its placeholder loan,
+    // at entry.
+    llvm::DenseMap<OriginID, LoanID> PreState;
     // Block-local origin -> its loans after the last fact that defines it. A
     // block-local origin lives in one block, whose facts are visited in flow
     // order, so the last one gives the state at the end of the block.
@@ -258,15 +285,38 @@ public:
           FieldOriginEscapesMap.try_emplace(Field, ReturnEsc->getReturnExpr());
       }
     };
+    auto AddLifetimeBoundParamOrThis = [&](const Loan &L, bool IsMoved) {
+      if (isa<ReturnEscapeFact>(OEF) && !IsMoved)
+        LifetimeBoundSumAsserts[getLeveledParamOrThisFromLoan(L)] = FieldSet{};
+      if (auto *CtorD = dyn_cast<CXXConstructorDecl>(FD);
+          CtorD && !isGslOwnerType(CtorD->getParent()))
+        if (auto *FEF = dyn_cast<FieldEscapeFact>(OEF); FEF && !IsMoved) {
+          auto P = getLeveledParamOrThisFromLoan(L);
+          auto SingleFieldSet = FieldSet::of(FEF->getFieldDecl());
+          auto It = LifetimeBoundSumAsserts.find(P);
+          if (It != LifetimeBoundSumAsserts.end())
+            It->second.merge(SingleFieldSet);
+          else
+            LifetimeBoundSumAsserts[P] = SingleFieldSet;
+        }
+    };
     auto MovedAtEscape = MovedLoans.getMovedLoans(OEF);
     for (LoanID LID : EscapedLoans) {
       const Loan *L = FactMgr.getLoanMgr().getLoan(LID);
       const PlaceholderBase *PB = L->getAccessPath().getAsPlaceholderBase();
+      bool IsMoved = bool(MovedAtEscape.lookup(LID));
+
       if (!PB)
+        continue;
+      // Collect the params/this, at each level, that the return value or the
+      // constructed object may depend on:
+      if (!PB->getFieldDecl())
+        AddLifetimeBoundParamOrThis(*L, IsMoved);
+      if (isInnerPlaceholderLoan(*L))
         continue;
       if (const auto *PVD = PB->getParmVarDecl()) {
         MayEscapeParams.insert(PVD);
-        CheckParam(PVD, /*IsMoved=*/MovedAtEscape.lookup(LID));
+        CheckParam(PVD, IsMoved);
       } else if (const auto *MD = PB->getImplicitThisParent())
         CheckImplicitThis(MD);
       else if (const auto *Field = PB->getFieldDecl())
@@ -281,34 +331,10 @@ public:
     if (!FDecl)
       return;
 
-    // Add LifetimeBound assertion on 'this' if 'D' is a CXXMethodDecl, or on
-    // 'D' if it is a ParmVarDecl. A constructor's parameter is lifetimebound
-    // through the fields that it is stored in.
-    auto AddLifetimeBound = [&](const Decl *D) {
-      if (isa<CXXMethodDecl>(D)) {
-        SummaryBuilder->addLifetimeBound(ParamOrThis::forThis(), Level::Value);
-        return;
-      }
-      ParamOrThis P = ParamOrThis::forParam(cast<ParmVarDecl>(D));
-      // A parameter that the function may invalidate is not lifetimebound.
-      if (InvalidatedEntities.contains(P))
-        return;
-      std::optional<FieldSet> Fields;
-
-      if (isa<CXXConstructorDecl>(FDecl))
-        Fields = getCapturingFields(P);
-      SummaryBuilder->addLifetimeBound(
-          P, Level::Value, Fields ? std::move(*Fields) : FieldSet());
-    };
-
-    for (const auto &Entry : AnnotationWarningsMap) {
-      if (const auto *PVD = dyn_cast<const ParmVarDecl *>(Entry.first))
-        AddLifetimeBound(PVD);
-      else
-        AddLifetimeBound(cast<const CXXMethodDecl *>(Entry.first));
-    }
-    for (const Decl *D : VerifiedLiftimeboundEscapes)
-      AddLifetimeBound(D);
+    // Add LifetimeBound:
+    for (auto &[Key, Fields] : LifetimeBoundSumAsserts)
+      SummaryBuilder->addLifetimeBound(Key.first, Key.second,
+                                       std::move(Fields));
 
     // Add NoEscape:
     for (const ParmVarDecl *PVD : FDecl->parameters()) {
@@ -337,7 +363,8 @@ public:
       const Loan *L = FactMgr.getLoanMgr().getLoan(LID);
       const auto *PB = L->getAccessPath().getAsPlaceholderBase();
 
-      if (!PB)
+      // Inner-level placeholder loans (`$p.*`) are not recorded.
+      if (!PB || isInnerPlaceholderLoan(*L))
         continue;
 
       FieldSet Fields = getFieldsOfPlaceholderBaseForSummary(*L);
@@ -383,12 +410,8 @@ public:
       const Loan *L = FactMgr.getLoanMgr().getLoan(IF->getLoanID());
       if (const PlaceholderBase *PB =
               L->getAccessPath().getAsPlaceholderBase()) {
-        if (const auto *PVD = PB->getParmVarDecl())
-          ParamLoans.PreState.try_emplace(ParamOrThis::forParam(PVD),
-                                          IF->getLoanID());
-        else if (PB->getImplicitThisParent())
-          ParamLoans.PreState.try_emplace(ParamOrThis::forThis(),
-                                          IF->getLoanID());
+        if (PB->getParmVarDecl() || PB->getImplicitThisParent())
+          ParamLoans.PreState.try_emplace(OID, IF->getLoanID());
       }
     } else if (const auto *OFF = F->getAs<OriginFlowFact>()) {
       OID = OFF->getDestOriginID();
@@ -410,11 +433,34 @@ public:
     return It != ParamLoans.PostState.end() ? It->second : LoanSet(nullptr);
   }
 
+  /// \return the entry loan of \p P at \p Lvl, if it has one. For a reference
+  /// parameter, Level::Value is the loan of the reference, and
+  /// Level::ReferentValue is the loan of the referenced object.
+  std::optional<LoanID> getEntryLoan(ParamOrThis P,
+                                     Level Lvl = Level::Value) {
+    OriginList *List = nullptr;
+    if (P.isThis()) {
+      if (auto ThisOrigins = FactMgr.getOriginMgr().getThisOrigins())
+        List = *ThisOrigins;
+    } else if (const auto *FDecl = dyn_cast_or_null<FunctionDecl>(FD))
+      List = FactMgr.getOriginMgr().getOrCreateList(
+          FDecl->getParamDecl(P.getParamIndex()));
+    if (List && Lvl == Level::ReferentValue)
+      List = List->peelOuterOrigin();
+    if (!List)
+      return std::nullopt;
+    auto It = ParamLoans.PreState.find(List->getOuterOriginID());
+    if (It == ParamLoans.PreState.end())
+      return std::nullopt;
+    return It->second;
+  }
+
   /// \return the fields of `this` that hold the entry loan of \p P at function
   /// exit, or nothing if no field does.
-  std::optional<FieldSet> getCapturingFields(ParamOrThis P) {
-    auto It = ParamLoans.PreState.find(P);
-    if (It == ParamLoans.PreState.end())
+  std::optional<FieldSet> getCapturingFields(ParamOrThis P,
+                                             Level Lvl = Level::Value) {
+    std::optional<LoanID> EntryLoan = getEntryLoan(P, Lvl);
+    if (!EntryLoan)
       return std::nullopt;
 
     std::optional<FieldSet> Fields;
@@ -422,7 +468,7 @@ public:
     for (const Fact *F : FactMgr.getFacts(&Cfg->getExit()))
       if (const auto *FEF = F->getAs<FieldEscapeFact>();
           FEF && LoanPropagation.getLoans(FEF->getEscapedOriginID(), FEF)
-                     .contains(It->second)) {
+                     .contains(*EntryLoan)) {
         FieldSet Field = FieldSet::of(FEF->getFieldDecl());
         if (Fields)
           Fields->merge(Field);
@@ -435,17 +481,10 @@ public:
   /// Adds the CapturedBy assertions of the parameters and `this` of \p FDecl:
   /// by the reference parameters, and, for a parameter, by `this`.
   void addCapturedByHelper(const FunctionDecl *FDecl) {
-    // The entry loan of \p P, if it has one.
-    auto GetEntryLoan = [&](ParamOrThis P) -> std::optional<LoanID> {
-      auto It = ParamLoans.PreState.find(P);
-      if (It == ParamLoans.PreState.end())
-        return std::nullopt;
-      return It->second;
-    };
     // P, a parameter or `this`, is captured by the reference parameters that
     // hold its entry loan at exit.
     auto AddCapturedByRefParam = [&](ParamOrThis P) {
-      std::optional<LoanID> EntryLoan = GetEntryLoan(P);
+      std::optional<LoanID> EntryLoan = getEntryLoan(P);
       if (!EntryLoan)
         return;
       for (const ParmVarDecl *Q : referenceParams(FDecl)) {
@@ -549,7 +588,8 @@ public:
       for (auto &[OID, LiveInfo] : Live) {
         LoanSet HeldLoans = LoanPropagation.getLoans(OID, IOF);
         for (LoanID LiveLoanID : HeldLoans)
-          if (IsInvalidated(FactMgr.getLoanMgr().getLoan(LiveLoanID))) {
+          if (const Loan *LiveLoan = FactMgr.getLoanMgr().getLoan(LiveLoanID);
+              !isInnerPlaceholderLoan(*LiveLoan) && IsInvalidated(LiveLoan)) {
             bool CurDomination = causingFactDominatesExpiry(LiveInfo.Kind);
             bool LastDomination =
                 FinalWarningsMap.lookup(LiveLoanID).CausingFactDominatesExpiry;

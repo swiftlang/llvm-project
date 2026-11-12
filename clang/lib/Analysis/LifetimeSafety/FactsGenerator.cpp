@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <functional>
 #include <string>
 
 #include "clang/AST/Decl.h"
@@ -17,6 +18,7 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/Facts.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/FactsGenerator.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
+#include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/Origins.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Analysis/CFG.h"
@@ -983,7 +985,7 @@ static ParamOrThis getParamOrThisForArg(const FunctionDecl *FD,
                              : ParamOrThis::forParam(ArgIdx - ObjectArgs);
 }
 
-// The supported lifetimebound assertions of the summary of \p FD on the call
+// The lifetimebound assertions of the summary of \p FD on the call
 // argument \p ArgIdx.
 static auto getLifetimeBoundBySummary(const FunctionSummariesRef &Summaries,
                                       const FunctionDecl *FD, unsigned ArgIdx) {
@@ -991,7 +993,7 @@ static auto getLifetimeBoundBySummary(const FunctionSummariesRef &Summaries,
 
   if (const FunctionSummary *Summary = Summaries(FD))
     Assertions = Summary->getLifetimeBoundFor(getParamOrThisForArg(FD, ArgIdx));
-  return llvm::make_filter_range(Assertions, isSupportedLifetimeBoundSummary);
+  return Assertions;
 }
 
 // The supported captured-by assertions of the summary of \p FD on the call
@@ -1297,9 +1299,29 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
     OriginList *ArgList = getOriginsList(*Args[I]);
     if (!ArgList)
       continue;
-    // The attributes and the summary may agree: either one suffices.
-    bool ShouldTrackArg = getTrackedArgInfo(FD, Args, I).has_value() ||
-                          !getLifetimeBoundBySummary(Summaries, FD, I).empty();
+    // The attributes and the summary may agree: either one suffices. The
+    // attributes only exist at Value level.
+    ArrayRef<LifetimeBoundAssertion> Bound =
+        getLifetimeBoundBySummary(Summaries, FD, I);
+    bool TrackValue =
+        getTrackedArgInfo(FD, Args, I).has_value() ||
+        llvm::any_of(Bound, std::mem_fn(&LifetimeBoundAssertion::isValueLevel));
+    bool TrackReferent = llvm::any_of(
+        Bound, std::mem_fn(&LifetimeBoundAssertion::isReferentLevel));
+    // Flows what the lifetimebound argument borrows into the call result, one
+    // fact per level. Only the first fact kills the result's old loans.
+    auto FlowTrackedArg = [&](const OriginList *Arg) {
+      auto Flow = [&](OriginID Src) {
+        CurrentBlockFacts.push_back(FactMgr.createFact<OriginFlowFact>(
+            CallList->getOuterOriginID(), Src, KillSrc));
+        KillSrc = false;
+      };
+      if (TrackValue)
+        Flow(Arg->getOuterOriginID());
+      if (TrackReferent)
+        if (const OriginList *Inner = Arg->peelOuterOrigin())
+          Flow(Inner->getOuterOriginID());
+    };
     if (IsGslConstruction) {
       // TODO: document with code example.
       // std::string_view(const std::string_view& from)
@@ -1315,17 +1337,14 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
             CallList->getOuterOriginID(), ArgList->getOuterOriginID(),
             KillSrc));
         KillSrc = false;
-      } else if (ShouldTrackArg) {
-        // Only flow the outer origin here. For lifetimebound args in
-        // gsl::Pointer construction, we do not have enough information to
-        // safely match inner origins, so the source and
-        // destination origin lists may have different lengths.
+      } else if (TrackValue || TrackReferent) {
+        // Only the outer origin of each level is flowed. For lifetimebound
+        // args in gsl::Pointer construction, we do not have enough information
+        // to safely match inner origins, so the source and destination origin
+        // lists may have different lengths.
         // FIXME: Handle origin-shape mismatches gracefully so we can also flow
         // inner origins.
-        CurrentBlockFacts.push_back(FactMgr.createFact<OriginFlowFact>(
-            CallList->getOuterOriginID(), ArgList->getOuterOriginID(),
-            KillSrc));
-        KillSrc = false;
+        FlowTrackedArg(ArgList);
       }
     } else if (shouldTrackPointerImplicitObjectArg(I)) {
       assert(ArgList->getLength() >= 2 &&
@@ -1335,13 +1354,11 @@ void FactsGenerator::handleFunctionCall(const Expr *Call,
           CallList->getOuterOriginID(),
           ArgList->peelOuterOrigin()->getOuterOriginID(), KillSrc));
       KillSrc = false;
-    } else if (ShouldTrackArg) {
+    } else if (TrackValue || TrackReferent) {
       // Lifetimebound on a non-GSL-ctor function means the returned
-      // pointer/reference itself must not outlive the arguments. This
-      // only constrains the top-level origin.
-      CurrentBlockFacts.push_back(FactMgr.createFact<OriginFlowFact>(
-          CallList->getOuterOriginID(), ArgList->getOuterOriginID(), KillSrc));
-      KillSrc = false;
+      // pointer/reference itself must not outlive the arguments, at the levels
+      // that the assertions name. Each level only constrains its top origin.
+      FlowTrackedArg(ArgList);
     }
   }
 }
@@ -1454,6 +1471,15 @@ llvm::SmallVector<Fact *> FactsGenerator::issuePlaceholderLoans() {
     const Loan *L = FactMgr.getLoanMgr().createPlaceholderLoan(PVD);
     PlaceholderLoanFacts.push_back(
         FactMgr.createFact<IssueFact>(L->getID(), List->getOuterOriginID()));
+    // A `T*&` parameter has a second placeholder loan, `$p.*`, on the origin of
+    // the referenced pointer.
+    if (isRefToPointerLike(PVD->getType()))
+      if (const OriginList *Inner = List->peelOuterOrigin()) {
+        const Loan *InnerL =
+            FactMgr.getLoanMgr().createPlaceholderLoan(PVD, /*Level=*/1);
+        PlaceholderLoanFacts.push_back(FactMgr.createFact<IssueFact>(
+            InnerL->getID(), Inner->getOuterOriginID()));
+      }
   }
   return PlaceholderLoanFacts;
 }

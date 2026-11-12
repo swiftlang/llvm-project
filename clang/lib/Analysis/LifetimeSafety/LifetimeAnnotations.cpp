@@ -412,6 +412,13 @@ bool isGslOwnerType(const CXXRecordDecl *RD) {
   return isRecordWithAttr<OwnerAttr>(RD);
 }
 
+bool isRefToPointerLike(QualType QT) {
+  if (!QT->isReferenceType())
+    return false;
+  QualType Pointee = QT->getPointeeType();
+  return Pointee->isPointerType() || isGslPointerType(Pointee);
+}
+
 bool isOwnerPtrCtor(const CXXConstructorDecl *Ctor, const ParmVarDecl *PVD) {
   return Ctor && PVD->getType()->isPointerType() &&
          isGslOwnerType(Ctor->getParent());

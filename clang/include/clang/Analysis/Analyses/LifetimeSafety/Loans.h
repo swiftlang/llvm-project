@@ -249,6 +249,12 @@ public:
   Loan *createPlaceholderLoan(const ParmVarDecl *PVD) {
     return createLoan(AccessPath(getOrCreatePlaceholderBase(PVD)));
   }
+  /// Creates the placeholder loan of the \p Level-th origin of \p PVD's
+  /// OriginList: `$PVD` for level 0, `$PVD.*` for level 1, and so on.
+  Loan *createPlaceholderLoan(const ParmVarDecl *PVD, unsigned Level) {
+    return createLoan(
+        appendInterior(AccessPath(getOrCreatePlaceholderBase(PVD)), Level));
+  }
   Loan *createPlaceholderLoan(const CXXMethodDecl *MD) {
     return createLoan(AccessPath(getOrCreatePlaceholderBase(MD)));
   }
@@ -264,6 +270,13 @@ public:
   llvm::ArrayRef<const Loan *> getLoans() const { return AllLoans; }
 
 private:
+  /// \return \p Path extended with \p N interior elements.
+  static AccessPath appendInterior(AccessPath Path, unsigned N) {
+    return N == 0 ? Path
+                  : appendInterior(AccessPath(Path, PathElement::getInterior()),
+                                   N - 1);
+  }
+
   LoanID getNextLoanID() { return NextLoanID++; }
 
   /// Gets or creates a placeholder base for a given parameter, method, or

@@ -127,6 +127,9 @@ namespace clang::lifetimes {
 struct LifetimeBoundAssertion {
   Level L;
   FieldSet F;
+
+  bool isReferentLevel() const { return L == Level::ReferentValue; }
+  bool isValueLevel() const { return L == Level::Value; }
 };
 
 /// A CapturedByAssertion over a parameter/this asserts that the subobjects
@@ -139,13 +142,11 @@ struct CapturedByAssertion {
   FieldSet F;
 };
 
-/// Whether the users of summaries support the assertion. They must ignore the
-/// others. They abstract the field sets away, i.e., read every assertion as one
-/// on the whole object.
+/// Whether the users of summaries support the captured-by assertion, i.e., it
+/// is at Value level on both sides. They must ignore the others. Like for
+/// lifetimebound, they read every assertion as one on the whole object,
+/// ignoring the field sets.
 // FIXME: Support the other levels and the field sets.
-inline bool isSupportedLifetimeBoundSummary(const LifetimeBoundAssertion &A) {
-  return A.L == Level::Value;
-}
 inline bool isSupportedCapturedBySummary(const CapturedByAssertion &A) {
   return A.L == Level::Value && A.QL == Level::Value;
 }

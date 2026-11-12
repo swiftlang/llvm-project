@@ -133,6 +133,8 @@ bool isGslPointerType(QualType QT);
 // Tells whether the type is annotated with [[gsl::Owner]].
 bool isGslOwnerType(QualType QT);
 bool isGslOwnerType(const CXXRecordDecl *RD);
+// Tells whether the type is a reference to a pointer or to a gsl::Pointer type.
+bool isRefToPointerLike(QualType QT);
 
 // Tells whether the given constructor belongs to an Owner type and the
 // parameter is of pointer type. This is useful to disable inference on owning
