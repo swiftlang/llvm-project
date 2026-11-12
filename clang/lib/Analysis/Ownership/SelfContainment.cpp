@@ -514,8 +514,7 @@ State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
 
   // Decompose into the base classes.
   if (const auto *Class = dyn_cast<CXXRecordDecl>(Def))
-    if (Class->isCompleteDefinition())
-      ClassRes.join(inferBaseClassesOfRecord(Class));
+    ClassRes.join(inferBaseClassesOfRecord(Class));
 
   // Decompose into the fields.
   SmallVector<const FieldDecl *> RawPointerFields;
