@@ -225,7 +225,10 @@ struct State {
 
   void join(State &&Other) & {
     join(Other.Outcome);
-    llvm::append_range(Notes, Other.Notes);
+
+    // Only add notes if either unknown or a view.
+    if (Other.Outcome >= Result::Unknown)
+      llvm::append_range(Notes, Other.Notes);
   }
 
   void addNote(Note &&N) & { Notes.emplace_back(std::move(N)); }
