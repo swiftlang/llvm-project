@@ -529,8 +529,6 @@ typedef __UINTPTR_TYPE__ ptrauth_generic_signature_t;
     ((ptrauth_generic_signature_t)0);                                          \
   })
 
-#define ptrauth_string_discriminator(__string) ((ptrauth_extra_data_t)0)
-
 #define __ptrauth_function_pointer
 #define __ptrauth_return_address
 #define __ptrauth_block_invocation_pointer
