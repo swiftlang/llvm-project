@@ -12,6 +12,7 @@
 #include "lldb/Core/Address.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
+#include "lldb/Core/ThreadSafeDenseSet.h"
 #include "lldb/Symbol/ImportedDeclaration.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContextScope.h"
@@ -1210,11 +1211,8 @@ protected:
 
   // END CAS
 
-  /// A set of hashes of all warnings and errors, to avoid reporting them
-  /// multiple times to the same Debugger.
-  llvm::DenseMap<llvm::stable_hash, std::unique_ptr<std::once_flag>>
-      m_shown_diagnostics;
-  std::recursive_mutex m_diagnostic_mutex;
+  /// Hashes of the warnings and errors already reported, to report each once.
+  ThreadSafeDenseSet<llvm::stable_hash> m_shown_diagnostics;
 
   void SymbolIndicesToSymbolContextList(Symtab *symtab,
                                         std::vector<uint32_t> &symbol_indexes,
@@ -1244,7 +1242,8 @@ private:
   LazyBool m_is_swift_cxx_interop_enabled = eLazyBoolCalculate;
   LazyBool m_is_embedded_swift = eLazyBoolCalculate;
 #endif
-  std::once_flag *GetDiagnosticOnceFlag(llvm::StringRef msg);
+  /// Returns true the first time \p msg is passed.
+  bool ShouldReportDiagnostic(llvm::StringRef msg);
 };
 
 } // namespace lldb_private
