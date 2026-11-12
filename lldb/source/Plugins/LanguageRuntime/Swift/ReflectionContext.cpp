@@ -21,13 +21,47 @@
 #include "swift/RemoteInspection/DescriptorFinder.h"
 #include "swift/RemoteInspection/TypeLowering.h"
 #include "swift/RemoteInspection/TypeRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
 
 namespace {
+
+/// Returns the name of the module that owns the nominal type \p TR.
+std::optional<llvm::StringRef>
+GetOwningModuleName(const swift::reflection::TypeRef *TR,
+                    swift::Demangle::Demangler &dem) {
+  const std::string *mangled_name = nullptr;
+  if (auto *nominal = llvm::dyn_cast<swift::reflection::NominalTypeRef>(TR))
+    mangled_name = &nominal->getMangledName();
+  else if (auto *bound_generic =
+               llvm::dyn_cast<swift::reflection::BoundGenericTypeRef>(TR))
+    mangled_name = &bound_generic->getMangledName();
+  if (!mangled_name)
+    return {};
+
+  // The first child of a nominal type node is the context the type is
+  // declared in, and the first child of a bound generic type node is the
+  // unbound type. Following only first children therefore walks out through
+  // the enclosing types to the module, the outermost context, without
+  // visiting generic arguments.
+  auto *node = dem.demangleType(*mangled_name);
+  while (node) {
+    if (node->getKind() == swift::Demangle::Node::Kind::Module) {
+      if (!node->hasText())
+        return std::nullopt;
+      return node->getText();
+    }
+    if (!node->getNumChildren())
+      break;
+    node = node->getFirstChild();
+  }
+  return {};
+}
 
 /// The descriptor finder needs to be an instance variable of the
 /// TypeRefBuilder, but we would still want to swap out the descriptor finder,
@@ -36,12 +70,21 @@ namespace {
 struct DescriptorFinderForwarder : public swift::reflection::DescriptorFinder {
   /// \param always_consult is used in embedded swift mode since it doesn't have
   /// reflection metadata.
-  explicit DescriptorFinderForwarder(bool always_consult)
-      : m_always_consult(always_consult) {}
+  ///
+  /// \param module_lookup_callback, if set, is called with the owning module
+  /// of each type before its descriptors are looked up. The TypeRefBuilder
+  /// consults this finder before its own reflection metadata, so an image
+  /// registered by the callback is searched by the same lookup.
+  DescriptorFinderForwarder(
+      bool always_consult,
+      ReflectionContextInterface::ModuleLookupCallback module_lookup_callback)
+      : m_always_consult(always_consult),
+        m_module_lookup_callback(std::move(module_lookup_callback)) {}
   ~DescriptorFinderForwarder() override = default;
 
   std::unique_ptr<swift::reflection::BuiltinTypeDescriptorBase>
   getBuiltinTypeDescriptor(const swift::reflection::TypeRef *TR) override {
+    NotifyModuleLookup(TR);
     if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
         shouldConsultDescriptorFinder())
       return m_descriptor_finders.back()->getBuiltinTypeDescriptor(TR);
@@ -50,6 +93,7 @@ struct DescriptorFinderForwarder : public swift::reflection::DescriptorFinder {
 
   std::unique_ptr<swift::reflection::FieldDescriptorBase>
   getFieldDescriptor(const swift::reflection::TypeRef *TR) override {
+    NotifyModuleLookup(TR);
     if (!m_descriptor_finders.empty() && m_descriptor_finders.back() &&
         shouldConsultDescriptorFinder())
       return m_descriptor_finders.back()->getFieldDescriptor(TR);
@@ -71,6 +115,17 @@ struct DescriptorFinderForwarder : public swift::reflection::DescriptorFinder {
   }
 
 private:
+  /// Report the owning module of \p TR to the callback, once per TypeRef.
+  void NotifyModuleLookup(const swift::reflection::TypeRef *TR) {
+    if (!m_module_lookup_callback || !TR)
+      return;
+    if (!m_notified_typerefs.insert(TR).second)
+      return;
+    swift::Demangle::Demangler dem;
+    if (auto module_name = GetOwningModuleName(TR, dem))
+      m_module_lookup_callback(*module_name);
+  }
+
   bool shouldConsultDescriptorFinder() {
     // Embedded Swift never has reflection metadata for its types, so the
     // external descriptor finder is the only source of type information, and
@@ -95,6 +150,11 @@ private:
       m_descriptor_finders;
   bool m_image_added = false;
   const bool m_always_consult;
+  const ReflectionContextInterface::ModuleLookupCallback
+      m_module_lookup_callback;
+  /// TypeRefs are uniqued by the TypeRefBuilder, so this records which types
+  /// have already been reported to the callback.
+  llvm::DenseSet<const swift::reflection::TypeRef *> m_notified_typerefs;
 };
 
 /// An implementation of the generic ReflectionContextInterface that
@@ -108,8 +168,10 @@ class TargetReflectionContext : public ReflectionContextInterface {
   struct Instance {
     Instance(std::shared_ptr<swift::reflection::MemoryReader> reader,
              SwiftMetadataCache *swift_metadata_cache,
-             swift::Mangle::ManglingFlavor flavor)
-        : m_forwader(flavor == swift::Mangle::ManglingFlavor::Embedded),
+             swift::Mangle::ManglingFlavor flavor,
+             ModuleLookupCallback module_lookup_callback)
+        : m_forwader(flavor == swift::Mangle::ManglingFlavor::Embedded,
+                     std::move(module_lookup_callback)),
           m_reflection_ctx(reader, swift_metadata_cache, &m_forwader, flavor),
           m_type_converter(m_reflection_ctx.getBuilder().getTypeConverter()) {
       m_type_converter.enableErrorCache();
@@ -493,6 +555,8 @@ class TargetReflectionContext : public ReflectionContextInterface {
 
   std::shared_ptr<swift::reflection::MemoryReader> m_reader;
   SwiftMetadataCache *m_swift_metadata_cache;
+  /// Given to the descriptor finder forwarder of the regular context.
+  const ModuleLookupCallback m_module_lookup_callback;
 
   /// The context for the regular (`$s`) mangling flavor. It reads either 
   // reflection metadata or DWARF.
@@ -505,11 +569,14 @@ class TargetReflectionContext : public ReflectionContextInterface {
   Instance &Get(std::unique_ptr<Instance> &instance,
                 swift::Mangle::ManglingFlavor flavor) {
     if (!instance) {
-      // Only the regular context gets the metadata cache.
-      auto *cache = flavor == swift::Mangle::ManglingFlavor::Embedded
-                        ? nullptr
-                        : m_swift_metadata_cache;
-      instance = std::make_unique<Instance>(m_reader, cache, flavor);
+      // Only the regular context gets the metadata cache and the module
+      // lookup callback, since Embedded Swift has no reflection metadata.
+      bool is_embedded = flavor == swift::Mangle::ManglingFlavor::Embedded;
+      auto *cache = is_embedded ? nullptr : m_swift_metadata_cache;
+      ModuleLookupCallback callback =
+          is_embedded ? nullptr : m_module_lookup_callback;
+      instance = std::make_unique<Instance>(m_reader, cache, flavor,
+                                            std::move(callback));
     }
     return *instance;
   }
@@ -622,17 +689,21 @@ class TargetReflectionContext : public ReflectionContextInterface {
 public:
   TargetReflectionContext(
       std::shared_ptr<swift::reflection::MemoryReader> reader,
-      SwiftMetadataCache *swift_metadata_cache, bool is_shadow = false)
+      SwiftMetadataCache *swift_metadata_cache,
+      ModuleLookupCallback module_lookup_callback = {}, bool is_shadow = false)
       : m_reader(std::move(reader)),
-        m_swift_metadata_cache(swift_metadata_cache) {
+        m_swift_metadata_cache(swift_metadata_cache),
+        m_module_lookup_callback(std::move(module_lookup_callback)) {
 #ifndef NDEBUG
     if (!is_shadow && TestingProperties::GetGlobalTestingProperties()
                               .GetSwiftValidateTypeSystemDWARF() !=
                           eSwiftDWARFValidationOff) {
       m_reflection_only = std::make_unique<TargetReflectionContext>(
-          m_reader, swift_metadata_cache, /*is_shadow=*/true);
+          m_reader, swift_metadata_cache, /*module_lookup_callback=*/nullptr,
+          /*is_shadow=*/true);
       m_dwarf_only = std::make_unique<TargetReflectionContext>(
-          m_reader, swift_metadata_cache, /*is_shadow=*/true);
+          m_reader, swift_metadata_cache, /*module_lookup_callback=*/nullptr,
+          /*is_shadow=*/true);
     }
 #endif
   }
@@ -842,7 +913,8 @@ namespace lldb_private {
 std::unique_ptr<ReflectionContextInterface>
 ReflectionContextInterface::CreateReflectionContext(
     uint8_t ptr_size, std::shared_ptr<swift::remote::MemoryReader> reader,
-    bool ObjCInterop, SwiftMetadataCache *swift_metadata_cache) {
+    bool ObjCInterop, SwiftMetadataCache *swift_metadata_cache,
+    ModuleLookupCallback module_lookup_callback) {
   using ReflectionContext32ObjCInterop = TargetReflectionContext<
       swift::reflection::ReflectionContext<
           swift::External<swift::WithObjCInterop<swift::RuntimeTarget<4>>>>,
@@ -862,16 +934,16 @@ ReflectionContextInterface::CreateReflectionContext(
   if (ptr_size == 4) {
     if (ObjCInterop)
       return std::make_unique<ReflectionContext32ObjCInterop>(
-          reader, swift_metadata_cache);
+          reader, swift_metadata_cache, std::move(module_lookup_callback));
     return std::make_unique<ReflectionContext32NoObjCInterop>(
-        reader, swift_metadata_cache);
+        reader, swift_metadata_cache, std::move(module_lookup_callback));
   }
   if (ptr_size == 8) {
     if (ObjCInterop)
       return std::make_unique<ReflectionContext64ObjCInterop>(
-          reader, swift_metadata_cache);
+          reader, swift_metadata_cache, std::move(module_lookup_callback));
     return std::make_unique<ReflectionContext64NoObjCInterop>(
-        reader, swift_metadata_cache);
+        reader, swift_metadata_cache, std::move(module_lookup_callback));
   }
   return {};
 }

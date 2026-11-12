@@ -26,6 +26,7 @@
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/JITSection.h"
+#include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
@@ -43,6 +44,7 @@
 #include "lldb/Symbol/FuncUnwinders.h"
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/VariableList.h"
+#include "lldb/Target/Platform.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/UnwindLLDB.h"
@@ -66,6 +68,7 @@
 #include "swift/Demangling/Demangle.h"
 #include "swift/RemoteAST/RemoteAST.h"
 #include "swift/RemoteInspection/ReflectionContext.h"
+#include "swift/Strings.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -638,7 +641,9 @@ void SwiftLanguageRuntime::SetupReflection() {
   if (ptr_size == 4 || ptr_size == 8)
     m_reflection_ctx = ReflectionContextInterface::CreateReflectionContext(
         ptr_size, this->GetMemoryReader(), objc_interop,
-        GetSwiftMetadataCache());
+        GetSwiftMetadataCache(), [this](llvm::StringRef module_name) {
+          AddSharedCacheModuleToReflectionContext(module_name);
+        });
   if (!m_reflection_ctx)
     LLDB_LOG(log, "Could not initialize reflection context for \"{0}\"",
              triple.str());
@@ -1030,6 +1035,11 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
                    : obj_file->GetFileSpec().GetFilename());
     return false;
   }
+  for (llvm::StringRef name : likely_module_names)
+    m_reflection_module_names.insert(name);
+  // The image may have been registered before the process loaded it.
+  if (m_shared_cache_images_in_reflection_ctx.contains(load_ptr))
+    return true;
   bool found = HasReflectionInfo(obj_file);
   LLDB_LOG_VERBOSE(GetLog(LLDBLog::Types), "{0} reflection metadata in \"{1}\"",
                    found ? "Adding" : "No",
@@ -1069,6 +1079,103 @@ bool SwiftLanguageRuntime::AddModuleToReflectionContext(
                                                                *info_id);
 
   return true;
+}
+
+void SwiftLanguageRuntime::AddSharedCacheModuleToReflectionContext(
+    llvm::StringRef module_name) {
+  // This function is called from within the reflection context, so it cannot
+  // call GetReflectionContext().
+  if (!m_reflection_ctx)
+    return;
+  // Imported Clang types and builtin types aren't provided by a Swift library.
+  if (module_name == swift::MANGLING_MODULE_OBJC ||
+      module_name == swift::MANGLING_MODULE_CLANG_IMPORTER ||
+      module_name == swift::BUILTIN_NAME)
+    return;
+  auto [it, inserted] = m_reflection_module_names.insert(module_name);
+  if (!inserted)
+    return;
+  // The reflection context keeps a reference to the module name.
+  llvm::StringRef stable_module_name = it->getKey();
+
+  Process &process = GetProcess();
+  Target &target = process.GetTarget();
+  if (!target.GetArchitecture().GetTriple().isOSDarwin())
+    return;
+
+  PlatformSP platform_sp = target.GetPlatform();
+  if (!platform_sp)
+    return;
+  ModuleSpec module_spec(
+      FileSpec(
+          ("/usr/lib/swift/libswift" + stable_module_name + ".dylib").str()),
+      target.GetArchitecture());
+  ModuleSP module_sp;
+  platform_sp->GetSharedModule(module_spec, target, module_sp,
+                               /*old_modules=*/nullptr,
+                               /*did_create_ptr=*/nullptr);
+  ObjectFile *obj_file = module_sp ? module_sp->GetObjectFile() : nullptr;
+  if (!obj_file || !obj_file->IsSharedCacheBinary() ||
+      !HasReflectionInfo(obj_file)) {
+    LLDB_LOG_VERBOSE(GetLog(LLDBLog::Types),
+                     "No Swift library with reflection metadata for module "
+                     "\"{0}\" in the shared cache",
+                     stable_module_name);
+    return;
+  }
+
+  // All images in the shared cache have the same slide, so compute it from
+  // an image that the process has loaded from the shared cache.
+  std::optional<lldb::addr_t> slide;
+  target.GetImages().ForEach([&](const ModuleSP &loaded_module_sp) {
+    ObjectFile *loaded_obj_file =
+        loaded_module_sp ? loaded_module_sp->GetObjectFile() : nullptr;
+    if (!loaded_obj_file || !loaded_obj_file->IsSharedCacheBinary())
+      return IterationAction::Continue;
+    Address header = loaded_obj_file->GetBaseAddress();
+    lldb::addr_t load_addr = header.GetLoadAddress(&target);
+    if (load_addr == LLDB_INVALID_ADDRESS)
+      return IterationAction::Continue;
+    slide = load_addr - header.GetFileAddress();
+    return IterationAction::Stop;
+  });
+  if (!slide)
+    return;
+
+  Log *log = GetLog(LLDBLog::Types);
+  lldb::addr_t header_addr =
+      obj_file->GetBaseAddress().GetFileAddress() + *slide;
+  // The image was found in a shared cache on the host. Verify that it is the
+  // image mapped in the process.
+  auto memory_module_or_err =
+      process.ReadModuleFromMemory(module_spec.GetFileSpec(), header_addr);
+  if (!memory_module_or_err) {
+    LLDB_LOG_ERROR(log, memory_module_or_err.takeError(),
+                   "Could not read \"{1}\" from memory: {0}",
+                   module_spec.GetFileSpec().GetPath());
+    return;
+  }
+  if (!*memory_module_or_err ||
+      (*memory_module_or_err)->GetUUID() != module_sp->GetUUID()) {
+    LLDB_LOG(log, "\"{0}\" in the process's shared cache has a different UUID",
+             module_spec.GetFileSpec().GetPath());
+    return;
+  }
+
+  auto info_id = m_reflection_ctx->AddImage(
+      swift::remote::RemoteAddress(
+          header_addr, swift::remote::RemoteAddress::DefaultAddressSpace),
+      {stable_module_name});
+  if (!info_id) {
+    LLDB_LOG(log, "Error while loading reflection metadata in \"{0}\"",
+             module_spec.GetFileSpec().GetPath());
+    return;
+  }
+  m_shared_cache_images_in_reflection_ctx.insert(header_addr);
+  LLDB_LOG(log,
+           "Added reflection metadata of \"{0}\", which the process has not "
+           "loaded, from its shared cache",
+           module_spec.GetFileSpec().GetPath());
 }
 
 std::string
