@@ -15,6 +15,7 @@
 #include "lldb/Utility/DataEncoder.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Version/Version.h"
+#include "swift/Basic/Version.h"
 #include "swift/RemoteInspection/ReflectionContext.h"
 #include "llvm/Support/BLAKE3.h"
 #include "llvm/Support/CachePruning.h"
@@ -275,12 +276,13 @@ bool SwiftMetadataCache::isReflectionInfoCached(uint64_t info_id) {
 
 std::string SwiftMetadataCache::getTyperefCacheFileNameForModule(
     const lldb::ModuleSP &module) {
-  // We hash the lldb string version (so we don't run into the risk of two lldbs
-  // invalidating each other's cache), and the modules path (so we clean up
-  // stale caches when the module changes) as the typeref cache file name.
+  // We hash the lldb and Swift version strings (so we don't run into the risk
+  // of two lldbs invalidating each other's cache), and the modules path (so we
+  // clean up stale caches when the module changes) as the typeref cache file
+  // name.
   llvm::BLAKE3 blake3;
-  const char *version = lldb_private::GetVersion();
-  blake3.update(version);
+  blake3.update(lldb_private::GetVersion());
+  blake3.update(swift::version::getSwiftFullVersion());
   blake3.update(module->GetFileSpec().GetPath());
   auto hashed_result = llvm::toHex(blake3.final());
   return "typeref-" + hashed_result;

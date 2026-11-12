@@ -11,6 +11,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Version/Version.h"
+#include "swift/Basic/Version.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace lldb_private;
@@ -42,14 +43,17 @@ void LogChannelSwift::Initialize() {
 
   llvm::consumeError(
       Log::EnableLogChannel(log_handler_sp, 0, "swift", {"health"}));
+  // Don't use Language::GetVersionWithLanguageInfo() here: this runs while
+  // the language plugins are still being registered.
   if (Log *log = GetSwiftHealthLog())
     log->Printf(
         "==== LLDB swift-healthcheck log. ===\n"
         "This file contains the configuration of LLDB's embedded Swift "
         "compiler to help diagnosing module import and search path issues. "
         "The swift-healthcheck command is meant to be run *after* an error "
-        "has occurred.\n%s",
-        lldb_private::GetVersion());
+        "has occurred.\n%s\n%s",
+        lldb_private::GetVersion(),
+        swift::version::getSwiftFullVersion().c_str());
 
   if (Diagnostics::Enabled()) {
     g_diagnostics_artifact_id = Diagnostics::Instance().AddArtifactProvider(
