@@ -589,9 +589,29 @@ DWARFDIE FindSuperClassDIE(DWARFDIE &die) {
 }
 } // namespace
 
+namespace {
+/// Returns the mangled name of the type that \p die describes.
+StringRef GetTypeMangledName(const DWARFDIE &die) {
+  StringRef name =
+      die.GetAttributeValueAsString(llvm::dwarf::DW_AT_linkage_name, "");
+  if (!name.empty())
+    return name;
+  // Is this a generic specialization? If yes, the type's mangled name is under
+  // the first child (which is a DW_TAG_member).
+  if (!die.GetAttributeValueAsReferenceDIE(llvm::dwarf::DW_AT_specification))
+    return {};
+  DWARFDIE member = die.GetFirstChild();
+  if (member.Tag() != llvm::dwarf::DW_TAG_member)
+    return {};
+  if (DWARFDIE inner =
+          member.GetAttributeValueAsReferenceDIE(llvm::dwarf::DW_AT_type))
+    return inner.GetAttributeValueAsString(llvm::dwarf::DW_AT_name, "");
+  return {};
+}
+} // namespace
+
 NodePointer DWARFASTParserSwift::GetCanonicalDemangleTree(DWARFDIE &die) {
-  const auto name = StringRef(
-      die.GetAttributeValueAsString(llvm::dwarf::DW_AT_linkage_name, ""));
+  const StringRef name = GetTypeMangledName(die);
 
   if (name.empty())
     return nullptr;
