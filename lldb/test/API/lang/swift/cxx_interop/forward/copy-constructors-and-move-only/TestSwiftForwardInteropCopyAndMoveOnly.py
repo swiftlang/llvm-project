@@ -39,11 +39,13 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
             "frame var virtualBase",
             patterns=[r"VirtualBase = \(baseValue = 20\)", r"ownValue = 21\b"],
         )
+        self.expect_var_path("virtualBase.baseValue", value="20")
         self.expect_var_path("swiftStruct.member.value", value="4")
         self.expect_var_path("swiftStruct.number", value="42")
         self.expect_var_path("nonCopyable.x", value="5")
         self.expect_var_path("holder.member.x", value="6")
         self.expect("frame var derived", patterns=[r"NonCopyable = \(x = 7\)"])
+        self.expect_var_path("derived.x", value="7")
         self.expect_var_path("annotated.x", value="8")
 
         # Copying into $R calls the copy constructor, and the expression
@@ -123,6 +125,10 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
     def test_known_failures(self):
         self.launch()
 
+        if False:  # rdar://190774376
+            # Calling a method on a ~Copyable C++ value asserts in
+            # DiagnoseStaticExclusivity.
+            self.expect_expr("nonCopyable.method(3)", result_value="15")
         if False:  # rdar://190470866
             self.expect_var_path("derived.x", value="7")
             self.expect_var_path("virtualBase.baseValue", value="20")

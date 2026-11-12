@@ -20,5 +20,7 @@ class TestSwiftForwardInteropCxxClass(TestBase):
         self.expect('po x', substrs=['CxxClass', 'a1', '10', 'a2', '20', 'a3', '30'])
 
         self.expect('frame var y', substrs=['InheritedCxxClass', 'a1', '10', 'a2', '20', 'a3', '30', 'a4', '40'])
+        self.expect_var_path('y.a1', value='10')
+        self.expect_var_path('y.a4', value='40')
         # FIXME: rdar://106216567
         self.expect('po y', substrs=['InheritedCxxClass', 'a4', '40'])
