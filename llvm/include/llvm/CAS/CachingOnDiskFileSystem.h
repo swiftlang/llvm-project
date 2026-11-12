@@ -120,7 +120,7 @@ public:
   /// cached filesystem contents.
   virtual std::unique_ptr<TreeBuilder> createTreeBuilder() = 0;
 
-  ObjectStore &getCAS() const { return DB; }
+  ObjectStore &getCAS() const final { return DB; }
 
   /// Get a proxy FS that has an independent working directory but uses the
   /// same thread-safe cache.

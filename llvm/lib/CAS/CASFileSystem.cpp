@@ -99,7 +99,7 @@ public:
   }
   CASFileSystem(const CASFileSystem &FS) = default;
 
-  ObjectStore &getCAS() const { return DB; }
+  ObjectStore &getCAS() const final { return DB; }
 
 private:
   ObjectStore &DB;

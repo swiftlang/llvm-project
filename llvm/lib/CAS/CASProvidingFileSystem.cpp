@@ -97,6 +97,8 @@ public:
     return std::pair{std::move(*Buffer), *Blob};
   }
 
+  ObjectStore &getCAS() const final { return *DB; }
+
   IntrusiveRefCntPtr<CASBackedFileSystem> createThreadSafeProxyFS() final {
     return makeIntrusiveRefCnt<CASProvidingFileSystem>(DB, FS);
   }

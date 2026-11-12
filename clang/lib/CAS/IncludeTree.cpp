@@ -1136,6 +1136,8 @@ public:
   std::error_code setCurrentWorkingDirectory(const Twine &Path) override {
     return llvm::errc::operation_not_permitted;
   }
+  llvm::cas::ObjectStore &getCAS() const override { return CAS; }
+
   IntrusiveRefCntPtr<llvm::cas::CASBackedFileSystem>
   createThreadSafeProxyFS() override {
     llvm::report_fatal_error("not implemented");

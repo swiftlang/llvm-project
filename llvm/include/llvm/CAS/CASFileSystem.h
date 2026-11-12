@@ -35,6 +35,9 @@ public:
                                bool RequiresNullTerminator = true,
                                bool IsVolatile = false, bool IsText = true) = 0;
 
+  /// The CAS that the references returned by this filesystem belong to.
+  virtual ObjectStore &getCAS() const = 0;
+
   /// Get ObjectRef of a file from its path.
   LLVM_ABI llvm::Expected<cas::ObjectRef>
   getObjectRefForFileContent(const Twine &Name);

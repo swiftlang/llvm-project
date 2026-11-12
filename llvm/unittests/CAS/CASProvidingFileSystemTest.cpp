@@ -29,6 +29,7 @@ TEST(CASProvidingFileSystemTest, Basic) {
   std::unique_ptr<vfs::FileSystem> VFS = createCASProvidingFileSystem(DB, FS);
   ASSERT_TRUE(VFS);
   auto &CASFS = cast<CASBackedFileSystem>(*VFS);
+  EXPECT_EQ(&CASFS.getCAS(), DB.get());
   {
     // Opening through the plain vfs::FileSystem interface still works; it just
     // does not carry a CAS reference.
