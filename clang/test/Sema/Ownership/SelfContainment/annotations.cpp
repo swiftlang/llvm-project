@@ -1,14 +1,5 @@
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     %s -verify=common,on -Wownership-inference -Wownership-inference-suggestions
-// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
-// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
-// RUN:     %s -verify=common,off -Wownership-inference -Wno-ownership-inference-annotation-mismatch \
-// RUN:     -Wownership-inference-suggestions
-
-// 'on'     additionally expects the annotation mismatch warnings.
-// 'off'    disables them, while the other diagnostics are unaffected.
-// 'common' is expected either way.
+// DEFINE: %{infer} = %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions
+// RUN: %{infer} -Wownership-inference -Wownership-inference-suggestions %s -verify=common,on
 
 #define SELF_CONTAINED __attribute__((swift_attr("Escapable")))
 #define VIEW __attribute__((swift_attr("~Escapable")))
@@ -20,6 +11,7 @@ struct Empty {};
 // An annotation that matches the inference is not diagnosed.
 struct SELF_CONTAINED MatchingSelfContained { int x; };
 // common-warning@-1 {{type 'MatchingSelfContained' was inferred as 'self-contained'}}
+
 struct VIEW MatchingView { int &r; };
 // common-warning@-1 {{type 'MatchingView' was inferred as 'view'}}
 // common-note@-2 {{holds reference field 'r'}}
