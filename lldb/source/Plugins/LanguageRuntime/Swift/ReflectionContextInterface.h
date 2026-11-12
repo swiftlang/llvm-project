@@ -13,6 +13,7 @@
 #ifndef liblldb_SwiftReflectionContextInterface_h_
 #define liblldb_SwiftReflectionContextInterface_h_
 
+#include <functional>
 #include <mutex>
 
 #include "LockGuarded.h"
@@ -65,10 +66,17 @@ struct SuperClassType {
 /// a specific pointer width.
 class ReflectionContextInterface {
 public:
+  /// Called with the name of the module that owns a type, before the
+  /// reflection metadata of the type is looked up. This gives the
+  /// callback the chance to register the module's image with \ref
+  /// AddImage if it isn't registered yet.
+  using ModuleLookupCallback = std::function<void(llvm::StringRef module_name)>;
+
   /// Return a reflection context.
   static std::unique_ptr<ReflectionContextInterface> CreateReflectionContext(
       uint8_t pointer_size, std::shared_ptr<swift::remote::MemoryReader> reader,
-      bool objc_interop, SwiftMetadataCache *swift_metadata_cache);
+      bool objc_interop, SwiftMetadataCache *swift_metadata_cache,
+      ModuleLookupCallback module_lookup_callback = {});
 
   virtual ~ReflectionContextInterface() = default;
 

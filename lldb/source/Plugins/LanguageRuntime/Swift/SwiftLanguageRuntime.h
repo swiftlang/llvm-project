@@ -1032,6 +1032,19 @@ private:
   /// Add the image to the reflection context.
   /// \return true on success.
   bool AddModuleToReflectionContext(const lldb::ModuleSP &module_sp);
+
+  /// Called by the reflection context before it looks up the reflection
+  /// metadata of a type contained within \p module_name. If no image providing
+  /// that module has been registered, this registers the matching Swift library
+  /// from the shared cache.
+  void AddSharedCacheModuleToReflectionContext(llvm::StringRef module_name);
+
+  /// The names of the modules that have been registered with the reflection
+  /// context (or have been attempted to be registered).
+  llvm::StringSet<> m_reflection_module_names;
+
+  /// The image addrs registered with AddSharedCacheModuleToReflectionContext.
+  llvm::DenseSet<lldb::addr_t> m_shared_cache_images_in_reflection_ctx;
   /// \}
 
   /// Add the contents of the object file to the reflection context.
