@@ -52,29 +52,3 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     clangBasic
     clangRewrite
   )
-
-if (NOT LLDB_LINK_SWIFT_COMPILER_DYLIB)
-  if(BOOTSTRAPPING_MODE OR
-     (NOT LLDB_BUILT_STANDALONE AND NOT DEFINED BOOTSTRAPPING_MODE))
-    target_link_libraries(lldbPluginExpressionParserSwift
-      PRIVATE
-        swiftCompilerModules)
-
-    # The swiftCompilerModules need swiftrt to work properly.
-    string(REGEX MATCH "^[^-]*" arch ${LLVM_TARGET_TRIPLE})
-    if (CMAKE_SYSTEM_NAME MATCHES "Linux|Android|OpenBSD|FreeBSD")
-      string(TOLOWER ${CMAKE_SYSTEM_NAME} platform)
-      target_link_libraries(lldbPluginExpressionParserSwift
-        PRIVATE
-          "${LLDB_SWIFT_LIBS}/${platform}/${arch}/swiftrt${CMAKE_C_OUTPUT_EXTENSION}")
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-      set(swiftrt_obj
-          ${SWIFT_PATH_TO_SWIFT_SDK}/usr/lib/swift/windows/${arch}/swiftrt${CMAKE_C_OUTPUT_EXTENSION})
-      target_link_libraries(lldbPluginExpressionParserSwift PRIVATE ${swiftrt_obj})
-    endif()
-  else()
-    target_link_libraries(lldbPluginExpressionParserSwift
-      PRIVATE
-        swiftCompilerStub)
-  endif()
-endif()
