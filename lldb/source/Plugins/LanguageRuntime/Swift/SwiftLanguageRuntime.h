@@ -611,16 +611,16 @@ public:
   static lldb::ValueObjectSP CalculateErrorValue(lldb::StackFrameSP frame_sp,
                                                  ConstString name);
 
-  lldb::ValueObjectSP CalculateErrorValueObjectFromValue(Value &value,
-                                                         ConstString name,
-                                                         bool persistent);
+  lldb::ValueObjectSP
+  CalculateErrorValueObjectFromValue(Value &value, ConstString name,
+                                     bool persistent) override;
 
   std::optional<Value>
-  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp);
+  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp) override;
 
   std::optional<Value>
   GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
-                                     bool &need_to_check_after_return);
+                                     bool &need_to_check_after_return) override;
 
   static void RegisterGlobalError(Target &target, ConstString name,
                                   lldb::addr_t addr);
