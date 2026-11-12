@@ -11367,12 +11367,12 @@ def warn_ownership_inference_suggest_view : Warning<
   InGroup<OwnershipInferenceSuggestView>, DefaultIgnore;
 
 def note_ownership_inference_holds_field_inferred : Note<
-  "holds field %quoted0 of type %q1 that was "
-  "%select{inferred|annotated}2 as '%3'">;
+  "holds field %quoted0 of type %q1 that "
+  "%select{was inferred as '%3'|was annotated as '%3'|failed to infer}2">;
 
 def note_ownership_inference_derives_from_base_inferred : Note<
-  "derives from class %q0 that was "
-  "%select{inferred|annotated}1 as '%2'">;
+  "derives from class %q0 that "
+  "%select{was inferred as '%2'|was annotated as '%2'|failed to infer}1">;
 
 def note_ownership_inference_holds_field : Note<
   "holds %select{reference|unmanaged raw-pointer}0 "

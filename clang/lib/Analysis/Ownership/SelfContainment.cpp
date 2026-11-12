@@ -113,9 +113,6 @@ struct DerivesFrom {
     return Base.getType()->getAsCXXRecordDecl();
   }
 
-  bool wasAnnotated() const {
-    return hasEitherViewOrSelfContainedAttr(asDecl()).has_value();
-  }
   void report(DiagnosticsEngine &Diags) const;
 };
 
@@ -124,9 +121,6 @@ struct HoldsField {
   const RecordDecl *CheckedRecord;
   Result Outcome;
 
-  bool wasAnnotated() const {
-    return hasEitherViewOrSelfContainedAttr(CheckedRecord).has_value();
-  }
   void report(DiagnosticsEngine &Diags) const;
 };
 
@@ -156,22 +150,34 @@ void HoldsUnmanagedRawPtrField::report(DiagnosticsEngine &Diags) const {
       << SourceRange(Loc);
 }
 
-// derives from class % that was {inferred|annotated} as '%'
+// How a note spells the outcome of a base or a field type.
+// The order matches the selectors of the notes.
+static unsigned spellOutcome(const RecordDecl *R, Result Outcome) {
+  enum { Inferred, Annotated, FailedToInfer };
+  if (hasEitherViewOrSelfContainedAttr(R))
+    return Annotated;
+  return Outcome == Result::Unknown ? FailedToInfer : Inferred;
+}
+
+// derives from class % that {was inferred as %|was annotated as %|failed to
+// infer}
 void DerivesFrom::report(DiagnosticsEngine &Diags) const {
   // Point at the base-specifier (where the inheritance is expressed),
   // not the base class's own definition.
   SourceLocation Loc = Base.getBaseTypeLoc();
   Diags.Report(Loc, diag::note_ownership_inference_derives_from_base_inferred)
-      << asDecl() << wasAnnotated() << asString(Outcome)
+      << asDecl() << spellOutcome(asDecl(), Outcome) << asString(Outcome)
       << SourceRange(Loc);
 }
 
-// holds field % of type % that was {inferred|annotated} as '%'
+// holds field % of type % that {was inferred as %|was annotated as %|failed to
+// infer}
 void HoldsField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_holds_field_inferred)
-      << fieldDisplayName(Field) << CheckedRecord << wasAnnotated()
-      << asString(Outcome) << SourceRange(Loc);
+      << fieldDisplayName(Field) << CheckedRecord
+      << spellOutcome(CheckedRecord, Outcome) << asString(Outcome)
+      << SourceRange(Loc);
 }
 
 // destructor was not instantiated for this specialization

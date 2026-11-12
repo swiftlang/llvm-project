@@ -43,7 +43,7 @@ struct Opaque { // expected-warning {{type 'Opaque' failed to infer}}
 };
 struct DerivesOpaque : Opaque {};
 // expected-warning@-1 {{type 'DerivesOpaque' failed to infer}}
-// expected-note@-2 {{derives from class 'Opaque' that was inferred as 'unknown'}}
+// expected-note@-2 {{derives from class 'Opaque' that failed to infer}}
 
 struct Empty {}; // expected-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
 struct DerivesEmpty : Empty {};
@@ -56,4 +56,9 @@ struct Value3 { // expected-warning {{type 'Value3' was inferred as 'self-contai
 struct HoldsValue { // expected-warning {{type 'HoldsValue' was inferred as 'view'}}
   Value3 v;
   int &r; // expected-note {{holds reference field 'r'}}
+};
+
+// An inconclusive field type is spelled as such.
+struct HoldsOpaque { // expected-warning {{type 'HoldsOpaque' failed to infer}}
+  Opaque o; // expected-note {{holds field 'o' of type 'Opaque' that failed to infer}}
 };
