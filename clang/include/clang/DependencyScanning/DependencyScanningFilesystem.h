@@ -451,17 +451,11 @@ private:
   /// Reads file at the given path. Enforces consistency between the file size
   /// in status and size of read contents. If \p CAS is non-null, the contents
   /// are stored in it and their CAS reference is captured too.
-  static llvm::ErrorOr<TentativeEntry> readFile(StringRef Filename,
-                                                llvm::vfs::FileSystem &FS,
-                                                cas::ObjectStore *CAS);
-
-  /// Reads the file at the given path together with the CAS reference \p FS
-  /// knows for its contents. \p Stat is the status of that file, as reported
-  /// by \p FS. Enforces consistency between the file size in status and size
-  /// of read contents.
-  static llvm::ErrorOr<TentativeEntry>
-  readFileWithObjectRef(StringRef Filename, llvm::vfs::Status Stat,
-                        llvm::cas::CASBackedFileSystem &FS);
+  llvm::ErrorOr<TentativeEntry>
+  readFile(StringRef Filename,
+           llvm::PointerUnion<llvm::vfs::FileSystem *,
+                              llvm::cas::CASBackedFileSystem>
+               UseFS);
 
   void printImpl(raw_ostream &OS, PrintType Type,
                  unsigned IndentLevel) const override {

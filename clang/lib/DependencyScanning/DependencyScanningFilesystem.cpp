@@ -18,11 +18,30 @@ using namespace clang;
 using namespace dependencies;
 
 llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
-DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
-                                             llvm::vfs::FileSystem &FS,
-                                             cas::ObjectStore *CAS) {
+DependencyScanningWorkerFilesystem::readFile(
+    StringRef Filename,
+    llvm::PointerUnion<llvm::vfs::FileSystem *, llvm::cas::CASBackedFileSystem>
+        UseFS) {
+  if (auto *CASFS = UseFS.dyn_cast<llvm::cas::CASBackedFileSystem *>()) {
+    auto MaybeStat = CASFS->status(Filename);
+    if (!MaybeStat)
+      return MaybeStat.getError();
+    auto Stat = std::move(*MaybeStat);
+
+    auto MaybeBufferAndRef = CASFS->getBufferAndObjectRefForFile(Filename);
+    if (!MaybeBufferAndRef)
+      return llvm::errorToErrorCode(MaybeBufferAndRef.takeError());
+    auto [Buffer, Ref] = std::move(*MaybeBufferAndRef);
+
+    // CASFS is immutable.
+    assert(Stat.getSize() != Buffer->getBufferSize());
+
+    return TentativeEntry(Stat, std::move(Buffer), Ref);
+  }
+
   // Load the file and its content from the file system.
-  auto MaybeFile = FS.openFileForRead(Filename);
+  auto *FS = UseFS.dyn_cast<llvm::vfs::FileSystem *>();
+  auto MaybeFile = FS->openFileForRead(Filename);
   if (!MaybeFile)
     return MaybeFile.getError();
   auto File = std::move(*MaybeFile);
@@ -41,34 +60,7 @@ DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
   if (Stat.getSize() != Buffer->getBufferSize())
     Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
 
-  // Store the contents at the one point where the bytes are produced, so that
-  // the CAS reference is carried along with them in this cache and nobody
-  // downstream has to re-derive it.
-  std::optional<cas::ObjectRef> CASContents;
-  if (CAS) {
-    auto MaybeRef = CAS->storeFromString({}, Buffer->getBuffer());
-    if (!MaybeRef)
-      return llvm::errorToErrorCode(MaybeRef.takeError());
-    CASContents = *MaybeRef;
-  }
-
-  return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
-}
-
-llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
-DependencyScanningWorkerFilesystem::readFileWithObjectRef(
-    StringRef Filename, llvm::vfs::Status Stat,
-    llvm::cas::CASBackedFileSystem &FS) {
-  auto MaybeBufferAndRef = FS.getBufferAndObjectRefForFile(Filename);
-  if (!MaybeBufferAndRef)
-    return llvm::errorToErrorCode(MaybeBufferAndRef.takeError());
-  auto [Buffer, Ref] = std::move(*MaybeBufferAndRef);
-
-  // If the file size changed between read and stat, pretend it didn't.
-  if (Stat.getSize() != Buffer->getBufferSize())
-    Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
-
-  return TentativeEntry(Stat, std::move(Buffer), Ref);
+  return TentativeEntry(Stat, std::move(Buffer));
 }
 
 bool DependencyScanningWorkerFilesystem::ensureDirectiveTokensArePopulated(
@@ -324,8 +316,7 @@ DependencyScanningWorkerFilesystem::resolveUIDThroughSharedCache(
   auto UIDProducer = std::move(std::get<SlotProducer>(UIDSlot));
 
   auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                : CASFS ? readFileWithObjectRef(OriginalFilename, Stat, *CASFS)
-                        : readFile(OriginalFilename, *BaseFS, CAS);
+                        : readFile(OriginalFilename, *BaseFS);
 
   // Allocate the entry and bind the UID slot under one shard-lock acquisition
   // (BumpPtrAllocator isn't thread-safe). On read-failure, the entry wraps
@@ -351,7 +342,7 @@ DependencyScanningWorkerFilesystem::createCachedFSEntryForLocal(
   assert(LocalFS);
   auto TEntry = Stat.isDirectory()
                     ? TentativeEntry(Stat)
-                    : readFile(OriginalFilename, *LocalFS, /*CAS=*/nullptr);
+                    : readFile(OriginalFilename, *LocalFS);
   return createEntry(TEntry, LocalContentsStorage, LocalEntryStorage);
 }
 
