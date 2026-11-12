@@ -35,7 +35,10 @@ public:
   bool CanDebug(TargetSP, bool) override { return true; }
   Status DoDestroy() override { return {}; }
   void RefreshStateAfterStop() override {}
-  size_t DoReadMemory(addr_t, void *, size_t, Status &) override { return 0; }
+  size_t DoReadMemory(const ProcessAddress &, void *, size_t,
+                      Status &) override {
+    return 0;
+  }
   bool DoUpdateThreadList(ThreadList &, ThreadList &) override { return false; }
   llvm::StringRef GetPluginName() override { return "Dummy"; }
 };
