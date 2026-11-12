@@ -1,0 +1,56 @@
+// RUN: %clang_cc1 -std=c++2b -fsyntax-only \
+// RUN:     -flifetime-safety-inference -fexperimental-lifetime-safety-tu-analysis \
+// RUN:     %s -verify -Wownership-inference -Wownership-inference-suggestions
+
+// Fields are looked through arrays, complex, vector and atomic types to find
+// the element that decides the outcome.
+
+struct View {                      // expected-warning 2 {{type 'View' was inferred as 'view'}}
+  const int *p;                    // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}
+};
+
+// Arrays of raw pointers.
+struct PtrArray {                  // expected-warning {{type 'PtrArray' was inferred as 'view'}}
+  int *arr[4];                     // expected-note {{holds unmanaged raw-pointer field 'arr'}}
+};
+
+// Arrays of arrays of raw pointers are unwrapped transitively.
+struct PtrArray2D {                // expected-warning {{type 'PtrArray2D' was inferred as 'view'}}
+  int *arr[2][3];                  // expected-note {{holds unmanaged raw-pointer field 'arr'}}
+};
+
+// Arrays of views.
+struct ViewArray {                 // expected-warning {{type 'ViewArray' was inferred as 'view'}}
+  View arr[2];                     // expected-note {{holds field 'arr' of type 'View' that was inferred as 'view'}}
+};
+
+// Arrays of references are not valid, but arrays of values are self-contained.
+struct IntArray {                  // expected-warning {{type 'IntArray' was inferred as 'self-contained'}}
+  int arr[4];
+};
+
+// Complex numbers are self-contained.
+struct Complex {                   // expected-warning {{type 'Complex' was inferred as 'self-contained'}}
+  _Complex double c;
+  _Complex float cs[2];
+};
+
+// Vectors are self-contained.
+typedef int V4SI __attribute__((vector_size(16)));
+struct Vector {                    // expected-warning {{type 'Vector' was inferred as 'self-contained'}}
+  V4SI v;
+};
+
+// Atomics look through to the value type.
+struct AtomicInt {                 // expected-warning {{type 'AtomicInt' was inferred as 'self-contained'}}
+  _Atomic(int) a;
+};
+struct AtomicPtr {                 // expected-warning {{type 'AtomicPtr' was inferred as 'view'}}
+  _Atomic(int *) a;                // expected-note {{holds unmanaged raw-pointer field 'a'}}
+};
+struct AtomicPtrArray {            // expected-warning {{type 'AtomicPtrArray' was inferred as 'view'}}
+  _Atomic(int *) a[2];             // expected-note {{holds unmanaged raw-pointer field 'a'}}
+};
+struct AtomicView {                // expected-warning {{type 'AtomicView' was inferred as 'view'}}
+  _Atomic(View *) a;               // expected-note {{holds unmanaged raw-pointer field 'a'}}
+};
