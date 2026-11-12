@@ -321,8 +321,24 @@ llvm::Value *CodeGenFunction::EmitTerminator(const llvm::APSInt &Terminator,
   return llvm::ConstantInt::get(Ty, Terminator.getZExtValue());
 }
 
+void CodeGenFunction::AddTerminatedByTypeToTrapReason(PartialDiagnostic &PD,
+                                                      QualType TerminatedByTy) {
+  assert(PD.hasStorage() && PD.getStorage()->NumDiagArgs == 1 &&
+         "PD must only contain argument %0");
+  // The `__terminated_by` type is described using its pointee type and
+  // terminator value because the type printer's spelling of it (e.g.
+  // `'const char *__single __terminated_by(0)' (aka 'const char *__single')`)
+  // isn't how users normally write the type.
+  const auto *VTT = TerminatedByTy->getAs<ValueTerminatedType>();
+  assert(VTT);
+  llvm::APSInt TermVal = VTT->getTerminatorValue(getContext());
+  PD << /*%1=*/TerminatedByTy->getPointeeType().getAsString(
+            getContext().getPrintingPolicy())
+     << /*%2=*/!TermVal.isZero() << /*%3=*/toString(TermVal, /*Radix=*/10);
+}
+
 void CodeGenFunction::EmitValueTerminatedPointerArithmeticCheck(
-    QualType PointerType, llvm::Value *Ptr) {
+    QualType PointerType, llvm::Value *Ptr, const PartialDiagnostic &PD) {
   BoundsSafetyOptRemarkScope Scope(this, BNS_OR_TERMINATED_BY_PTR_ARITH);
   assert(PointerType->isPointerType());
   QualType PointeeType = PointerType->getPointeeType();
@@ -336,7 +352,14 @@ void CodeGenFunction::EmitValueTerminatedPointerArithmeticCheck(
   llvm::Value *Term = EmitTerminator(TermVal, Val->getType());
 
   llvm::Value *Check = Builder.CreateICmpNE(Val, Term);
-  EmitBoundsSafetyTrapCheck(Check, BNS_TRAP_TERMINATED_BY_PTR_ARITH);
+  PartialDiagnostic TRArgs = PD;
+  // Adds %1-%3 to TRArgs.
+  AddTerminatedByTypeToTrapReason(TRArgs, PointerType);
+  TrapReason TR;
+  CGM.BuildTrapReason(diag::trap_bs_terminated_by_ptr_arith, TR)
+      << /*%0-%3=*/TRArgs;
+  EmitBoundsSafetyTrapCheck(Check, BNS_TRAP_TERMINATED_BY_PTR_ARITH,
+                            BoundsSafetyTrapCtx::UNKNOWN, &TR);
 }
 
 void CodeGenFunction::EmitValueTerminatedAssignmentCheck(

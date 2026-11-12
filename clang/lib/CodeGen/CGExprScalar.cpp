@@ -3662,8 +3662,10 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     /* TO_UPSTREAM(BoundsSafety) ON */
     if (E->getSubExpr()->getType()->isValueTerminatedType()) {
       assert(isInc);
+      auto PD = CGF.CGM.BuildPartialTrapReason();
+      PD << /*%0=*/E;
       CGF.EmitValueTerminatedPointerArithmeticCheck(E->getSubExpr()->getType(),
-                                                    value);
+                                                    value, PD);
     }
     /* TO_UPSTREAM(BoundsSafety) OFF */
 
@@ -4723,8 +4725,10 @@ llvm::Value *CodeGenFunction::EmitPointerArithmetic(
     if (!IndexVal.isZero()) {
       assert((!isSubtraction && IndexVal.isOne()) ||
              (isSubtraction && IndexVal.isNegative() && IndexVal.isAllOnes()));
+      auto PD = CGM.BuildPartialTrapReason();
+      PD << /*%0=*/BO;
       EmitValueTerminatedPointerArithmeticCheck(pointerOperand->getType(),
-                                                pointer);
+                                                pointer, PD);
     }
   }
   /* TO_UPSTREAM(BoundsSafety) OFF*/
@@ -6940,16 +6944,11 @@ Value *ScalarExprEmitter::VisitTerminatedByFromIndexableExpr(
   const auto *VTT = E->getType()->getAs<ValueTerminatedType>();
   llvm::APSInt TermVal = VTT->getTerminatorValue(CGF.getContext());
 
-  // Describe the conversion for the trap reasons. The `__terminated_by` type is
-  // described using its pointee type and terminator value because the type
-  // printer's spelling of it (e.g.
-  // `'const char *__single __terminated_by(0)' (aka 'const char *__single')`)
-  // isn't how users normally write the type.
+  // Describe the conversion for the trap reasons.
   auto PD = CGF.CGM.BuildPartialTrapReason();
-  PD << /*%0=*/E->getPointer()->getType()
-     << /*%1=*/E->getType()->getPointeeType().getAsString(
-            CGF.getContext().getPrintingPolicy())
-     << /*%2=*/!TermVal.isZero() << /*%3=*/toString(TermVal, /*Radix=*/10);
+  PD << /*%0=*/E->getPointer()->getType();
+  // Adds %1-%3 to PD.
+  CGF.AddTerminatedByTypeToTrapReason(PD, E->getType());
 
   if (const auto *PtrToTermExpr = E->getPointerToTerminator()) {
     return EmitTerminatedByFromIndexableWithPtrToTerm(

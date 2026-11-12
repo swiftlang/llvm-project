@@ -3128,8 +3128,17 @@ public:
                                        bool Accessed = true);
 
   llvm::Value *EmitTerminator(const llvm::APSInt &Terminator, llvm::Type *Ty);
+  /// \p PD provides the expression incrementing the pointer (argument `%0` of
+  /// the `trap_bs_terminated_by_ptr_arith` trap diagnostic).
   void EmitValueTerminatedPointerArithmeticCheck(QualType PointerType,
-                                                 llvm::Value *Ptr);
+                                                 llvm::Value *Ptr,
+                                                 const PartialDiagnostic &PD);
+  /// Append the description of the `__terminated_by` type \p TerminatedByTy to
+  /// the trap reason arguments in \p PD. This provides arguments `%1-%3` of
+  /// the trap diagnostics involving `__terminated_by` types (see
+  /// `DiagnosticBoundsSafetyTrapKinds.td`).
+  void AddTerminatedByTypeToTrapReason(PartialDiagnostic &PD,
+                                       QualType TerminatedByTy);
   void EmitValueTerminatedAssignmentCheck(const BinaryOperator *E,
                                           LValue Value);
   /* TO_UPSTREAM(BoundsSafety) OFF */
