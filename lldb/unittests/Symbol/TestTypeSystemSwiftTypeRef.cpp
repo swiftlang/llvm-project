@@ -15,6 +15,11 @@
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
 #include "Plugins/TypeSystem/Swift/TypeSystemSwiftTypeRef.h"
+#include "TestingSupport/SubsystemRAII.h"
+#include "lldb/Host/FileSystem.h"
+#include "lldb/Host/HostInfo.h"
+#include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/StreamString.h"
 #include "swift/Demangling/Demangle.h"
 #include "swift/Demangling/Demangler.h"
 #include "swift/Strings.h"
@@ -204,6 +209,100 @@ TEST_F(TestTypeSystemSwiftTypeRef, Function) {
   }
 }
 
+TEST_F(TestTypeSystemSwiftTypeRef, DumpThinFunctionValue) {
+  // Dumping a hex value reads a target setting.
+  SubsystemRAII<FileSystem, HostInfo> subsystems;
+  using namespace swift::Demangle;
+  Demangler dem;
+  TestingNodeBuilder b(dem);
+  NodePointer n = b.GlobalType(
+      b.Node(Node::Kind::ThinFunctionType,
+             b.Node(Node::Kind::ArgumentTuple,
+                    b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple))),
+             b.Node(Node::Kind::ReturnType,
+                    b.Node(Node::Kind::Type, b.Node(Node::Kind::Tuple)))));
+  CompilerType thin = GetCompilerType(b.Mangle(n));
+  uint64_t function_pointer = 0x1234;
+  lldb_private::DataExtractor data(&function_pointer, sizeof(function_pointer),
+                                   endian::InlHostByteOrder(),
+                                   sizeof(function_pointer));
+  StreamString s;
+  ASSERT_TRUE(thin.DumpTypeValue(&s, eFormatHex, data, 0,
+                                 sizeof(function_pointer), 0, 0, nullptr,
+                                 false));
+  ASSERT_EQ(s.GetString(), "0x0000000000001234");
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, GetFunctionTypeFromMangledSymbol) {
+  CompilerType int_type = GetCompilerType("$sSiD");
+  {
+    // func mayThrow(_ x: Int) throws -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M8mayThrowyS2iKF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) throws -> Swift.Int");
+    ASSERT_EQ(t.GetFunctionReturnType(), int_type);
+    ASSERT_EQ(t.GetNumberOfFunctionArguments(), 1u);
+    ASSERT_EQ(t.GetFunctionArgumentAtIndex(0), int_type);
+  }
+  {
+    // C.m(_ a: Int) -> String
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CC1mySSSiF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$sSSD"));
+  }
+  {
+    // C.init(x: Int)
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CC1xACSi_tcfc");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$s1M1CCD"));
+  }
+  {
+    // closure #1 (Int) -> Int in clo() -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M3cloSiyFS2icfU_");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) -> Swift.Int");
+    ASSERT_EQ(t.GetFunctionReturnType(), int_type);
+  }
+  {
+    // Embedded Swift: func mayThrow(_ x: Int) throws -> Int
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$e1M8mayThrowyS2iKF");
+    ASSERT_TRUE(t.IsFunctionType());
+    ASSERT_EQ(t.GetFunctionReturnType(), GetCompilerType("$eSiD"));
+  }
+  {
+    // func gen<T>(_ t: T) -> T
+    CompilerType t =
+        m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M3genyxxlF");
+    ASSERT_TRUE(t);
+    ASSERT_FALSE(t.IsFunctionType());
+  }
+  // Await and suspend resume partial functions of
+  // func asy(_ x: Int) async -> Int
+  for (const char *symbol : {"$s1M3asyyS2iYaFTQ0_", "$s1M3asyyS2iYaFTY0_"}) {
+    CompilerType t = m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol);
+    ASSERT_EQ(t.GetTypeName(), "(Swift.Int) async -> Swift.Int") << symbol;
+  }
+  // C.p.getter, static C.p.getter and static C.s() -> Int
+  for (const char *symbol :
+       {"$s1M1CC1pSivg", "$s1M1CC1pSivgZ", "$s1M1CC1sSiyFZ"}) {
+    CompilerType t = m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol);
+    ASSERT_EQ(t.GetTypeName(), "() -> Swift.Int") << symbol;
+  }
+  // TODO: Generic specialization and destructor.
+  for (const char *symbol : {"$s1M3genyxxlFSi_Tg5", "$s1M1CCfd"})
+    ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol(symbol))
+        << symbol;
+  // Type metadata accessor for C.
+  ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol("$s1M1CCMa"));
+  // A symbol that isn't Swift.
+  ASSERT_FALSE(m_swift_ts->GetFunctionTypeFromMangledSymbol("main"));
+}
+
 TEST_F(TestTypeSystemSwiftTypeRef, GetTypeInfo) {
   using namespace swift::Demangle;
   Demangler dem;
@@ -383,6 +482,17 @@ TEST_F(TestTypeSystemSwiftTypeRef, Scalar) {
     ASSERT_FALSE(float_type.IsIntegerType(is_signed));
     ASSERT_TRUE(float_type.IsScalarType());
   }
+}
+
+TEST_F(TestTypeSystemSwiftTypeRef, Double) {
+  CompilerType double_type = GetCompilerType("$sSdD");
+  ASSERT_TRUE(double_type.IsFloatingPointType());
+  bool is_signed = true;
+  ASSERT_FALSE(double_type.IsIntegerType(is_signed));
+  ASSERT_TRUE(double_type.IsScalarType());
+  ASSERT_EQ(double_type.GetTypeInfo() &
+                (eTypeIsFloat | eTypeIsScalar | eTypeHasValue),
+            eTypeIsFloat | eTypeIsScalar | eTypeHasValue);
 }
 
 TEST_F(TestTypeSystemSwiftTypeRef, ScalarAddress) {

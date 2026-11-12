@@ -238,6 +238,9 @@ public:
   /// Get a function type that returns nothing and take no parameters.
   CompilerType GetVoidFunctionType(swift::Mangle::ManglingFlavor flavor);
 
+  /// Get the type of the function that the symbol \p mangled_name mangles.
+  CompilerType GetFunctionTypeFromMangledSymbol(llvm::StringRef mangled_name);
+
   CompilerType GetBasicTypeFromAST(lldb::BasicType basic_type) override;
   // Exploring the type
   llvm::Expected<uint64_t>

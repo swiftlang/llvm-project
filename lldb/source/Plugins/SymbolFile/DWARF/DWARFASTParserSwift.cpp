@@ -260,8 +260,11 @@ lldb::TypeSP DWARFASTParserSwift::ParseTypeFromDWARF(const SymbolContext &sc,
     // Function linkage names are symbol manglings, not type manglings.
     bool is_function = die.Tag() == llvm::dwarf::DW_TAG_subprogram ||
                        die.Tag() == llvm::dwarf::DW_TAG_inlined_subroutine;
-    if (!is_function &&
-        SwiftLanguageRuntime::IsSwiftMangledName(mangled_name.GetCString()))
+    if (is_function)
+      compiler_type = m_swift_typesystem.GetFunctionTypeFromMangledSymbol(
+          mangled_name.GetStringRef());
+    else if (SwiftLanguageRuntime::IsSwiftMangledName(
+                 mangled_name.GetCString()))
       compiler_type =
           m_swift_typesystem.GetTypeFromMangledTypename(mangled_name);
   }
