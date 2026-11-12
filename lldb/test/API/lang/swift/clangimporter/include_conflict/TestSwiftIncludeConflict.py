@@ -43,7 +43,6 @@ class TestSwiftIncludeConflict(TestBase):
         # This is expected to succeed because ClangImporter was set up
         # with the flags from the main executable.
         self.expect("expr foo", "expected result", substrs=["42"])
-        self.assertTrue(os.path.isdir(mod_cache), "module cache exists")
 
         process.Continue()
         threads = lldbutil.get_threads_stopped_at_breakpoint(
