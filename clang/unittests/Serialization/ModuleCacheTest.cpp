@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Serialization/ModuleCache.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Driver/CreateInvocationFromArgs.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -15,6 +16,7 @@
 #include "clang/Lex/HeaderSearch.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -198,6 +200,20 @@ TEST_F(ModuleCacheTest, CachedModuleNewPathAllowErrors) {
   SyntaxOnlyAction Action2;
   ASSERT_FALSE(Instance2.ExecuteAction(Action2));
   ASSERT_TRUE(Diags->hasErrorOccurred());
+}
+
+// Test that the reported size covers the entire written contents, even if the
+// stream hasn't flushed them to the file on its own.
+TEST_F(ModuleCacheTest, WriteReportsFullSize) {
+  SmallString<256> Path(ModuleCachePath);
+  sys::path::append(Path, "M.pcm");
+
+  StringRef Contents = "contents\n";
+  off_t Size;
+  time_t ModTime;
+  ASSERT_EQ(writeImpl(Path, MemoryBufferRef(Contents, Path), Size, ModTime),
+            std::error_code{});
+  EXPECT_EQ(Size, off_t(Contents.size()));
 }
 
 } // anonymous namespace
