@@ -71,6 +71,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -546,6 +547,59 @@ void DwarfLinkerForBinary::collectRelocationsToApplyToSwiftReflectionSections(
   }
 }
 
+std::shared_ptr<PrefixMapper>
+DwarfLinkerForBinary::findCompilationPrefixMap(StringRef ObjectPath) {
+  // Build systems that let the compiler prefix map paths, for example for
+  // compilation caching, write the mapping to compilation-prefix-map.json in
+  // a parent directory of the object files. It is a JSON dictionary from each
+  // remapped prefix to the original one.
+  SmallVector<StringRef> SearchedDirs;
+  std::shared_ptr<PrefixMapper> Result;
+  for (StringRef Dir = sys::path::parent_path(ObjectPath); !Dir.empty();
+       Dir = sys::path::parent_path(Dir)) {
+    auto It = CompilationPrefixMaps.find(Dir);
+    if (It != CompilationPrefixMaps.end()) {
+      Result = It->second;
+      break;
+    }
+    SearchedDirs.push_back(Dir);
+
+    SmallString<256> Path(Dir);
+    sys::path::append(Path, "compilation-prefix-map.json");
+    auto BufferOrErr = MemoryBuffer::getFile(Path);
+    if (!BufferOrErr)
+      continue;
+
+    if (Options.Verbose)
+      outs() << "found compilation prefix map " << Path << '\n';
+    Expected<json::Value> Root = json::parse((*BufferOrErr)->getBuffer());
+    if (!Root) {
+      reportWarning("cannot parse compilation prefix map: " +
+                        toString(Root.takeError()),
+                    Path);
+      break;
+    }
+    const json::Object *Entries = Root->getAsObject();
+    if (!Entries) {
+      reportWarning("cannot parse compilation prefix map: expected a JSON "
+                    "object",
+                    Path);
+      break;
+    }
+    auto PrefixMap = std::make_shared<PrefixMapper>();
+    for (const auto &Entry : *Entries)
+      if (std::optional<StringRef> Original = Entry.second.getAsString())
+        PrefixMap->add(MappedPrefix(Entry.first, *Original));
+    PrefixMap->sort();
+    Result = std::move(PrefixMap);
+    break;
+  }
+
+  for (StringRef Dir : SearchedDirs)
+    CompilationPrefixMaps[Dir] = Result;
+  return Result;
+}
+
 Error DwarfLinkerForBinary::copySwiftInterfaces(StringRef Architecture) const {
   std::error_code EC;
   SmallString<128> InputPath;
@@ -1009,6 +1063,8 @@ bool DwarfLinkerForBinary::linkImpl(
     auto DLBRelocMap = std::make_shared<DwarfLinkerForBinaryRelocationMap>();
     if (ErrorOr<std::unique_ptr<DWARFFile>> ErrorOrObj =
             loadObject(*Obj, Map, RL, DLBRelocMap)) {
+      (*ErrorOrObj)->PrefixMap =
+          findCompilationPrefixMap(Obj->getObjectFilename());
       ObjectsForLinking.emplace_back(std::move(*ErrorOrObj), DLBRelocMap);
       GeneralLinker->addObjectFile(*ObjectsForLinking.back().Object, Loader,
                                    OnCUDieLoaded, CASLoader);
