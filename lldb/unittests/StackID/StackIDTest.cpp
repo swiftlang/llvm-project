@@ -54,10 +54,7 @@ struct MockProcess : Process {
     *reinterpret_cast<addr_t *>(buf) = memory_map[vm_addr];
     return sizeof(addr_t);
   }
-  size_t ReadMemory(const ProcessAddress &addr, void *buf, size_t size,
-                    Status &status) override {
-    return DoReadMemory(addr, buf, size, status);
-  }
+  bool ShouldUseMemoryCache(const ProcessAddress &) override { return false; }
   bool CanDebug(TargetSP, bool) override { return true; }
   Status DoDestroy() override { return Status(); }
   llvm::StringRef GetPluginName() override { return ""; }
