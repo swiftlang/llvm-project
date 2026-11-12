@@ -5624,9 +5624,6 @@ bool CompilerInvocation::CreateFromArgsImpl(
   }
   ParseAPINotesArgs(Res.getAPINotesOpts(), Args, Diags);
   ParsePointerAuthArgs(LangOpts, Args, Diags);
-
-  ParsePointerAuthArgs(LangOpts, Args, Diags);
-
   ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
                 Diags);
   if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
