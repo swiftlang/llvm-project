@@ -58,6 +58,8 @@ void StackID::Dump(Stream *s) {
   s->Printf("StackID (pc = 0x%16.16" PRIx64 ", cfa = 0x%16.16" PRIx64
             ", cfa_on_stack = %d, symbol_scope = %p",
             m_pc, m_cfa, m_cfa_on_stack, static_cast<void *>(m_symbol_scope));
+  if (m_tail_call_depth)
+    s->Printf(", tail_call_depth = %u", m_tail_call_depth);
   if (m_symbol_scope) {
     SymbolContext sc;
 
@@ -73,6 +75,9 @@ void StackID::Dump(Stream *s) {
 bool lldb_private::operator==(const StackID &lhs, const StackID &rhs) {
   if (lhs.GetCallFrameAddressWithoutMetadata() !=
       rhs.GetCallFrameAddressWithoutMetadata())
+    return false;
+
+  if (lhs.GetTailCallDepth() != rhs.GetTailCallDepth())
     return false;
 
   SymbolContextScope *lhs_scope = lhs.GetSymbolContextScope();
@@ -189,6 +194,10 @@ bool StackID::IsYoungerThan(const StackID &other, Process &process) const {
 
   if (lhs_cfa != rhs_cfa)
     return lhs_cfa < rhs_cfa;
+
+  // Tail call frames share the CFA of the younger frames that replaced them.
+  if (m_tail_call_depth != other.m_tail_call_depth)
+    return m_tail_call_depth < other.m_tail_call_depth;
 
   SymbolContextScope *lhs_scope = GetSymbolContextScope();
   SymbolContextScope *rhs_scope = other.GetSymbolContextScope();

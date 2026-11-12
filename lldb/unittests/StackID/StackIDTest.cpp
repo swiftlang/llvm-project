@@ -151,3 +151,24 @@ TEST_F(StackIDTest, HeapHeapCFAComparisonDecreasing) {
   EXPECT_TRUE(middle_cfa.IsYoungerThan(oldest_cfa, *process));
   EXPECT_FALSE(oldest_cfa.IsYoungerThan(middle_cfa, *process));
 }
+
+TEST_F(StackIDTest, TailCallDepthOrdersFramesSharingACFA) {
+  auto process = std::make_shared<MockProcess>(m_target_sp,
+                                               Listener::MakeListener("dummy"));
+
+  MockStackID unwound(/*cfa*/ 0x7f00, OnStack::Yes);
+  StackID tail_caller = unwound;
+  tail_caller.SetTailCallDepth(1);
+  StackID outer_tail_caller = unwound;
+  outer_tail_caller.SetTailCallDepth(2);
+  MockStackID caller(/*cfa*/ 0x7f10, OnStack::Yes);
+
+  EXPECT_NE(unwound, tail_caller);
+  EXPECT_NE(tail_caller, outer_tail_caller);
+  EXPECT_TRUE(unwound.IsYoungerThan(tail_caller, *process));
+  EXPECT_FALSE(tail_caller.IsYoungerThan(unwound, *process));
+  EXPECT_TRUE(tail_caller.IsYoungerThan(outer_tail_caller, *process));
+  EXPECT_FALSE(outer_tail_caller.IsYoungerThan(tail_caller, *process));
+  EXPECT_TRUE(outer_tail_caller.IsYoungerThan(caller, *process));
+  EXPECT_FALSE(caller.IsYoungerThan(outer_tail_caller, *process));
+}

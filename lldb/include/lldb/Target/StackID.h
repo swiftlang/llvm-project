@@ -38,11 +38,16 @@ public:
     m_symbol_scope = symbol_scope;
   }
 
+  uint32_t GetTailCallDepth() const { return m_tail_call_depth; }
+
+  void SetTailCallDepth(uint32_t depth) { m_tail_call_depth = depth; }
+
   void Clear() {
     m_pc = LLDB_INVALID_ADDRESS;
     m_cfa = LLDB_INVALID_ADDRESS;
     m_cfa_on_stack = eLazyBoolCalculate;
     m_symbol_scope = nullptr;
+    m_tail_call_depth = 0;
   }
 
   bool IsValid() const {
@@ -92,6 +97,11 @@ protected:
   /// elsewhere (ie heap).
   mutable LazyBool m_cfa_on_stack = eLazyBoolCalculate;
   // END SWIFT
+
+  /// For a synthesized tail call frame, which has the CFA of the younger frame
+  /// that replaced it, its position in the chain of tail calls after that
+  /// frame (1, 2, ...). 0 for every other frame.
+  uint32_t m_tail_call_depth = 0;
 };
 
 bool operator==(const StackID &lhs, const StackID &rhs);
