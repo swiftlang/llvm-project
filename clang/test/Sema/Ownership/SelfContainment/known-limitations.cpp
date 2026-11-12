@@ -1,22 +1,24 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -Wownership-inference -Wownership-inference-suggestions %s -verify
+
+#include "RealOwnershipAnnotations.h"
+#include "RealOwnershipTakesAnnotations.h"
 
 // A destructor-managed raw pointer makes the owner as self-contained as the
 // object it owns: owning a view yields a view, like embedding it by value.
 
 template<typename T> void derefIfNotNull(T *p) { if (p) p->deref(); }
 
-// expected-warning@+1 {{type 'String' was inferred as 'view'}}
-struct String { const char *characters; }; // expected-note {{holds unmanaged raw-pointer field 'characters'}}
+// expected-warning@+2 {{type 'String' was inferred as 'view'}}
+// expected-note@+1 {{holds unmanaged raw-pointer field 'characters'}}
+struct String { const char *characters; };
 
-// expected-warning@+1 {{type 'Parser' was inferred as 'view'}}
-struct Parser {
+struct Parser { // expected-warning {{type 'Parser' was inferred as 'view'}}
   void deref() const { if (!--rc) delete this; }
   mutable unsigned rc{1};
   const String &s; // expected-note {{holds reference field 's'}}
 };
 
-struct Counted {
-// expected-warning@-1 {{type 'Counted' was inferred as 'self-contained'}}
+struct Counted { // expected-warning {{type 'Counted' was inferred as 'self-contained'}}
   void deref() const { if (!--rc) delete this; }
   mutable unsigned rc{1};
 };
@@ -26,17 +28,15 @@ template<typename T> struct Ref {
   T *m_ptr; // expected-note 2 {{holds unmanaged raw-pointer field 'm_ptr'}}
 };
 
-// Owns a view.
+// expected-warning@+1 {{type 'Ref<Parser>' failed to infer}} FIXME: this should be a view because Parser is a view
 template struct Ref<Parser>;
-// expected-warning@-1 {{type 'Ref<Parser>' failed to infer}} FIXME: this should be a view because Parser is a view
 
-// Owns a self-contained object.
+// expected-warning@+1 {{type 'Ref<Counted>' failed to infer}} FIXME: should be self-contained.
 template struct Ref<Counted>;
-// expected-warning@-1 {{type 'Ref<Counted>' failed to infer}} FIXME: should be self-contained.
 
 // An owned self-reference adds nothing to its own outcome.
+// expected-warning@+1 {{type 'SelfRecursiveNode' failed to infer}} FIXME: should be self-contained.
 struct SelfRecursiveNode {
-// expected-warning@-1 {{type 'SelfRecursiveNode' failed to infer}} FIXME: should be self-contained.
   void deref() const { if (!--rc) delete this; }
   mutable unsigned rc{1};
   SelfRecursiveNode *next; // expected-note {{holds unmanaged raw-pointer field 'next'}}
@@ -44,8 +44,8 @@ struct SelfRecursiveNode {
 };
 
 // The pointee may be incomplete, unlike a by-value field: nothing is known.
-struct Incomplete;
-void derefIncomplete(Incomplete *) __attribute__((ownership_takes(release, 1)));
+void derefIncomplete(struct Incomplete *) OWNERSHIP_TAKES(1);
+
 // expected-warning@+1 {{type 'OwnsIncomplete' failed to infer}}
 struct OwnsIncomplete {
   ~OwnsIncomplete() { derefIncomplete(m_ptr); }
@@ -54,13 +54,13 @@ struct OwnsIncomplete {
 
 // An annotation on the forward declaration is trusted even though the
 // definition is never seen.
-struct __attribute__((swift_attr("Escapable"))) AnnotatedSelfContained;
-struct __attribute__((swift_attr("~Escapable"))) AnnotatedView;
-void derefSC(AnnotatedSelfContained *) __attribute__((ownership_takes(release, 1)));
-void derefView(AnnotatedView *) __attribute__((ownership_takes(release, 1)));
+struct SWIFT_SELF_CONTAINED AnnotatedSelfContained;
+struct SWIFT_VIEW AnnotatedView;
+void derefSC(AnnotatedSelfContained *) OWNERSHIP_TAKES(1);
+void derefView(AnnotatedView *) OWNERSHIP_TAKES(1);
 
+// expected-warning@+1 {{type 'OwnsAnnotatedSelfContained' failed to infer}} FIXME: should be a view
 struct OwnsAnnotatedSelfContained {
-// expected-warning@-1 {{type 'OwnsAnnotatedSelfContained' failed to infer}} FIXME: should be a view
   ~OwnsAnnotatedSelfContained() { derefSC(m_ptr); }
   AnnotatedSelfContained *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}
 };

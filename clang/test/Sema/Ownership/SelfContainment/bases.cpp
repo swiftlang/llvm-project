@@ -1,11 +1,10 @@
 // RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
 
 // The outcome of a class is joined with the outcome of each of its bases.
-//
 // Each record is reported once, no matter how many times it is used as a base.
 
-struct View {                      // expected-warning {{type 'View' was inferred as 'view'}}
-  const int *p;                    // expected-note {{holds unmanaged raw-pointer field 'p'}}
+struct ConstIntPtr { // expected-warning {{type 'ConstIntPtr' was inferred as 'view'}}
+  const int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
 };
 
 struct Int { // expected-warning {{type 'Int' was inferred as 'self-contained'}}
@@ -13,50 +12,47 @@ struct Int { // expected-warning {{type 'Int' was inferred as 'self-contained'}}
 };
 
 // Deriving from an inferred view makes the derived class a view.
-struct DerivesView : View {};
-// expected-warning@-1 {{type 'DerivesView' was inferred as 'view'}}
-// expected-note@-2 {{derives from class 'View' that was inferred as 'view'}}
+struct DerivesFromConstIntPtr : ConstIntPtr {};
+// expected-warning@-1 {{type 'DerivesFromConstIntPtr' was inferred as 'view'}}
+// expected-note@-2 {{derives from class 'ConstIntPtr' that was inferred as 'view'}}
 
-// Deriving from a self-contained class keeps the derived class self-contained,
-// even though the derived class has no fields of its own.
+// expected-warning@+1 {{type 'DerivesFromInt' was inferred as 'self-contained'}}
 struct DerivesFromInt : Int {};
-// expected-warning@-1 {{type 'DerivesFromInt' was inferred as 'self-contained'}}
 
-// Every base contributes, the worst outcome wins.
-// expected-warning@+1 {{type 'View2' was inferred as 'view'}}
-struct View2 { 
+// expected-warning@+1 {{type 'IntRef' was inferred as 'view'}}
+struct IntRef {
   int &r; // expected-note {{holds reference field 'r'}}
 };
-struct Value2 { // expected-warning {{type 'Value2' was inferred as 'self-contained'}}
+struct Int2 { // expected-warning {{type 'Int2' was inferred as 'self-contained'}}
   int x;
 };
-struct DerivesBoth : Value2, View2 {};
-// expected-warning@-1 {{type 'DerivesBoth' was inferred as 'view'}}
-// expected-note@-2 {{derives from class 'View2' that was inferred as 'view'}}
+struct DerivesFromInt2AndIntRef : Int2, IntRef {};
+// expected-warning@-1 {{type 'DerivesFromInt2AndIntRef' was inferred as 'view'}}
+// expected-note@-2 {{derives from class 'IntRef' that was inferred as 'view'}}
 
 // A base whose inference was inconclusive taints the derived class.
-struct Opaque { // expected-warning {{type 'Opaque' failed to infer}}
-  int *p;       // expected-note {{holds unmanaged raw-pointer field 'p'}}
-  ~Opaque();    // expected-note {{declares opaque destructor}}
+struct OpaqueIntPtr { // expected-warning {{type 'OpaqueIntPtr' failed to infer}}
+  int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~OpaqueIntPtr(); // expected-note {{declares opaque destructor}}
 };
-struct DerivesOpaque : Opaque {};
-// expected-warning@-1 {{type 'DerivesOpaque' failed to infer}}
-// expected-note@-2 {{derives from class 'Opaque' that failed to infer}}
+struct DerivesFromOpaqueIntPtr : OpaqueIntPtr {};
+// expected-warning@-1 {{type 'DerivesFromOpaqueIntPtr' failed to infer}}
+// expected-note@-2 {{derives from class 'OpaqueIntPtr' that failed to infer}}
 
 struct Empty {}; // expected-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
 struct DerivesEmpty : Empty {};
 // expected-warning@-1 {{type 'DerivesEmpty' was trivially inferred as 'self-contained'}}
 
-struct Value3 { // expected-warning {{type 'Value3' was inferred as 'self-contained'}}
+struct Int3 { // expected-warning {{type 'Int3' was inferred as 'self-contained'}}
   int x;
 };
 
-struct HoldsValue { // expected-warning {{type 'HoldsValue' was inferred as 'view'}}
-  Value3 v;
+struct HoldsInt3 { // expected-warning {{type 'HoldsInt3' was inferred as 'view'}}
+  Int3 v;
   int &r; // expected-note {{holds reference field 'r'}}
 };
 
 // An inconclusive field type is spelled as such.
-struct HoldsOpaque { // expected-warning {{type 'HoldsOpaque' failed to infer}}
-  Opaque o; // expected-note {{holds field 'o' of type 'Opaque' that failed to infer}}
+struct HoldsOpaqueIntPtr { // expected-warning {{type 'HoldsOpaqueIntPtr' failed to infer}}
+  OpaqueIntPtr o; // expected-note {{holds field 'o' of type 'OpaqueIntPtr' that failed to infer}}
 };

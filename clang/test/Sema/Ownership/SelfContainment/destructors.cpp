@@ -1,4 +1,6 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -Wownership-inference -Wownership-inference-suggestions %s -verify
+
+#include "RealOwnershipTakesAnnotations.h"
 
 // Raw pointer fields are only managed by a destructor that we can see through.
 
@@ -23,7 +25,7 @@ struct D3 {
 };
 
 // Class templates.
-template <class T> void release(T *) __attribute__((ownership_takes(release, 1)));
+template <class T> void release(T *) OWNERSHIP_TAKES(1);
 
 template <class T> struct Box {    // expected-warning {{type 'Box<char>' failed to infer}}
   T *p;                            // expected-note 2 {{holds unmanaged raw-pointer field 'p'}}

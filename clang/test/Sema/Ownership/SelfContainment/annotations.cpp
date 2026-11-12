@@ -1,7 +1,6 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -Wownership-inference -Wownership-inference-suggestions %s -verify
 
-#define SWIFT_SELF_CONTAINED __attribute__((swift_attr("Escapable")))
-#define SWIFT_VIEW __attribute__((swift_attr("~Escapable")))
+#include "RealOwnershipAnnotations.h"
 
 // Classes without fields are trivially self-contained.
 struct Empty {};

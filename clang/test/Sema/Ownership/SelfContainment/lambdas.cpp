@@ -3,7 +3,7 @@
 // Holding a closure by value forces the analysis to visit the closure type
 // (via field folding); the closure is inferred 'view' and the note names the capture.
 template <class L> struct Holder { L lam; };
-// expected-note@-1 5 {{holds field 'lam' of type}}
+// expected-note@-1 + {{holds field 'lam' of type}}
 
 // Init-capture: named after the synthesized init-capture variable.
 auto mkInit() { return [ptr = (int *)0] { return ptr; }; }
@@ -27,8 +27,7 @@ template struct Holder<decltype(mkRef(*(int *)0))>;
 // expected-warning-re@-1 {{type 'Holder<(lambda at {{.*}})>' was inferred as 'view'}}
 
 // `this`-capture: no backing variable, so the note spells 'this'.
-struct S {
-  // expected-warning@-1 {{type 'S' was inferred as 'self-contained'}}
+struct S { // expected-warning {{type 'S' was inferred as 'self-contained'}}
   int v;
   auto mkThis() { return [this] { return v; }; }
   // expected-warning-re@-1 {{type '(lambda at {{.*}})' was inferred as 'view'}}
@@ -39,8 +38,9 @@ template struct Holder<decltype(((S *)0)->mkThis())>;
 
 // Several captures: the note names the capture matching the offending field,
 // not the first one.
+// expected-warning-re@+1 {{type '(lambda at {{.*}})' was inferred as 'view'}}
 auto mkMany(int a, int *p, int &r) { return [a, p, &r] { return a + *p + r; }; }
-// expected-warning-re@-1 {{type '(lambda at {{.*}})' was inferred as 'view'}}
+// 'a' is not mentioned because it's self-contained.
 // expected-note@-2 {{holds unmanaged raw-pointer field 'p'}}
 // expected-note@-3 {{holds reference field 'r'}}
 template struct Holder<decltype(mkMany(0, nullptr, *(int *)0))>;

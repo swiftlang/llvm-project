@@ -2,14 +2,14 @@
 // the inference does not even run. Explicitly enabling one of the groups
 // enables just that one, and -Weverything doesn't enable the suggestions.
 
-// RUN: %clang_cc1 -fsyntax-only -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
 // RUN:   -Weverything -verify=none %s
-// RUN: %clang_cc1 -fsyntax-only -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -std=c++20 -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded \
 // RUN:   -Weverything -Wownership-inference-annotation-mismatch -verify=mismatch %s
 
 // none-no-diagnostics
 
-#define SWIFT_SELF_CONTAINED __attribute__((swift_attr("Escapable")))
+#include "RealOwnershipAnnotations.h"
 
 // No 'trivially self-contained' suggestion.
 struct Empty {};
