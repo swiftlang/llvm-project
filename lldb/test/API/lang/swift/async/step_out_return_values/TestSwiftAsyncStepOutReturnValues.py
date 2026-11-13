@@ -19,6 +19,7 @@ class TestCase(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwift
     @skipIf(archs=["x86_64"], bugnumber="rdar://192464251")
+    @skipIf(oslist=["linux"], archs=["aarch64"])
     def test(self):
         """Test the type and the return value of async funclets"""
         self.build()
