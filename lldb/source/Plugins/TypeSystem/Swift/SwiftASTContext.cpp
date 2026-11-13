@@ -4730,16 +4730,6 @@ SwiftASTContext::GetModule(const SourceModule &module, bool *cached) {
   LOG_PRINTF(GetLog(LLDBLog::Types), "(\"%s\") -- found %s",
              module_name.c_str(), module_decl->getName().str().str().c_str());
 
-  // if (is_esml_module) {
-  //  Simulate the effect of the BypassResilience flag in the
-  //  MemoryBufferSerializedModuleLoader.  Explicitly specified
-  //  modules are not typically produced from textual interfaces. By
-  //  disabling resilience, the debugger can directly access private
-  //  members.
-  // if (!module_decl->isBuiltFromInterface())
-  //   module_decl->setBypassResilience();
-  //}
-
   m_swift_module_cache.insert({module_name, *module_decl});
   return *module_decl;
 }
