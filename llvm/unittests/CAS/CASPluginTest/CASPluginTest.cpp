@@ -100,6 +100,13 @@ struct CASPluginOptions {
   std::string SecondPrefix;
   bool SimulateMissingObjects = false;
   bool Logging = true;
+  /// How long an asynchronous "download" of an object takes.
+  unsigned AsyncLoadDelayMs = 100;
+  /// How long an asynchronous action cache put takes.
+  unsigned AsyncPutDelayMs = 0;
+  /// How long storing an object takes when called from the callback of an
+  /// asynchronous operation.
+  unsigned CallbackStoreDelayMs = 0;
   /// If true, \c llcas_cas_validate_if_needed crashes while checking hashes,
   /// for testing recovery from a crashed validation.
   bool CrashOnValidate = false;
@@ -112,6 +119,7 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(CASPluginOptions, llcas_cas_options_t)
 } // namespace
 
 Error CASPluginOptions::setOption(StringRef Name, StringRef Value) {
+  unsigned *Delay = nullptr;
   if (Name == "first-prefix")
     FirstPrefix = Value;
   else if (Name == "second-prefix")
@@ -124,9 +132,19 @@ Error CASPluginOptions::setOption(StringRef Name, StringRef Value) {
     Logging = false;
   else if (Name == "crash-on-validate")
     CrashOnValidate = true;
+  else if (Name == "async-load-delay-ms")
+    Delay = &AsyncLoadDelayMs;
+  else if (Name == "async-put-delay-ms")
+    Delay = &AsyncPutDelayMs;
+  else if (Name == "callback-store-delay-ms")
+    Delay = &CallbackStoreDelayMs;
   else
     return createStringError(errc::invalid_argument,
                              Twine("unknown option: ") + Name);
+
+  if (Delay && Value.getAsInteger(10, *Delay))
+    return createStringError(errc::invalid_argument,
+                             Twine("invalid value for ") + Name + ": " + Value);
   return Error::success();
 }
 
@@ -208,6 +226,13 @@ struct CASWrapper {
   /// If true, asynchronous "download" of an object will treat it as missing.
   bool SimulateMissingObjects = false;
   bool Logging = true;
+  /// How long an asynchronous "download" of an object takes.
+  unsigned AsyncLoadDelayMs = 100;
+  /// How long an asynchronous action cache put takes.
+  unsigned AsyncPutDelayMs = 0;
+  /// How long storing an object takes when called from the callback of an
+  /// asynchronous operation.
+  unsigned CallbackStoreDelayMs = 0;
   std::unique_ptr<UnifiedOnDiskCache> DB;
   /// Used for testing the \c globally parameter of action cache APIs. Simulates
   /// "uploading"/"downloading" objects from/to the primary on-disk path.
@@ -420,9 +445,10 @@ llcas_cas_t llcas_cas_create(llcas_cas_options_t c_opts, char **error) {
       return reportError<llcas_cas_t>(std::move(E), error);
   }
 
-  return wrap(new CASWrapper{Opts.FirstPrefix, Opts.SecondPrefix,
-                             Opts.SimulateMissingObjects, Opts.Logging,
-                             std::move(*DB), std::move(UpstreamDB)});
+  return wrap(new CASWrapper{
+      Opts.FirstPrefix, Opts.SecondPrefix, Opts.SimulateMissingObjects,
+      Opts.Logging, Opts.AsyncLoadDelayMs, Opts.AsyncPutDelayMs,
+      Opts.CallbackStoreDelayMs, std::move(*DB), std::move(UpstreamDB)});
 }
 
 void llcas_cas_dispose(llcas_cas_t c_cas) { delete unwrap(c_cas); }
@@ -651,7 +677,8 @@ void llcas_cas_load_object_async(llcas_cas_t c_cas, llcas_objectid_t c_id,
   unwrap(c_cas)->Pool.async([=] {
 #if LLVM_ENABLE_THREADS
     // Wait a bit for the caller to proceed.
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(unwrap(c_cas)->AsyncLoadDelayMs));
 #endif
     auto &Wrap = *unwrap(c_cas);
     if (CancelState->Cancelled) {
@@ -672,6 +699,11 @@ void llcas_cas_load_object_async(llcas_cas_t c_cas, llcas_objectid_t c_id,
 bool llcas_cas_store_object(llcas_cas_t c_cas, llcas_data_t c_data,
                             const llcas_objectid_t *c_refs, size_t c_refs_count,
                             llcas_objectid_t *c_id_p, char **error) {
+#if LLVM_ENABLE_THREADS
+  if (unwrap(c_cas)->Pool.isWorkerThread())
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(unwrap(c_cas)->CallbackStoreDelayMs));
+#endif
   auto &CAS = unwrap(c_cas)->DB->getGraphDB();
   SmallVector<ObjectID, 64> Refs;
   Refs.reserve(c_refs_count);
@@ -866,6 +898,10 @@ void llcas_actioncache_put_for_digest_async(
 #endif
     }
     auto &Wrap = *unwrap(c_cas);
+#if LLVM_ENABLE_THREADS
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(Wrap.AsyncPutDelayMs));
+#endif
     if (CancelState->Cancelled) {
       Wrap.syncErrs([&](raw_ostream &OS) {
         OS << "actioncache_put_for_digest_async cancelled\n";
