@@ -31,17 +31,17 @@ struct DerivesFromInt2AndIntRef : Int2, IntRef {};
 // expected-note@-2 {{derives from class 'IntRef' that was inferred as 'view'}}
 
 // A base whose inference was inconclusive taints the derived class.
-struct OpaqueIntPtr { // expected-warning {{type 'OpaqueIntPtr' failed to infer}}
+struct OpaqueIntPtr { // expected-warning {{could not infer the self-containment of type 'OpaqueIntPtr'}}
   int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
-  ~OpaqueIntPtr(); // expected-note {{declares opaque destructor}}
+  ~OpaqueIntPtr(); // expected-note {{declares a destructor whose body is not visible}}
 };
 struct DerivesFromOpaqueIntPtr : OpaqueIntPtr {};
-// expected-warning@-1 {{type 'DerivesFromOpaqueIntPtr' failed to infer}}
-// expected-note@-2 {{derives from class 'OpaqueIntPtr' that failed to infer}}
+// expected-warning@-1 {{could not infer the self-containment of type 'DerivesFromOpaqueIntPtr'}}
+// expected-note@-2 {{derives from class 'OpaqueIntPtr' that could not be inferred}}
 
-struct Empty {}; // expected-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
+struct Empty {}; // expected-warning {{type 'Empty' was inferred as 'trivially-self-contained'}}
 struct DerivesEmpty : Empty {};
-// expected-warning@-1 {{type 'DerivesEmpty' was trivially inferred as 'self-contained'}}
+// expected-warning@-1 {{type 'DerivesEmpty' was inferred as 'trivially-self-contained'}}
 
 struct Int3 { // expected-warning {{type 'Int3' was inferred as 'self-contained'}}
   int x;
@@ -53,6 +53,6 @@ struct HoldsInt3 { // expected-warning {{type 'HoldsInt3' was inferred as 'view'
 };
 
 // An inconclusive field type is spelled as such.
-struct HoldsOpaqueIntPtr { // expected-warning {{type 'HoldsOpaqueIntPtr' failed to infer}}
-  OpaqueIntPtr o; // expected-note {{holds field 'o' of type 'OpaqueIntPtr' that failed to infer}}
+struct HoldsOpaqueIntPtr { // expected-warning {{could not infer the self-containment of type 'HoldsOpaqueIntPtr'}}
+  OpaqueIntPtr o; // expected-note {{holds field 'o' of type 'OpaqueIntPtr' that could not be inferred}}
 };

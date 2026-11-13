@@ -16,7 +16,7 @@
 
 #include "RealOwnershipAnnotations.h"
 
-struct Empty {}; // suggest-warning {{type 'Empty' was trivially inferred as 'self-contained'}}
+struct Empty {}; // suggest-warning {{type 'Empty' was inferred as 'trivially-self-contained'}}
 
 struct Trivial { // suggest-warning {{type 'Trivial' was inferred as 'self-contained'}}
   int x;
@@ -29,7 +29,7 @@ struct Ref { // suggest-warning {{type 'Ref' was inferred as 'view'}}
   int &r; // suggest-note {{holds reference field 'r'}}
 };
 
-// mismatch-warning@+2 {{type 'Mismatch' has annotation 'self-contained' but inferred as 'view'}}
+// mismatch-warning@+2 {{type 'Mismatch' is annotated as 'self-contained' but was inferred as 'view'}}
 // suggest-warning@+1 {{type 'Mismatch' was inferred as 'view'}}
 struct SWIFT_SELF_CONTAINED Mismatch {
   const int *p; // mismatch-note {{holds unmanaged raw-pointer field 'p'}}

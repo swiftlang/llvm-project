@@ -81,7 +81,7 @@ hasEitherViewOrSelfContainedAttr(const RecordDecl *R) {
   return std::nullopt;
 }
 
-// Return the natural spelling of the field unless it's a lambda for which let's
+// Return the natural spelling of the field unless it's a lambda, in which case
 // use the name of the capture.
 static StringRef fieldDisplayName(const FieldDecl *F) {
   const auto *RD = dyn_cast_or_null<CXXRecordDecl>(F->getParent());
@@ -159,8 +159,8 @@ static unsigned spellOutcome(const RecordDecl *R, Result Outcome) {
   return Outcome == Result::Unknown ? FailedToInfer : Inferred;
 }
 
-// derives from class % that {was inferred as %|was annotated as %|failed to
-// infer}
+// derives from class % that {was inferred as %|was annotated as %|
+// could not be inferred}
 void DerivesFrom::report(DiagnosticsEngine &Diags) const {
   // Point at the base-specifier (where the inheritance is expressed),
   // not the base class's own definition.
@@ -170,8 +170,8 @@ void DerivesFrom::report(DiagnosticsEngine &Diags) const {
       << SourceRange(Loc);
 }
 
-// holds field % of type % that {was inferred as %|was annotated as %|failed to
-// infer}
+// holds field % of type % that {was inferred as %|was annotated as %|
+// could not be inferred}
 void HoldsField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_holds_field_inferred)
@@ -187,7 +187,7 @@ void NotInstantiatedDestructor::report(DiagnosticsEngine &Diags) const {
       << SourceRange(Loc);
 }
 
-// declares opaque destructor
+// declares a destructor whose body is not visible
 void OpaqueUserDeclaredDestructor::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Dtor->getLocation();
   Diags.Report(Loc, diag::note_ownership_inference_opaque_dtor)
@@ -297,8 +297,8 @@ private:
   /// The result is cached, so each record is inferred and reported only once.
   State inferDefinitionOfRecord(const RecordDecl *Def);
 
-  /// The check each raw-pointer field and decide if any of them are left
-  /// unmanaged by the destructor.
+  /// Check each raw-pointer field and decide if any of them are left unmanaged
+  /// by the destructor.
   State handleRawPointerFields(const CXXRecordDecl *Def,
                                ArrayRef<const FieldDecl *> RawPointerFields);
 
@@ -415,7 +415,7 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
     }
 
     // Pointer fields might or might not be self-contained.
-    // It depends if they are properly managed or not so check them later.
+    // It depends on whether they are properly managed, so check them later.
     if (Ty->isPointerType() && !Ty->isFunctionPointerType()) {
       RawPointerFields.push_back(F);
     }
@@ -451,7 +451,7 @@ State SelfContainmentAnalysis::handleRawPointerFields(
     return std::move(RawPointerFieldResult);
   };
 
-  // Plain old classes can't manage memory, thus the fields.
+  // Plain classes can't manage memory, thus their fields are left unmanaged.
   if (!Def)
     return WithUnmanagedFields(Result::View);
 

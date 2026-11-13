@@ -28,14 +28,14 @@ template<typename T> struct Ref {
   T *m_ptr; // expected-note 2 {{holds unmanaged raw-pointer field 'm_ptr'}}
 };
 
-// expected-warning@+1 {{type 'Ref<Parser>' failed to infer}} FIXME: this should be a view because Parser is a view
+// expected-warning@+1 {{could not infer the self-containment of type 'Ref<Parser>'}} FIXME: this should be a view because Parser is a view
 template struct Ref<Parser>;
 
-// expected-warning@+1 {{type 'Ref<Counted>' failed to infer}} FIXME: should be self-contained.
+// expected-warning@+1 {{could not infer the self-containment of type 'Ref<Counted>'}} FIXME: should be self-contained.
 template struct Ref<Counted>;
 
 // An owned self-reference adds nothing to its own outcome.
-// expected-warning@+1 {{type 'SelfRecursiveNode' failed to infer}} FIXME: should be self-contained.
+// expected-warning@+1 {{could not infer the self-containment of type 'SelfRecursiveNode'}} FIXME: should be self-contained.
 struct SelfRecursiveNode {
   void deref() const { if (!--rc) delete this; }
   mutable unsigned rc{1};
@@ -46,7 +46,7 @@ struct SelfRecursiveNode {
 // The pointee may be incomplete, unlike a by-value field: nothing is known.
 void derefIncomplete(struct Incomplete *) OWNERSHIP_TAKES(1);
 
-// expected-warning@+1 {{type 'OwnsIncomplete' failed to infer}}
+// expected-warning@+1 {{could not infer the self-containment of type 'OwnsIncomplete'}}
 struct OwnsIncomplete {
   ~OwnsIncomplete() { derefIncomplete(m_ptr); }
   Incomplete *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}
@@ -59,13 +59,13 @@ struct SWIFT_VIEW AnnotatedView;
 void derefSC(AnnotatedSelfContained *) OWNERSHIP_TAKES(1);
 void derefView(AnnotatedView *) OWNERSHIP_TAKES(1);
 
-// expected-warning@+1 {{type 'OwnsAnnotatedSelfContained' failed to infer}} FIXME: should be a view
+// expected-warning@+1 {{could not infer the self-containment of type 'OwnsAnnotatedSelfContained'}} FIXME: should be a view
 struct OwnsAnnotatedSelfContained {
   ~OwnsAnnotatedSelfContained() { derefSC(m_ptr); }
   AnnotatedSelfContained *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}
 };
 
-// expected-warning@+1 {{type 'OwnsAnnotatedView' failed to infer}} FIXME: should be a view
+// expected-warning@+1 {{could not infer the self-containment of type 'OwnsAnnotatedView'}} FIXME: should be a view
 struct OwnsAnnotatedView {
   ~OwnsAnnotatedView() { derefView(m_ptr); }
   AnnotatedView *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}

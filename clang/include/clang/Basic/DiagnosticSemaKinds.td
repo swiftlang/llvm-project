@@ -11347,15 +11347,15 @@ def note_lifetime_safety_owned_field_suggestion
 
 // Diagnostics of the ownership inference analyses.
 def warn_ownership_inference_annotation_mismatch : Warning<
-  "type %q0 has annotation '%1' but inferred as '%2'">,
+  "type %q0 is annotated as '%1' but was inferred as '%2'">,
   InGroup<OwnershipInferenceAnnotationMismatch>, DefaultIgnore;
 
 def warn_ownership_inference_failed_to_infer : Warning<
-  "type %q0 failed to infer">,
+  "could not infer the self-containment of type %q0">,
   InGroup<OwnershipInferenceFailedToInfer>, DefaultIgnore;
 
 def warn_ownership_inference_suggest_trivially_self_contained : Warning<
-  "type %q0 was trivially inferred as 'self-contained'">,
+  "type %q0 was inferred as 'trivially-self-contained'">,
   InGroup<OwnershipInferenceSuggestTriviallySelfContained>, DefaultIgnore;
 
 def warn_ownership_inference_suggest_self_contained : Warning<
@@ -11368,17 +11368,18 @@ def warn_ownership_inference_suggest_view : Warning<
 
 def note_ownership_inference_holds_field_inferred : Note<
   "holds field %quoted0 of type %q1 that "
-  "%select{was inferred as '%3'|was annotated as '%3'|failed to infer}2">;
+  "%select{was inferred as '%3'|was annotated as '%3'|could not be inferred}2">;
 
 def note_ownership_inference_derives_from_base_inferred : Note<
   "derives from class %q0 that "
-  "%select{was inferred as '%2'|was annotated as '%2'|failed to infer}1">;
+  "%select{was inferred as '%2'|was annotated as '%2'|could not be inferred}1">;
 
 def note_ownership_inference_holds_field : Note<
   "holds %select{reference|unmanaged raw-pointer}0 "
   "field %quoted1">;
 
-def note_ownership_inference_opaque_dtor : Note<"declares opaque destructor">;
+def note_ownership_inference_opaque_dtor : Note<
+  "declares a destructor whose body is not visible">;
 
 def note_ownership_inference_not_instantiated_dtor : Note<
   "destructor was not instantiated for this specialization">;
