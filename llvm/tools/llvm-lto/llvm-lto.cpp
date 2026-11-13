@@ -50,11 +50,13 @@
 #include "llvm/Target/TargetOptions.h"
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -185,6 +187,13 @@ static cl::opt<std::string> ThinLTOGeneratedObjectsDir(
     cl::desc("Save ThinLTO generated object files using filenames created in "
              "the given directory."),
     cl::cat(LTOCategory));
+
+static cl::opt<unsigned> ThinLTOWaitAfterRunMs(
+    "thinlto-wait-after-run-ms",
+    cl::desc("Wait for the given number of milliseconds after the ThinLTO code "
+             "generator ran and was destroyed, like a linker that continues "
+             "to link, to test cache requests that complete late."),
+    cl::init(0), cl::Hidden, cl::cat(LTOCategory));
 
 static cl::opt<bool> SaveLinkedModuleFile(
     "save-linked-module", cl::init(false),
@@ -1061,8 +1070,12 @@ int main(int argc, char **argv) {
   if (ThinLTOMode.getNumOccurrences()) {
     if (ThinLTOMode.getNumOccurrences() > 1)
       report_fatal_error("You can't specify more than one -thinlto-action");
-    thinlto::ThinLTOProcessing ThinLTOProcessor(Options);
-    ThinLTOProcessor.run();
+    {
+      thinlto::ThinLTOProcessing ThinLTOProcessor(Options);
+      ThinLTOProcessor.run();
+    }
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(ThinLTOWaitAfterRunMs));
     return 0;
   }
 

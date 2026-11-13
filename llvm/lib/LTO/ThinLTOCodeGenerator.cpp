@@ -108,6 +108,11 @@ static cl::opt<bool> DeterministicCheck(
     cl::init((bool)sys::Process::GetEnv(
         "LLVM_CACHE_CHECK_REPRODUCIBLE_CACHING_ISSUES")),
     cl::Hidden);
+static cl::opt<unsigned> CacheTimeoutMs(
+    "thinlto-cache-timeout-ms",
+    cl::desc("How long to wait for outstanding thinLTO cache requests after "
+             "all objects are produced, in milliseconds"),
+    cl::init(5000), cl::Hidden);
 static cl::opt<bool> StrictCASErrors(
     "thinlto-strict-cas-errors",
     cl::desc("Treat CAS errors during ThinLTO as fatal errors"),
@@ -405,6 +410,47 @@ static std::unique_ptr<MemoryBuffer> codegenModule(Module &TheModule,
       std::move(OutputBuffer), /*RequiresNullTerminator=*/false);
 }
 
+template <class T> class ThinLTOCodeGeneratorImpl::Awaitable {
+  T Value;
+  std::mutex Mutex;
+  std::condition_variable Channel;
+
+public:
+  explicit Awaitable(T Value) : Value(std::move(Value)) {}
+
+  bool check(llvm::function_ref<bool(const T &)> Cond) {
+    std::lock_guard Lock{Mutex};
+    return Cond(Value);
+  }
+
+  void wait(llvm::function_ref<bool(const T &)> Cond) {
+    std::unique_lock Lock{Mutex};
+    if (Cond(Value))
+      return;
+
+    Channel.wait(Lock, [&]() { return Cond(Value); });
+  }
+
+  template <class Duration>
+  bool waitFor(Duration MaxDuration, llvm::function_ref<bool(const T &)> Cond) {
+    std::unique_lock Lock{Mutex};
+    if (Cond(Value))
+      return true;
+
+    return Channel.wait_for(Lock, MaxDuration, [&]() { return Cond(Value); });
+  }
+
+  T apply(llvm::function_ref<void(T &)> Modifier) {
+    T Result = [&]() {
+      std::lock_guard Lock{Mutex};
+      Modifier(Value);
+      return Value;
+    }();
+    Channel.notify_one();
+    return Result;
+  }
+};
+
 namespace {
 
 struct NullModuleCacheEntry : ModuleCacheEntry {
@@ -510,12 +556,14 @@ struct CancellationToken {
 
     using RetTy = std::optional<decltype(ReleaseHandleOnScopeExit)>;
 
+    // Check under the lock, so that requestCancellation() either waits for
+    // this handle or this handle observes the cancellation.
+    std::unique_lock Lock(Mutex);
     if (WantsToExit) {
       ReleaseHandleOnScopeExit.release();
       return RetTy{};
     }
 
-    std::unique_lock Lock(Mutex);
     ++ExitBlockers;
 
     return RetTy{std::move(ReleaseHandleOnScopeExit)};
@@ -610,10 +658,15 @@ public:
   // the current list of export/import, and offer an interface to query to
   // access the content in the cache.
   CASModuleCacheEntry(
+      std::shared_ptr<CancellationToken> GetCancelTok,
+      std::shared_ptr<CancellationToken> PutCancelTok,
+      std::shared_ptr<Awaitable<std::size_t>> PendingRequests,
       cas::ObjectStore &CAS, cas::ActionCache &Cache, std::string Key,
       std::function<void(llvm::function_ref<void(raw_ostream &OS)>)> Logger)
-      : CAS(CAS), Cache(Cache), ID(createCASProxyOrAbort(CAS, Key)),
-        Logger(std::move(Logger)) {}
+      : GetCancelTok(std::move(GetCancelTok)),
+        PutCancelTok(std::move(PutCancelTok)),
+        PendingRequests(std::move(PendingRequests)), CAS(CAS), Cache(Cache),
+        ID(createCASProxyOrAbort(CAS, Key)), Logger(std::move(Logger)) {}
 
   std::string getEntryPath() final {
     return ID.toString();
@@ -622,7 +675,18 @@ public:
   void tryLoadingBuffer(
       std::function<void(ErrorOr<std::unique_ptr<MemoryBuffer>>)> Cb) final {
     auto LookupStart = std::chrono::steady_clock::now();
+    // The callbacks may run after this entry was destroyed, so they only use
+    // copies of the cancellation token and the request count until they
+    // checked for cancellation.
+    auto CancelTok = GetCancelTok;
+    auto Requests = PendingRequests;
+    Requests->apply(beginRequest);
     Cache.getAsync(ID, /*Globally=*/true, [=](auto KeyID) {
+      llvm::scope_exit EndRequest([&] { Requests->apply(endRequest); });
+      auto CancelTokHandle = CancelTok->acquireHandle();
+      if (!CancelTokHandle)
+        return consumeError(KeyID.takeError());
+
       if (Logger) {
         auto LookupEnd = std::chrono::steady_clock::now();
         auto Seconds =
@@ -644,7 +708,13 @@ public:
         return Cb(std::error_code());
 
       auto LoadStart = std::chrono::steady_clock::now();
+      Requests->apply(beginRequest);
       CAS.getProxyAsync(*MaybeKeyID, [=](auto MaybeObject) {
+        llvm::scope_exit EndRequest([&] { Requests->apply(endRequest); });
+        auto CancelTokHandle = CancelTok->acquireHandle();
+        if (!CancelTokHandle)
+          return consumeError(MaybeObject.takeError());
+
         if (Logger) {
           auto LoadEnd = std::chrono::steady_clock::now();
           auto Seconds =
@@ -680,7 +750,18 @@ public:
     }
 
     auto UpdateStart = std::chrono::steady_clock::now();
+    // The callback may run after this entry was destroyed, so it only uses
+    // copies of the cancellation token and the request count until it
+    // checked for cancellation.
+    auto CancelTok = PutCancelTok;
+    auto Requests = PendingRequests;
+    Requests->apply(beginRequest);
     Cache.putAsync(ID, Proxy->getID(), /*Globally=*/true, [=](auto Err) {
+      llvm::scope_exit EndRequest([&] { Requests->apply(endRequest); });
+      auto CancelTokHandle = CancelTok->acquireHandle();
+      if (!CancelTokHandle)
+        return consumeError(std::move(Err));
+
       if (Logger) {
         auto UpdateEnd = std::chrono::steady_clock::now();
         auto Seconds =
@@ -698,6 +779,12 @@ public:
   }
 
 private:
+  static void beginRequest(std::size_t &Count) { ++Count; }
+  static void endRequest(std::size_t &Count) { --Count; }
+
+  std::shared_ptr<CancellationToken> GetCancelTok;
+  std::shared_ptr<CancellationToken> PutCancelTok;
+  std::shared_ptr<Awaitable<std::size_t>> PendingRequests;
   cas::ObjectStore &CAS;
   cas::ActionCache &Cache;
   cas::CASID ID;
@@ -1155,6 +1242,7 @@ std::unique_ptr<ModuleCacheEntry> ThinLTOCodeGenerator::createModuleCacheEntry(
 static std::unique_ptr<AsyncModuleCacheEntry> createAsyncModuleCacheEntry(
     std::shared_ptr<CancellationToken> GetCancelTok,
     std::shared_ptr<CancellationToken> PutCancelTok,
+    std::shared_ptr<Awaitable<std::size_t>> PendingCASRequests,
     ThinLTOCodeGenerator::CachingOptions &CacheOptions,
     const ModuleSummaryIndex &Index, StringRef ModuleID, StringRef OutputPath,
     const FunctionImporter::ImportMapTy &ImportList,
@@ -1174,6 +1262,7 @@ static std::unique_ptr<AsyncModuleCacheEntry> createAsyncModuleCacheEntry(
   case ThinLTOCodeGenerator::CachingOptions::CacheType::CAS:
   case ThinLTOCodeGenerator::CachingOptions::CacheType::PluginCAS:
     return std::make_unique<CASModuleCacheEntry>(
+        GetCancelTok, PutCancelTok, std::move(PendingCASRequests),
         *CacheOptions.CAS, *CacheOptions.Cache, std::move(*Key),
         std::move(Logger));
   case ThinLTOCodeGenerator::CachingOptions::CacheType::RemoteService:
@@ -1183,6 +1272,12 @@ static std::unique_ptr<AsyncModuleCacheEntry> createAsyncModuleCacheEntry(
   case ThinLTOCodeGenerator::CachingOptions::CacheType::CacheDirectory:
     llvm_unreachable("creating async module cache entry in sync context");
   }
+}
+
+ThinLTOCodeGenerator::~ThinLTOCodeGenerator() {
+  // The cache requests that run() stopped waiting for may still be in flight.
+  if (PendingCASRequests)
+    PendingCASRequests->wait([](std::size_t Count) { return Count == 0; });
 }
 
 void ThinLTOCodeGenerator::addModule(StringRef Identifier, StringRef Data) {
@@ -1593,48 +1688,6 @@ ThinLTOCodeGenerator::writeGeneratedObject(StringRef OutputPath,
   return std::string(OutputPath);
 }
 
-template <class T>
-class Awaitable {
-  T Value;
-  std::mutex Mutex;
-  std::condition_variable Channel;
-
-public:
-  explicit Awaitable(T Value) : Value(std::move(Value)) {}
-
-  bool check(llvm::function_ref<bool(const T &)> Cond) {
-    std::lock_guard Lock{Mutex};
-    return Cond(Value);
-  }
-
-  void wait(llvm::function_ref<bool(const T &)> Cond) {
-    std::unique_lock Lock{Mutex};
-    if (Cond(Value))
-      return;
-
-    Channel.wait(Lock, [&]() { return Cond(Value); });
-  }
-
-  template <class Duration>
-  bool waitFor(Duration MaxDuration, llvm::function_ref<bool(const T &)> Cond) {
-    std::unique_lock Lock{Mutex};
-    if (Cond(Value))
-      return true;
-
-    return Channel.wait_for(Lock, MaxDuration, [&]() { return Cond(Value); });
-  }
-
-  T apply(llvm::function_ref<void(T &)> Modifier) {
-    T Result = [&]() {
-      std::lock_guard Lock{Mutex};
-      Modifier(Value);
-      return Value;
-    }();
-    Channel.notify_one();
-    return Result;
-  }
-};
-
 // Main entry point for the ThinLTO processing
 void ThinLTOCodeGenerator::run() {
   timeTraceProfilerBegin("ThinLink", StringRef(""));
@@ -1855,6 +1908,7 @@ void ThinLTOCodeGenerator::run() {
 
     auto GetCancelTok = std::make_shared<CancellationToken>();
     auto PutCancelTok = std::make_shared<CancellationToken>();
+    PendingCASRequests = std::make_shared<Awaitable<std::size_t>>(0);
 
     Awaitable<std::size_t> WrittenObjects{0};
     Awaitable<std::size_t> HandledCacheReads{0};
@@ -1882,6 +1936,10 @@ void ThinLTOCodeGenerator::run() {
     };
 
     auto WriteCache = [&, PutCancelTok](int count) {
+      auto CancelTokHandle = PutCancelTok->acquireHandle();
+      if (!CancelTokHandle)
+        return;
+
       if (count == -1) {
         HandledCacheWrites.apply(Increment);
         return;
@@ -1925,8 +1983,8 @@ void ThinLTOCodeGenerator::run() {
           IndexCount, SavedObjectsDirectoryPath, TMBuilder);
 
       auto &CacheEntry = Infos[IndexCount].Entry = createAsyncModuleCacheEntry(
-          GetCancelTok, PutCancelTok, CacheOptions, *Index, ModuleIdentifier,
-          OutputPath, ImportLists[ModuleIdentifier],
+          GetCancelTok, PutCancelTok, PendingCASRequests, CacheOptions, *Index,
+          ModuleIdentifier, OutputPath, ImportLists[ModuleIdentifier],
           ExportLists[ModuleIdentifier], ResolvedODR[ModuleIdentifier],
           ModuleToDefinedGVSummaries[ModuleIdentifier], OptLevel, Freestanding,
           TMBuilder,
@@ -2105,24 +2163,26 @@ void ThinLTOCodeGenerator::run() {
         auto Start = std::chrono::steady_clock::now();
         auto CacheTimeout = DeterministicCheck
                                 ? std::chrono::milliseconds::max()
-                                : std::chrono::milliseconds(5000);
+                                : std::chrono::milliseconds(CacheTimeoutMs);
 
-        if (!HandledCacheReads.waitFor(CacheTimeout, AllModules)) {
-          // If we were unable to finish all cache reads in time, just request
-          // their cancellation (we already have all objects written) and don't
-          // bother writing to the cache (that would probably be even slower
-          // than reading form it).
-          GetCancelTok->requestCancellation();
-        } else {
+        // If we were unable to finish all cache reads in time, don't bother
+        // writing to the cache (that would probably be even slower than
+        // reading from it). We already have all objects written.
+        if (HandledCacheReads.waitFor(CacheTimeout, AllModules)) {
           auto Now = std::chrono::steady_clock::now();
           auto RemainingCacheTimeout = CacheTimeout - (Now - Start);
-          // If we finished all cache reads in time, request writes.
-          if (!HandledCacheWrites.waitFor(RemainingCacheTimeout, AllModules)) {
-            // If we were unable to finish all cache writes in time, request
-            // their cancellation. We don't want to hold up the link any longer.
-            PutCancelTok->requestCancellation();
-          }
+          // If we finished all cache reads in time, wait for the writes, but
+          // don't hold up the link any longer than that.
+          (void)HandledCacheWrites.waitFor(RemainingCacheTimeout, AllModules);
         }
+
+        // Cancel the outstanding cache requests and wait for the callbacks
+        // that are still running, which use the state destroyed below. Even
+        // when all requests were handled, a callback may still be running
+        // after counting itself as handled. Cancel the writes first, so that
+        // the running reads don't issue new ones.
+        PutCancelTok->requestCancellation();
+        GetCancelTok->requestCancellation();
 
         if (DeterministicCheck)
           for (int count : ModulesOrdering)
