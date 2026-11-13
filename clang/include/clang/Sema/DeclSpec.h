@@ -1345,6 +1345,14 @@ struct DeclaratorChunk {
     return SourceRange(Loc, EndLoc);
   }
 
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  /// Late-parsed bounds attributes written on this pointer or array chunk,
+  /// parsed as declaration attributes in DistributeCLateParsedAttrs using the
+  /// chunk's nesting level. Unlike LateAttrList these are not
+  /// LateParsedTypeAttributes. Almost always empty, so no inline storage.
+  SmallVector<LateParsedAttribute *, 0> BoundsSafetyLateAttrs;
+  /* TO_UPSTREAM(BoundsSafety) OFF */
+
   ParsedAttributesView AttrList;
   LateParsedAttrList LateAttrList;
 
@@ -2462,6 +2470,15 @@ public:
 
     DeclTypeInfo.back().LateAttrList.append(LateAttrs);
   }
+
+  /* TO_UPSTREAM(BoundsSafety) ON */
+  /// Attach late-parsed bounds attributes to the most recently added chunk.
+  void addBoundsSafetyLateAttrs(const LateParsedAttrList &LateAttrs) {
+    assert(!DeclTypeInfo.empty() && "no chunk to attach late attributes to");
+    DeclTypeInfo.back().BoundsSafetyLateAttrs.append(LateAttrs.begin(),
+                                                     LateAttrs.end());
+  }
+  /* TO_UPSTREAM(BoundsSafety) OFF */
 
   /// AddTypeInfo - Add a chunk to this declarator. Also extend the range to
   /// EndLoc, which should be the last token of the chunk. This overload is for

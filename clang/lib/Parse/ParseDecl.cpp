@@ -3333,12 +3333,12 @@ void Parser::DistributeCLateParsedAttrs(Declarator &D, Decl *Dcl,
     LateParsedAttrList DCLateAttrs(/*ParseSoon=*/true);
     switch (DC.Kind) {
     case DeclaratorChunk::Pointer:
-      DCLateAttrs.append(DC.LateAttrList);
-      DC.LateAttrList.clear();
+      DCLateAttrs.append(DC.BoundsSafetyLateAttrs);
+      DC.BoundsSafetyLateAttrs.clear();
       break;
     case DeclaratorChunk::Array:
-      DCLateAttrs.append(DC.LateAttrList);
-      DC.LateAttrList.clear();
+      DCLateAttrs.append(DC.BoundsSafetyLateAttrs);
+      DC.BoundsSafetyLateAttrs.clear();
       break;
     case DeclaratorChunk::Function:
       FuncInfo.Index = i;
@@ -6971,8 +6971,9 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
                         DS.getVolatileSpecLoc(), DS.getRestrictSpecLoc(),
                         DS.getAtomicSpecLoc(), DS.getUnalignedSpecLoc(),
                         DS.getOverflowBehaviorLoc(), DS.isWrapSpecified()),
-                    std::move(DS.getAttributes()), SourceLocation(),
-                    std::move(LateAttrs));
+                    std::move(DS.getAttributes()), SourceLocation());
+      // TO_UPSTREAM(BoundsSafety)
+      D.addBoundsSafetyLateAttrs(LateAttrs);
     } else
       // Remember that we parsed a Block type, and remember the type-quals.
       D.AddTypeInfo(
@@ -8369,7 +8370,9 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
       DeclaratorChunk::getArray(DS.getTypeQualifiers(), StaticLoc.isValid(),
                                 isStar, NumElements.get(), T.getOpenLocation(),
                                 T.getCloseLocation()),
-      std::move(DS.getAttributes()), T.getCloseLocation(), std::move(LateAttrs));
+      std::move(DS.getAttributes()), T.getCloseLocation());
+  // TO_UPSTREAM(BoundsSafety)
+  D.addBoundsSafetyLateAttrs(LateAttrs);
 }
 
 void Parser::ParseMisplacedBracketDeclarator(Declarator &D) {
