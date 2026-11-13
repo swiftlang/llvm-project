@@ -1366,7 +1366,8 @@ static bool DeserializeAllCompilerFlags(
     bool &got_serialized_options, bool &found_swift_modules,
     bool search_paths_only = false,
     swift::ExplicitSwiftModuleMap *explicit_swift_module_map = nullptr,
-    swift::ExplicitClangModuleMap *explicit_clang_module_map = nullptr) {
+    swift::ExplicitClangModuleMap *explicit_clang_module_map = nullptr,
+    bool *found_cxx_interop = nullptr) {
   bool found_validation_errors = false;
   got_serialized_options = false;
 
@@ -1656,7 +1657,11 @@ static bool DeserializeAllCompilerFlags(
         swift::CompilerInvocation fresh_invocation;
         got_serialized_options |= deserializeCompilerFlags(fresh_invocation);
       } else {
-        got_serialized_options |= deserializeCompilerFlags(invocation);
+        bool deserialized = deserializeCompilerFlags(invocation);
+        got_serialized_options |= deserialized;
+        if (deserialized && found_cxx_interop &&
+            extended_validation_info.hasCxxInteroperability())
+          *found_cxx_interop = true;
         LOG_PRINTF(
             GetLog(LLDBLog::Types), "SDK path from module \"%s\" was \"%s\".",
             info.name.str().c_str(), invocation.getSDKPath().str().c_str());
@@ -1678,6 +1683,29 @@ static bool DeserializeAllCompilerFlags(
 bool HasSwiftModules(Module &module) {
   auto ast_file_datas = module.GetASTData(eLanguageTypeSwift);
   return !ast_file_datas.empty();
+}
+
+/// Return whether the Swift modules serialized into \p module were built for
+/// Embedded Swift. Embedded and non-embedded Swift can't be mixed, so the
+/// first valid module decides.
+static bool HasEmbeddedSwiftModules(Module &module) {
+  for (const DataBufferSP &data : module.GetASTData(eLanguageTypeSwift)) {
+    if (!data)
+      continue;
+    llvm::StringRef buf((const char *)data->GetBytes(), data->GetByteSize());
+    while (!buf.empty()) {
+      swift::serialization::ExtendedValidationInfo extended_info;
+      swift::serialization::ValidationInfo info =
+          swift::serialization::validateSerializedAST(
+              buf, /*requiredSDK=*/StringRef(), &extended_info);
+      if (info.status == swift::serialization::Status::Valid)
+        return extended_info.isEmbeddedSwiftModule();
+      if (info.bytes == 0 || info.bytes > buf.size())
+        break;
+      buf = buf.substr(info.bytes);
+    }
+  }
+  return false;
 }
 
 namespace {
@@ -2496,7 +2524,8 @@ static bool IsSerializedAST(const swift::ModuleDecl &module) {
 }
 
 /// Scan a newly added lldb::Module for Swift modules and report any errors in
-/// its module SwiftASTContext to Target.
+/// its module SwiftASTContext to Target. \p found_cxx_interop is set if the
+/// flags of a Swift module built with C++ interop were collected.
 static void
 ProcessModule(Module &module, std::string m_description,
               bool discover_implicit_search_paths, bool use_all_compiler_flags,
@@ -2505,8 +2534,8 @@ ProcessModule(Module &module, std::string m_description,
               std::vector<swift::PluginSearchOption> &plugin_search_options,
               std::vector<std::pair<std::string, bool>> &module_search_paths,
               std::vector<std::pair<std::string, bool>> &framework_search_paths,
-              std::vector<std::string> &extra_clang_args,
-              std::string &error) {
+              std::vector<std::string> &extra_clang_args, std::string &error,
+              bool *found_cxx_interop = nullptr) {
   {
     llvm::raw_string_ostream ss(m_description);
     ss << "::ProcessModule(" << '"';
@@ -2622,7 +2651,9 @@ ProcessModule(Module &module, std::string m_description,
     if (DeserializeAllCompilerFlags(
             invocation, module_name, module_filter, buffers,
             module.GetSourceMappingList(), discover_implicit_search_paths,
-            m_description, errs, got_serialized_options, found_swift_modules)) {
+            m_description, errs, got_serialized_options, found_swift_modules,
+            /*search_paths_only=*/false, /*explicit_swift_module_map=*/nullptr,
+            /*explicit_clang_module_map=*/nullptr, found_cxx_interop)) {
       // TODO: After removing DeserializeAllCompilerFlags from
       //       CreateInstance(per-Module), errs will need to be
       //       collected here and surfaced.
@@ -3322,6 +3353,12 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   // Make an AST but don't set the triple yet. We need to
   // try and detect if we have a iOS simulator.
   std::shared_ptr<SwiftASTContext> swift_ast_sp;
+  // Embedded Swift must be decided before the triple and search paths are
+  // configured. Without a Swift compile unit, follow the serialized modules
+  // whose flags this context collects.
+  bool enable_embedded = swift_context
+                             ? ShouldEnableEmbeddedSwift(cu)
+                             : module_sp && HasEmbeddedSwiftModules(*module_sp);
   if (for_expressions) {
     // Expression context.
     if (!target_sp) {
@@ -3335,7 +3372,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     swift_ast_sp->m_is_scratch_context = true;
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
     lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
-    if (ShouldEnableEmbeddedSwift(cu))
+    if (enable_embedded)
       EnableEmbeddedSwift(*swift_ast_sp);
   } else {
     // Typesystem fallback context.
@@ -3352,7 +3389,7 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
     lang_opts.EnableAccessControl = false;
     lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
-    if (ShouldEnableEmbeddedSwift(cu))
+    if (enable_embedded)
       EnableEmbeddedSwift(*swift_ast_sp);
   }
   auto defer_log = llvm::scope_exit([swift_ast_sp, repl, playground] {
@@ -3706,11 +3743,24 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
             target_sp
                 ? (target_sp->GetExecutableModulePointer() == module_sp.get())
                 : true;
+        bool found_cxx_interop = false;
         ProcessModule(*module_sp, m_description, discover_implicit_search_paths,
                       /*use_all_compiler_flags*/ true, is_main_executable,
                       module_filter, triple, plugin_search_options,
                       module_search_paths, framework_search_paths,
-                      extra_clang_args, error);
+                      extra_clang_args, error, &found_cxx_interop);
+        // A context without a Swift compile unit can't tell from the CU
+        // whether C++ interop is on, but the Clang arguments of a Swift module
+        // built with C++ interop only work with it. An explicit
+        // swift-enable-cxx-interop setting still wins.
+        auto &lang_opts = swift_ast_sp->GetLanguageOptions();
+        if (found_cxx_interop && !lang_opts.EnableCXXInterop &&
+            ModuleList::GetGlobalModuleListProperties()
+                    .GetSwiftEnableCxxInterop() == AutoBool::Auto) {
+          LOG_PRINTF(GetLog(LLDBLog::Types),
+                     "Enabling C++ interop to match the collected flags");
+          lang_opts.EnableCXXInterop = true;
+        }
         if (!error.empty())
           swift_ast_sp->AddDiagnostic(eSeverityError, error);
         swift_ast_sp->AddExtraClangArgs(extra_clang_args, module_search_paths,
