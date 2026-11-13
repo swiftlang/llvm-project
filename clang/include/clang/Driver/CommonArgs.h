@@ -50,6 +50,10 @@ void addLinkerCompressDebugSectionsOption(const ToolChain &TC,
                                           const llvm::opt::ArgList &Args,
                                           llvm::opt::ArgStringList &CmdArgs);
 
+/// Whether Mach-O objects for \p T with DWARF \p DwarfVersion relocate offsets
+/// between DWARF sections.
+bool useMachORelocatableDwarf(const llvm::Triple &T, unsigned DwarfVersion);
+
 void claimNoWarnArgs(const llvm::opt::ArgList &Args);
 
 bool addSanitizerRuntimes(const ToolChain &TC, const llvm::opt::ArgList &Args,
