@@ -10,6 +10,7 @@
 #define LLVM_SUPPORT_PREFIXMAPPINGFILESYSTEM_H
 
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 class PrefixMapper;
@@ -19,7 +20,7 @@ class FileSystem;
 
 /// Creates a VFS that remaps paths using the given \p Mapper, before looking
 /// them up.
-std::unique_ptr<FileSystem>
+LLVM_ABI std::unique_ptr<FileSystem>
 createPrefixMappingFileSystem(PrefixMapper Mapper,
                               IntrusiveRefCntPtr<FileSystem> UnderlyingFS);
 
