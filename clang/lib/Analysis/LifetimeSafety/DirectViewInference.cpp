@@ -47,6 +47,12 @@ enum class NotDirectViewReason {
   // A member function captures an owning parameter in a field, while a direct
   // view base class is the borrow capturer P:
   MethodBorrowBesidesBase,
+  // A member function captures a pointer to a non-self-contained type in a
+  // field:
+  MethodCapturesNonSelfContained,
+  // A member function captures an owning parameter in a field P that is not
+  // pointer-like:
+  MethodBorrowInNonPointerField,
 };
 
 // \p RD is explicitly marked self-contained: swift_attr("Escapable").
@@ -153,6 +159,7 @@ const FieldSet *getCapturingFields(const FunctionSummary &Sum,
 struct MethodInfo {
   const CXXRecordDecl *Record;
   const CXXMethodDecl *Method;
+  const FunctionDecl *Def;
   const FunctionSummary &Sum;
   llvm::SmallVector<unsigned, 1> Captured;
 
@@ -160,6 +167,33 @@ struct MethodInfo {
     return *getCapturingFields(Sum, Method, Idx);
   }
 };
+
+// Rule: the member function captures no pointer to a non-self-contained type.
+// Copy and move operations copy P, so they are skipped. Then drops the
+// captures of non-owning parameters: only owning ones count from here on.
+bool checkNoNonSelfContainedCapture(MethodInfo &I, const FieldT &P,
+                                    Reports &Out) {
+  bool IsCopyOrMove =
+      I.Method->isCopyAssignmentOperator() ||
+      I.Method->isMoveAssignmentOperator() ||
+      (isa<CXXConstructorDecl>(I.Method) &&
+       cast<CXXConstructorDecl>(I.Method)->isCopyOrMoveConstructor());
+  for (unsigned Idx : I.Captured) {
+    const ParmVarDecl *PVD = I.Def->getParamDecl(Idx);
+    QualType T = PVD->getType();
+    if (!IsCopyOrMove && (T->isPointerType() || T->isReferenceType()) &&
+        !isOwningPointer(PVD)) {
+      Out.whyNotDirectView(
+          I.Record, NotDirectViewReason::MethodCapturesNonSelfContained,
+          I.Method, P);
+      return false;
+    }
+  }
+  llvm::erase_if(I.Captured, [&](unsigned Idx) {
+    return !isOwningPointer(I.Def->getParamDecl(Idx));
+  });
+  return true;
+}
 
 // Rule: no member function captures in a field if a direct view base class is
 // the borrow capturer \p P.
@@ -183,6 +217,20 @@ bool checkCapturesInOneField(const MethodInfo &I, const FieldT &P,
   return false;
 }
 
+// Rule: the field \p P that the member function captures in is pointer-like: a
+// pointer or a gsl::Pointer type. A base class is a gsl::Pointer.
+bool checkCapturesInPointerLikeField(const MethodInfo &I, const FieldT &P,
+                                     Reports &Out) {
+  const auto *FD =
+      dyn_cast_if_present<FieldDecl>(dyn_cast_if_present<const Decl *>(P));
+  if (!FD || isPointerLikeType(FD->getType()))
+    return true;
+  Out.whyNotDirectView(I.Record,
+                       NotDirectViewReason::MethodBorrowInNonPointerField,
+                       I.Method, P);
+  return false;
+}
+
 // Rule: the member function captures in the field \p P that the prior ones
 // capture in. Sets \p P if it is the first one.
 bool checkCapturesInSameField(const MethodInfo &I, FieldT &P, Reports &Out) {
@@ -197,14 +245,11 @@ bool checkCapturesInSameField(const MethodInfo &I, FieldT &P, Reports &Out) {
 }
 
 /// Checks member function \p M against the capturer \p P of the prior checked
-/// ones, and sets \p P if it is the first to capture. Only the captures of
-/// owning parameters count; a function without one has nothing to check. The
-/// rules are the check* functions, applied in order:
-///   NoBorrowBesidesBase, CapturesInOneField, CapturesInSameField.
-/// The skipped member functions: destructors, implicit and deleted ones,
-/// those without parameters, defaulted copy/move operations, those without a
-/// summary (no body, or not analyzed), and members of an instantiated record
-/// that are not yet instantiated.
+/// ones, and sets \p P if it is the first to capture.
+/// The skipped member functions: destructors, implicit and deleted ones, those
+/// without parameters, defaulted copy/move operations, those without a summary
+/// (no body, or not analyzed), and members of an instantiated record that are
+/// not yet instantiated.
 /// \return false if \p R is not a direct view because of \p M. Reports why.
 bool checkMethod(const CXXRecordDecl *R, const CXXMethodDecl *M,
                  const LifetimeInference &LI, FieldT &P, Reports &Out) {
@@ -225,16 +270,18 @@ bool checkMethod(const CXXRecordDecl *R, const CXXMethodDecl *M,
   const FunctionSummary *Sum = Def ? LI.getSummary(Def) : nullptr;
   if (!Sum)
     return true;
-  MethodInfo I{R, M, *Sum, {}};
+  MethodInfo I{R, M, Def, *Sum, {}};
   for (unsigned Idx = 0; Idx < Def->getNumParams(); ++Idx)
-    if (getCapturingFields(*Sum, M, Idx) &&
-        isOwningPointer(Def->getParamDecl(Idx)))
+    if (getCapturingFields(*Sum, M, Idx))
       I.Captured.push_back(Idx);
+  if (!checkNoNonSelfContainedCapture(I, P, Out))
+    return false;
   if (I.Captured.empty())
     return true;
   return checkNoBorrowBesidesBase(I, P, Out) &&
          checkCapturesInOneField(I, P, Out) &&
-         checkCapturesInSameField(I, P, Out);
+         checkCapturesInSameField(I, P, Out) &&
+         checkCapturesInPointerLikeField(I, P, Out);
 }
 
 // \p F is \p P, or \p F is a subobject of \p P.
@@ -293,13 +340,15 @@ void addImplicitGslPointerAttr(const CXXRecordDecl *R) {
 }
 
 // \return the only public pointer-like field of \p R, or null if there is none
-// or more than one. A pointer-like type is a pointer or a gsl::Pointer type.
+// or more than one. A pointer-like type is as isPointerLikeType says, minus
+// function pointers; a raw pointer must point to a self-contained type.
 const FieldDecl *getSinglePublicPointerField(const CXXRecordDecl *R) {
   const FieldDecl *Found = nullptr;
   for (const FieldDecl *F : R->fields()) {
     QualType T = F->getType();
-    if (F->getAccess() != AS_public ||
-        !(T->isPointerType() || isGslPointerType(T)))
+    if (F->getAccess() != AS_public || !isPointerLikeType(T) ||
+        T->isFunctionPointerType() ||
+        (T->isPointerType() && !isSelfContained(T->getPointeeType())))
       continue;
     if (Found)
       return nullptr;
@@ -308,12 +357,13 @@ const FieldDecl *getSinglePublicPointerField(const CXXRecordDecl *R) {
   return Found;
 }
 
-// Records whether \p R is a direct view or, if known, why it is not.
+// Records whether \p R is a direct view or, if known, why it is not. Unions
+// are skipped.
 // A direct view gets an implicit [[gsl::Pointer]].
 // \return true if \p R is a direct view.
 bool checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
                  Reports &Out) {
-  if (!R->hasDefinition() || !R->isCompleteDefinition())
+  if (!R->hasDefinition() || !R->isCompleteDefinition() || R->isUnion())
     return false;
   FieldT P; // The capturer all member functions agree on.
   // A direct view base is the borrow capturer. Bases are checked first, so an
@@ -418,7 +468,18 @@ void DirectViewInference::run(TranslationUnitDecl *TU,
   // TODO: the status of a record is not monotonic yet, so no fix-point: each
   // record is checked once, dependencies first.
   Reports Out;
-  auto Graph = buildRecordDependencyGraph(Records);
+  // A record with an undefined member function cannot be judged. Implicit,
+  // defaulted, deleted and pure virtual ones have no body to wait for.
+  llvm::SmallVector<const CXXRecordDecl *> Analyzable;
+  llvm::copy_if(Records, std::back_inserter(Analyzable),
+                [](const CXXRecordDecl *R) {
+                  return llvm::all_of(R->methods(), [](const CXXMethodDecl *M) {
+                    return M->isImplicit() || M->isDefaulted() ||
+                           M->isDeleted() || M->isPureVirtual() ||
+                           M->isDefined();
+                  });
+                });
+  auto Graph = buildRecordDependencyGraph(Analyzable);
   for (const CXXRecordDecl *R : Graph.getOrder())
     checkRecord(R, LI, Out);
   Out.flush(Diags);

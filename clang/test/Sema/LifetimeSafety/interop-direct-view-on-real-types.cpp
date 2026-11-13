@@ -1,18 +1,18 @@
 // RUN: rm -rf %t && split-file %s %t
 // RUN: %clang_cc1 -I %t -std=c++20 -fsyntax-only -finterop-type-inference -Rinterop-type-inference-direct-view -Rinterop-type-inference-direct-view-explain -verify %t/main.cpp
 
-// Carve-outs of WebKit's WTF::Ref and WTF::RefPtr, each in its own
-// header and reduced to what matters for direct view inference. main.cpp
-// instantiates them for int and for classes.
+// Carve-outs of WebKit's WTF::Ref, WTF::RefPtr and WTF::Vector, each in its
+// own header and reduced to what matters for direct view inference. main.cpp
+// instantiates RefPtr for int and for a class, and Vector for char16_t.
 
 //--- main.cpp
 #include "RefPtr.h"
 #include "RefCounted.h"
+#include "Vector.h"
 
 using WTF::RefPtr;
 
 struct Object : WTF::RefCounted<Object> {
-  static RefPtr<Object> create() { return WTF::adoptRef(new Object); }
   int value{7};
 };
 
@@ -22,22 +22,36 @@ void useInt(int &x) {
 }
 
 void useObject() {
-  RefPtr<Object> a = Object::create();
-  RefPtr<Object> b = a;
-  RefPtr<Object> c = std::move(b);
-  WTF::Ref<Object> r = c.releaseNonNull();
-  RefPtr<Object> d = std::move(r);
-  d = nullptr;
+  RefPtr<Object> a(new Object);
+  a = nullptr;
 }
+
+void useVectors() {
+  WTF::Vector<char16_t> heap;
+  WTF::Vector<char16_t, 32> inlineStorage;
+}
+
+// VectorBufferBase is correctly a direct view: it captures the T* parameter in
+// m_buffer. The buffers and vectors are not, because ~VectorBuffer reaches
+// Malloc::free, which LSA takes as an invalidation although it is opaque.
+// expected-remark@Vector.h:16 {{'VectorBufferBase<char16_t, WTF::FastMalloc>' is a direct view type}}
+// expected-remark@Vector.h:52 {{'VectorBuffer<char16_t, 32>' is not a direct view type}}
+// expected-note@Vector.h:60 {{this member function may invalidate 'VectorBufferBase<char16_t, WTF::FastMalloc>'}}
+// expected-remark@Vector.h:73 {{'VectorBuffer<char16_t, 0>' is not a direct view type}}
+// expected-note@Vector.h:78 {{this member function may invalidate 'VectorBufferBase<char16_t, WTF::FastMalloc>'}}
+// expected-remark@Vector.h:85 {{'Vector<char16_t, 32>' is not a direct view type}}
+// expected-remark@Vector.h:85 {{'Vector<char16_t>' is not a direct view type}}
+// expected-note@Vector.h:85 2 {{no member function captures an owning pointer parameter in a field}}
 
 // RefPtr<int> deletes its pointee in the reduced traits, so its members may
 // invalidate m_ptr.
-// expected-remark@RefPtr.h:10 {{'RefPtr<int>' is not a direct view type}}
-// expected-note@RefPtr.h:26 {{this member function may invalidate 'm_ptr'}}
+// expected-remark@RefPtr.h:11 {{'RefPtr<int>' is not a direct view type}}
+// expected-note@RefPtr.h:18 {{this member function may invalidate 'm_ptr'}}
 
 // The other records are not direct view types for less interesting reasons:
 // expected-remark@* 0+ {{is not a direct view type}}
 // expected-note@* 0+ {{no member function captures an owning pointer parameter in a field}}
+// expected-note@* 0+ {{member function captures a pointer to a non-self-contained type in a field}}
 
 //--- Common.h
 #pragma once
@@ -181,88 +195,30 @@ inline Ref<T, PtrTraits, RefDerefTraits> adoptRef(T& reference)
 
 namespace WTF {
 
-// RefPtr (from RefPtr.h), reduced to what matters for direct view inference:
-// the constructors, the destructor and the members that may invalidate m_ptr.
+// RefPtr (from RefPtr.h), reduced to what matters for direct view inference.
+// Only the members that main.cpp uses: an uninstantiated member function
+// disqualifies the record from the analysis.
 template<typename T, typename _PtrTraits, typename _RefDerefTraits>
 class RefPtr {
 public:
     using PtrTraits = _PtrTraits;
     using RefDerefTraits = _RefDerefTraits;
 
-    ALWAYS_INLINE constexpr RefPtr() : m_ptr(nullptr) { }
-    ALWAYS_INLINE constexpr RefPtr(std::nullptr_t) : m_ptr(nullptr) { }
     ALWAYS_INLINE RefPtr(T* ptr) : m_ptr(RefDerefTraits::refIfNotNull(ptr)) { }
-    ALWAYS_INLINE RefPtr(T& ptr) : m_ptr(&RefDerefTraits::ref(ptr)) { }
-    ALWAYS_INLINE RefPtr(const RefPtr& o) : m_ptr(RefDerefTraits::refIfNotNull(PtrTraits::unwrap(o.m_ptr))) { }
-    template<typename X, typename Y, typename Z> RefPtr(const RefPtr<X, Y, Z>& o) : m_ptr(RefDerefTraits::refIfNotNull(PtrTraits::unwrap(o.get()))) { }
-
-    ALWAYS_INLINE RefPtr(RefPtr&& o) : m_ptr(o.leakRef()) { }
-    template<typename X, typename Y, typename Z> RefPtr(RefPtr<X, Y, Z>&& o) : m_ptr(o.leakRef()) { }
-    template<typename X, typename Y> RefPtr(Ref<X, Y>&&);
 
     ALWAYS_INLINE ~RefPtr() { RefDerefTraits::derefIfNotNull(PtrTraits::exchange(m_ptr, nullptr)); }
 
-    T* get() const LIFETIME_BOUND { return PtrTraits::unwrap(m_ptr); }
-
-    Ref<T> releaseNonNull() { ASSERT(m_ptr); Ref<T> tmp(adoptRef(*m_ptr)); m_ptr = nullptr; return tmp; }
-
-    [[nodiscard]] T* leakRef();
-
-    RefPtr& operator=(const RefPtr&);
     RefPtr& operator=(std::nullptr_t);
 
-    template<typename X, typename Y, typename Z> void swap(RefPtr<X, Y, Z>&);
-
 private:
-    friend RefPtr adoptRef<T, PtrTraits, RefDerefTraits>(T*);
-    template<typename X, typename Y, typename Z> friend class RefPtr;
-
-    enum AdoptTag { Adopt };
-    RefPtr(T* ptr, AdoptTag) : m_ptr(ptr) { }
-
     typename PtrTraits::StorageType m_ptr;
 };
-
-template<typename T, typename U, typename V>
-template<typename X, typename Y>
-inline RefPtr<T, U, V>::RefPtr(Ref<X, Y>&& reference)
-    : m_ptr(&reference.leakRef())
-{
-}
-
-template<typename T, typename U, typename V>
-inline T* RefPtr<T, U, V>::leakRef()
-{
-    return U::exchange(m_ptr, nullptr);
-}
-
-template<typename T, typename U, typename V>
-inline RefPtr<T, U, V>& RefPtr<T, U, V>::operator=(const RefPtr& o)
-{
-    RefPtr ptr = o;
-    swap(ptr);
-    return *this;
-}
 
 template<typename T, typename U, typename V>
 inline RefPtr<T, U, V>& RefPtr<T, U, V>::operator=(std::nullptr_t)
 {
     V::derefIfNotNull(U::exchange(m_ptr, nullptr));
     return *this;
-}
-
-template<class T, typename U, typename V>
-template<typename X, typename Y, typename Z>
-inline void RefPtr<T, U, V>::swap(RefPtr<X, Y, Z>& o)
-{
-    U::swap(m_ptr, o.m_ptr);
-}
-
-template<typename T, typename U, typename V>
-inline RefPtr<T, U, V> adoptRef(T* p)
-{
-    adopted(p);
-    return RefPtr<T, U, V>(p, RefPtr<T, U, V>::Adopt);
 }
 
 } // namespace WTF
@@ -286,6 +242,98 @@ protected:
     ~RefCounted() = default;
 private:
     mutable unsigned m_refCount { 1 };
+};
+
+} // namespace WTF
+
+//--- Vector.h
+#pragma once
+
+using size_t = decltype(sizeof(0));
+
+namespace WTF {
+
+// WebKit declares fastFree() and defines it in FastMalloc.cpp. free() is opaque
+// here too: the analysis treats an opaque free(T*) as an invalidation.
+struct FastMalloc {
+    static void free(void* p);
+};
+
+// Vector, VectorBuffer and VectorBufferBase (from Vector.h), reduced to what
+// matters for direct view inference.
+template<typename T, typename Malloc>
+class VectorBufferBase {
+public:
+    void deallocateBuffer(T* bufferToDeallocate)
+    {
+        if (!bufferToDeallocate)
+            return;
+        if (m_buffer == bufferToDeallocate) {
+            m_buffer = nullptr;
+            m_capacity = 0;
+        }
+        Malloc::free(bufferToDeallocate);
+    }
+
+    T* buffer() [[clang::lifetimebound]] { return m_buffer; }
+
+protected:
+    VectorBufferBase()
+        : m_buffer(nullptr)
+        , m_capacity(0)
+        , m_size(0)
+    {
+    }
+
+    VectorBufferBase(T* buffer, size_t capacity, size_t size)
+        : m_buffer(buffer)
+        , m_capacity(capacity)
+        , m_size(size)
+    {
+    }
+
+    T* m_buffer;
+    unsigned m_capacity;
+    unsigned m_size;
+};
+
+template<typename T, size_t inlineCapacity, typename Malloc = FastMalloc>
+class VectorBuffer : private VectorBufferBase<T, Malloc> {
+    typedef VectorBufferBase<T, Malloc> Base;
+public:
+    VectorBuffer()
+        : Base(inlineBuffer(), inlineCapacity, 0)
+    {
+    }
+
+    ~VectorBuffer()
+    {
+        if (Base::buffer() != inlineBuffer())
+            Base::deallocateBuffer(Base::buffer());
+    }
+
+private:
+    T* inlineBuffer() { return m_inlineBuffer; }
+
+    T m_inlineBuffer[inlineCapacity];
+};
+
+template<typename T, typename Malloc>
+class VectorBuffer<T, 0, Malloc> : private VectorBufferBase<T, Malloc> {
+    typedef VectorBufferBase<T, Malloc> Base;
+public:
+    VectorBuffer() { }
+
+    ~VectorBuffer()
+    {
+        Base::deallocateBuffer(Base::buffer());
+    }
+};
+
+template<typename T, size_t inlineCapacity = 0>
+class Vector : private VectorBuffer<T, inlineCapacity> {
+public:
+    Vector() { }
 };
 
 } // namespace WTF

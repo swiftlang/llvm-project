@@ -45,6 +45,30 @@ public:
   void reset() { delete p; } // explain-note {{this member function may invalidate 'Base'}}
 };
 
+// A unique pointer built on a direct view base: its destructor deletes what the
+// base holds, so it is not a direct view. get() is lifetimebound, so deleting
+// its result invalidates the base.
+class MyPtr { // expected-remark {{'MyPtr' is a direct view type}}
+  int *p;
+public:
+  MyPtr(int *q) : p(q) {}
+  int *get() const [[clang::lifetimebound]] { return p; }
+};
+class MyUniquePtr : public MyPtr { // explain-remark {{'MyUniquePtr' is not a direct view type}}
+public:
+  MyUniquePtr(int *q) : MyPtr(q) {}
+  ~MyUniquePtr() { delete get(); } // explain-note {{this member function may invalidate 'MyPtr'}}
+};
+
+// Initializing a field of non-pointer-like type (MyUniquePtr is not a direct
+// view) from a pointer parameter is not a capture in a field.
+class UniquePtrField { // explain-remark {{'UniquePtrField' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  MyUniquePtr m_ptr;
+public:
+  UniquePtrField(int *p) : m_ptr(p) {}
+};
+void useUniquePtrField(int *p) { UniquePtrField s(p); }
+
 class TwoFields { // explain-remark {{'TwoFields' is not a direct view type}}
   int *p, *q;
 public:
@@ -93,10 +117,59 @@ public:
   EscPtr(Esc *q) : p(q) {}
 };
 
-class PlainPtr { // explain-remark {{'PlainPtr' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+// Capturing a pointer to a non-self-contained type disqualifies at once.
+class PlainPtr { // explain-remark {{'PlainPtr' is not a direct view type}}
   Plain *p;
 public:
-  PlainPtr(Plain *q) : p(q) {}
+  PlainPtr(Plain *q) : p(q) {} // explain-note {{member function captures a pointer to a non-self-contained type in a field}}
+};
+
+// Capturing a parameter that is neither a pointer nor a gsl::Owner does not
+// count as a borrow.
+class ByValue { // explain-remark {{'ByValue' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  std::string_view sv;
+public:
+  ByValue(std::string_view s) : sv(s) {}
+};
+
+// std::span is a direct view, but the iterator is not: a gsl::Pointer
+// constructed from a pointer and a size (two arguments) is not modeled as a
+// capture.
+class SpanIterator { // explain-remark {{'SpanIterator' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  std::span<int> buffer;
+public:
+  SpanIterator(int *p, std::size_t n) : buffer(p, n) {}
+};
+
+// A user-provided copy constructor is not a capture of a non-self-contained
+// pointer.
+class UserCopy { // expected-remark {{'UserCopy' is a direct view type}}
+  int *p;
+public:
+  UserCopy(int *q) : p(q) {}
+  UserCopy(const UserCopy &o) : p(o.p) {}
+};
+
+// A union is skipped.
+union U {
+  int *p;
+  U(int *q) : p(q) {}
+};
+
+// So is an instantiated union template.
+template <class T, unsigned N>
+union PtrOrArray {
+  T *buffer;
+  T storage[N];
+  PtrOrArray() {}
+};
+template union PtrOrArray<int, 8>;
+
+// A store through a named union member is not a capture in a field.
+class Holder { // explain-remark {{'Holder' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  PtrOrArray<int, 8> u;
+public:
+  Holder(int *q) { u.buffer = q; }
 };
 
 class Deletes { // explain-remark {{'Deletes' is not a direct view type}}
@@ -159,6 +232,125 @@ struct __attribute__((swift_attr("Escapable"))) EscView { // expected-remark {{'
   int *p;
 };
 
+// A function pointer is not a pointer-like field.
+struct FnPtr { // explain-remark {{'FnPtr' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  void (*fp)(int);
+};
+
+// A function pointer does not count against the single data pointer.
+struct DataAndFnPtr { // expected-remark {{'DataAndFnPtr' is a direct view type}}
+  int *p;
+  void (*fp)(int);
+};
+
+// The pointee of the single public pointer must be self-contained.
+struct PlainPtrField { // explain-remark {{'PlainPtrField' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+  Plain *p;
+};
+struct EscPtrField { // expected-remark {{'EscPtrField' is a direct view type}}
+  Esc *p;
+};
+
+// A record with an undefined member function is skipped, so no remark.
+struct Undefined {
+  int *p;
+  void f();
+};
+
+// So is an instantiated record with a member function not instantiated yet.
+template <class T> struct Lazy {
+  T *p;
+  void unused() {}
+};
+void useLazy(Lazy<int> l) {}
+
+template <class T> struct Eager { // expected-remark {{'Eager<int>' is a direct view type}}
+  T *p;
+  void used() {}
+};
+void useEager(Eager<int> e) { e.used(); }
+
+// An opaque function named 'free' or 'destroy', or WTF::fastFree, that takes a
+// single raw pointer invalidates it.
+
+namespace N {
+void free(int *p);
+}
+void destroy(int *p);
+namespace WTF {
+void fastFree(int *p);
+}
+
+class Free { // explain-remark {{'Free' is not a direct view type}}
+  int *p;
+public:
+  Free(int *q) : p(q) {}
+  ~Free() { N::free(p); } // explain-note {{this member function may invalidate 'p'}}
+};
+
+class Destroy { // explain-remark {{'Destroy' is not a direct view type}}
+  int *p;
+public:
+  Destroy(int *q) : p(q) {}
+  ~Destroy() { destroy(p); } // explain-note {{this member function may invalidate 'p'}}
+};
+
+class FastFree { // explain-remark {{'FastFree' is not a direct view type}}
+  int *p;
+public:
+  FastFree(int *q) : p(q) {}
+  ~FastFree() { WTF::fastFree(p); } // explain-note {{this member function may invalidate 'p'}}
+};
+
+// Only the WTF one is known.
+namespace Other {
+void fastFree(int *p);
+}
+class OtherFastFree { // expected-remark {{'OtherFastFree' is a direct view type}}
+  int *p;
+public:
+  OtherFastFree(int *q) : p(q) {}
+  ~OtherFastFree() { Other::fastFree(p); }
+};
+
+// A function with a definition is not opaque: its body decides.
+namespace D {
+void free(int *p) {}
+}
+class Defined { // expected-remark {{'Defined' is a direct view type}}
+  int *p;
+public:
+  Defined(int *q) : p(q) {}
+  ~Defined() { D::free(p); }
+};
+
+// The signature must be a single raw pointer.
+namespace S {
+void free(int *p, int n);
+void free(int n);
+}
+class TwoParams { // expected-remark {{'TwoParams' is a direct view type}}
+  int *p;
+public:
+  TwoParams(int *q) : p(q) {}
+  ~TwoParams() { S::free(p, 1); }
+};
+class NotPointer { // expected-remark {{'NotPointer' is a direct view type}}
+  int *p;
+public:
+  NotPointer(int *q) : p(q) {}
+  ~NotPointer() { S::free(1); }
+};
+
+// A different name is not known.
+void dispose(int *p);
+class Dispose { // expected-remark {{'Dispose' is a direct view type}}
+  int *p;
+public:
+  Dispose(int *q) : p(q) {}
+  ~Dispose() { dispose(p); }
+};
+
 // Instantiates the templates in the header.
 int foo(std::span<int> sp, std::string_view sv) {
   int arr[3] = {1, 2, 3};
@@ -170,7 +362,9 @@ int foo(std::span<int> sp, std::string_view sv) {
 }
 
 //--- std_span_string_view.h
-// Self-contained span and string_view for testing. No includes.
+// Self-contained span and string_view for testing. No includes. Only the
+// members that main.cpp uses: an uninstantiated member function disqualifies
+// the record from the analysis.
 namespace std {
 using size_t = decltype(sizeof(0));
 
@@ -192,12 +386,8 @@ struct [[gsl::Pointer()]] span { // expected-remark {{'span<int>' is a direct vi
   constexpr span(T *p, size_t n) : ptr(p), len(n) {}
   template <size_t N> constexpr span(T (&arr)[N]) : ptr(arr), len(N) {}
 
-  constexpr T *data() const { return ptr; }
   constexpr size_t size() const { return len; }
-  constexpr bool empty() const { return len == 0; }
   constexpr T &operator[](size_t i) const { return ptr[i]; }
-  constexpr T *begin() const { return ptr; }
-  constexpr T *end() const { return ptr + len; }
   constexpr span first(size_t n) const { return span(ptr, n); }
   constexpr span subspan(size_t off, size_t n) const {
     return span(ptr + off, n);
@@ -210,21 +400,14 @@ struct [[gsl::Pointer()]] basic_string_view { // expected-remark {{'basic_string
   size_t len = 0;
 
   constexpr basic_string_view() = default;
-  constexpr basic_string_view(const CharT *s)
-      : ptr(s), len(char_traits<CharT>::length(s)) {}
   constexpr basic_string_view(const CharT *p, size_t n) : ptr(p), len(n) {}
 
-  constexpr const CharT *data() const { return ptr; }
   constexpr size_t size() const { return len; }
   constexpr bool empty() const { return len == 0; }
-  constexpr const CharT &operator[](size_t i) const { return ptr[i]; }
-  constexpr const CharT *begin() const { return ptr; }
-  constexpr const CharT *end() const { return ptr + len; }
   constexpr basic_string_view substr(size_t pos, size_t n) const {
     return basic_string_view(ptr + pos, n);
   }
   constexpr void remove_prefix(size_t n) { ptr += n; len -= n; }
-  constexpr void remove_suffix(size_t n) { len -= n; }
 };
 using string_view = basic_string_view<char>;
 } // namespace std

@@ -246,6 +246,8 @@ public:
   FunctionSummariesRef(LookupT Lookup) : Lookup(std::move(Lookup)) {}
 
   const FunctionSummary *operator()(const FunctionDecl *FD) const {
+    if (auto SynSum = synthesizeHeuristicSummaryForOpaque(FD))
+      return *SynSum;
     return Lookup(FD);
   }
 
@@ -253,6 +255,13 @@ private:
   LookupT Lookup = [](const FunctionDecl *) -> const FunctionSummary * {
     return nullptr;
   };
+
+  // For some opaque functions, we synthesize summaries for it with heuristics:
+  mutable llvm::DenseMap<const FunctionDecl *, FunctionSummary>
+      synthesizeHeuristicSummaries;
+
+  std::optional<const FunctionSummary *>
+  synthesizeHeuristicSummaryForOpaque(const FunctionDecl *FD) const;
 };
 
 } // namespace clang::lifetimes

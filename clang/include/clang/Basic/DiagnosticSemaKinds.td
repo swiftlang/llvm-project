@@ -11380,7 +11380,10 @@ def note_interop_not_direct_view_reason
            "function captures parameters in multiple fields|this member "
            "function may invalidate %1|member function captures an owning "
            "pointer parameter in a field, while the direct view base class %1 "
-           "is the borrow capturer}0">;
+           "is the borrow capturer|member function captures a pointer to a "
+           "non-self-contained type in a field|member function captures an "
+           "owning pointer parameter in the field %1, which is not "
+           "pointer-like}0">;
 
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;

@@ -241,6 +241,30 @@ bool FunctionSummaryBuilder::addInvalidated(ParamOrThis P, FieldSet F) {
 
 FunctionSummary FunctionSummaryBuilder::build() { return std::move(Summary); }
 
+std::optional<const FunctionSummary *>
+FunctionSummariesRef::synthesizeHeuristicSummaryForOpaque(
+    const FunctionDecl *FD) const {
+  FD = FD->getCanonicalDecl();
+  if (auto It = synthesizeHeuristicSummaries.find(FD);
+      It != synthesizeHeuristicSummaries.end())
+    return &It->second;
+
+  // `free`-like: an opaque function taking one raw pointer invalidates it. The
+  // names: any 'free' or 'destroy', and 'WTF::fastFree'.
+  if (FD->isDefined() || !FD->getIdentifier() || FD->getNumParams() != 1 ||
+      !FD->getParamDecl(0)->getType()->isPointerType())
+    return std::nullopt;
+  StringRef Name = FD->getName();
+  if (Name == "free" || Name == "destroy" ||
+      FD->getQualifiedNameAsString() == "WTF::fastFree") {
+    FunctionSummaryBuilder Builder;
+    Builder.addInvalidated(ParamOrThis::forParam(FD->getParamDecl(0)));
+    return &synthesizeHeuristicSummaries.try_emplace(FD, Builder.build())
+                .first->second;
+  }
+  return std::nullopt;
+}
+
 } // namespace clang::lifetimes
 
 namespace llvm {
