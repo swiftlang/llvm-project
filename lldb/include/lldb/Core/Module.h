@@ -857,12 +857,6 @@ public:
   ReportWarningUnsupportedLanguage(lldb::LanguageType language,
                                    std::optional<lldb::user_id_t> debugger_id);
 
-#ifdef LLDB_ENABLE_SWIFT
-  bool IsSwiftCxxInteropEnabled();
-
-  bool IsEmbeddedSwift();
-#endif
-
   // Return true if the file backing this module has changed since the module
   // was originally created  since we saved the initial file modification time
   // when the module first gets created.
@@ -1241,10 +1235,6 @@ private:
   void ReportWarning(const llvm::formatv_object_base &payload);
   void ReportError(const llvm::formatv_object_base &payload);
   void ReportErrorIfModifyDetected(const llvm::formatv_object_base &payload);
-#ifdef LLDB_ENABLE_SWIFT
-  LazyBool m_is_swift_cxx_interop_enabled = eLazyBoolCalculate;
-  LazyBool m_is_embedded_swift = eLazyBoolCalculate;
-#endif
   std::once_flag *GetDiagnosticOnceFlag(llvm::StringRef msg);
 };
 

@@ -53,11 +53,6 @@
 #include "lldb/Host/windows/PosixApi.h"
 #endif
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
-#endif // LLDB_ENABLE_SWIFT
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DJB.h"
@@ -1129,80 +1124,6 @@ void Module::ReportWarningUnsupportedLanguage(
   llvm::StringRef msg = ss.GetString();
   Debugger::ReportWarning(msg.str(), debugger_id, GetDiagnosticOnceFlag(msg));
 }
-
-#ifdef LLDB_ENABLE_SWIFT
-bool Module::IsSwiftCxxInteropEnabled() {
-  switch (m_is_swift_cxx_interop_enabled) {
-  case eLazyBoolYes:
-    return true;
-  case eLazyBoolNo:
-    return false;
-  case eLazyBoolCalculate:
-    break;
-  }
-  AutoBool interop_enabled =
-      ModuleList::GetGlobalModuleListProperties().GetSwiftEnableCxxInterop();
-  switch (interop_enabled) {
-  case AutoBool::True:
-    m_is_swift_cxx_interop_enabled = eLazyBoolYes;
-    break;
-  case AutoBool::False:
-    m_is_swift_cxx_interop_enabled = eLazyBoolNo;
-    break;
-  case AutoBool::Auto: {
-    // Look for the "-enable-experimental-cxx-interop" compile flag in the args
-    // of the compile units this module is composed of.
-    auto *sym_file = GetSymbolFile();
-    if (sym_file) {
-      auto options = sym_file->GetCompileOptions();
-      for (auto &[cu, args] : options) {
-        if (cu->GetLanguage() != eLanguageTypeSwift)
-          continue;
-        for (const char *arg : args.GetArgumentArrayRef()) {
-          if (strcmp(arg, "-enable-experimental-cxx-interop") == 0) {
-            m_is_swift_cxx_interop_enabled = eLazyBoolYes;
-            break;
-          }
-        }
-        if (m_is_swift_cxx_interop_enabled == eLazyBoolYes)
-          break;
-      }
-    }
-    if (m_is_swift_cxx_interop_enabled == eLazyBoolCalculate)
-      m_is_swift_cxx_interop_enabled = eLazyBoolNo;
-  }
-  }
-  return m_is_swift_cxx_interop_enabled == eLazyBoolYes;
-}
-
-bool Module::IsEmbeddedSwift() {
-  switch (m_is_embedded_swift) {
-  case eLazyBoolYes:
-    return true;
-  case eLazyBoolNo:
-    return false;
-  case eLazyBoolCalculate:
-    auto *sym_file = GetSymbolFile();
-    if (!sym_file)
-      return false;
-
-    m_is_embedded_swift = eLazyBoolNo;
-    auto options = sym_file->GetCompileOptions();
-    llvm::StringRef enable_embedded_swift("-enable-embedded-swift");
-    for (auto &[_, args] : options) {
-      for (const char *arg : args.GetArgumentArrayRef()) {
-        if (enable_embedded_swift == arg) {
-          m_is_embedded_swift = eLazyBoolYes;
-          return true;
-        }
-      }
-    }
-
-    return m_is_embedded_swift == eLazyBoolYes;
-  }
-}
-
-#endif
 
 void Module::ReportErrorIfModifyDetected(
     const llvm::formatv_object_base &payload) {
