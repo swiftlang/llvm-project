@@ -1481,9 +1481,9 @@ static bool DeserializeAllCompilerFlags(
       StringRef moduleData = buf.substr(0, info.bytes);
 
       auto remap = [&](const std::string &path) {
-        ConstString remapped;
-        if (path_map.RemapPath(ConstString(path), remapped))
-          return remapped.GetStringRef().str();
+        std::string remapped;
+        if (path_map.RemapPath(path, remapped))
+          return remapped;
         return path;
       };
 
@@ -2274,11 +2274,11 @@ void SwiftASTContext::RemapClangImporterOptions(
     return;
 
   auto &options = GetClangImporterOptions();
-  ConstString remapped;
-  if (path_map.RemapPath(ConstString(options.BridgingHeader), remapped)) {
+  std::string remapped;
+  if (path_map.RemapPath(options.BridgingHeader, remapped)) {
     LOG_PRINTF(GetLog(LLDBLog::Types), "remapped %s -> %s",
-               options.BridgingHeader.c_str(), remapped.GetCString());
-    options.BridgingHeader = remapped.GetCString();
+               options.BridgingHeader.c_str(), remapped.c_str());
+    options.BridgingHeader = remapped;
   }
 
   // Previous argument was the dash-option of an option pair.
@@ -2301,11 +2301,10 @@ void SwiftASTContext::RemapClangImporterOptions(
       continue;
     }
 
-    if (path_map.RemapPath(ConstString(arg), remapped)) {
+    if (path_map.RemapPath(arg, remapped)) {
       LOG_PRINTF(GetLog(LLDBLog::Types), "remapped %s -> %s%s",
-                 arg.str().c_str(), prefix.str().c_str(),
-                 remapped.GetCString());
-      arg_string = prefix.str() + remapped.GetCString();
+                 arg.str().c_str(), prefix.str().c_str(), remapped.c_str());
+      arg_string = prefix.str() + remapped;
     }
   }
 }
