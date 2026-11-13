@@ -8,7 +8,9 @@ SharedFRT *SharedFRT::create(int value) {
 }
 
 void retainSharedFRT(SharedFRT *frt) { ++frt->refCount; }
-void releaseSharedFRT(SharedFRT *frt) { --frt->refCount; }
+void releaseSharedFRT(SharedFRT *frt) {
+  --frt->refCount; // break in cxx
+}
 
 ImmortalFRT &ImmortalFRT::get() {
   static ImmortalFRT instance;

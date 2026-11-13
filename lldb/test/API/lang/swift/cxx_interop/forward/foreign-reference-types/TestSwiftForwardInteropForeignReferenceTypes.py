@@ -162,12 +162,24 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
         self.expect_expr("getIncompleteFRTValue(incomplete)", result_value="12")
         self.expect_expr("asSharedFRT(nonPrimary).value", result_value="11")
 
+    def check_expr_in_cxx_frame(self):
+        # A C++ frame has no Swift compile unit to configure the expression
+        # context from.
+        lldbutil.continue_to_source_breakpoint(
+            self, self.process(), "break in cxx", lldb.SBFileSpec("impl.cpp")
+        )
+        self.expect("expr -l Swift -- 1 + 1", patterns=[r"\(Int\) \$R\d+ = 2"])
+
     # Each test runs its checks in one process, because launching dominates the
     # run time.
     @skipIfLinux  # Crashes.
     @skipIfWindows
     @swiftClangImporterTest
     def test_frame_variable(self):
+        if self.getSwiftModuleImporterVariant() == "noclang":
+            # Without ClangImporter, SwiftASTContext models FRTs as value types
+            # (rdar://190470881).
+            self.runCmd("settings set symbols.swift-validate-typesystem false")
         self.launch()
         self.check_frame_variable()
         self.check_generic_parameter()
@@ -190,6 +202,7 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
             self.check_po_local_variables()
         self.check_expr_result_display()
         self.check_expr_retain_release()
+        self.check_expr_in_cxx_frame()
 
     @skipIf(bugnumber="rdar://190470885+190470954")
     @swiftClangImporterTest

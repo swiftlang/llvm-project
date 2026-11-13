@@ -1680,6 +1680,15 @@ bool HasSwiftModules(Module &module) {
   return !ast_file_datas.empty();
 }
 
+/// Return the first Swift compile unit of \p module, or nullptr.
+static CompileUnit *GetFirstSwiftCompileUnit(Module &module) {
+  for (size_t i = 0, e = module.GetNumCompileUnits(); i < e; ++i)
+    if (CompUnitSP cu_sp = module.GetCompileUnitAtIndex(i))
+      if (cu_sp->GetLanguage() == eLanguageTypeSwift)
+        return cu_sp.get();
+  return nullptr;
+}
+
 namespace {
 
 /// Calls arg.consume_front(<options>) and returns true on success.
@@ -3290,6 +3299,13 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
   CompileUnit *cu = sc.comp_unit;
   const char *key = TypeSystemSwiftTypeRef::DeriveKeyFor(sc);
   bool swift_context = cu && cu->GetLanguage() == eLanguageTypeSwift;
+  // Without a Swift compile unit, take C++ interop and Embedded Swift from
+  // the module's first Swift compile unit, because the context still collects
+  // the flags of the module's Swift modules. REPL and playground contexts use
+  // the target triple instead.
+  CompileUnit *mode_cu = cu;
+  if (!swift_context && sc.module_sp && !repl && !playground)
+    mode_cu = GetFirstSwiftCompileUnit(*sc.module_sp);
   std::string m_description;
   {
     StreamString ss;
@@ -3334,8 +3350,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     // This is a scratch AST context, mark it as such.
     swift_ast_sp->m_is_scratch_context = true;
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
-    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
-    if (ShouldEnableEmbeddedSwift(cu))
+    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(mode_cu);
+    if (ShouldEnableEmbeddedSwift(mode_cu))
       EnableEmbeddedSwift(*swift_ast_sp);
   } else {
     // Typesystem fallback context.
@@ -3351,8 +3367,8 @@ lldb::TypeSystemSP SwiftASTContext::CreateInstance(
     swift_ast_sp->m_is_scratch_context = false;
     auto &lang_opts = swift_ast_sp->GetLanguageOptions();
     lang_opts.EnableAccessControl = false;
-    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(cu);
-    if (ShouldEnableEmbeddedSwift(cu))
+    lang_opts.EnableCXXInterop = ShouldEnableCXXInterop(mode_cu);
+    if (ShouldEnableEmbeddedSwift(mode_cu))
       EnableEmbeddedSwift(*swift_ast_sp);
   }
   auto defer_log = llvm::scope_exit([swift_ast_sp, repl, playground] {
