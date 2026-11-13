@@ -527,8 +527,7 @@ public:
   /// \returns {true, {num_idexes}} on success.
   std::pair<LookupResult, std::optional<size_t>> GetIndexOfChildMemberWithName(
       CompilerType type, llvm::StringRef name, ExecutionContext *exe_ctx,
-      bool omit_empty_base_classes, bool include_clang_types,
-      std::vector<uint32_t> &child_indexes);
+      bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes);
 
   /// Ask Remote Mirrors about a child of a composite type.
   llvm::Expected<CompilerType> GetChildCompilerTypeAtIndex(
@@ -668,6 +667,11 @@ protected:
   void RegisterAnonymousClangType(const char *key, CompilerType clang_type);
   /// Look up an anonymous Clang type with a name key into a side table.
   CompilerType LookupAnonymousClangType(const char *key);
+  /// Return the Clang type that the Swift type \p type was imported from,
+  /// including an anonymous Clang type registered in the side table, with
+  /// typedefs resolved. Otherwise return an invalid type.
+  CompilerType GetOriginalClangType(CompilerType type,
+                                    TypeSystemSwiftTypeRef &ts);
 
   std::optional<const swift::reflection::TypeInfo *>
   lookupClangTypeInfo(CompilerType clang_type);

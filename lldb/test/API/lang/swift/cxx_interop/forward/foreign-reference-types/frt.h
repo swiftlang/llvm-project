@@ -25,6 +25,18 @@ struct ImmortalFRT {
   static ImmortalFRT &get();
 } SWIFT_IMMORTAL_REFERENCE;
 
+struct VirtualBaseData {
+  int baseValue = 20;
+};
+
+/// get() returns the base of a more derived object, whose virtual base is not
+/// where a complete VirtualBaseFRT has it.
+struct VirtualBaseFRT : virtual VirtualBaseData {
+  int ownValue = 21;
+
+  static VirtualBaseFRT &get();
+} SWIFT_IMMORTAL_REFERENCE;
+
 struct UnsafeFRT {
   int value = 3;
 

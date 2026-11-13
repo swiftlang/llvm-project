@@ -33,13 +33,14 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
         self.check_var("shared.value", 1)
         self.check_var("immortal.value", 2)
         self.check_var("unsafe.value", 3)
+        self.expect("frame var virtualBase", patterns=[r"baseValue = 20\b"])
+        self.check_var("virtualBase.baseValue", 20)
         # Like class references, FRTs display as pointers.
         self.expect(
             "frame var maybeShared",
             patterns=[r"\(SharedFRT\?\) maybeShared = 0x[0-9a-f]+", r"value = 4\b"],
         )
-        if not self.isEmbeddedSwift():  # rdar://190470875
-            self.expect("frame var noShared", substrs=["noShared = nil"])
+        self.expect("frame var noShared", substrs=["noShared = nil"])
         self.check_var("member.value", 6)
         self.check_var("virtualRC.value", 7)
         self.expect(
@@ -49,6 +50,7 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
                 r"derivedValue = 9\b",
             ],
         )
+        self.check_var("derived.value", 8)
         # Dynamic type resolution must not read the C++ vtable pointer as an
         # isa pointer.
         self.check_var("upcast.value", 8, lldb.eDynamicCanRunTarget)
@@ -61,6 +63,8 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
                 r"ownValue = 30\b",
             ],
         )
+        self.check_var("nonPrimary.firstValue", 10)
+        self.check_var("nonPrimary.value", 11)
         # asSharedFRT() adjusted the pointer to the non-primary base.
         self.check_var("nonPrimaryBase.value", 11)
         # Only impl.cpp's debug info has the definition.
@@ -78,6 +82,18 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
         )
         # A C++ pointer to an FRT is a reference.
         self.check_var("holder.shared.value", 1)
+
+    def check_fields(self):
+        for var in ["structWithFRTs", "classWithFRTs"]:
+            self.check_var(var + ".shared.value", 1)
+            self.expect(
+                "frame var %s.maybeShared" % var,
+                patterns=[r"maybeShared = 0x[0-9a-f]+", r"value = 1\b"],
+            )
+            self.check_var(var + ".immortal.value", 2)
+        self.check_var("structWithFRTs.virtualRC.value", 8)
+        self.check_var("structWithFRTs.number", 42)
+        self.check_var("classWithFRTs.number", 43)
 
     def check_generic_parameter(self):
         lldbutil.continue_to_source_breakpoint(
@@ -165,6 +181,10 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
     def test_frame_variable(self):
         self.launch()
         self.check_frame_variable()
+        # Outside Embedded Swift, reflection records FRT fields as
+        # OpaquePointer (rdar://190470885).
+        if self.isEmbeddedSwift():
+            self.check_fields()
         self.check_generic_parameter()
 
     @skipIfLinux  # Crashes.
@@ -185,24 +205,3 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
             self.check_po_local_variables()
         self.check_expr_result_display()
         self.check_expr_retain_release()
-
-    @skipIf(bugnumber="rdar://190470866+190470885+190470954")
-    @swiftClangImporterTest
-    def test_known_failures(self):
-        if False:  # rdar://190470866
-            self.check_var("derived.value", 8)
-            self.check_var("nonPrimary.firstValue", 10)
-            self.check_var("nonPrimary.value", 11)
-
-        if False:  # rdar://190470885, rdar://190470954 (Embedded Swift)
-            for var in ["structWithFRTs", "classWithFRTs"]:
-                self.check_var(var + ".shared.value", 1)
-                self.expect(
-                    "frame var %s.maybeShared" % var,
-                    substrs=["some"],
-                    patterns=[r"value = 1\b"],
-                )
-                self.check_var(var + ".immortal.value", 2)
-            self.check_var("structWithFRTs.virtualRC.value", 8)
-            self.check_var("structWithFRTs.number", 42)
-            self.check_var("classWithFRTs.number", 43)

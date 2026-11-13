@@ -53,11 +53,6 @@
 #include "lldb/Host/windows/PosixApi.h"
 #endif
 
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "Plugins/TypeSystem/Swift/SwiftASTContext.h"
-#endif // LLDB_ENABLE_SWIFT
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DJB.h"

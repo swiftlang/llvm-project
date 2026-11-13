@@ -304,9 +304,10 @@ public:
 
     // Materialize a Clang type from the debug info.
     assert(swift::Demangle::getManglingPrefixLength(mangledName) == 0);
-    std::string wrapped;
-    // The mangled name passed in is bare. Add global prefix ($s) and type (D).
-    llvm::raw_string_ostream(wrapped) << "$s" << mangledName << 'D';
+    // The mangled name passed in is bare. Add the global prefix of the
+    // mangling flavor ($s or $e) and type (D).
+    std::string wrapped = SwiftLanguageRuntime::MakeMangledName(
+        (mangledName + "D").str(), m_flavor);
     swift::Demangle::Demangler dem;
     auto *node = dem.demangleSymbol(wrapped);
     bool is_objc_name = false;
@@ -430,7 +431,8 @@ public:
           std::string unique_swift_name(field_type.GetTypeName());
           llvm::raw_string_ostream(unique_swift_name)
               << '#' << m_num_anonymous_clang_types++;
-          swift_type = typesystem.CreateClangStructType(unique_swift_name);
+          swift_type =
+              typesystem.CreateClangStructType(unique_swift_name, m_flavor);
           auto *key = swift_type.GetMangledTypeName().AsCString(nullptr);
           m_runtime.RegisterAnonymousClangType(key, field_type);
         } else {
@@ -758,7 +760,43 @@ CompilerType GetTypedefedTypeRecursive(CompilerType type) {
   return type;
 }
 
+/// Return \p valobj, whose Swift type \p swift_type was imported from
+/// \p clang_type, as a value of \p clang_type.
+ValueObjectSP GetAsClangValueObject(ValueObject &valobj,
+                                    CompilerType swift_type,
+                                    CompilerType clang_type,
+                                    const ExecutionContext &exe_ctx) {
+  // A value of foreign reference type is a pointer to the Clang object. Any
+  // other imported value is laid out like the Clang object.
+  if (TypeSystemSwift::IsForeignReferenceType(swift_type))
+    return valobj.CreateChildValueObjectFromAddress(
+        valobj.GetName().GetStringRef(), valobj.GetPointerValue().address,
+        exe_ctx, clang_type);
+  return valobj.Cast(clang_type);
+}
+
 } // namespace
+
+CompilerType
+SwiftLanguageRuntime::GetOriginalClangType(CompilerType type,
+                                           TypeSystemSwiftTypeRef &ts) {
+  // Anonymous Clang types are registered under made-up names that look
+  // imported, so IsImportedType() would search the debug info for them in
+  // vain.
+  CompilerType clang_type =
+      LookupAnonymousClangType(type.GetMangledTypeName().AsCString(nullptr));
+  if (clang_type)
+    return GetTypedefedTypeRecursive(clang_type);
+  if (!ts.IsImportedType(type.GetOpaqueQualType(), &clang_type))
+    return {};
+  if (!clang_type) {
+    LLDB_LOG_VERBOSE(GetLog(LLDBLog::Types),
+                     "no Clang type found for imported type {0}",
+                     type.GetMangledTypeName());
+    return {};
+  }
+  return GetTypedefedTypeRecursive(clang_type);
+}
 
 /// This class exists to unify iteration over runtime type
 /// information. The visitor callback has closure parameters that can
@@ -964,6 +1002,13 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       };
       return visit_callback(clang_type, depth, get_name, get_info);
     }
+    // The offset of a virtual base depends on the dynamic type of the object,
+    // so TypeSystemClang reads it from the vtable, which it can only do given
+    // a value of the C++ class type.
+    ValueObjectSP clang_valobj;
+    if (m_valobj && clang_type.GetNumVirtualBaseClasses())
+      clang_valobj =
+          GetAsClangValueObject(*m_valobj, m_type, clang_type, m_exe_ctx);
     for (unsigned i = 0; i < n; ++i)
       if (!visit_only || *visit_only == i) {
         bool transparent_pointers = false;
@@ -974,7 +1019,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
             &m_exe_ctx, i, transparent_pointers, m_omit_empty_base_classes,
             ignore_array_bounds, child_name, child.byte_size, child.byte_offset,
             child.bitfield_bit_size, child.bitfield_bit_offset,
-            child.is_base_class, child.is_deref_of_parent, nullptr,
+            child.is_base_class, child.is_deref_of_parent, clang_valobj.get(),
             child.language_flags);
         if (!child_type_or_err)
           return child_type_or_err.takeError();
@@ -993,12 +1038,8 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
   };
 
   {
-    CompilerType clang_type = m_runtime.LookupAnonymousClangType(
-        m_type.GetMangledTypeName().AsCString(nullptr));
-    if (!clang_type)
-      ts.IsImportedType(m_type.GetOpaqueQualType(), &clang_type);
+    CompilerType clang_type = m_runtime.GetOriginalClangType(m_type, ts);
     if (clang_type) {
-      clang_type = GetTypedefedTypeRecursive(clang_type);
       auto result = visit_clang_type(clang_type);
       if (result)
         return result;
@@ -1963,10 +2004,9 @@ SwiftLanguageRuntime::ProjectEnum(ValueObject &valobj) {
 std::pair<SwiftLanguageRuntime::LookupResult, std::optional<size_t>>
 SwiftLanguageRuntime::GetIndexOfChildMemberWithName(
     CompilerType type, llvm::StringRef name, ExecutionContext *exe_ctx,
-    bool omit_empty_base_classes, bool include_clang_types,
-    std::vector<uint32_t> &child_indexes) {
+    bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) {
   SwiftRuntimeTypeVisitor visitor(*this, type, exe_ctx, false,
-                                  include_clang_types, true);
+                                  omit_empty_base_classes, true);
   bool found = false;
   unsigned i = 0, last_depth = 0;
   llvm::Error error = visitor.VisitAllChildren(
@@ -1998,8 +2038,25 @@ SwiftLanguageRuntime::GetIndexOfChildMemberWithName(
     return {SwiftLanguageRuntime::eError, {}};
   }
 
-  if (!found)
+  if (!found) {
+    // The visitor only sees the direct children of a C++ record. Members
+    // inherited from its base classes need Clang's own name lookup.
+    auto ts_or_err =
+        GetReflectionTypeSystem(type, exe_ctx ? *exe_ctx : ExecutionContext());
+    if (!ts_or_err) {
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Types), ts_or_err.takeError(),
+                     "no type system to look up {1} in Clang: {0}", name);
+      return {SwiftLanguageRuntime::eNotFound, {}};
+    }
+    CompilerType clang_type = GetOriginalClangType(type, *ts_or_err->get());
+    const uint32_t record_class =
+        eTypeClassClass | eTypeClassStruct | eTypeClassUnion;
+    if (clang_type && (clang_type.GetTypeClass() & record_class) &&
+        clang_type.GetIndexOfChildMemberWithName(
+            name, exe_ctx, omit_empty_base_classes, child_indexes))
+      return {SwiftLanguageRuntime::eFound, child_indexes.size()};
     return {SwiftLanguageRuntime::eNotFound, {}};
+  }
   return {SwiftLanguageRuntime::eFound, child_indexes.size()};
 }
 
