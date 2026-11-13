@@ -304,9 +304,10 @@ public:
 
     // Materialize a Clang type from the debug info.
     assert(swift::Demangle::getManglingPrefixLength(mangledName) == 0);
-    std::string wrapped;
-    // The mangled name passed in is bare. Add global prefix ($s) and type (D).
-    llvm::raw_string_ostream(wrapped) << "$s" << mangledName << 'D';
+    // The mangled name passed in is bare. Add the global prefix of the
+    // mangling flavor ($s or $e) and type (D).
+    std::string wrapped = SwiftLanguageRuntime::MakeMangledName(
+        (mangledName + "D").str(), m_flavor);
     swift::Demangle::Demangler dem;
     auto *node = dem.demangleSymbol(wrapped);
     bool is_objc_name = false;
@@ -430,7 +431,8 @@ public:
           std::string unique_swift_name(field_type.GetTypeName());
           llvm::raw_string_ostream(unique_swift_name)
               << '#' << m_num_anonymous_clang_types++;
-          swift_type = typesystem.CreateClangStructType(unique_swift_name);
+          swift_type =
+              typesystem.CreateClangStructType(unique_swift_name, m_flavor);
           auto *key = swift_type.GetMangledTypeName().AsCString(nullptr);
           m_runtime.RegisterAnonymousClangType(key, field_type);
         } else {
@@ -776,7 +778,7 @@ ValueObjectSP GetAsClangValueObject(ValueObject &valobj,
 } // namespace
 
 CompilerType
-SwiftLanguageRuntime::GetImportedClangType(CompilerType type,
+SwiftLanguageRuntime::GetOriginalClangType(CompilerType type,
                                            TypeSystemSwiftTypeRef &ts) {
   // Anonymous Clang types are registered under made-up names that look
   // imported, so IsImportedType() would search the debug info for them in
@@ -1000,13 +1002,9 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       };
       return visit_callback(clang_type, depth, get_name, get_info);
     }
-    // GetChildCompilerTypeAtIndex() takes the offsets of most children from
-    // the static record layout. The offset of a virtual base depends on the
-    // dynamic type of the object, so it reads that one from the object's
-    // vtable, but only if it is given a value of the C++ class type.
-    // Otherwise it falls back to the static offset, which is wrong for an
-    // object of a more derived class and, with the MSVC ABI, even for a
-    // complete object. No other child needs the value.
+    // The offset of a virtual base depends on the dynamic type of the object,
+    // so TypeSystemClang reads it from the vtable, which it can only do given
+    // a value of the C++ class type.
     ValueObjectSP clang_valobj;
     if (m_valobj && clang_type.GetNumVirtualBaseClasses())
       clang_valobj =
@@ -1040,7 +1038,7 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
   };
 
   {
-    CompilerType clang_type = m_runtime.GetImportedClangType(m_type, ts);
+    CompilerType clang_type = m_runtime.GetOriginalClangType(m_type, ts);
     if (clang_type) {
       auto result = visit_clang_type(clang_type);
       if (result)
@@ -2006,10 +2004,9 @@ SwiftLanguageRuntime::ProjectEnum(ValueObject &valobj) {
 std::pair<SwiftLanguageRuntime::LookupResult, std::optional<size_t>>
 SwiftLanguageRuntime::GetIndexOfChildMemberWithName(
     CompilerType type, llvm::StringRef name, ExecutionContext *exe_ctx,
-    bool omit_empty_base_classes, bool include_clang_types,
-    std::vector<uint32_t> &child_indexes) {
+    bool omit_empty_base_classes, std::vector<uint32_t> &child_indexes) {
   SwiftRuntimeTypeVisitor visitor(*this, type, exe_ctx, false,
-                                  include_clang_types, true);
+                                  omit_empty_base_classes, true);
   bool found = false;
   unsigned i = 0, last_depth = 0;
   llvm::Error error = visitor.VisitAllChildren(
@@ -2051,7 +2048,7 @@ SwiftLanguageRuntime::GetIndexOfChildMemberWithName(
                      "no type system to look up {1} in Clang: {0}", name);
       return {SwiftLanguageRuntime::eNotFound, {}};
     }
-    CompilerType clang_type = GetImportedClangType(type, *ts_or_err->get());
+    CompilerType clang_type = GetOriginalClangType(type, *ts_or_err->get());
     const uint32_t record_class =
         eTypeClassClass | eTypeClassStruct | eTypeClassUnion;
     if (clang_type && (clang_type.GetTypeClass() & record_class) &&

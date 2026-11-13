@@ -125,14 +125,6 @@ class TestSwiftForwardInteropCopyAndMoveOnly(TestBase):
     def test_known_failures(self):
         self.launch()
 
-        if False:  # rdar://190774376
-            # Calling a method on a ~Copyable C++ value asserts in
-            # DiagnoseStaticExclusivity.
-            self.expect_expr("nonCopyable.method(3)", result_value="15")
-        if False:  # rdar://190470866
-            self.expect_var_path("derived.x", value="7")
-            self.expect_var_path("virtualBase.baseValue", value="20")
-
         if False:  # rdar://177433184
             # Reflection can't resolve the ~Copyable field types. Embedded
             # Swift reads them from DWARF and works.

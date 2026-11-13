@@ -598,10 +598,8 @@ NodePointer TypeSystemSwiftTypeRef::CreateBoundGenericStruct(
   return outer_type;
 }
 
-CompilerType
-TypeSystemSwiftTypeRef::CreateClangStructType(llvm::StringRef name) {
-  auto flavor = SwiftLanguageRuntime::GetManglingFlavor(name);
-
+CompilerType TypeSystemSwiftTypeRef::CreateClangStructType(
+    llvm::StringRef name, swift::Mangle::ManglingFlavor flavor) {
   using namespace swift::Demangle;
   Demangler dem;
   NodePointer module = dem.createNodeWithAllocatedText(
@@ -5222,7 +5220,7 @@ size_t TypeSystemSwiftTypeRef::GetIndexOfChildMemberWithName(
             SwiftLanguageRuntime::Get(exe_scope->CalculateProcess())) {
       auto found_numidx = runtime->GetIndexOfChildMemberWithName(
           GetCanonicalType(type, exe_ctx), name, exe_ctx,
-          omit_empty_base_classes, true, child_indexes);
+          omit_empty_base_classes, child_indexes);
       // Only use the SwiftASTContext fallback if there was an
       // error. If the runtime had complete type info and couldn't
       // find a result, don't waste time retrying.

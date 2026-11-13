@@ -40,8 +40,7 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
             "frame var maybeShared",
             patterns=[r"\(SharedFRT\?\) maybeShared = 0x[0-9a-f]+", r"value = 4\b"],
         )
-        if not self.isEmbeddedSwift():  # rdar://190470875
-            self.expect("frame var noShared", substrs=["noShared = nil"])
+        self.expect("frame var noShared", substrs=["noShared = nil"])
         self.check_var("member.value", 6)
         self.check_var("virtualRC.value", 7)
         self.expect(
@@ -83,6 +82,18 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
         )
         # A C++ pointer to an FRT is a reference.
         self.check_var("holder.shared.value", 1)
+
+    def check_fields(self):
+        for var in ["structWithFRTs", "classWithFRTs"]:
+            self.check_var(var + ".shared.value", 1)
+            self.expect(
+                "frame var %s.maybeShared" % var,
+                patterns=[r"maybeShared = 0x[0-9a-f]+", r"value = 1\b"],
+            )
+            self.check_var(var + ".immortal.value", 2)
+        self.check_var("structWithFRTs.virtualRC.value", 8)
+        self.check_var("structWithFRTs.number", 42)
+        self.check_var("classWithFRTs.number", 43)
 
     def check_generic_parameter(self):
         lldbutil.continue_to_source_breakpoint(
@@ -170,6 +181,10 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
     def test_frame_variable(self):
         self.launch()
         self.check_frame_variable()
+        # Outside Embedded Swift, reflection records FRT fields as
+        # OpaquePointer (rdar://190470885).
+        if self.isEmbeddedSwift():
+            self.check_fields()
         self.check_generic_parameter()
 
     @skipIfLinux  # Crashes.
@@ -190,19 +205,3 @@ class TestSwiftForwardInteropForeignReferenceTypes(TestBase):
             self.check_po_local_variables()
         self.check_expr_result_display()
         self.check_expr_retain_release()
-
-    @skipIf(bugnumber="rdar://190470885+190470954")
-    @swiftClangImporterTest
-    def test_known_failures(self):
-        if False:  # rdar://190470885, rdar://190470954 (Embedded Swift)
-            for var in ["structWithFRTs", "classWithFRTs"]:
-                self.check_var(var + ".shared.value", 1)
-                self.expect(
-                    "frame var %s.maybeShared" % var,
-                    substrs=["some"],
-                    patterns=[r"value = 1\b"],
-                )
-                self.check_var(var + ".immortal.value", 2)
-            self.check_var("structWithFRTs.virtualRC.value", 8)
-            self.check_var("structWithFRTs.number", 42)
-            self.check_var("classWithFRTs.number", 43)
