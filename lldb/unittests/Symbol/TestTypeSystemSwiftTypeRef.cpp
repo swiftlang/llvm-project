@@ -1164,4 +1164,13 @@ TEST_F(TestTypeSystemSwiftTypeRef, Canonicalize) {
                 single_desugared3.GetMangledTypeName());
     }
   }
+  {
+    // Swift.Void resolves without debug info.
+    ASSERT_EQ(
+        GetCompilerType("$ss4VoidaD").GetCanonicalType().GetMangledTypeName(),
+        "$sytD");
+    ASSERT_EQ(
+        GetCompilerType("$es4VoidaD").GetCanonicalType().GetMangledTypeName(),
+        "$eytD");
+  }
 }

@@ -1073,8 +1073,9 @@ BuildDeclContext(llvm::StringRef mangled_name,
   return {};
 }
 
-/// Detect the AnyObject type alias.
-static bool IsAnyObjectTypeAlias(swift::Demangle::NodePointer node) {
+/// Detect the standard library type alias \p name.
+static bool IsStdlibTypeAlias(swift::Demangle::NodePointer node,
+                              llvm::StringRef name) {
   using namespace swift::Demangle;
   if (!node || node->getKind() != Node::Kind::TypeAlias)
     return false;
@@ -1084,9 +1085,14 @@ static bool IsAnyObjectTypeAlias(swift::Demangle::NodePointer node) {
   if (!module || !module->hasText() || module->getText() != swift::STDLIB_NAME)
     return false;
   NodePointer ident = node->getChild(1);
-  if (!ident || !ident->hasText() || ident->getText() != "AnyObject")
+  if (!ident || !ident->hasText() || ident->getText() != name)
     return false;
   return true;
+}
+
+/// Detect the AnyObject type alias.
+static bool IsAnyObjectTypeAlias(swift::Demangle::NodePointer node) {
+  return IsStdlibTypeAlias(node, "AnyObject");
 }
 
 /// Build a demangle tree for the builtin AnyObject type.
@@ -1143,6 +1149,11 @@ TypeSystemSwiftTypeRef::ResolveTypeAlias(swift::Demangle::Demangler &dem,
   // the builtin AnyObject type.
   if (IsAnyObjectTypeAlias(node))
     return {GetBuiltinAnyObjectNode(dem), {}};
+
+  // Hardcode that Swift.Void is the empty tuple, because the standard library's
+  // debug info isn't always available to resolve it from.
+  if (IsStdlibTypeAlias(node, "Void"))
+    return {dem.createNode(swift::Demangle::Node::Kind::Tuple), {}};
 
   using namespace swift::Demangle;
   // Try to look this up as a Swift type alias. For each *Swift*
