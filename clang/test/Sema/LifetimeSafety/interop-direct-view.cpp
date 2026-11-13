@@ -35,7 +35,7 @@ public:
 class DerivedBorrows : Base { // explain-remark {{'DerivedBorrows' is not a direct view type}}
   int *r;
 public:
-  DerivedBorrows(int *q) : Base(q), r(q) {} // explain-note {{member function captures an owning pointer parameter in a field, while the direct view base class 'Base' is the borrow capturer}}
+  DerivedBorrows(int *q) : Base(q), r(q) {} // explain-note {{member function captures a pointer-to-self-contained parameter in a field, while the direct view base class 'Base' is the borrow capturer}}
 };
 
 // Invalidating a field of the base invalidates the base.
@@ -62,7 +62,7 @@ public:
 
 // Initializing a field of non-pointer-like type (MyUniquePtr is not a direct
 // view) from a pointer parameter is not a capture in a field.
-class UniquePtrField { // explain-remark {{'UniquePtrField' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+class UniquePtrField { // explain-remark {{'UniquePtrField' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   MyUniquePtr m_ptr;
 public:
   UniquePtrField(int *p) : m_ptr(p) {}
@@ -75,7 +75,7 @@ public:
   TwoFields(int *a) : p(a), q(a) {} // explain-note {{member function captures parameters in multiple fields}}
 };
 
-class NoCapture { // explain-remark {{'NoCapture' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+class NoCapture { // explain-remark {{'NoCapture' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   int *p;
 public:
   NoCapture(int *q) : p(nullptr) {}
@@ -100,14 +100,14 @@ class Inconsistent { // explain-remark {{'Inconsistent' is not a direct view typ
   int *p, *q;
 public:
   Inconsistent(int *a) : p(a), q(nullptr) {}
-  void set(int *a) { q = a; } // explain-note {{member function captures an owning pointer parameter in a field other than 'p', where another member function captures one}}
+  void set(int *a) { q = a; } // explain-note {{member function captures a pointer-to-self-contained parameter in a field other than 'p', where another member function captures one}}
 };
 
 // A pointer to a type that is explicitly Swift escapable is an owning pointer.
-struct __attribute__((swift_attr("Escapable"))) Esc { // explain-remark {{'Esc' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+struct __attribute__((swift_attr("Escapable"))) Esc { // explain-remark {{'Esc' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   int i;
 };
-struct Plain { // explain-remark {{'Plain' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+struct Plain { // explain-remark {{'Plain' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   int i;
 };
 
@@ -126,7 +126,7 @@ public:
 
 // Capturing a parameter that is neither a pointer nor a gsl::Owner does not
 // count as a borrow.
-class ByValue { // explain-remark {{'ByValue' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+class ByValue { // explain-remark {{'ByValue' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   std::string_view sv;
 public:
   ByValue(std::string_view s) : sv(s) {}
@@ -135,7 +135,7 @@ public:
 // std::span is a direct view, but the iterator is not: a gsl::Pointer
 // constructed from a pointer and a size (two arguments) is not modeled as a
 // capture.
-class SpanIterator { // explain-remark {{'SpanIterator' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+class SpanIterator { // explain-remark {{'SpanIterator' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   std::span<int> buffer;
 public:
   SpanIterator(int *p, std::size_t n) : buffer(p, n) {}
@@ -166,7 +166,7 @@ union PtrOrArray {
 template union PtrOrArray<int, 8>;
 
 // A store through a named union member is not a capture in a field.
-class Holder { // explain-remark {{'Holder' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+class Holder { // explain-remark {{'Holder' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   PtrOrArray<int, 8> u;
 public:
   Holder(int *q) { u.buffer = q; }
@@ -233,7 +233,7 @@ struct __attribute__((swift_attr("Escapable"))) EscView { // expected-remark {{'
 };
 
 // A function pointer is not a pointer-like field.
-struct FnPtr { // explain-remark {{'FnPtr' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+struct FnPtr { // explain-remark {{'FnPtr' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   void (*fp)(int);
 };
 
@@ -244,7 +244,7 @@ struct DataAndFnPtr { // expected-remark {{'DataAndFnPtr' is a direct view type}
 };
 
 // The pointee of the single public pointer must be self-contained.
-struct PlainPtrField { // explain-remark {{'PlainPtrField' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+struct PlainPtrField { // explain-remark {{'PlainPtrField' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   Plain *p;
 };
 struct EscPtrField { // expected-remark {{'EscPtrField' is a direct view type}}
@@ -369,7 +369,7 @@ namespace std {
 using size_t = decltype(sizeof(0));
 
 template <class CharT> struct char_traits;
-template <> struct char_traits<char> { // explain-remark {{'char_traits<char>' is not a direct view type}} explain-note {{no member function captures an owning pointer parameter in a field}}
+template <> struct char_traits<char> { // explain-remark {{'char_traits<char>' is not a direct view type}} explain-note {{no member function captures a pointer-to-self-contained parameter in a field}}
   static constexpr size_t length(const char *s) {
     size_t n = 0;
     while (s[n]) ++n;

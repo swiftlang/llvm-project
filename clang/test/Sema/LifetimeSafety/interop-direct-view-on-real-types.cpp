@@ -41,7 +41,7 @@ void useVectors() {
 // expected-note@Vector.h:78 {{this member function may invalidate 'VectorBufferBase<char16_t, WTF::FastMalloc>'}}
 // expected-remark@Vector.h:85 {{'Vector<char16_t, 32>' is not a direct view type}}
 // expected-remark@Vector.h:85 {{'Vector<char16_t>' is not a direct view type}}
-// expected-note@Vector.h:85 2 {{no member function captures an owning pointer parameter in a field}}
+// expected-note@Vector.h:85 2 {{no member function captures a pointer-to-self-contained parameter in a field}}
 
 // RefPtr<int> deletes its pointee in the reduced traits, so its members may
 // invalidate m_ptr.
@@ -50,7 +50,7 @@ void useVectors() {
 
 // The other records are not direct view types for less interesting reasons:
 // expected-remark@* 0+ {{is not a direct view type}}
-// expected-note@* 0+ {{no member function captures an owning pointer parameter in a field}}
+// expected-note@* 0+ {{no member function captures a pointer-to-self-contained parameter in a field}}
 // expected-note@* 0+ {{member function captures a pointer to a non-self-contained type in a field}}
 
 //--- Common.h

@@ -34,24 +34,25 @@ namespace clang::lifetimes {
 namespace {
 
 enum class NotDirectViewReason {
-  // No member function (but dtors) captures an owning parameter in a field,
-  // and there is no single public pointer-like field:
+  // No member function (but dtors) captures a pointer-to-self-contained
+  // parameter in a field, and there is no single public pointer-like field:
   NoBorrowNoPublicPointer,
-  // Member functions capture owning parameters in different fields. At is the
-  // member function capturing in a field other than P, of the prior ones:
+  // Member functions capture pointer-to-self-contained parameters in different
+  // fields. At is the member function capturing in a field other than P, of
+  // the prior ones:
   MethodInconsistentBorrow,
   // A member function captures parameters in multiple fields:
   MethodMultipleBorrow,
   // A member function (dtors included) may invalidate the borrow capturer P:
   BorrowInvalidated,
-  // A member function captures an owning parameter in a field, while a direct
-  // view base class is the borrow capturer P:
+  // A member function captures a pointer-to-self-contained parameter in a
+  // field, while a direct view base class is the borrow capturer P:
   MethodBorrowBesidesBase,
   // A member function captures a pointer to a non-self-contained type in a
   // field:
   MethodCapturesNonSelfContained,
-  // A member function captures an owning parameter in a field P that is not
-  // pointer-like:
+  // A member function captures a pointer-to-self-contained parameter in a
+  // field P that is not pointer-like:
   MethodBorrowInNonPointerField,
 };
 
