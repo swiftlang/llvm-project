@@ -1623,10 +1623,6 @@ public:
 #ifdef LLDB_ENABLE_SWIFT
   /// Return whether this is the Swift REPL.
   bool IsSwiftREPL();
-
-  bool IsSwiftCxxInteropEnabled();
-
-  bool IsEmbeddedSwift();
 #endif // LLDB_ENABLE_SWIFT
 
 public:
@@ -2404,10 +2400,6 @@ protected:
   SectionLoadList &GetSectionLoadList() {
     return m_section_load_history.GetCurrentSectionLoadList();
   }
-
-#ifdef LLDB_ENABLE_SWIFT
-  LazyBool m_is_swift_cxx_interop_enabled = eLazyBoolCalculate;
-#endif // LLDB_ENABLE_SWIFT
 };
 
 } // namespace lldb_private

@@ -172,6 +172,11 @@ public:
 
   Module *GetModule() const { return m_module; }
 
+  /// Returns whether C++ interoperability is enabled for the Swift code in
+  /// this type system's module, as configured by the
+  /// symbols.swift-enable-cxx-interop setting.
+  bool IsSwiftCxxInteropEnabled();
+
   /// Return a key for the SwiftASTContext map. If there is debug info it's the
   /// name of the owning Swift module for a function.
   static const char *DeriveKeyFor(const SymbolContext &sc);
@@ -742,6 +747,9 @@ protected:
 
   /// Results of IsForeignReferenceType(), including negative ones.
   ThreadSafeDenseMap<const char *, bool> m_foreign_reference_type_map;
+
+  /// The cached result of IsSwiftCxxInteropEnabled().
+  LazyBool m_is_swift_cxx_interop_enabled = eLazyBoolCalculate;
 };
 
 /// This one owns a SwiftASTContextForExpressions.
