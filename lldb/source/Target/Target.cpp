@@ -2941,46 +2941,6 @@ bool Target::IsSwiftREPL() {
   return m_debugger.REPLIsActive() &&
          GetProcessLaunchInfo().GetArg0().ends_with("repl_swift");
 }
-
-bool Target::IsSwiftCxxInteropEnabled() {
-  switch (m_is_swift_cxx_interop_enabled) {
-  case eLazyBoolYes:
-    return true;
-  case eLazyBoolNo:
-    return false;
-  case eLazyBoolCalculate:
-    break;
-  }
-  AutoBool interop_enabled =
-      ModuleList::GetGlobalModuleListProperties().GetSwiftEnableCxxInterop();
-  switch (interop_enabled) {
-  case AutoBool::True:
-    m_is_swift_cxx_interop_enabled = eLazyBoolYes;
-    break;
-  case AutoBool::False:
-    m_is_swift_cxx_interop_enabled = eLazyBoolNo;
-    break;
-  case AutoBool::Auto: {
-    if (GetImages().IsEmpty())
-      m_is_swift_cxx_interop_enabled = eLazyBoolNo;
-    else
-      m_is_swift_cxx_interop_enabled =
-          GetImages().GetModuleAtIndex(0)->IsSwiftCxxInteropEnabled()
-              ? eLazyBoolYes
-              : eLazyBoolNo;
-  }
-  }
-  return m_is_swift_cxx_interop_enabled == eLazyBoolYes;
-}
-
-bool Target::IsEmbeddedSwift() {
-  if (GetImages().IsEmpty())
-    return false;
-
-  // Embedded Swift cannot be mixed with non-embedded, so checking the first
-  // module should be enough.
-  return GetImages().GetModuleAtIndex(0)->IsEmbeddedSwift();
-}
 #endif // LLDB_ENABLE_SWIFT
 
 void Target::SettingsInitialize() { Process::SettingsInitialize(); }

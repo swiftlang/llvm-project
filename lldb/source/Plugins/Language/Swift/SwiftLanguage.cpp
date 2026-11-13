@@ -1480,7 +1480,17 @@ SwiftLanguage::GetHardcodedSynthetics() {
         if (!SwiftASTContext::ShouldEnableCXXInterop(cu))
           return nullptr;
       } else if (sc.module_sp) {
-        if (!sc.module_sp->IsSwiftCxxInteropEnabled())
+        auto ts_or_err =
+            sc.module_sp->GetTypeSystemForLanguage(eLanguageTypeSwift);
+        if (!ts_or_err) {
+          LLDB_LOG_ERRORV(log, ts_or_err.takeError(),
+                          "[Matching Clang imported type] - "
+                          "Could not get Swift type system: {0}");
+          return nullptr;
+        }
+        auto *module_ts =
+            llvm::dyn_cast_or_null<TypeSystemSwiftTypeRef>(ts_or_err->get());
+        if (!module_ts || !module_ts->IsSwiftCxxInteropEnabled())
           return nullptr;
       } else {
         return nullptr;

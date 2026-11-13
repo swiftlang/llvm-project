@@ -27,6 +27,7 @@
 #include "TypeSystemSwiftTypeRef.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/DumpDataExtractor.h"
+#include "lldb/Core/ModuleList.h"
 #include "lldb/Host/StreamFile.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Symbol/CompileUnit.h"
@@ -2673,6 +2674,50 @@ const char *TypeSystemSwiftTypeRef::DeriveKeyFor(const SymbolContext &sc) {
     return ConstString(sc.module_sp->GetArchitecture().GetTriple().str()).AsCString(nullptr);
 
   return nullptr;
+}
+
+bool TypeSystemSwiftTypeRef::IsSwiftCxxInteropEnabled() {
+  switch (m_is_swift_cxx_interop_enabled) {
+  case eLazyBoolYes:
+    return true;
+  case eLazyBoolNo:
+    return false;
+  case eLazyBoolCalculate:
+    break;
+  }
+  AutoBool interop_enabled =
+      ModuleList::GetGlobalModuleListProperties().GetSwiftEnableCxxInterop();
+  switch (interop_enabled) {
+  case AutoBool::True:
+    m_is_swift_cxx_interop_enabled = eLazyBoolYes;
+    break;
+  case AutoBool::False:
+    m_is_swift_cxx_interop_enabled = eLazyBoolNo;
+    break;
+  case AutoBool::Auto: {
+    // Look for the "-enable-experimental-cxx-interop" compile flag in the args
+    // of the compile units this module is composed of.
+    auto *sym_file = m_module ? m_module->GetSymbolFile() : nullptr;
+    if (sym_file) {
+      auto options = sym_file->GetCompileOptions();
+      for (auto &[cu, args] : options) {
+        if (cu->GetLanguage() != eLanguageTypeSwift)
+          continue;
+        for (const char *arg : args.GetArgumentArrayRef()) {
+          if (strcmp(arg, "-enable-experimental-cxx-interop") == 0) {
+            m_is_swift_cxx_interop_enabled = eLazyBoolYes;
+            break;
+          }
+        }
+        if (m_is_swift_cxx_interop_enabled == eLazyBoolYes)
+          break;
+      }
+    }
+    if (m_is_swift_cxx_interop_enabled == eLazyBoolCalculate)
+      m_is_swift_cxx_interop_enabled = eLazyBoolNo;
+  }
+  }
+  return m_is_swift_cxx_interop_enabled == eLazyBoolYes;
 }
 
 TypeSystemSwiftTypeRef::SwiftLanguageRuntimeHolder
