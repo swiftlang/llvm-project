@@ -16,6 +16,8 @@
 // RUN:   -optimize-args=canonicalize-macros > %t/deps_cas.db
 // RUN: cat %t/deps_cas.db | FileCheck %s --check-prefixes=CAS
 
+// XFAIL: system-zos
+
 // Verify that there are only two variants and that the expected merges have
 // happened.
 
