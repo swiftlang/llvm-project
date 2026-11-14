@@ -89,3 +89,14 @@ struct HoldsFunctionRef {
 struct HoldsRef { // expected-warning {{type 'HoldsRef' was inferred as 'view'}}
   int &r; // expected-note {{holds reference field 'r'}}
 };
+
+// A self-referential pointer field is a raw-pointer field like any other.
+struct SelfPtr { // expected-warning {{type 'SelfPtr' was inferred as 'view'}}
+  SelfPtr *next; // expected-note {{holds unmanaged raw-pointer field 'next'}}
+};
+
+// Unions are inspected through their members.
+union UnionPtr { // expected-warning {{type 'UnionPtr' was inferred as 'view'}}
+  int i;
+  int *p;        // expected-note {{holds unmanaged raw-pointer field 'p'}}
+};
