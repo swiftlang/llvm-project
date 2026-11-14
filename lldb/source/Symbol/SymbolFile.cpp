@@ -115,7 +115,8 @@ SymbolFile *SymbolFile::FindPlugin(ObjectFileSP objfile_sp) {
 }
 
 std::vector<lldb::DataBufferSP>
-SymbolFile::GetASTData(lldb::LanguageType language) {
+SymbolFile::GetASTData(lldb::LanguageType language,
+                       llvm::StringSet<> *loaded_ast_files) {
   // SymbolFile subclasses must add this functionality
   return std::vector<lldb::DataBufferSP>();
 }
