@@ -11350,7 +11350,7 @@ def warn_type_ownership_annotation_mismatch : Warning<
   "type %q0 is annotated as '%1' but was inferred as '%2'">,
   InGroup<TypeOwnershipAnnotationMismatch>, DefaultIgnore;
 
-def warn_type_ownership_failed_to_infer : Warning<
+def warn_type_ownership_could_not_infer_self_containment : Warning<
   "could not infer the self-containment of type %q0">,
   InGroup<TypeOwnershipFailedToInfer>, DefaultIgnore;
 

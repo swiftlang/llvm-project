@@ -365,7 +365,7 @@ void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
     DiagID = diag::warn_type_ownership_suggest_self_contained;
     break;
   case Result::Unknown:
-    DiagID = diag::warn_type_ownership_failed_to_infer;
+    DiagID = diag::warn_type_ownership_could_not_infer_self_containment;
     break;
   case Result::View:
     DiagID = diag::warn_type_ownership_suggest_view;
@@ -529,7 +529,7 @@ bool ownership::shouldRunSelfContainmentInference(
       diag::warn_type_ownership_suggest_trivially_self_contained,
       diag::warn_type_ownership_suggest_self_contained,
       diag::warn_type_ownership_suggest_view,
-      diag::warn_type_ownership_failed_to_infer,
+      diag::warn_type_ownership_could_not_infer_self_containment,
       diag::warn_type_ownership_annotation_mismatch};
   // Don't enable this via -Weverything - see rdar://190623069.
   for (unsigned DiagID : DiagIDs)
