@@ -18,40 +18,13 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "clang/Basic/DiagnosticUtils.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 #include <string>
 
 namespace clang::lifetimes {
-
-/// Returns true if the user explicitly enabled \p DiagID at \p Loc, e.g. via
-/// -W<group> or a pragma, as opposed to it being implied by -Weverything.
-/// See rdar://190622221.
-inline bool IsDiagExplicitlyEnabled(const DiagnosticsEngine &Diags,
-                                    unsigned DiagID, SourceLocation Loc) {
-  DiagnosticMapping Mapping = Diags.getDiagnosticMapping(DiagID, Loc);
-  return Mapping.isUser() && Mapping.getSeverity() != diag::Severity::Ignored;
-}
-
-/// Returns true if \p DiagID is enabled at \p Loc, ignoring enablement that
-/// comes only from -Weverything.
-inline bool IsDiagEnabledExcludingWeverything(const DiagnosticsEngine &Diags,
-                                              unsigned DiagID,
-                                              SourceLocation Loc) {
-  // Fast path for the common case, evaluated once per function body: these
-  // are plain warnings, so a mapping of Ignored at Loc is final, and a mapping
-  // that is not user-specified cannot count as explicitly enabled. This avoids
-  // the full severity computation.
-  DiagnosticMapping Mapping = Diags.getDiagnosticMapping(DiagID, Loc);
-  if (Mapping.getSeverity() == diag::Severity::Ignored)
-    return false;
-
-  if (Diags.isIgnored(DiagID, Loc))
-    return false;
-  return !Diags.getEnableAllWarnings() ||
-         IsDiagExplicitlyEnabled(Diags, DiagID, Loc);
-}
 
 inline bool ShouldCheckSafety(Sema &S, const Decl *D) {
   DiagnosticsEngine &Diags = S.getDiagnostics();
@@ -868,7 +841,7 @@ private:
   bool IsDiagEnabledExcludingWeverything(unsigned DiagID,
                                          SourceLocation Loc) const {
     const DiagnosticsEngine &Diags = S.getDiagnostics();
-    return lifetimes::IsDiagEnabledExcludingWeverything(Diags, DiagID, Loc);
+    return clang::IsDiagEnabledExcludingWeverything(Diags, DiagID, Loc);
   }
 
   std::string getDiagSubjectDescription(const ValueDecl *VD) {

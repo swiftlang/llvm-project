@@ -126,6 +126,7 @@ add_clang_library(clangSema
   clangAST
   clangAnalysis
   clangAnalysisLifetimeSafety
+  clangAnalysisOwnership
   clangBasic
   clangEdit
   clangLex

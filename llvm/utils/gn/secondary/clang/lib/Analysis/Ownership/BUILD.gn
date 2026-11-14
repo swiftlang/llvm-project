@@ -1,0 +1,13 @@
+static_library("Ownership") {
+  output_name = "clangAnalysisOwnership"
+  configs += [ "//llvm/utils/gn/build:clang_code" ]
+  deps = [
+    "//clang/lib/AST",
+    "//clang/lib/Analysis/LifetimeSafety",
+    "//clang/lib/Basic",
+    "//llvm/lib/Support",
+  ]
+  sources = [
+    "SelfContainment.cpp",
+  ]
+}
