@@ -41,6 +41,7 @@ class TargetMachine;
 /// implementation.
 namespace ThinLTOCodeGeneratorImpl {
 struct TargetMachineBuilder;
+template <class T> class Awaitable;
 }
 
 /// Helper to gather options relevant to the target machine creation
@@ -96,6 +97,9 @@ public:
       : LibraryOptions(LibraryOptions) {
     TMBuilder.Options.MCOptions.LibraryOptions = &LibraryOptions;
   }
+
+  /// Waits for the asynchronous cache requests that are still in flight.
+  LLVM_ABI ~ThinLTOCodeGenerator();
 
   /// Add given module to the code generator.
   LLVM_ABI void addModule(StringRef Identifier, StringRef Data);
@@ -409,6 +413,13 @@ private:
 
   /// Control the caching behavior.
   CachingOptions CacheOptions;
+
+  /// The number of asynchronous requests to the CAS of CacheOptions that are
+  /// in flight. The CAS has to outlive them, because releasing its last
+  /// reference from the callback of a request would dispose of a plugin CAS
+  /// from one of the plugin's threads.
+  std::shared_ptr<ThinLTOCodeGeneratorImpl::Awaitable<std::size_t>>
+      PendingCASRequests;
 
   /// Path to a directory to save the temporary bitcode files.
   std::string SaveTempsDir;
