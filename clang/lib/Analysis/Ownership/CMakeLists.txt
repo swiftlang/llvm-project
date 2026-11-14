@@ -4,6 +4,5 @@ add_clang_library(clangAnalysisOwnership
   LINK_LIBS
   clangAST
   clangAnalysis
-  clangAnalysisLifetimeSafety
   clangBasic
   )
