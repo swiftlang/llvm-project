@@ -213,9 +213,8 @@ private:
 } // namespace
 
 static void emitNotes(DiagnosticsEngine &Diags, ArrayRef<Note> Reasons) {
-  for (const Note &R : Reasons) {
+  for (const Note &R : Reasons)
     R.emitNotes(Diags);
-  }
 }
 
 namespace {
@@ -412,9 +411,8 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
 
     // Pointer fields might or might not be self-contained.
     // It depends on whether they are properly managed, so check them later.
-    if (Ty->isPointerType() && !Ty->isFunctionPointerType()) {
+    if (Ty->isPointerType() && !Ty->isFunctionPointerType())
       RawPointerFields.push_back(F);
-    }
 
     // Handle record fields.
     if (const auto *FieldRec = Ty->getAsRecordDecl()) {
@@ -458,9 +456,8 @@ State SelfContainmentAnalysis::handleRawPointerFields(
     return WithUnmanagedFields(Result::View);
 
   // Implicit or defaulted destructor: the raw pointer fields are unmanaged.
-  if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor)) {
+  if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor))
     return WithUnmanagedFields(Result::View);
-  }
 
   // If the dtor body is present, check if it destroys the raw-pointer fields.
   // TODO: Implement this using LifetimeSafetyAnalysis and ownership_takes.
