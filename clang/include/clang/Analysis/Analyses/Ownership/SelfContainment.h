@@ -18,13 +18,13 @@
 
 namespace clang {
 class ASTContext;
-class Sema;
+class DiagnosticsEngine;
 } // namespace clang
 
 namespace clang::ownership {
 
 /// Checks if any of the -Wtype-ownership diags are enabled.
-bool shouldRunSelfContainmentInference(const Sema &S);
+bool shouldRunSelfContainmentInference(const DiagnosticsEngine &Diags);
 
 /// Infers class-level self-containment across the whole translation unit.
 void inferClassSelfContainment(ASTContext &Ctx);

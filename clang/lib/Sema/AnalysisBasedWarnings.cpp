@@ -3909,7 +3909,7 @@ void clang::sema::AnalysisBasedWarnings::IssueWarnings(
   if (lifetimes::IsLifetimeSafetyEnabled(S, TU))
     LifetimeSafetyTUAnalysis(S, TU, LSStats);
 
-  if (ownership::shouldRunSelfContainmentInference(S))
+  if (ownership::shouldRunSelfContainmentInference(S.getDiagnostics()))
     ownership::inferClassSelfContainment(S.getASTContext());
 }
 

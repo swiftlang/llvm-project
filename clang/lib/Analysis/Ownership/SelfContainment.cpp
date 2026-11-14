@@ -22,7 +22,6 @@
 #include "clang/Basic/DiagnosticUtils.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Sema/Sema.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -525,8 +524,8 @@ void ownership::inferClassSelfContainment(ASTContext &Ctx) {
   SelfContainmentAnalysis{Ctx.getDiagnostics()}.TraverseAST(Ctx);
 }
 
-bool ownership::shouldRunSelfContainmentInference(const Sema &S) {
-  const DiagnosticsEngine &Diags = S.getDiagnostics();
+bool ownership::shouldRunSelfContainmentInference(
+    const DiagnosticsEngine &Diags) {
   constexpr unsigned DiagIDs[] = {
       diag::warn_type_ownership_suggest_trivially_self_contained,
       diag::warn_type_ownership_suggest_self_contained,
