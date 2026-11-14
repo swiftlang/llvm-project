@@ -12,6 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/VirtualOutputFile.h"
+#include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/IOSandbox.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualOutputError.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/raw_ostream_proxy.h"
@@ -69,6 +74,47 @@ Error OutputFile::keep() {
   Impl = nullptr;
   DiscardOnDestroyHandler = nullptr;
   return E;
+}
+
+Error OutputFile::fillAndKeep(function_ref<Error(StringRef Path)> Fill) {
+  // Catch double-closing logic bugs.
+  if (LLVM_UNLIKELY(!Impl))
+    report_fatal_error(
+        make_error<OutputError>(getPath(), OutputErrorCode::already_closed));
+
+  // Like keep(), report a fatal error if there's an open proxy.
+  if (LLVM_UNLIKELY(OpenProxy))
+    report_fatal_error(joinErrors(
+        make_error<OutputError>(getPath(), OutputErrorCode::has_open_proxy),
+        discard()));
+
+  // There's nothing to fill for a null output.
+  if (isNull())
+    return keep();
+
+  // Put the content in the file that keep() moves into place, if there's one.
+  if (std::optional<StringRef> FillPath = Impl->getFillPath()) {
+    if (Error E = Fill(*FillPath))
+      return joinErrors(std::move(E), discard());
+    return keep();
+  }
+
+  // Otherwise, put it in a temporary file, and write that to the output.
+  auto BypassSandbox = sys::sandbox::scopedDisable();
+  SmallString<128> TempPath;
+  if (std::error_code EC =
+          sys::fs::createTemporaryFile("output", "tmp", TempPath))
+    return joinErrors(createFileError(TempPath, EC), discard());
+  llvm::scope_exit RemoveTempFile([&]() { sys::fs::remove(TempPath); });
+
+  if (Error E = Fill(TempPath))
+    return joinErrors(std::move(E), discard());
+  ErrorOr<std::unique_ptr<MemoryBuffer>> Content = MemoryBuffer::getFile(
+      TempPath, /*IsText=*/false, /*RequiresNullTerminator=*/false);
+  if (!Content)
+    return joinErrors(createFileError(TempPath, Content.getError()), discard());
+  getOS() << (*Content)->getBuffer();
+  return keep();
 }
 
 Error OutputFile::discard() {
