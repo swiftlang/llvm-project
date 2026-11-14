@@ -299,7 +299,7 @@ private:
 
   /// Check each raw-pointer field and decide if any of them are left unmanaged
   /// by the destructor.
-  State handleRawPointerFields(const CXXRecordDecl *Def,
+  State handleRawPointerFields(const RecordDecl *Def,
                                ArrayRef<const FieldDecl *> RawPointerFields);
 
   DiagnosticsEngine &Diags;
@@ -435,7 +435,7 @@ static bool hasDefaultedDestructor(const CXXDestructorDecl *Dtor) {
 }
 
 State SelfContainmentAnalysis::handleRawPointerFields(
-    const CXXRecordDecl *Def, ArrayRef<const FieldDecl *> RawPointerFields) {
+    const RecordDecl *Def, ArrayRef<const FieldDecl *> RawPointerFields) {
   assert(Def->isThisDeclarationADefinition());
   State RawPointerFieldResult;
 
@@ -452,16 +452,17 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   };
 
   // Plain classes can't manage memory, thus their fields are left unmanaged.
-  if (!Def)
+  const CXXRecordDecl *CXXDef = dyn_cast<CXXRecordDecl>(Def);
+  if (!CXXDef)
     return WithUnmanagedFields(Result::View);
 
   // Classes without destructors also can't manage memory.
-  const CXXDestructorDecl *Dtor = Def->getDestructor();
+  const CXXDestructorDecl *Dtor = CXXDef->getDestructor();
   if (!Dtor)
     return WithUnmanagedFields(Result::View);
 
   // Implicit or defaulted destructor: the raw pointer fields are unmanaged.
-  if (!Def->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor)) {
+  if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor)) {
     return WithUnmanagedFields(Result::View);
   }
 
@@ -507,8 +508,7 @@ State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
   // class is self-contained.
 
   // Check each raw-pointer field if they are managed by the destructor.
-  ClassRes.join(
-      handleRawPointerFields(dyn_cast<CXXRecordDecl>(Def), RawPointerFields));
+  ClassRes.join(handleRawPointerFields(Def, RawPointerFields));
 
   // Whatever our outcome, surface that as a warning.
   // Caching makes sure we only report these once per record.
