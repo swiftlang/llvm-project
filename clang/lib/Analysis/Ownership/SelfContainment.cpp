@@ -15,9 +15,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DynamicRecursiveASTVisitor.h"
-#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
-#include "clang/AST/TypeBase.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/DiagnosticUtils.h"
 #include "clang/Basic/LLVM.h"
@@ -25,6 +23,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <algorithm>
 #include <cassert>
 #include <optional>
 #include <variant>
