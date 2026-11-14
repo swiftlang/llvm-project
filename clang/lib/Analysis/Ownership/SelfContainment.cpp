@@ -285,13 +285,13 @@ private:
   /// inference.
   void reportSuggestionOrFailure(const RecordDecl *Def, const State &Res);
 
-  /// Infer from the fields of record \p R.
+  /// Infer from the fields of record \p Def.
   /// \p RawPointerFields gathers the raw-pointers in the process.
   State inferFieldsOfRecord(const RecordDecl *Def,
                             SmallVector<const FieldDecl *> &RawPointerFields);
   State inferBaseClassesOfRecord(const CXXRecordDecl *Def);
 
-  /// Infer from the definition \p R and report the outcome.
+  /// Infer from the definition \p Def and report the outcome.
   /// The result is cached, so each record is inferred and reported only once.
   State inferDefinitionOfRecord(const RecordDecl *Def);
 
