@@ -59,7 +59,7 @@ struct SWIFT_VIEW AnnotatedView;
 void derefSC(AnnotatedSelfContained *) OWNERSHIP_TAKES(1);
 void derefView(AnnotatedView *) OWNERSHIP_TAKES(1);
 
-// expected-warning@+1 {{could not infer the self-containment of type 'OwnsAnnotatedSelfContained'}} FIXME: should be a view
+// expected-warning@+1 {{could not infer the self-containment of type 'OwnsAnnotatedSelfContained'}} FIXME: should be self-contained.
 struct OwnsAnnotatedSelfContained {
   ~OwnsAnnotatedSelfContained() { derefSC(m_ptr); }
   AnnotatedSelfContained *m_ptr; // expected-note {{holds unmanaged raw-pointer field 'm_ptr'}}
