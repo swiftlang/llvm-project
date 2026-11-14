@@ -70,8 +70,7 @@ static bool hasViewAttr(const RecordDecl *D) {
                       hasSwiftAttrAttrEqualTo("~Escapable"));
 }
 
-static std::optional<Result>
-hasEitherViewOrSelfContainedAttr(const RecordDecl *R) {
+static std::optional<Result> getOwnershipAnnotation(const RecordDecl *R) {
   if (hasSelfContainedAttr(R))
     return Result::SelfContained;
   if (hasViewAttr(R))
@@ -152,7 +151,7 @@ void HoldsUnmanagedRawPtrField::report(DiagnosticsEngine &Diags) const {
 // The order matches the selectors of the notes.
 static unsigned spellOutcome(const RecordDecl *R, Result Outcome) {
   enum { Inferred, Annotated, FailedToInfer };
-  if (hasEitherViewOrSelfContainedAttr(R))
+  if (getOwnershipAnnotation(R))
     return Annotated;
   return Outcome == Result::Unknown ? FailedToInfer : Inferred;
 }
@@ -316,7 +315,7 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
   // Always infer (even if the record has an attribute) to look for mismatches.
   State InferenceResult = inferDefinitionOfRecord(R);
 
-  std::optional<Result> Annotation = hasEitherViewOrSelfContainedAttr(R);
+  std::optional<Result> Annotation = getOwnershipAnnotation(R);
 
   // The inference was inconclusive.
   if (InferenceResult.Outcome == Result::Unknown)
@@ -346,7 +345,7 @@ Result SelfContainmentAnalysis::useOfClass(const RecordDecl *Def) {
   assert(Def->isThisDeclarationADefinition());
 
   // If has explicit annotation, trust that for the current use.
-  if (auto TrustedResult = hasEitherViewOrSelfContainedAttr(Def))
+  if (auto TrustedResult = getOwnershipAnnotation(Def))
     return TrustedResult.value();
 
   // Infer if it didn't have one.
