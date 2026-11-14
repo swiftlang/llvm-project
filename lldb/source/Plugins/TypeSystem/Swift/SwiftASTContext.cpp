@@ -6164,6 +6164,14 @@ bool SwiftASTContext::HasFatalErrors(swift::ASTContext *ast_context) {
   return (ast_context && ast_context->Diags.hasFatalErrorOccurred());
 }
 
+bool SwiftASTContext::HasClangModuleLoaderFatalFailure() const {
+  // A module file that failed to load can stay registered with Clang's
+  // ASTReader in a partially loaded state, and any later lookup may read
+  // through it.
+  return m_clangimporter &&
+         m_clangimporter->getClangInstance().hadModuleLoaderFatalFailure();
+}
+
 void SwiftASTContext::PrintDiagnostics(DiagnosticManager &diagnostic_manager,
                                        uint32_t bufferID, uint32_t first_line,
                                        uint32_t last_line) const {
