@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -Wtype-ownership -Wtype-ownership-suggestions %s -verify
 
 // expected-warning@+1 {{type 'SelfPtr' was inferred as 'view'}}
 struct SelfPtr {

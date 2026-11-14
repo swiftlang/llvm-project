@@ -9,7 +9,7 @@
 // This file declares the translation-unit-wide inference of whether C++ types
 // are self-contained (i.e. may be treated as `Escapable` by Swift), used for
 // Swift's import of C++ types.
-// Results are reported through the -Wownership-inference family of diagnostics.
+// Results are reported through the -Wtype-ownership family of diagnostics.
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,7 +23,7 @@ class Sema;
 
 namespace clang::ownership {
 
-/// Checks if any of the -Wownership-inference diags are enabled.
+/// Checks if any of the -Wtype-ownership diags are enabled.
 bool shouldRunSelfContainmentInference(const Sema &S);
 
 /// Infers class-level self-containment across the whole translation unit.

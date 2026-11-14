@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -Wtype-ownership -Wtype-ownership-suggestions %s -verify
 
 // Init-capture: named after the synthesized init-capture variable.
 void mkInit() { (void)[ptr = (int *)0] { return ptr; }; }

@@ -11345,43 +11345,43 @@ def warn_lifetime_safety_destructor_use_after_invalidation
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;
 
-// Diagnostics of the ownership inference analyses.
-def warn_ownership_inference_annotation_mismatch : Warning<
+// Diagnostics of the type-ownership analyses.
+def warn_type_ownership_annotation_mismatch : Warning<
   "type %q0 is annotated as '%1' but was inferred as '%2'">,
-  InGroup<OwnershipInferenceAnnotationMismatch>, DefaultIgnore;
+  InGroup<TypeOwnershipAnnotationMismatch>, DefaultIgnore;
 
-def warn_ownership_inference_failed_to_infer : Warning<
+def warn_type_ownership_failed_to_infer : Warning<
   "could not infer the self-containment of type %q0">,
-  InGroup<OwnershipInferenceFailedToInfer>, DefaultIgnore;
+  InGroup<TypeOwnershipFailedToInfer>, DefaultIgnore;
 
-def warn_ownership_inference_suggest_trivially_self_contained : Warning<
+def warn_type_ownership_suggest_trivially_self_contained : Warning<
   "type %q0 was inferred as 'trivially-self-contained'">,
-  InGroup<OwnershipInferenceSuggestTriviallySelfContained>, DefaultIgnore;
+  InGroup<TypeOwnershipSuggestTriviallySelfContained>, DefaultIgnore;
 
-def warn_ownership_inference_suggest_self_contained : Warning<
+def warn_type_ownership_suggest_self_contained : Warning<
   "type %q0 was inferred as 'self-contained'">,
-  InGroup<OwnershipInferenceSuggestSelfContained>, DefaultIgnore;
+  InGroup<TypeOwnershipSuggestSelfContained>, DefaultIgnore;
 
-def warn_ownership_inference_suggest_view : Warning<
+def warn_type_ownership_suggest_view : Warning<
   "type %q0 was inferred as 'view'">,
-  InGroup<OwnershipInferenceSuggestView>, DefaultIgnore;
+  InGroup<TypeOwnershipSuggestView>, DefaultIgnore;
 
-def note_ownership_inference_holds_field_inferred : Note<
+def note_type_ownership_holds_field_inferred : Note<
   "holds field %quoted0 of type %q1 that "
   "%select{was inferred as '%3'|was annotated as '%3'|could not be inferred}2">;
 
-def note_ownership_inference_derives_from_base_inferred : Note<
+def note_type_ownership_derives_from_base_inferred : Note<
   "derives from class %q0 that "
   "%select{was inferred as '%2'|was annotated as '%2'|could not be inferred}1">;
 
-def note_ownership_inference_holds_field : Note<
+def note_type_ownership_holds_field : Note<
   "holds %select{reference|unmanaged raw-pointer}0 "
   "field %quoted1">;
 
-def note_ownership_inference_opaque_dtor : Note<
+def note_type_ownership_opaque_dtor : Note<
   "declares a destructor whose body is not visible">;
 
-def note_ownership_inference_not_instantiated_dtor : Note<
+def note_type_ownership_not_instantiated_dtor : Note<
   "destructor was not instantiated for this specialization">;
 
 // For non-floating point, expressions of the form x == x or x != x

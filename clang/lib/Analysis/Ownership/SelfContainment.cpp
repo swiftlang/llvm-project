@@ -138,14 +138,14 @@ struct OpaqueUserDeclaredDestructor {
 // holds {reference|unmanaged raw-pointer} field %
 void HoldsReferenceField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_holds_field)
+  Diags.Report(Loc, diag::note_type_ownership_holds_field)
       << /*reference=*/0 << fieldDisplayName(Field) << SourceRange(Loc);
 }
 
 // holds {reference|unmanaged raw-pointer} field %
 void HoldsUnmanagedRawPtrField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_holds_field)
+  Diags.Report(Loc, diag::note_type_ownership_holds_field)
       << /*unmanaged raw-pointer=*/1 << fieldDisplayName(Field)
       << SourceRange(Loc);
 }
@@ -165,7 +165,7 @@ void DerivesFrom::report(DiagnosticsEngine &Diags) const {
   // Point at the base-specifier (where the inheritance is expressed),
   // not the base class's own definition.
   SourceLocation Loc = Base.getBaseTypeLoc();
-  Diags.Report(Loc, diag::note_ownership_inference_derives_from_base_inferred)
+  Diags.Report(Loc, diag::note_type_ownership_derives_from_base_inferred)
       << asDecl() << spellOutcome(asDecl(), Outcome) << asString(Outcome)
       << SourceRange(Loc);
 }
@@ -174,7 +174,7 @@ void DerivesFrom::report(DiagnosticsEngine &Diags) const {
 // could not be inferred}
 void HoldsField::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Field->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_holds_field_inferred)
+  Diags.Report(Loc, diag::note_type_ownership_holds_field_inferred)
       << fieldDisplayName(Field) << CheckedRecord
       << spellOutcome(CheckedRecord, Outcome) << asString(Outcome)
       << SourceRange(Loc);
@@ -183,14 +183,14 @@ void HoldsField::report(DiagnosticsEngine &Diags) const {
 // destructor was not instantiated for this specialization
 void NotInstantiatedDestructor::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Dtor->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_not_instantiated_dtor)
+  Diags.Report(Loc, diag::note_type_ownership_not_instantiated_dtor)
       << SourceRange(Loc);
 }
 
 // declares a destructor whose body is not visible
 void OpaqueUserDeclaredDestructor::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Dtor->getLocation();
-  Diags.Report(Loc, diag::note_ownership_inference_opaque_dtor)
+  Diags.Report(Loc, diag::note_type_ownership_opaque_dtor)
       << SourceRange(Loc);
 }
 
@@ -333,7 +333,7 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
   if (Annotation.value() == InferenceResult.Outcome)
     return true;
 
-  unsigned MismatchDiagID = diag::warn_ownership_inference_annotation_mismatch;
+  unsigned MismatchDiagID = diag::warn_type_ownership_annotation_mismatch;
   SourceLocation Loc = R->getLocation();
   if (!IsDiagEnabledExcludingWeverything(Diags, MismatchDiagID, Loc))
     return true;
@@ -361,16 +361,16 @@ void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
   unsigned DiagID;
   switch (Res.Outcome) {
   case Result::TriviallySelfContained:
-    DiagID = diag::warn_ownership_inference_suggest_trivially_self_contained;
+    DiagID = diag::warn_type_ownership_suggest_trivially_self_contained;
     break;
   case Result::SelfContained:
-    DiagID = diag::warn_ownership_inference_suggest_self_contained;
+    DiagID = diag::warn_type_ownership_suggest_self_contained;
     break;
   case Result::Unknown:
-    DiagID = diag::warn_ownership_inference_failed_to_infer;
+    DiagID = diag::warn_type_ownership_failed_to_infer;
     break;
   case Result::View:
-    DiagID = diag::warn_ownership_inference_suggest_view;
+    DiagID = diag::warn_type_ownership_suggest_view;
     break;
   }
 
@@ -528,11 +528,11 @@ void ownership::inferClassSelfContainment(ASTContext &Ctx) {
 bool ownership::shouldRunSelfContainmentInference(const Sema &S) {
   const DiagnosticsEngine &Diags = S.getDiagnostics();
   constexpr unsigned DiagIDs[] = {
-      diag::warn_ownership_inference_suggest_trivially_self_contained,
-      diag::warn_ownership_inference_suggest_self_contained,
-      diag::warn_ownership_inference_suggest_view,
-      diag::warn_ownership_inference_failed_to_infer,
-      diag::warn_ownership_inference_annotation_mismatch};
+      diag::warn_type_ownership_suggest_trivially_self_contained,
+      diag::warn_type_ownership_suggest_self_contained,
+      diag::warn_type_ownership_suggest_view,
+      diag::warn_type_ownership_failed_to_infer,
+      diag::warn_type_ownership_annotation_mismatch};
   // Don't enable this via -Weverything - see rdar://190623069.
   for (unsigned DiagID : DiagIDs)
     if (IsDiagEnabledExcludingWeverything(Diags, DiagID, SourceLocation()))

@@ -1,4 +1,4 @@
-// -Weverything must not enable any of the ownership inference diagnostics, so
+// -Weverything must not enable any of the type-ownership diagnostics, so
 // the inference does not even run. Explicitly enabling one of the groups
 // enables just that one:
 //  - 'none':     nothing is reported.
@@ -9,8 +9,8 @@
 // DEFINE: %{flags} = -fsyntax-only -I %S/Inputs -std=c++20 -Wno-c++98-compat \
 // DEFINE:   -Wno-c++98-compat-pedantic -Wno-unused -Wno-missing-prototypes -Wno-padded
 // RUN: %clang_cc1 %{flags} -Weverything -verify=none %s
-// RUN: %clang_cc1 %{flags} -Weverything -Wownership-inference-annotation-mismatch -verify=mismatch %s
-// RUN: %clang_cc1 %{flags} -Weverything -Wownership-inference-suggestions -verify=suggest %s
+// RUN: %clang_cc1 %{flags} -Weverything -Wtype-ownership-annotation-mismatch -verify=mismatch %s
+// RUN: %clang_cc1 %{flags} -Weverything -Wtype-ownership-suggestions -verify=suggest %s
 
 // none-no-diagnostics
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -Wtype-ownership -Wtype-ownership-suggestions %s -verify
 
 // The outcome of a class is joined with the outcome of each of its bases.
 // Each record is reported once, no matter how many times it is used as a base.

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -Wownership-inference -Wownership-inference-suggestions %s -verify
+// RUN: %clang_cc1 -fsyntax-only -I %S/Inputs -Wtype-ownership -Wtype-ownership-suggestions %s -verify
 
 #include "RealOwnershipTakesAnnotations.h"
 
