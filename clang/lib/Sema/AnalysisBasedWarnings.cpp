@@ -14,7 +14,6 @@
 
 #include "clang/Sema/AnalysisBasedWarnings.h"
 // TO_UPSTREAM(BoundsSafety)
-#include "clang/Sema/BoundsSafetySuggestions.h"
 #include "SemaLifetimeSafety.h"
 #include "TypeLocBuilder.h"
 #include "clang/AST/Decl.h"
@@ -50,6 +49,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/BoundsSafetySuggestions.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/ArrayRef.h"

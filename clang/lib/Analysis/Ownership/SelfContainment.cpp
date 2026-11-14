@@ -189,8 +189,7 @@ void NotInstantiatedDestructor::report(DiagnosticsEngine &Diags) const {
 // declares a destructor whose body is not visible
 void OpaqueUserDeclaredDestructor::report(DiagnosticsEngine &Diags) const {
   SourceLocation Loc = Dtor->getLocation();
-  Diags.Report(Loc, diag::note_type_ownership_opaque_dtor)
-      << SourceRange(Loc);
+  Diags.Report(Loc, diag::note_type_ownership_opaque_dtor) << SourceRange(Loc);
 }
 
 namespace {
