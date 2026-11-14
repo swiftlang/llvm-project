@@ -33,10 +33,9 @@ inline bool IsDiagExplicitlyEnabled(const DiagnosticsEngine &Diags,
 inline bool IsDiagEnabledExcludingWeverything(const DiagnosticsEngine &Diags,
                                               unsigned DiagID,
                                               SourceLocation Loc) {
-  // Fast path for the common case, evaluated once per function body: these
-  // are plain warnings, so a mapping of Ignored at Loc is final, and a mapping
-  // that is not user-specified cannot count as explicitly enabled. This avoids
-  // the full severity computation.
+  // Fast path for the common case: these are plain warnings, so a mapping of
+  // Ignored at Loc is final, and a mapping that is not user-specified cannot
+  // count as explicitly enabled. This avoids the full severity computation.
   DiagnosticMapping Mapping = Diags.getDiagnosticMapping(DiagID, Loc);
   if (Mapping.getSeverity() == diag::Severity::Ignored)
     return false;
