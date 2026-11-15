@@ -224,11 +224,19 @@ struct State {
 
   void join(Result Other) & { Outcome = ::join(Outcome, Other); }
 
+  /// Keep only the notes that explain the joined outcome.
   void join(State &&Other) & {
-    join(Other.Outcome);
+    // A better contribution doesn't explain the outcome.
+    if (Other.Outcome < Outcome)
+      return;
 
-    // Only add notes if either unknown or a view.
-    if (Other.Outcome >= Result::Unknown)
+    // A worse contribution makes our notes irrelevant.
+    if (Other.Outcome > Outcome) {
+      Outcome = Other.Outcome;
+      Notes.clear();
+    }
+
+    if (Outcome >= Result::Unknown)
       llvm::append_range(Notes, Other.Notes);
   }
 

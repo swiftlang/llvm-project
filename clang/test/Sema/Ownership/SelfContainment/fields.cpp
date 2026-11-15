@@ -100,3 +100,14 @@ union UnionPtr { // expected-warning {{type 'UnionPtr' was inferred as 'view'}}
   int i;
   int *p;        // expected-note {{holds unmanaged raw-pointer field 'p'}}
 };
+
+// Only the reasons that explain the outcome are noted: an inconclusive field
+// doesn't explain why a type is a view.
+struct Opaque { // expected-warning {{could not infer the self-containment of type 'Opaque'}}
+  int *p;       // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~Opaque();    // expected-note {{declares a destructor whose body is not visible}}
+};
+struct ViewWithOpaque { // expected-warning {{type 'ViewWithOpaque' was inferred as 'view'}}
+  Opaque o;
+  int &r;               // expected-note {{holds reference field 'r'}}
+};
