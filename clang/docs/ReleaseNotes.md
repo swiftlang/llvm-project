@@ -169,6 +169,11 @@ honored, and calls use the caller's features, matching GCC. Per-function
 features cannot lower the translation-unit ABI level;
 `-fclang-abi-compat=23` restores the previous behavior. (#GH193298)
 
+- On Windows targets using Microsoft C++ ABI, fixed returning a class with
+  a deleted template constructor which should be returned in a register.
+  This affects the ABI of `std::strong_ordering` in some versions of the
+  Microsoft STL. (#GH237188)
+
 ### AST Dumping Potentially Breaking Changes
 
 - The JSON AST dump now includes all fields from `AvailabilityAttr`: `platform`,
