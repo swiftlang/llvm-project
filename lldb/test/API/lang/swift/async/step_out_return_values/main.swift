@@ -1,3 +1,5 @@
+struct E: Error {}
+
 struct TwoInt {
   var a = 3
   var b = 4
@@ -22,9 +24,16 @@ func f_throws() async throws -> Int {
   return 14
 }
 
+func f_throwing() async throws -> Int {
+  let y = await f_int(0)
+  if y == 1 { throw E() } // break in throwing
+  return y
+}
+
 func run() async {
   let v_throws = try! await f_throws()
   _ = v_throws
+  _ = try? await f_throwing()
 }
 
 await run()
