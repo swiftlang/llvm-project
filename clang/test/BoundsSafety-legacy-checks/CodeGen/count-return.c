@@ -128,7 +128,7 @@ int Test1() {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-O2-NEXT:    [[CALL:%.*]] = tail call ptr @alloc(i32 noundef 16) #[[ATTR4]]
 // CHECK-O2-NEXT:    [[CALL1:%.*]] = tail call ptr @alloc(i32 noundef 40) #[[ATTR4]]
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int Test2() {

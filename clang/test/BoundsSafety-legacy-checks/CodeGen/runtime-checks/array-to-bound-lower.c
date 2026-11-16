@@ -96,7 +96,7 @@
 // CHECK-O2-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-O2-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 16
-// CHECK-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR3:[0-9]+]]
+// CHECK-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-O2-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
 // CHECK-O2-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4
 // CHECK-O2-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[BOUND_PTR_ARITH]], [[UPPER]], {{!annotation ![0-9]+}}
@@ -104,17 +104,17 @@
 // CHECK-O2-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    br i1 [[OR_COND]], label %[[CONT14:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[TRAP]]:
-// CHECK-O2-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[CONT14]]:
-// CHECK-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR3]]
+// CHECK-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-O2-NEXT:    ret i32 undef
 //
 // CHECK-ARM-O2-LABEL: define dso_local arm_aapcscc i32 @main(
 // CHECK-ARM-O2-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-ARM-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-ARM-O2-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 4
-// CHECK-ARM-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR3:[0-9]+]]
+// CHECK-ARM-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-ARM-O2-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i32 40
 // CHECK-ARM-O2-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i32 -4
 // CHECK-ARM-O2-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[BOUND_PTR_ARITH]], [[UPPER]], {{!annotation ![0-9]+}}
@@ -122,10 +122,10 @@
 // CHECK-ARM-O2-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-ARM-O2-NEXT:    br i1 [[OR_COND]], label %[[CONT14:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-ARM-O2:       [[TRAP]]:
-// CHECK-ARM-O2-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-ARM-O2-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-ARM-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK-ARM-O2:       [[CONT14]]:
-// CHECK-ARM-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR3]]
+// CHECK-ARM-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-ARM-O2-NEXT:    ret i32 undef
 //
 int main() {
