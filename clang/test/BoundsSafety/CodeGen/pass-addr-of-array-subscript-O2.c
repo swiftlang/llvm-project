@@ -15,7 +15,7 @@ static void foo(int *__counted_by(len) elems, int len, int idx) {
 // CHECK-LABEL: define void @oob(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void oob(void) {
@@ -27,7 +27,7 @@ void oob(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR6:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[ADD_PTR_I:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
 // CHECK-NEXT:    [[BOUND_PTR_ARITH_I:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP_NOT_I:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH_I]], [[ADD_PTR_I]], {{!annotation ![0-9]+}}
@@ -35,11 +35,11 @@ void oob(void) {
 // CHECK-NEXT:    [[OR_COND_NOT76_I:%.*]] = and i1 [[CMP_NOT_I]], [[CMP34_NOT_I]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND_NOT76_I]], label %[[FOO_EXIT:.*]], label %[[TRAP_I:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP_I]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[FOO_EXIT]]:
-// CHECK-NEXT:    call void @bar(ptr noundef [[BOUND_PTR_ARITH_I]], i32 noundef 4) #[[ATTR6]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @bar(ptr noundef [[BOUND_PTR_ARITH_I]], i32 noundef 4) #[[ATTR6:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void oob2(void) {
@@ -51,7 +51,7 @@ void oob2(void) {
 // CHECK-LABEL: define void @oob3(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void oob3(void) {
@@ -63,10 +63,10 @@ void oob3(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[BOUND_PTR_ARITH_I:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 36, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    call void @bar(ptr noundef nonnull [[BOUND_PTR_ARITH_I]], i32 noundef 4) #[[ATTR6]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void good(void) {

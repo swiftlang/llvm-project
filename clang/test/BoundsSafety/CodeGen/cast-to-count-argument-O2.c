@@ -31,7 +31,7 @@ void TestZeroCount(void) {
 // CHECK-LABEL: define dso_local void @TestCountPtrArgFail(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestCountPtrArgFail(void) {
@@ -44,7 +44,7 @@ void TestCountPtrArgFail(void) {
 // CHECK-LABEL: define dso_local void @TestCountPtrArgFail2(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestCountPtrArgFail2(void) {
@@ -57,7 +57,7 @@ void TestCountPtrArgFail2(void) {
 // CHECK-LABEL: define dso_local void @TestCountPtrArgFail3(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestCountPtrArgFail3(void) {
@@ -70,10 +70,10 @@ void TestCountPtrArgFail3(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 16
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR7:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
-// CHECK-NEXT:    call void @Foo(ptr noundef nonnull [[UPPER]], i32 noundef 0) #[[ATTR7]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @Foo(ptr noundef nonnull [[UPPER]], i32 noundef 0) #[[ATTR7:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void TestCountPtrArgOK(void) {
@@ -87,10 +87,10 @@ void TestCountPtrArgOK(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 16
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 36
 // CHECK-NEXT:    call void @Foo(ptr noundef nonnull [[BOUND_PTR_ARITH]], i32 noundef 1) #[[ATTR7]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void TestCountPtrArgOK2(void) {
@@ -103,7 +103,7 @@ void TestCountPtrArgOK2(void) {
 // CHECK-LABEL: define dso_local void @TestConstCountPtrArgFail(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestConstCountPtrArgFail(void) {
@@ -117,9 +117,9 @@ void TestConstCountPtrArgFail(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 16
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    call void @Bar(ptr noundef nonnull [[ARR]]) #[[ATTR7]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void TestConstCountPtrArgOK(void) {
@@ -145,7 +145,7 @@ void TestConstZeroCountOK(void) {
 // CHECK-LABEL: define dso_local void @TestBidiOverBounds(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestBidiOverBounds() {
@@ -158,7 +158,7 @@ void TestBidiOverBounds() {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 16
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[UPPER]], {{!annotation ![0-9]+}}
@@ -166,11 +166,11 @@ void TestBidiOverBounds() {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP27_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    call void @Foo(ptr noundef [[BOUND_PTR_ARITH]], i32 noundef 10) #[[ATTR7]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR7]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void TestBidiUnderBounds() {
@@ -182,7 +182,7 @@ void TestBidiUnderBounds() {
 // CHECK-LABEL: define dso_local void @TestConstZeroCountFail(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestConstZeroCountFail(void) {

@@ -15,10 +15,10 @@ void foo(int * const __ended_by(end) start, int* const end);
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [40 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR5:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 160
-// CHECK-NEXT:    call void @foo(ptr noundef nonnull [[ARR]], ptr noundef nonnull [[BOUND_PTR_ARITH]]) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @foo(ptr noundef nonnull [[ARR]], ptr noundef nonnull [[BOUND_PTR_ARITH]]) #[[ATTR5:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void good(void) {
@@ -30,7 +30,7 @@ void good(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [40 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 160
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 164
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[UPPER]], !annotation [[META5:![0-9]+]]
@@ -38,11 +38,11 @@ void good(void) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP28_NOT]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], !annotation [[META5]]
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    call void @foo(ptr noundef nonnull [[ARR]], ptr noundef [[BOUND_PTR_ARITH]]) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void oob_upper(void) {
@@ -54,7 +54,7 @@ void oob_upper(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [40 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 160
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[UPPER]], !annotation [[META5]]
@@ -62,11 +62,11 @@ void oob_upper(void) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP28_NOT]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META5]]
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    call void @foo(ptr noundef nonnull [[ARR]], ptr noundef [[BOUND_PTR_ARITH]]) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void oob_lower(void) {
@@ -77,7 +77,7 @@ void oob_lower(void) {
 // CHECK-LABEL: define void @oob_order(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 //
 void oob_order(void) {
