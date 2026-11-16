@@ -2265,7 +2265,8 @@ void SwiftASTContext::ApplyDiagnosticOptions() {
 
   if (!opts.LocalizationCode.empty() && !opts.LocalizationPath.empty())
     GetDiagnosticEngine().setLocalization(opts.LocalizationCode,
-                                          opts.LocalizationPath);
+                                          opts.LocalizationPath,
+                                          *GetSourceManager().getFileSystem());
 }
 
 void SwiftASTContext::RemapClangImporterOptions(
