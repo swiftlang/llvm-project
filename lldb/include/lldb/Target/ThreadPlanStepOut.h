@@ -9,6 +9,7 @@
 #ifndef LLDB_TARGET_THREADPLANSTEPOUT_H
 #define LLDB_TARGET_THREADPLANSTEPOUT_H
 
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanShouldStopHere.h"
@@ -46,13 +47,7 @@ public:
   void DidPush() override;
   bool IsPlanStale() override;
 
-  lldb::ValueObjectSP GetReturnValueObject() override {
-    return m_return_valobj_sp;
-  }
-
-  bool IsReturnValueSwiftErrorValue() override {
-    return m_is_swift_error_value;
-  }
+  ThreadPlanReturnValue GetReturnValue() override { return m_return_value; }
 
 protected:
   void SetFlagsToDefault() override {
@@ -72,8 +67,6 @@ private:
   StackID m_immediate_step_from_id;
   lldb::break_id_t m_return_bp_id;
   lldb::addr_t m_return_addr;
-  std::optional<Value> m_swift_error_return;
-  bool m_swift_error_check_after_return;
   bool m_stop_others;
   lldb::ThreadPlanSP m_step_out_to_inline_plan_sp; // This plan implements step
                                                    // out to the real function
@@ -86,9 +79,9 @@ private:
                                                  // to.
   Function *m_immediate_step_from_function;
   std::vector<lldb::StackFrameSP> m_stepped_past_frames;
-  lldb::ValueObjectSP m_return_valobj_sp;
-  bool m_is_swift_error_value;
+  ThreadPlanReturnValue m_return_value;
   bool m_calculate_return_value;
+  LanguageRuntime::ThrownErrorLocation m_thrown_error_location;
   StreamString m_constructor_errors;
 
   friend lldb::ThreadPlanSP Thread::QueueThreadPlanForStepOut(

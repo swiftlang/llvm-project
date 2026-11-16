@@ -616,11 +616,16 @@ public:
 
   std::optional<Value>
   GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp,
-                                    Function *returned_from = nullptr);
+                                    bool is_async = false);
 
   std::optional<Value>
   GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
                                      bool &need_to_check_after_return);
+
+  std::optional<Value> GetThrownErrorLocation(StackFrame &frame) override;
+
+  std::optional<lldb::ValueObjectSP>
+  GetThrownError(StackFrame &frame, const Value &location) override;
 
   static void RegisterGlobalError(Target &target, ConstString name,
                                   lldb::addr_t addr);

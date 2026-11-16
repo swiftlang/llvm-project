@@ -387,12 +387,8 @@ lldb::StopInfoSP Thread::GetStopInfo() {
   if (have_valid_stop_info && !plan_overrides_trace && !plan_failed) {
     return m_stop_info_sp;
   } else if (completed_plan_sp) {
-    bool is_swift_error_value;
-    lldb::ValueObjectSP return_value_sp =
-        GetReturnValueObject(&is_swift_error_value);
     return StopInfo::CreateStopReasonWithPlan(
-        completed_plan_sp, return_value_sp, GetExpressionVariable(),
-        is_swift_error_value);
+        completed_plan_sp, GetReturnValue(), GetExpressionVariable());
   } else {
     GetPrivateStopInfo();
     return m_stop_info_sp;
@@ -1187,20 +1183,6 @@ ThreadPlan *Thread::GetCurrentPlan() const {
   return GetPlans().GetCurrentPlan().get();
 }
 
-ValueObjectSP Thread::GetReturnValueObject(bool *is_swift_error_value) {
-  if (is_swift_error_value)
-    *is_swift_error_value = false;
-    
-  bool is_error;
-  ValueObjectSP return_valobj_sp = GetPlans().GetReturnValueObject(is_error);
-  if (return_valobj_sp) {
-    if (is_swift_error_value)
-      *is_swift_error_value = is_error;
-    return return_valobj_sp;
-  }
-  return ValueObjectSP();
-}
-
 bool Thread::IsRunningCallFunctionPlan() const {
   for (ThreadPlan *plan = GetCurrentPlan(); plan;
        plan = GetPreviousPlan(plan)) {
@@ -1212,6 +1194,10 @@ bool Thread::IsRunningCallFunctionPlan() const {
 
 ThreadPlanSP Thread::GetCompletedPlan() const {
   return GetPlans().GetCompletedPlan();
+}
+
+ThreadPlanReturnValue Thread::GetReturnValue() const {
+  return GetPlans().GetReturnValue();
 }
 
 ExpressionVariableSP Thread::GetExpressionVariable() const {
