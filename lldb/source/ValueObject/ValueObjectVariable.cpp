@@ -165,7 +165,6 @@ bool ValueObjectVariable::UpdateValue() {
       m_error = Status::FromErrorString("empty constant data");
     // constant bytes can't be edited - sorry
     m_resolved_value.SetContext(Value::ContextType::Invalid, nullptr);
-    SetAddressTypeOfChildren(eAddressTypeInvalid);
     m_resolved_value_is_implicit = true;
   } else {
     lldb::addr_t loclist_base_load_addr = LLDB_INVALID_ADDRESS;
