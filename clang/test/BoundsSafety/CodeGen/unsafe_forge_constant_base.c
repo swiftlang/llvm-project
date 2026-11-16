@@ -156,7 +156,7 @@ unsigned int *  __bidi_indexable nonstatic_bidi() {
 // X86_64: attributes #[[ATTR1:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 // X86_64: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // X86_64: attributes #[[ATTR3:[0-9]+]] = { "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+cx8,+mmx,+sse,+sse2,+x87" }
-// X86_64: attributes #[[ATTR4]] = { nomerge noreturn nounwind }
+// X86_64: attributes #[[ATTR4]] = { nomerge }
 //.
 // X86_64: [[META0:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
 // X86_64: [[META1]] = !{!"bounds-safety-generic"}

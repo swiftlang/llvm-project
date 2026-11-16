@@ -704,7 +704,7 @@ int read_cb(int*__counted_by(count) ptr, int count, int other) {
 // UNOPT: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // UNOPT: attributes #[[ATTR3:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 // UNOPT: attributes #[[ATTR4:[0-9]+]] = { "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// UNOPT: attributes #[[ATTR5]] = { nomerge noreturn nounwind }
+// UNOPT: attributes #[[ATTR5]] = { nomerge }
 // UNOPT: attributes #[[ATTR6]] = { nomerge nounwind }
 //.
 // UNOPT-TF: attributes #[[ATTR0]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
@@ -712,7 +712,7 @@ int read_cb(int*__counted_by(count) ptr, int count, int other) {
 // UNOPT-TF: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // UNOPT-TF: attributes #[[ATTR3:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 // UNOPT-TF: attributes #[[ATTR4:[0-9]+]] = { "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// UNOPT-TF: attributes #[[ATTR5]] = { nomerge noreturn nounwind "trap-func-name"="ubsan_handler" }
+// UNOPT-TF: attributes #[[ATTR5]] = { nomerge "trap-func-name"="ubsan_handler" }
 // UNOPT-TF: attributes #[[ATTR6]] = { nomerge nounwind }
 // UNOPT-TF: attributes #[[ATTR7]] = { "trap-func-name"="ubsan_handler" }
 //.
@@ -728,7 +728,7 @@ int read_cb(int*__counted_by(count) ptr, int count, int other) {
 // OPT: attributes #[[ATTR1:[0-9]+]] = { mustprogress nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
 // OPT: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // OPT: attributes #[[ATTR3:[0-9]+]] = { "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// OPT: attributes #[[ATTR4]] = { nomerge noreturn nounwind }
+// OPT: attributes #[[ATTR4]] = { nomerge }
 // OPT: attributes #[[ATTR5]] = { nomerge nounwind }
 // OPT: attributes #[[ATTR6]] = { nounwind }
 //.

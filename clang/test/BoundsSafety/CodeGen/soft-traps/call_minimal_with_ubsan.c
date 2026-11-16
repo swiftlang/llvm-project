@@ -267,14 +267,14 @@ int read(int* __bidi_indexable ptr, int idx, int other) {
 // UNOPT: attributes #[[ATTR1:[0-9]+]] = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
 // UNOPT: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // UNOPT: attributes #[[ATTR3:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
-// UNOPT: attributes #[[ATTR4]] = { nomerge noreturn nounwind }
+// UNOPT: attributes #[[ATTR4]] = { nomerge }
 // UNOPT: attributes #[[ATTR5]] = { nomerge nounwind }
 //.
 // UNOPT-TF: attributes #[[ATTR0]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // UNOPT-TF: attributes #[[ATTR1:[0-9]+]] = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
 // UNOPT-TF: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
 // UNOPT-TF: attributes #[[ATTR3:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
-// UNOPT-TF: attributes #[[ATTR4]] = { nomerge noreturn nounwind "trap-func-name"="ubsan_handler" }
+// UNOPT-TF: attributes #[[ATTR4]] = { nomerge "trap-func-name"="ubsan_handler" }
 // UNOPT-TF: attributes #[[ATTR5]] = { nomerge nounwind }
 //.
 // UNOPT-TFR: attributes #[[ATTR0]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
@@ -286,7 +286,7 @@ int read(int* __bidi_indexable ptr, int idx, int other) {
 // OPT: attributes #[[ATTR0]] = { nounwind "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // OPT: attributes #[[ATTR1:[0-9]+]] = { mustprogress nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
 // OPT: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
-// OPT: attributes #[[ATTR3]] = { nomerge noreturn nounwind }
+// OPT: attributes #[[ATTR3]] = { nomerge }
 // OPT: attributes #[[ATTR4]] = { nomerge nounwind }
 //.
 // UNOPT: [[META0:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
