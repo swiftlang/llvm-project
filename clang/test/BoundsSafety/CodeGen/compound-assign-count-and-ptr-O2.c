@@ -25,7 +25,7 @@ void TestOK(void) {
 // CHECK-O2-LABEL: define void @TestFail(
 // CHECK-O2-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestFail(void) {

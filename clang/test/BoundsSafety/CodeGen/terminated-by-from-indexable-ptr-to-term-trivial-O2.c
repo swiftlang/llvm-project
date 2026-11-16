@@ -28,7 +28,7 @@ const int32_t *__terminated_by(3) good(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_no_term(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int32_t *__terminated_by(3) bad_no_term(void) {
@@ -39,7 +39,7 @@ const int32_t *__terminated_by(3) bad_no_term(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_ptr_to_term_oob(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int32_t *__terminated_by(3) bad_ptr_to_term_oob(void) {
@@ -50,7 +50,7 @@ const int32_t *__terminated_by(3) bad_ptr_to_term_oob(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_ptr_to_term_oob2(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int32_t *__terminated_by(3) bad_ptr_to_term_oob2(void) {
@@ -62,7 +62,7 @@ const int32_t *__terminated_by(3) bad_ptr_to_term_oob2(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_ptr_to_term_oob3(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int32_t *__terminated_by(3) bad_ptr_to_term_oob3(void) {

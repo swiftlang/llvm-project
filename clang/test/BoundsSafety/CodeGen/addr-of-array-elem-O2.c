@@ -20,7 +20,7 @@ int v;
 // CHECK-NEXT:    [[OR_COND3:%.*]] = and i1 [[TMP4]], [[OR_COND]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND3]], label %[[CONT2:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT2]]:
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr [[BOUND_PTR_ARITH]], align 4, {{!tbaa ![0-9]+}}

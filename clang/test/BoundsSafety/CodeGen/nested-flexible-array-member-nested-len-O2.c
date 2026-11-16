@@ -28,7 +28,7 @@ void use(void *__unsafe_indexable);
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[ADD_PTR]], !annotation [[META5:![0-9]+]]
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT10:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META7:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 // CHECK:       [[CONT10]]:
 // CHECK-NEXT:    tail call void @use(ptr noundef [[FRAME]]) #[[ATTR4:[0-9]+]]

@@ -17,7 +17,7 @@
 // CHECK-NEXT:    [[OR_COND41:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[OR_COND41]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 0, ptr [[END]], align 4, !tbaa [[TBAA1:![0-9]+]]
@@ -48,7 +48,7 @@ void foo(int *__ended_by(end) start, int * end) {
 // CHECK-NEXT:    [[OR_COND52:%.*]] = or i1 [[CMP33_NOT]], [[OR_COND]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[OR_COND52]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA1]]

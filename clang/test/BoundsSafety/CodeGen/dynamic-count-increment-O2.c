@@ -51,7 +51,7 @@ void TestUnsignedEdgeOK(void) {
 
 // CHECK-LABEL: @TestFail1(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void TestFail1(void) {
@@ -64,7 +64,7 @@ void TestFail1(void) {
 
 // CHECK-LABEL: @TestUnsignedCountFail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void TestUnsignedCountFail(void) {
@@ -82,7 +82,7 @@ struct Bar {
 
 // CHECK-LABEL: @TestBarFail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void TestBarFail(void) {

@@ -50,7 +50,7 @@ int access1(S *p) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp slt i32 [[TMP0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[CLEANUP:%.*]], label [[BOUNDSCHECK_NULL:%.*]]
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], !annotation [[META15:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META15:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META15]]
 // CHECK:       boundscheck.null:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[TMP1]], i64 4

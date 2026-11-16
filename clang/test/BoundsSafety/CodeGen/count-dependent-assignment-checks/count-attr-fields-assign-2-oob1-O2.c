@@ -14,7 +14,7 @@ struct S {
 // CHECK-O2-LABEL: define dso_local noundef i32 @foo(
 // CHECK-O2-SAME: ) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-O2-NEXT:  entry:
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META2:![0-9]+]]
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META2:![0-9]+]]
 // CHECK-O2-NEXT:    unreachable, !annotation [[META2]]
 //
 int foo () {

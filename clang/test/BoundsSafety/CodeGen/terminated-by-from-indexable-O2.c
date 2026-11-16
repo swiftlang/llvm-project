@@ -13,7 +13,7 @@
 // CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TERMINATED_BY_LOOP_COND:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[TERMINATED_BY_LOOP_COND]]:
 // CHECK-NEXT:    [[TERMINATED_BY_CUR_0:%.*]] = phi ptr [ [[TERMINATED_BY_ONE_PAST_CUR:%.*]], %[[CONT3:.*]] ], [ [[PTR_COERCE0]], %[[ENTRY]] ]
@@ -42,7 +42,7 @@ int *__null_terminated indexable(int *__indexable ptr) {
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ult ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], [[AGG_TEMP1_SROA_3_0_COPYLOAD]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], i64 4, {{!annotation ![0-9]+}}
@@ -75,7 +75,7 @@ int *__null_terminated bidi_indexable(int *__bidi_indexable ptr) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TERMINATED_BY_LOOP_COND:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[TERMINATED_BY_LOOP_COND]]:
 // CHECK-NEXT:    [[TERMINATED_BY_CUR_0:%.*]] = phi ptr [ [[TERMINATED_BY_ONE_PAST_CUR:%.*]], %[[CONT3:.*]] ], [ [[PTR_COERCE0]], %[[ENTRY]] ]

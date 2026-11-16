@@ -36,7 +36,7 @@ void caller_2() {
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = and i1 [[DOTNOT]], [[CMP_NOT79]], !annotation [[META7:![0-9]+]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label [[TRAP:%.*]], label [[CONT:%.*]], !annotation [[META7]]
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], !annotation [[META7]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 // CHECK:       cont:
 // CHECK-NEXT:    tail call void @foo(ptr noundef [[P]], i32 noundef [[LEN]]) #[[ATTR5]]
@@ -49,7 +49,7 @@ void caller_3(int *__sized_by_or_null(len) p, int len) {
 // CHECK-LABEL: define void @caller_4(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META7]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 //
 void caller_4() {
@@ -61,10 +61,10 @@ void caller_4() {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[I:%.*]] = alloca i32, align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[I]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[I]])
 // CHECK-NEXT:    store i32 0, ptr [[I]], align 4, !tbaa [[TBAA8:![0-9]+]]
 // CHECK-NEXT:    call void @foo(ptr noundef nonnull [[I]], i32 noundef 2) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[I]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[I]])
 // CHECK-NEXT:    ret void
 //
 void caller_5() {
@@ -81,7 +81,7 @@ void caller_5() {
 // CHECK-NEXT:    tail call void @foo(ptr noundef [[P]], i32 noundef [[LEN]]) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META7]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 //
 void caller_6(int *__sized_by(len) p, int len) {
@@ -113,7 +113,7 @@ void caller_6(int *__sized_by(len) p, int len) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP68]], [[CMP65]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label [[CONT]], label [[TRAP]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META7]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 // CHECK:       cont:
 // CHECK-NEXT:    tail call void @foo(ptr noundef [[AGG_TEMP_SROA_0_0_COPYLOAD]], i32 noundef [[LEN]]) #[[ATTR5]]
@@ -131,7 +131,7 @@ void caller_7(int *__bidi_indexable p, int len) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[TOBOOL_NOT]], [[SPEC_SELECT]], !annotation [[META7]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[CONT:%.*]], label [[TRAP:%.*]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META7]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META7]]
 // CHECK-NEXT:    unreachable, !annotation [[META7]]
 // CHECK:       cont:
 // CHECK-NEXT:    tail call void @foo(ptr noundef [[P]], i32 noundef [[LEN]]) #[[ATTR5]]
@@ -158,9 +158,9 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[COUNT:%.*]] = alloca i32, align 4
 // CHECK-NEXT:    [[P:%.*]] = alloca ptr, align 8
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[COUNT]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[COUNT]])
 // CHECK-NEXT:    store i32 0, ptr [[COUNT]], align 4, !annotation [[META13:![0-9]+]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[P]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[P]])
 // CHECK-NEXT:    store ptr null, ptr [[P]], align 8, !annotation [[META13]]
 // CHECK-NEXT:    call void @bar(ptr noundef nonnull [[P]], ptr noundef nonnull [[COUNT]]) #[[ATTR5]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[P]], align 8, !tbaa [[TBAA14:![0-9]+]]
@@ -170,7 +170,7 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = select i1 [[DOTNOT]], i1 [[CMP_NOT92]], i1 false, !annotation [[META7]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label [[TRAP:%.*]], label [[LAND_RHS:%.*]], !annotation [[META7]]
 // CHECK:       trap:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], !annotation [[META17:![0-9]+]]
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), !annotation [[META17:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META17]]
 // CHECK:       land.rhs:
 // CHECK-NEXT:    br i1 [[DOTNOT]], label [[LOR_RHS:%.*]], label [[CONT69:%.*]], !annotation [[META7]]
@@ -180,8 +180,8 @@ void caller_9(int *__sized_by(*len) *out, int *len){
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP66]], [[CMP63]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label [[CONT69]], label [[TRAP]], {{!prof ![0-9]+}}, !annotation [[META7]]
 // CHECK:       cont69:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[P]]) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[COUNT]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[P]])
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[COUNT]])
 // CHECK-NEXT:    ret ptr [[TMP0]]
 //
 int *__sized_by_or_null(len) caller_10(int len) {

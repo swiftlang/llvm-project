@@ -10,7 +10,7 @@
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5:![0-9]+]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -30,7 +30,7 @@ int *__counted_by(len) cb_0(int len) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -50,7 +50,7 @@ int *__counted_by(len) cb_NULL(int len) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -70,7 +70,7 @@ int *__counted_by(len) cb_int_cast(int len) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -90,7 +90,7 @@ int *__counted_by(len) cb_int_cast_NULL(int len) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[SIZE]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -110,7 +110,7 @@ int *__sized_by(size) sb_0(int size) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null
@@ -130,7 +130,7 @@ int *__sized_by(len) sb_int_cast(int len) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[LEN]], 0, !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr null

@@ -23,7 +23,7 @@ struct foo {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT19:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT19]]:
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], align 4, {{!tbaa ![0-9]+}}

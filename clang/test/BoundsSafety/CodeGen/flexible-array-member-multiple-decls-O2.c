@@ -61,7 +61,7 @@ void good_zero(S *s) {
 // CHECK-LABEL: define void @trap_access_to_count_zero(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void trap_access_to_count_zero(S *s) {
@@ -75,7 +75,7 @@ void trap_access_to_count_zero(S *s) {
 // CHECK-LABEL: define void @trap_len_too_big(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void trap_len_too_big(S *s) {
@@ -88,7 +88,7 @@ void trap_len_too_big(S *s) {
 // CHECK-LABEL: define void @trap_negative_count(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[S:%.*]]) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void trap_negative_count(S *s) {

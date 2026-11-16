@@ -10,7 +10,7 @@ struct S {
 };
 
 // CHECK-LABEL: @fails_oob
-// CHECK: tail call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !annotation ![[ANNOTATION:[0-9]+]]
+// CHECK: tail call void @llvm.ubsantrap(i8 25), !annotation ![[ANNOTATION:[0-9]+]]
 // CHECK-NEXT: unreachable, !annotation ![[ANNOTATION]]
 int fails_oob() {
     struct S s = {1, 0, 2};

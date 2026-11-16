@@ -24,13 +24,13 @@ int main() {
 // IR: br i1 [[OR_COND]], label %{{[a-z0-9]+}}, label %[[FOO_LABEL_TRAP:[a-z0-9]+]], !dbg {{.+}}, !annotation ![[ANNOT_LT_UB]]
 // ...
 // IR: [[FOO_LABEL_TRAP]]:
-// IR:   call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[LOC_10_14:[0-9]+]], !annotation ![[ANNOT_LT_UB_AND_GE_LB:[0-9]+]]
+// IR:   call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_10_14:[0-9]+]], !annotation ![[ANNOT_LT_UB_AND_GE_LB:[0-9]+]]
 // IR-NEXT: unreachable, !dbg ![[LOC_10_14]], !annotation ![[ANNOT_LT_UB_AND_GE_LB]]
 
 
 // IR-LABEL: @main
 // ...
-// IR: tail call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[LOC_0:[0-9]+]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT:[0-9]+]]
+// IR: tail call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_0:[0-9]+]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT:[0-9]+]]
 // IR-NEXT: unreachable, !dbg ![[LOC_0]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT]]
 
 

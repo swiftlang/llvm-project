@@ -17,7 +17,7 @@ struct foo {
 // CHECK-NEXT:    [[DOTNOT4:%.*]] = icmp ugt ptr [[F]], [[TMP0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT4]], label %[[TRAP:.*]], label %[[BOUNDSCHECK_NULL:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL]]:
 // CHECK-NEXT:    ret ptr [[F]]
@@ -34,7 +34,7 @@ char **addrof_single_ptr_to_single(struct foo *f) {
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[BOUNDSCHECK_NULL:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL]]:
 // CHECK-NEXT:    ret ptr [[TMP0]]
@@ -51,7 +51,7 @@ int *addrof_single_i_to_single(struct foo *f) {
 // CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ugt ptr [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[BOUNDSCHECK_NULL:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[BOUNDSCHECK_NULL]]:
 // CHECK-NEXT:    ret ptr [[TMP0]]
@@ -78,7 +78,7 @@ char **addrof_bidi_ptr_to_single(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_ptr_to_single_oob_upper(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 char **addrof_bidi_ptr_to_single_oob_upper(void) {
@@ -91,7 +91,7 @@ char **addrof_bidi_ptr_to_single_oob_upper(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_ptr_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 char **addrof_bidi_ptr_to_single_oob_lower(void) {
@@ -108,9 +108,9 @@ static inline int *__addrof_bidi_i_to_single(struct foo *__bidi_indexable f) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[CONT3_I:.*:]]
 // CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT_FOO:%.*]], align 8
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[F]]) #[[ATTR6:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[F]])
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 8
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[F]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[F]])
 // CHECK-NEXT:    ret ptr [[TMP0]]
 //
 int *addrof_bidi_i_to_single(void) {
@@ -121,7 +121,7 @@ int *addrof_bidi_i_to_single(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_i_to_single_oob_upper(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *addrof_bidi_i_to_single_oob_upper(void) {
@@ -133,7 +133,7 @@ int *addrof_bidi_i_to_single_oob_upper(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_i_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *addrof_bidi_i_to_single_oob_lower(void) {
@@ -150,9 +150,9 @@ static inline long *__addrof_bidi_l_to_single(struct foo *__bidi_indexable f) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[__ADDROF_BIDI_L_TO_SINGLE_EXIT:.*:]]
 // CHECK-NEXT:    [[F:%.*]] = alloca [[STRUCT_FOO:%.*]], align 8
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[F]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[F]])
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[F]], i64 16
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[F]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[F]])
 // CHECK-NEXT:    ret ptr [[TMP0]]
 //
 long *addrof_bidi_l_to_single(void) {
@@ -163,7 +163,7 @@ long *addrof_bidi_l_to_single(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_l_to_single_oob_upper(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 long *addrof_bidi_l_to_single_oob_upper(void) {
@@ -175,7 +175,7 @@ long *addrof_bidi_l_to_single_oob_upper(void) {
 // CHECK-LABEL: define noalias noundef nonnull ptr @addrof_bidi_l_to_single_oob_lower(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 long *addrof_bidi_l_to_single_oob_lower(void) {

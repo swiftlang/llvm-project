@@ -59,7 +59,7 @@ void pointer_init_good2() {
 // CHECK-LABEL: define void @pointer_count_assign_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void pointer_count_assign_trap() {
@@ -72,7 +72,7 @@ void pointer_count_assign_trap() {
 // CHECK-LABEL: define void @pointer_count_init_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void pointer_count_init_trap() {
@@ -120,7 +120,7 @@ void elem_access_good() {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[BOUNDSCHECK_NULL47:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [11 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR6:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[ADD_PTR_I:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 44
 // CHECK-NEXT:    [[AGG_TEMP_SROA_12_0_SROA_GEP87:%.*]] = getelementptr i8, ptr [[ARR]], i64 48
 // CHECK-NEXT:    [[ADD_PTR56:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 44
@@ -129,10 +129,10 @@ void elem_access_good() {
 // CHECK-NEXT:    [[OR_COND75:%.*]] = and i1 [[TMP1]], [[TMP0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND75]], label %[[CONT69:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT69]]:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void elem_access_trap() {

@@ -12,7 +12,7 @@
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[CMP33]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 40, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
@@ -29,7 +29,7 @@ void foo1(int *__sized_by(*size) buf, unsigned *size) {
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[CMP33]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 40, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
@@ -47,7 +47,7 @@ void foo2(int *__sized_by(*size) buf, unsigned *size) {
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[CMP33]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 8, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
@@ -66,7 +66,7 @@ bb:
 // CHECK-NEXT:    [[CMP33:%.*]] = icmp ugt i32 [[TMP0]], 39, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[CMP33]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 40, ptr [[SIZE]], align 4, {{!tbaa ![0-9]+}}
@@ -83,7 +83,7 @@ inline void baz1(int *__sized_by(*size) buf, unsigned *size) { *size = 64; }
 // CHECK-LABEL: define dso_local void @baz2(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[TRAP_I:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void baz2(void) {

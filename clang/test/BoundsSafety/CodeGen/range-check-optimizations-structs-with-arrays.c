@@ -71,7 +71,7 @@ void array_member_access_can_remove(struct buf *bp) {
 // CHECK-NEXT:    [[OR_COND_10:%.*]] = and i1 [[TMP2]], [[TMP3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND_10]], label %[[CONT2_10:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT2_10]]:
 // CHECK-NEXT:    store i32 10, ptr [[ARRAYIDX_10]], align 4, {{!tbaa ![0-9]+}}
@@ -110,7 +110,7 @@ struct buf_var_size {
 // CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP2]], [[TMP3]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT10]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT10]]:
 // CHECK-NEXT:    [[TMP4:%.*]] = trunc nuw nsw i64 [[INDVARS_IV]] to i32
@@ -149,7 +149,7 @@ void array_member_access_can_remove_variable(struct buf_var_size *bp) {
 // CHECK-NEXT:    [[OR_COND10:%.*]] = and i1 [[TMP4]], [[OR_COND]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND10]], label %[[CONT9]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT9]]:
 // CHECK-NEXT:    [[TMP5:%.*]] = trunc nuw nsw i64 [[INDVARS_IV]] to i32

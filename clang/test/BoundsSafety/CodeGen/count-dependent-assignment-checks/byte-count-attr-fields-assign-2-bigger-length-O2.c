@@ -15,7 +15,7 @@ struct S {
 // CHECK-LABEL: define dso_local void @TestFail
 // CHECK-SAME: () local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META2:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META2:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META2]]
 //
 void TestFail() {

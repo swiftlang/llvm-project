@@ -25,7 +25,7 @@ void TestIncDecOK() {
 
 // CHECK-LABEL: @TestIncDecTrap(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation
 // CHECK-NEXT:    unreachable
 //
 void TestIncDecTrap() {
@@ -39,7 +39,7 @@ void TestIncDecTrap() {
 
 // CHECK-LABEL: @TestIncDecTrap2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation
 // CHECK-NEXT:    unreachable
 //
 void TestIncDecTrap2() {

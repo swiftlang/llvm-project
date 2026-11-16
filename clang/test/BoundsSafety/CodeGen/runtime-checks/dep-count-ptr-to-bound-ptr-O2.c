@@ -8,7 +8,7 @@
 
 // CHECK-O2-LABEL: @TestFail(
 // CHECK-O2-NEXT:  entry:
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation !{{.*}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{.*}}
 // CHECK-O2-NEXT:    unreachable
 //
 int TestFail() {

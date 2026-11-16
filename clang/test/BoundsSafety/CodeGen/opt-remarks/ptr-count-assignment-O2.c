@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 
 // IR: define{{.*}} i32 @main
 // IR-NEXT: entry:
-// IR-NEXT:   call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[LOC_0:[0-9]+]], !annotation ![[TRAP_REASON:[0-9]+]]
+// IR-NEXT:   call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_0:[0-9]+]], !annotation ![[TRAP_REASON:[0-9]+]]
 // IR-NEXT:   unreachable, !dbg ![[LOC_0]], !annotation ![[TRAP_REASON]]
 
 
