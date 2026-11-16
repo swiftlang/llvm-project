@@ -163,7 +163,8 @@ static bool IsStaticSwiftRuntime(Module &image) {
 
 static bool IsStaticSwiftConcurrency(Module &image) {
   static const ConstString task_switch_symbol("swift_task_switch");
-  return image.FindFirstSymbolWithNameAndType(task_switch_symbol);
+  return image.FindFirstSymbolWithNameAndType(task_switch_symbol,
+                                              eSymbolTypeCode);
 }
 
 /// \return the Swift or Objective-C runtime found in the loaded images.
