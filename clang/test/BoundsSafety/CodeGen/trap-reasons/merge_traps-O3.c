@@ -19,7 +19,7 @@ int bad_read(int index) {
 
 // Check that only one trap is emitted when optimized.
 // CHECK--LABEL: @bad_read
-// CHECK: call void @llvm.ubsantrap(i8 25) {{.*}}!dbg [[TRAP_LOC:![0-9]+]]
+// CHECK: call void @llvm.ubsantrap(i8 25), !dbg [[TRAP_LOC:![0-9]+]]
 // CHECK-NOT: call void @llvm.ubsantrap(i8 25)
 
 // Check the merged trap as a 0-line location and scoped within the correct function

@@ -18,7 +18,7 @@ void f_callee(char *__counted_by(inLen), unsigned long long inLen);
 // UBSAN-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[DEROUT]], [[TMP1]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!annotation ![0-9]+}}
 // UBSAN:       [[TRAP]]:
-// UBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// UBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UBSAN:       [[CONT]]:
 // UBSAN-NEXT:    tail call void @f_callee(ptr noundef [[DEROUT]], i64 noundef [[TMP0]]) #[[ATTR5:[0-9]+]]
@@ -32,7 +32,7 @@ void f_callee(char *__counted_by(inLen), unsigned long long inLen);
 // NOUBSAN-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[DEROUT]], [[TMP1]], {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!annotation ![0-9]+}}
 // NOUBSAN:       [[TRAP]]:
-// NOUBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// NOUBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // NOUBSAN:       [[CONT]]:
 // NOUBSAN-NEXT:    tail call void @f_callee(ptr noundef [[DEROUT]], i64 noundef [[TMP0]]) #[[ATTR5:[0-9]+]]
@@ -95,7 +95,7 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // UBSAN-NEXT:    [[OR_COND55:%.*]] = or i1 [[OR_COND]], [[CMP44_NOT]], {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    br i1 [[OR_COND55]], label %[[TRAP45:.*]], label %[[CONT46:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UBSAN:       [[TRAP45]]:
-// UBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// UBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // UBSAN-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UBSAN:       [[CONT46]]:
 // UBSAN-NEXT:    tail call void @f_callee(ptr noundef [[BOUND_PTR_ARITH]], i64 noundef [[LEN]]) #[[ATTR5]]
@@ -120,7 +120,7 @@ void f_outlen(char *__counted_by(*outLen) derOut, unsigned long long *outLen) {
 // NOUBSAN-NEXT:    [[OR_COND52:%.*]] = or i1 [[OR_COND]], [[CMP44_NOT]], {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    br i1 [[OR_COND52]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // NOUBSAN:       [[TRAP]]:
-// NOUBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// NOUBSAN-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // NOUBSAN-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // NOUBSAN:       [[CONT]]:
 // NOUBSAN-NEXT:    tail call void @f_callee(ptr noundef [[BOUND_PTR_ARITH]], i64 noundef [[LEN]]) #[[ATTR5]]

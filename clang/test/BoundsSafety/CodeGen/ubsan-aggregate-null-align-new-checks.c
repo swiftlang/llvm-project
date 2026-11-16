@@ -85,19 +85,19 @@ void test_lhs_ptrcheck_deref(AGG *dest) {
 // STRUCT-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT]]:
 // STRUCT-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP1]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT2]]:
 // STRUCT-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP3]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT4]]:
 // STRUCT-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -140,19 +140,19 @@ void test_lhs_ptrcheck_deref(AGG *dest) {
 // UNION-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6:[0-9]+]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT]]:
 // UNION-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP1]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT2]]:
 // UNION-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP3]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT4]]:
 // UNION-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -246,19 +246,19 @@ void test_rhs_ptrcheck_deref(AGG *src) {
 // STRUCT-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT]]:
 // STRUCT-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP1]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT2]]:
 // STRUCT-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP3]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT4]]:
 // STRUCT-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -300,19 +300,19 @@ void test_rhs_ptrcheck_deref(AGG *src) {
 // UNION-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT]]:
 // UNION-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP1]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT2]]:
 // UNION-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP3]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT4]]:
 // UNION-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -406,19 +406,19 @@ void test_init_from_ptr(AGG *src) {
 // STRUCT-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT]]:
 // STRUCT-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP1]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT2]]:
 // STRUCT-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP3]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT4]]:
 // STRUCT-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -460,19 +460,19 @@ void test_init_from_ptr(AGG *src) {
 // UNION-NEXT:    [[TMP5:%.*]] = icmp ule ptr [[TMP4]], [[WIDE_PTR_UB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP5]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT]]:
 // UNION-NEXT:    [[TMP6:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP4]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP6]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP1]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT2]]:
 // UNION-NEXT:    [[TMP7:%.*]] = icmp uge ptr [[ARRAYIDX]], [[WIDE_PTR_LB]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP7]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP3]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT4]]:
 // UNION-NEXT:    [[TMP8:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -506,19 +506,19 @@ void test_init_from_array(AGG arr[4]) {
 // STRUCT-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[UPPER]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT]]:
 // STRUCT-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP1]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT2]]:
 // STRUCT-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], [[ARRAYDECAY]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP3]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP3]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT4]]:
 // STRUCT-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -546,19 +546,19 @@ void test_init_from_array(AGG arr[4]) {
 // UNION-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[UPPER]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT]]:
 // UNION-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP1]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT2]]:
 // UNION-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], [[ARRAYDECAY]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP3]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP3]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT4]]:
 // UNION-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -595,19 +595,19 @@ void test_oob_rhs(void) {
 // STRUCT-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[UPPER]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT]]:
 // STRUCT-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP1]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT2]]:
 // STRUCT-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], [[ARRAYDECAY]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    br i1 [[TMP3]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // STRUCT:       [[TRAP3]]:
-// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// STRUCT-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // STRUCT-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // STRUCT:       [[CONT4]]:
 // STRUCT-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
@@ -638,19 +638,19 @@ void test_oob_rhs(void) {
 // UNION-NEXT:    [[TMP1:%.*]] = icmp ule ptr [[TMP0]], [[UPPER]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP1]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT]]:
 // UNION-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP0]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP2]], label %[[CONT2:.*]], label %[[TRAP1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP1]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT2]]:
 // UNION-NEXT:    [[TMP3:%.*]] = icmp uge ptr [[ARRAYIDX]], [[ARRAYDECAY]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    br i1 [[TMP3]], label %[[CONT4:.*]], label %[[TRAP3:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // UNION:       [[TRAP3]]:
-// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// UNION-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR6]], {{!annotation ![0-9]+}}
 // UNION-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // UNION:       [[CONT4]]:
 // UNION-NEXT:    [[TMP4:%.*]] = icmp ne ptr [[ARRAYIDX]], null, {{!nosanitize ![0-9]+}}
