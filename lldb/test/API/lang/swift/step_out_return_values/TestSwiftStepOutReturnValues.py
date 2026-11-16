@@ -28,7 +28,7 @@ class TestCase(lldbtest.TestBase):
         module = target.GetExecutable().GetFilename()
         for function in functions:
             # A getter has no base name.
-            if not target.BreakpointCreateByName(function).GetNumLocations():
+            if not target.BreakpointCreateByName(function, module).GetNumLocations():
                 target.BreakpointCreateByRegex(function + r"\.getter", module)
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
         problems = []
