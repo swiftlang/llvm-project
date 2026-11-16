@@ -16,6 +16,7 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -27,11 +28,6 @@
 #include "lldb/ValueObject/ValueObjectConstResult.h"
 
 #include <memory>
-
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#include "llvm/BinaryFormat/Dwarf.h"
-#endif // LLDB_ENABLE_SWIFT
 
 using namespace lldb;
 using namespace lldb_private;
@@ -76,10 +72,7 @@ ThreadPlanStepOut::ThreadPlanStepOut(
       ThreadPlanShouldStopHere(this), m_step_from_insn(LLDB_INVALID_ADDRESS),
       m_return_bp_id(LLDB_INVALID_BREAK_ID),
       m_return_addr(LLDB_INVALID_ADDRESS),
-      m_swift_error_return(),
-      m_swift_error_check_after_return(false),
       m_stop_others(stop_others), m_immediate_step_from_function(nullptr),
-      m_is_swift_error_value(false),
       m_calculate_return_value(gather_return_value) {
   SetFlagsToDefault();
   SetupAvoidNoDebug(step_out_avoids_code_without_debug_info);
@@ -209,29 +202,14 @@ void ThreadPlanStepOut::SetupReturnAddress(
     }
   }
 
-  // If we are about to step out of a swift frame, we need to store away the
-  // location that swift will use for
-  // any error return:
-  // FIXME: I'm only doing this if you are stepping out ONE frame at present.
-  // I'll have to change the stepping
-  // code so that it first runs to the frame we are stepping out FROM, then
-  // capture the error return pointer, then
-  // step out.  That's more than I have time to do right now.
+  // Record where the language runtime will find an error thrown by the
+  // function. The runtime has to look at the function before it returns, so
+  // this only works when stepping out of frame 0.
+  if (frame_idx != 0)
+    return;
 
-  if (frame_idx == 0) {
-    StackFrameSP frame_sp = GetThread().GetStackFrameAtIndex(0);
-#ifdef LLDB_ENABLE_SWIFT
-    if (frame_sp->GuessLanguage().name == llvm::dwarf::DW_LNAME_Swift) {
-      auto *swift_runtime 
-          = SwiftLanguageRuntime::Get(m_process.shared_from_this());
-      if (swift_runtime) {
-        m_swift_error_return =
-            swift_runtime->GetErrorReturnLocationBeforeReturn(
-                frame_sp, m_swift_error_check_after_return);
-      }
-    }
-#endif // LLDB_ENABLE_SWIFT
-  }
+  m_thrown_error_location =
+      LanguageRuntime::ThrownErrorLocation(GetThread().GetStackFrameAtIndex(0));
 }
 
 void ThreadPlanStepOut::SetupAvoidNoDebug(
@@ -595,44 +573,19 @@ bool ThreadPlanStepOut::QueueInlinedStepPlan(bool queue_now) {
 }
 
 void ThreadPlanStepOut::CalculateReturnValue() {
+  if (!std::holds_alternative<std::monostate>(m_return_value))
+    return;
+
   if (!m_calculate_return_value)
     return;
 
-  if (m_return_valobj_sp)
+  if (std::optional<ValueObjectSP> error_sp =
+          m_thrown_error_location.GetThrownError(
+              GetThread().GetStackFrameAtIndex(0))) {
+    m_return_value = ThrownError{*error_sp};
     return;
-  // First check if we have an error return address, and if that pointer
-  // contains a valid error return, grab it.
-#ifdef LLDB_ENABLE_SWIFT
-  auto *swift_runtime = SwiftLanguageRuntime::Get(m_process.shared_from_this());
-  if (swift_runtime) {
-    // In some ABI's the error is in a memory location in the caller's frame
-    // and we need to fetch that location from the frame before we leave the
-    // throwing frame.  In others, the actual error address is in a register,
-    // so we need to fetch the value of the address AFTER leaving the frame.
-    if (m_swift_error_check_after_return)
-    {
-      StackFrameSP frame_sp = GetThread().GetStackFrameAtIndex(0);
-      if (!frame_sp)
-          return;
-
-      m_swift_error_return = swift_runtime->GetErrorReturnLocationAfterReturn(
-          frame_sp, m_immediate_step_from_function);
-    }
-    if (m_swift_error_return) {
-      ConstString name("swift_thrown_error");
-
-      m_return_valobj_sp = swift_runtime->CalculateErrorValueObjectFromValue(
-          m_swift_error_return.value(), name, true);
-      // Even if we couldn't figure out what the error return was, we
-      // were told there was an error, so don't show the user a false return value
-      // instead.
-      m_is_swift_error_value = true;
-      return;
-    }
   }
-#endif // LLDB_ENABLE_SWIFT
 
-  // We don't have a swift error, so let's compute the actual return:
   if (m_immediate_step_from_function != nullptr) {
     CompilerType return_compiler_type =
         m_immediate_step_from_function->GetCompilerType()
@@ -640,8 +593,9 @@ void ThreadPlanStepOut::CalculateReturnValue() {
     if (return_compiler_type) {
       lldb::ABISP abi_sp = m_process.GetABI();
       if (abi_sp)
-        m_return_valobj_sp =
-            abi_sp->GetReturnValueObject(GetThread(), return_compiler_type);
+        if (ValueObjectSP valobj_sp =
+                abi_sp->GetReturnValueObject(GetThread(), return_compiler_type))
+          m_return_value = ReturnedValue{valobj_sp};
     }
   }
 }
