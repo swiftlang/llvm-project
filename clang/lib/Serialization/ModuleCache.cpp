@@ -16,6 +16,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/LockFileManager.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
 using namespace clang;
@@ -158,8 +159,9 @@ void clang::maybePruneImpl(StringRef Path, time_t PruneInterval,
   }
 }
 
-std::error_code clang::writeImpl(StringRef Path, llvm::MemoryBufferRef Buffer,
-                                 off_t &Size, time_t &ModTime) {
+llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
+clang::writeImpl(StringRef Path, llvm::MemoryBufferRef Buffer, off_t &Size,
+                 time_t &ModTime, bool ReadBack) {
   StringRef Extension = llvm::sys::path::extension(Path);
   SmallString<128> ModelPath = StringRef(Path).drop_back(Extension.size());
   ModelPath += "-%%%%%%%%";
@@ -182,6 +184,7 @@ std::error_code clang::writeImpl(StringRef Path, llvm::MemoryBufferRef Buffer,
   }
 
   llvm::sys::fs::file_status Status;
+  std::unique_ptr<llvm::MemoryBuffer> Written;
   {
     llvm::raw_fd_ostream OS(FD, /*shouldClose=*/true);
     OS << Buffer.getBuffer();
@@ -190,6 +193,15 @@ std::error_code clang::writeImpl(StringRef Path, llvm::MemoryBufferRef Buffer,
     // Using the status from an open file descriptor ensures this is not racy.
     if ((EC = llvm::sys::fs::status(FD, Status)))
       return EC;
+    if (ReadBack) {
+      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Buf =
+          llvm::MemoryBuffer::getOpenFile(
+              llvm::sys::fs::convertFDToNativeFile(FD), Path, Status.getSize(),
+              /*RequiresNullTerminator=*/false);
+      if (!Buf)
+        return Buf.getError();
+      Written = std::move(*Buf);
+    }
   }
 
   Size = Status.getSize();
@@ -199,7 +211,7 @@ std::error_code clang::writeImpl(StringRef Path, llvm::MemoryBufferRef Buffer,
   if ((EC = llvm::sys::fs::rename(TmpPath, Path)))
     return EC;
 
-  return {};
+  return std::move(Written);
 }
 
 Expected<std::unique_ptr<llvm::MemoryBuffer>>
@@ -278,12 +290,13 @@ public:
     return InMemory;
   }
 
-  std::error_code write(StringRef Path, llvm::MemoryBufferRef Buffer,
-                        off_t &Size, time_t &ModTime) override {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
+  write(StringRef Path, std::unique_ptr<llvm::MemoryBuffer> Buffer, off_t &Size,
+        time_t &ModTime) override {
     // This is a compiler-internal input/output, let's bypass the sandbox.
     auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
 
-    return writeImpl(Path, Buffer, Size, ModTime);
+    return writeImpl(Path, *Buffer, Size, ModTime, /*ReadBack=*/true);
   }
 
   Expected<std::unique_ptr<llvm::MemoryBuffer>>
