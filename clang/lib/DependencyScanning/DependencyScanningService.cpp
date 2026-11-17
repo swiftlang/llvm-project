@@ -53,6 +53,8 @@ DependencyScanningService::DependencyScanningService(
     : Opts(std::move(OptsArg)), Logger(this->Opts.LogPath) {
   ModCacheEntries.ValidateAgainstInvalidatedPaths =
       Opts.ValidateAgainstInvalidatedPaths;
+  if (Opts.FlushModuleCache)
+    ModCacheEntries.startBackgroundFlushing(Logger);
 
   // Include-tree compilation completely subsumes header search and VFS
   // optimizations due to how it works. Disable these optimizations so we're not
