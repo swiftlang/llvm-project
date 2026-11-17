@@ -60,9 +60,10 @@ bool preCodeGenCallback(TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
   for (Function &F : M)
     if (!F.isDeclaration())
       F.setName("ciao_" + F.getName());
-  if (Error Err =
-          runCodeGenPipeline(TM, M, OS, DwoOS, CGFT, DisableVerify,
-                             DisableSimplifyLibCalls, MSI, std::move(VFS)))
+  if (Error Err = runCodeGenPipeline(TM, M, OS, DwoOS, /*CasIDOS=*/nullptr,
+                                     CGFT, DisableVerify,
+                                     DisableSimplifyLibCalls, MSI,
+                                     std::move(VFS)))
     M.getContext().emitError(toString(std::move(Err)));
   return true;
 }
