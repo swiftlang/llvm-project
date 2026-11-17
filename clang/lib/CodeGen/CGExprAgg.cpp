@@ -249,8 +249,6 @@ public:
 
   void VisitVAArgExpr(VAArgExpr *E);
   void VisitCXXParenListInitExpr(CXXParenListInitExpr *E);
-  void VisitCXXParenListOrInitListExpr(Expr *ExprToVisit, ArrayRef<Expr *> Args,
-                                       Expr *ArrayFiller);
 
   /* TO_UPSTREAM(BoundsSafety) ON */
   void VisitGetBoundExpr(GetBoundExpr *E) {
