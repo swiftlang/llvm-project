@@ -1371,14 +1371,15 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   bool HasSwiftSelfArg = false;
   bool HasSwiftErrorArg = false;
-  bool HasSwiftAsyncArg = false;
+  std::optional<unsigned> SwiftAsyncIdx;
   unsigned NumFixedArgs = 0;
   for (unsigned I = 0; I < Outs.size(); ++I) {
     const ISD::OutputArg &Out = Outs[I];
     SDValue &OutVal = OutVals[I];
     HasSwiftSelfArg |= Out.Flags.isSwiftSelf();
     HasSwiftErrorArg |= Out.Flags.isSwiftError();
-    HasSwiftAsyncArg |= Out.Flags.isSwiftAsync();
+    if (Out.Flags.isSwiftAsync())
+      SwiftAsyncIdx = I;
     if (Out.Flags.isSwiftCoro())
       fail(DL, DAG, "WebAssembly hasn't implemented swiftcoro arguments");
     if (Out.Flags.isNest())
@@ -1412,6 +1413,12 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
   bool IsVarArg = CLI.IsVarArg;
   auto PtrVT = getPointerTy(Layout);
 
+  // As in computeSignatureVTs, swiftasync comes first.
+  if (SwiftAsyncIdx) {
+    WebAssembly::moveToFront(Outs, *SwiftAsyncIdx);
+    WebAssembly::moveToFront(OutVals, *SwiftAsyncIdx);
+  }
+
   // For swiftcc and swifttailcc, emit additional swiftself, swifterror, and
   // (for swifttailcc) swiftasync arguments if there aren't. These additional
   // arguments are also added for callee signature. They are necessary to match
@@ -1436,14 +1443,14 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
       SDValue ArgVal = DAG.getUNDEF(PtrVT);
       CLI.OutVals.push_back(ArgVal);
     }
-    if (CallConv == CallingConv::SwiftTail && !HasSwiftAsyncArg) {
+    if (CallConv == CallingConv::SwiftTail && SwiftAsyncIdx == std::nullopt) {
       NumFixedArgs++;
       ISD::ArgFlagsTy Flags;
       Flags.setSwiftAsync();
       ISD::OutputArg Arg(Flags, PtrVT, EVT(PtrVT), PtrTy, 0, 0);
-      CLI.Outs.push_back(Arg);
+      CLI.Outs.insert(CLI.Outs.begin(), Arg);
       SDValue ArgVal = DAG.getUNDEF(PtrVT);
-      CLI.OutVals.push_back(ArgVal);
+      CLI.OutVals.insert(CLI.OutVals.begin(), ArgVal);
     }
   }
 
@@ -1635,11 +1642,22 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
 
   bool HasSwiftErrorArg = false;
   bool HasSwiftSelfArg = false;
-  bool HasSwiftAsyncArg = false;
-  for (const ISD::InputArg &In : Ins) {
+  std::optional<unsigned> SwiftAsyncIdx;
+  for (auto [I, In] : enumerate(Ins))
+    if (In.Flags.isSwiftAsync())
+      SwiftAsyncIdx = I;
+  // As in computeSignatureVTs, swiftasync or its padding comes first.
+  bool PadSwiftAsync = CallConv == CallingConv::SwiftTail && !SwiftAsyncIdx;
+  auto GetParamIdx = [&](unsigned InIdx) -> unsigned {
+    if (SwiftAsyncIdx)
+      return InIdx == *SwiftAsyncIdx ? 0 : InIdx + (InIdx < *SwiftAsyncIdx);
+    return InIdx + PadSwiftAsync;
+  };
+
+  SmallVector<MVT, 4> ParamVTs;
+  for (auto [I, In] : enumerate(Ins)) {
     HasSwiftSelfArg |= In.Flags.isSwiftSelf();
     HasSwiftErrorArg |= In.Flags.isSwiftError();
-    HasSwiftAsyncArg |= In.Flags.isSwiftAsync();
     if (In.Flags.isInAlloca())
       fail(DL, DAG, "WebAssembly hasn't implemented inalloca arguments");
     if (In.Flags.isNest())
@@ -1651,27 +1669,31 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
     // Ignore In.getNonZeroOrigAlign() because all our arguments are passed in
     // registers.
     InVals.push_back(In.Used ? DAG.getNode(WebAssemblyISD::ARGUMENT, DL, In.VT,
-                                           DAG.getTargetConstant(InVals.size(),
+                                           DAG.getTargetConstant(GetParamIdx(I),
                                                                  DL, MVT::i32))
                              : DAG.getUNDEF(In.VT));
 
     // Record the number and types of arguments.
-    MFI->addParam(In.VT);
+    ParamVTs.push_back(In.VT);
   }
 
-  // For swiftcc and swifttailcc, emit additional swiftself, swifterror, and
-  // (for swifttailcc) swiftasync arguments if there aren't. These additional
-  // arguments are also added for callee signature. They are necessary to match
-  // callee and caller signature for indirect call.
+  if (SwiftAsyncIdx)
+    WebAssembly::moveToFront(ParamVTs, *SwiftAsyncIdx);
+  else if (PadSwiftAsync)
+    ParamVTs.insert(ParamVTs.begin(), getPointerTy(MF.getDataLayout()));
+  for (MVT VT : ParamVTs)
+    MFI->addParam(VT);
+
+  // For swiftcc and swifttailcc, emit additional swiftself and swifterror
+  // arguments if there aren't. These additional arguments are also added for
+  // callee signature. They are necessary to match callee and caller signature
+  // for indirect call.
   auto PtrVT = getPointerTy(MF.getDataLayout());
   if (CallConv == CallingConv::Swift || CallConv == CallingConv::SwiftTail) {
     if (!HasSwiftSelfArg) {
       MFI->addParam(PtrVT);
     }
     if (!HasSwiftErrorArg) {
-      MFI->addParam(PtrVT);
-    }
-    if (CallConv == CallingConv::SwiftTail && !HasSwiftAsyncArg) {
       MFI->addParam(PtrVT);
     }
   }
@@ -1685,7 +1707,7 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
     Chain = DAG.getCopyToReg(
         Chain, DL, VarargVreg,
         DAG.getNode(WebAssemblyISD::ARGUMENT, DL, PtrVT,
-                    DAG.getTargetConstant(Ins.size(), DL, MVT::i32)));
+                    DAG.getTargetConstant(ParamVTs.size(), DL, MVT::i32)));
     MFI->addParam(PtrVT);
   }
 

@@ -716,7 +716,8 @@ bool WebAssemblyFastISel::fastLowerArguments() {
   if (F->isVarArg())
     return false;
 
-  if (FuncInfo.Fn->getCallingConv() == CallingConv::Swift)
+  if (FuncInfo.Fn->getCallingConv() == CallingConv::Swift ||
+      FuncInfo.Fn->getCallingConv() == CallingConv::SwiftTail)
     return false;
 
   unsigned I = 0;
@@ -725,6 +726,7 @@ bool WebAssemblyFastISel::fastLowerArguments() {
     if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
         Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
         Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Attrs.hasParamAttr(I, Attribute::SwiftAsync) ||
         Attrs.hasParamAttr(I, Attribute::InAlloca) ||
         Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
@@ -841,7 +843,8 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
   if (Func && Func->isIntrinsic())
     return false;
 
-  if (Call->getCallingConv() == CallingConv::Swift)
+  if (Call->getCallingConv() == CallingConv::Swift ||
+      Call->getCallingConv() == CallingConv::SwiftTail)
     return false;
 
   bool IsDirect = Func != nullptr;
@@ -912,10 +915,12 @@ bool WebAssemblyFastISel::selectCall(const Instruction *I) {
     if (ArgTy == MVT::INVALID_SIMPLE_VALUE_TYPE)
       return false;
 
+    // The attribute of the callee counts too, see computeSignatureVTs.
     const AttributeList &Attrs = Call->getAttributes();
     if (Attrs.hasParamAttr(I, Attribute::ByVal) ||
         Attrs.hasParamAttr(I, Attribute::SwiftSelf) ||
         Attrs.hasParamAttr(I, Attribute::SwiftError) ||
+        Call->paramHasAttr(I, Attribute::SwiftAsync) ||
         Attrs.hasParamAttr(I, Attribute::InAlloca) ||
         Attrs.hasParamAttr(I, Attribute::Nest))
       return false;
