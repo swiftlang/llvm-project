@@ -545,7 +545,7 @@ void test_assignment_expressions() {
   // expected-note@#tae_aligned_alloc {{encoding 'struct S1' as 74309672738655766. { "Summary": { "LayoutSemantics": [ "AnonymousPointer", "GenericData" ], "TypeFlags": [ ], "TypeKind": "KindC", "CallsiteFlags": [ "FixedSize" ] }, "TypeHash": 4009135638 }}}
   // expected-note@#tae_aligned_alloc {{inferred 'struct S1' from expression 'sz = sizeof(struct S1)'}}
   // CHECK: %call14 = call ptr @typed_real_aligned_alloc(i64 noundef 16, i64 noundef 24, i64 noundef [[S1_DESC]])
-  // CHECK-DISABLED: %call14 = call align 16 ptr @aligned_alloc(i64 noundef 16, i64 noundef 24)
+  // CHECK-DISABLED: %call14 = call align 16 ptr @aligned_alloc(i64 allocalign noundef 16, i64 noundef 24)
 
   // Test posix_memalign with assignment
   void *memptr;
