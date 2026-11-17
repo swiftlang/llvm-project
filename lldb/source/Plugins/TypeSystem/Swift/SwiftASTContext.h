@@ -521,8 +521,10 @@ public:
   static bool HasFatalErrors(swift::ASTContext *ast_context);
   bool HasFatalErrors() const {
     return m_logged_fatal_error || m_fatal_errors.Fail() ||
-           HasFatalErrors(m_ast_context_up.get());
+           HasFatalErrors(m_ast_context_up.get()) ||
+           HasClangModuleLoaderFatalFailure();
   }
+  bool HasClangModuleLoaderFatalFailure() const;
 
   /// Return only fatal errors.
   Status GetFatalErrors() const;
