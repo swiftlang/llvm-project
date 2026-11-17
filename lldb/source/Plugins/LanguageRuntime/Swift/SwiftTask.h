@@ -61,6 +61,10 @@ public:
   const RegisterInfo *GetRegisterInfoAtIndex(size_t idx) override {
     return m_reg_info_sp->GetRegisterInfoAtIndex(idx);
   }
+  uint32_t ConvertRegisterKindToRegisterNumber(lldb::RegisterKind kind,
+                                               uint32_t num) override {
+    return m_reg_info_sp->ConvertRegisterKindToRegisterNumber(kind, num);
+  }
   size_t GetRegisterSetCount() override {
     return m_reg_info_sp->GetRegisterSetCount();
   }
@@ -81,8 +85,10 @@ public:
 private:
   /// A register context that is the source of `RegisterInfo` data.
   RegisterContextSP m_reg_info_sp;
-  /// The architecture specific regnum (LLDB) which holds the async context.
+  /// The architecture specific regnum which holds the async context, in
+  /// `m_async_ctx_regkind`.
   uint32_t m_async_ctx_regnum = LLDB_INVALID_REGNUM;
+  lldb::RegisterKind m_async_ctx_regkind = lldb::eRegisterKindDWARF;
   /// The Task's async context.
   RegisterValue m_async_ctx;
   /// The address of the async context's resume function.
