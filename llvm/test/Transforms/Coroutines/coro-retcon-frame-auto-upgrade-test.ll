@@ -53,7 +53,7 @@
 ; CHECK: declare token @llvm.coro.id.retcon.once(i32, i32, ptr, ptr, ptr, ptr, ...) #2
 
 ; Function Attrs: nounwind
-; CHECK: declare void @llvm.coro.end(ptr, i1, token) #2
+; CHECK: declare void @llvm.coro.end(ptr, i1 immarg, token) #2
 
 ; CHECK: attributes #0 = { presplitcoroutine }
 ; CHECK: attributes #1 = { nounwind memory(argmem: readwrite) }
