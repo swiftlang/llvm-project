@@ -76,7 +76,7 @@ int *__sized_by(len) alloc(int len);
 // CHECK-O2-NEXT:    [[OR_COND5:%.*]] = and i1 [[TMP1]], [[TMP2]], {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    br i1 [[OR_COND5]], label %[[CONT4:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[TRAP]]:
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[CONT4]]:
 // CHECK-O2-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}
@@ -150,7 +150,7 @@ int Test1() {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-O2-NEXT:    [[CALL:%.*]] = tail call ptr @alloc(i32 noundef 16) #[[ATTR4]]
 // CHECK-O2-NEXT:    [[CALL1:%.*]] = tail call ptr @alloc(i32 noundef 40) #[[ATTR4]]
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int Test2() {

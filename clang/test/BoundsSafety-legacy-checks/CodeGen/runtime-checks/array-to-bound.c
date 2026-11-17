@@ -18,7 +18,7 @@
 // O2-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // O2-NEXT:    br i1 [[OR_COND]], label %[[CONT11:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // O2:       [[TRAP]]:
-// O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // O2:       [[CONT11]]:
 // O2-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX]], align 4, {{!tbaa ![0-9]+}}

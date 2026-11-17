@@ -81,7 +81,7 @@ void receive_transparent_union(union TransparentUnion);
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9:[0-9]+]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10:![0-9]+]]
@@ -121,7 +121,7 @@ void assign_via_ptr(struct cb* ptr, int new_count,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -157,7 +157,7 @@ void assign_operator(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -191,7 +191,7 @@ void local_var_init(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
@@ -230,7 +230,7 @@ void call_arg(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[RETVAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
@@ -268,7 +268,7 @@ struct cb return_cb(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -286,7 +286,7 @@ void construct_not_used(int new_count, char* __bidi_indexable new_ptr) {
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(16) [[PTR]], i8 0, i64 16, i1 false)
@@ -321,7 +321,7 @@ void assign_via_ptr_nullptr(struct cb* ptr, int new_count) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -366,7 +366,7 @@ void assign_via_ptr_nested(struct nested_cb* ptr,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -411,7 +411,7 @@ void assign_via_ptr_nested_v2(struct nested_cb* ptr,
 // CHECK-NEXT:    [[SPEC_SELECT_NOT98:%.*]] = or i1 [[CMP28]], [[CMP25]], !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT_NOT98]], label %[[TRAP]], label %[[CONT78:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT78]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -442,7 +442,7 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_cb* ptr,
 // CHECK-SAME: ptr nofreeobj noundef readonly align 8 captures(none) dead_on_return dereferenceable(24) [[NEW_PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [2 x [[STRUCT_CB:%.*]]], align 8
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[AGG_TEMP_SROA_0_0_COPYLOAD:%.*]] = load ptr, ptr [[NEW_PTR]], align 8
 // CHECK-NEXT:    [[AGG_TEMP_SROA_2_0_NEW_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[NEW_PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_1_0_COPYLOAD:%.*]] = load ptr, ptr [[AGG_TEMP_SROA_2_0_NEW_PTR_SROA_IDX]], align 8
@@ -462,7 +462,7 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_cb* ptr,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META15:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META15:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META15]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[ARR]], align 8, !tbaa [[TBAA16:![0-9]+]]
@@ -473,7 +473,7 @@ void assign_via_ptr_nested_v3(struct nested_and_outer_cb* ptr,
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 16
 // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(16) [[ARRAYINIT_ELEMENT]], i8 0, i64 16, i1 false)
 // CHECK-NEXT:    call void @consume_cb_arr(ptr noundef nonnull [[ARR]]) #[[ATTR10]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void array_of_struct_init(char* __bidi_indexable new_ptr,
@@ -508,7 +508,7 @@ void array_of_struct_init(char* __bidi_indexable new_ptr,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR10]]
@@ -540,7 +540,7 @@ void assign_via_ptr_other_data_side_effect(struct cb_with_other_data* ptr,
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR10]]
@@ -585,7 +585,7 @@ void assign_via_ptr_other_data_side_effect_zero_ptr(struct cb_with_other_data* p
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[AGG_TMP]], align 8, !tbaa [[TBAA19:![0-9]+]]
@@ -634,10 +634,10 @@ void call_arg_transparent_union(int new_count,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[BYVAL_TEMP]], align 8
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX]], align 4
@@ -648,7 +648,7 @@ void call_arg_transparent_union(int new_count,
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA23:![0-9]+]]
 // CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    ret void
 //
 void call_arg_transparent_union_untransparently(int new_count,
@@ -675,7 +675,7 @@ void call_arg_transparent_union_untransparently(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[TMP0]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0__SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
@@ -695,7 +695,7 @@ void assign_via_ptr_from_ptr(struct cb* ptr) {
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -719,7 +719,7 @@ void assign_via_ptr_from_cb(struct cb* ptr, int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -740,7 +740,7 @@ void assign_operator_from_cb(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -759,7 +759,7 @@ void local_var_init_from_cb(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
@@ -783,7 +783,7 @@ void call_arg_from_cb(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[RETVAL_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[NEW_COUNT]] to i64
@@ -806,7 +806,7 @@ struct cb return_cb_from_cb(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -825,7 +825,7 @@ void construct_not_used_from_cb(int new_count,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -854,7 +854,7 @@ void assign_via_ptr_nested_from_cb(struct nested_cb* ptr,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[PTR]], align 8, !tbaa [[TBAA10]]
@@ -881,11 +881,11 @@ void assign_via_ptr_nested_v2_from_cb(struct nested_cb* ptr,
 // CHECK-SAME: ptr noundef [[NEW_PTR:%.*]], i32 noundef [[NEW_COUNT:%.*]]) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [2 x [[STRUCT_CB:%.*]]], align 8
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META15]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META15]]
 // CHECK-NEXT:    unreachable, !annotation [[META15]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[ARR]], align 8, !tbaa [[TBAA16]]
@@ -896,7 +896,7 @@ void assign_via_ptr_nested_v2_from_cb(struct nested_cb* ptr,
 // CHECK-NEXT:    [[ARRAYINIT_ELEMENT:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 16
 // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(16) [[ARRAYINIT_ELEMENT]], i8 0, i64 16, i1 false)
 // CHECK-NEXT:    call void @consume_cb_arr(ptr noundef nonnull [[ARR]]) #[[ATTR10]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void array_of_struct_init_from_cb(char* __counted_by(new_count) new_ptr,
@@ -914,7 +914,7 @@ void array_of_struct_init_from_cb(char* __counted_by(new_count) new_ptr,
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR10]]
@@ -946,7 +946,7 @@ void assign_via_ptr_other_data_side_effect_from_cb(struct cb_with_other_data* pt
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[NEW_COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[CALL:%.*]] = tail call i32 @get_int() #[[ATTR10]]
@@ -991,7 +991,7 @@ void assign_via_ptr_other_data_side_effect_zero_ptr_from_cb(struct cb_with_other
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[AGG_TMP]], align 8, !tbaa [[TBAA19]]
@@ -1041,10 +1041,10 @@ void call_arg_transparent_union_from_cb(int new_count,
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR9]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    store i32 [[NEW_COUNT]], ptr [[BYVAL_TEMP]], align 8
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 4
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_2_0_BYVAL_TEMP_SROA_IDX]], align 4
@@ -1055,7 +1055,7 @@ void call_arg_transparent_union_from_cb(int new_count,
 // CHECK-NEXT:    [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[BYVAL_TEMP]], i64 20
 // CHECK-NEXT:    store i32 0, ptr [[DOTCOMPOUNDLITERAL_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 4, !tbaa [[TBAA23]]
 // CHECK-NEXT:    call void @receive_transparent_union(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR10]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR10]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    ret void
 //
 void call_arg_transparent_union_untransparently_from_cb(int new_count,

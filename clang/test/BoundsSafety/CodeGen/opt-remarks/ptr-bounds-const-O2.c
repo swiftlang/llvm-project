@@ -31,7 +31,7 @@ int main() {
 // IR-NEXT: br i1 %[[COMBINED_CHECKS]], label %[[FOO_LABEL_CONT:[a-z0-9]+]], label %[[FOO_LABEL_TRAP:[a-z0-9]+]], !dbg ![[LOC_FOO]], !prof !{{[0-9]+}}, !annotation ![[ANNOT_LE_UB]]
 //
 // IR: [[FOO_LABEL_TRAP]]:
-// IR-NEXT: tail call void @llvm.ubsantrap(i8 25) #3, !dbg ![[LOC_FOO]], !annotation ![[ANNOT_COMBINED:[0-9]+]]
+// IR-NEXT: tail call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_FOO]], !annotation ![[ANNOT_COMBINED:[0-9]+]]
 // IR-NEXT: unreachable, !dbg ![[LOC_FOO]], !annotation ![[ANNOT_COMBINED]]
 //
 // IR: [[FOO_LABEL_CONT]]:
@@ -40,7 +40,7 @@ int main() {
 
 // IR-LABEL: @main
 // ...
-// IR: tail call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[LOC_0:[0-9]+]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT:[0-9]+]]
+// IR: tail call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_0:[0-9]+]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT:[0-9]+]]
 // IR-NEXT: unreachable, !dbg ![[LOC_0]], !annotation ![[ANNOT_LE_UB_AND_CONV_TO_COUNT]]
 
 

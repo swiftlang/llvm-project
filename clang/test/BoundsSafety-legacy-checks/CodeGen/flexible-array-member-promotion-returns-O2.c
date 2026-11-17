@@ -59,7 +59,7 @@ void pointer_init_good2() {
 // CHECK-LABEL: define void @pointer_count_assign_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void pointer_count_assign_trap() {
@@ -72,7 +72,7 @@ void pointer_count_assign_trap() {
 // CHECK-LABEL: define void @pointer_count_init_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void pointer_count_init_trap() {
@@ -119,7 +119,7 @@ void elem_access_good() {
 // CHECK-LABEL: define void @elem_access_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[TRAP:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void elem_access_trap() {

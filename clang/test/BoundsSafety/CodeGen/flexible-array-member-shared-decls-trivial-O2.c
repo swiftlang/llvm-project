@@ -76,7 +76,7 @@ struct Outer * good_no_fam(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], !annotation [[META11:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META11:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META11]]
 //
 struct Outer * bad(void) {
@@ -92,7 +92,7 @@ struct Outer * bad(void) {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store ptr @b, ptr @a, align 16, !tbaa [[TBAA6]]
 // CHECK-NEXT:    store i32 15, ptr getelementptr inbounds nuw (i8, ptr @a, i64 8), align 8, !tbaa [[TBAA10]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META11]]
 // CHECK-NEXT:    unreachable, !annotation [[META11]]
 //
 struct Outer * bad_neg_count(void) {
@@ -105,7 +105,7 @@ struct Outer * bad_neg_count(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_ptr(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META11]]
 // CHECK-NEXT:    unreachable, !annotation [[META11]]
 //
 struct Outer * bad_ptr(void) {
@@ -120,7 +120,7 @@ struct Outer * bad_ptr(void) {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    store ptr @b, ptr getelementptr inbounds nuw (i8, ptr @a, i64 1), align 8, !tbaa [[TBAA6]]
 // CHECK-NEXT:    store i32 42, ptr getelementptr inbounds nuw (i8, ptr @a, i64 9), align 8, !tbaa [[TBAA10]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], !annotation [[META11]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META11]]
 // CHECK-NEXT:    unreachable, !annotation [[META11]]
 //
 struct Outer * bad_fam(void) {

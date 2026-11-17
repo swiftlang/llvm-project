@@ -21,7 +21,7 @@ void count_ok(void) {
 // CHECK-LABEL: define void @negative_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void negative_count_trap(void) {
@@ -33,7 +33,7 @@ void negative_count_trap(void) {
 // CHECK-LABEL: define void @too_big_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void too_big_count_trap(void) {
@@ -47,7 +47,7 @@ inline void param_with_unsigned_count(int *__counted_by(len - 2) buf, size_t len
 // CHECK-LABEL: define void @overflow_unsigned_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_trap(void) {
@@ -75,7 +75,7 @@ void returned_buf_ok(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @return_buf(i64 noundef 4, i64 noundef 5) #[[ATTR8]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void oob_returned_buf_trap(void) {
@@ -87,7 +87,7 @@ void oob_returned_buf_trap(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @return_buf(i64 noundef -1, i64 noundef -1) #[[ATTR8]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_returned_buf_trap(void) {

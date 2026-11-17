@@ -11,7 +11,7 @@ struct S {
 
 // CHECK-LABEL: @TestFail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void TestFail() {
@@ -44,7 +44,7 @@ void Test2OK() {
 
 // CHECK-LABEL: @Test2Fail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void Test2Fail() {
@@ -69,7 +69,7 @@ void Test3OK() {
 
 // CHECK-LABEL: @Test3Fail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation !{{[0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{[0-9]+}}
 // CHECK-NEXT:    unreachable
 //
 void Test3Fail() {

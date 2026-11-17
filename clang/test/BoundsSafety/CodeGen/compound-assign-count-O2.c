@@ -40,7 +40,7 @@ void TestOK2() {
 
 // CHECK-LABEL: @TestFail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 //
 void TestFail() {
@@ -56,7 +56,7 @@ void TestFail() {
 
 // CHECK-LABEL: @TestFail2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 //
 void TestFail2() {

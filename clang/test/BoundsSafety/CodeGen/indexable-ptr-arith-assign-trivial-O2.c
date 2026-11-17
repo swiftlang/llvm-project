@@ -50,7 +50,7 @@ int *__indexable good_oob(void) {
 // CHECK-LABEL: define dso_local noundef { ptr, ptr } @bad_sub_one(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *__indexable bad_sub_one(void) {
@@ -63,7 +63,7 @@ int *__indexable bad_sub_one(void) {
 // CHECK-LABEL: define dso_local noundef { ptr, ptr } @bad_add_neg_one(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *__indexable bad_add_neg_one(void) {
@@ -76,7 +76,7 @@ int *__indexable bad_add_neg_one(void) {
 // CHECK-LABEL: define dso_local noundef { ptr, ptr } @bad_add_one_sub_one(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *__indexable bad_add_one_sub_one(void) {

@@ -26,7 +26,7 @@ void TestOK() {
 
 // CHECK-LABEL: @TestFail(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation !{{.*}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{.*}}
 // CHECK-NEXT:    unreachable
 //
 void TestFail() {
@@ -52,7 +52,7 @@ void TestOK2() {
 
 // CHECK-LABEL: @TestFail2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation !{{.*}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{.*}}
 // CHECK-NEXT:    unreachable
 //
 void TestFail2() {

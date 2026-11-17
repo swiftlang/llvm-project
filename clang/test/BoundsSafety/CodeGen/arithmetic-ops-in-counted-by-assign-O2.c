@@ -20,7 +20,7 @@ void count_ok(int *__counted_by(len - 2) buf, int len) {
 // CHECK-LABEL: define void @negative_count_trap(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void negative_count_trap(int *__counted_by(len - 2) buf, int len) {
@@ -33,7 +33,7 @@ void negative_count_trap(int *__counted_by(len - 2) buf, int len) {
 // CHECK-LABEL: define void @too_big_count_trap(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void too_big_count_trap(int *__counted_by(len - 2) buf, int len) {
@@ -46,7 +46,7 @@ void too_big_count_trap(int *__counted_by(len - 2) buf, int len) {
 // CHECK-LABEL: define void @overflow_unsigned_count_trap(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_trap(int *__counted_by(len - 2) buf, size_t len) {
@@ -83,7 +83,7 @@ void local_count_ok_2(void) {
 // CHECK-LABEL: define void @local_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void local_count_trap(void) {
@@ -97,7 +97,7 @@ void local_count_trap(void) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[ARR:%.*]] = alloca [10 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]]) #[[ATTR6:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds nuw i8, ptr [[ARR]], i64 40
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[ARR]], i64 -4
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp ugt ptr [[BOUND_PTR_ARITH]], [[UPPER]], {{!annotation ![0-9]+}}
@@ -105,10 +105,10 @@ void local_count_trap(void) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP16_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]]) #[[ATTR6]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[ARR]])
 // CHECK-NEXT:    ret void
 //
 void loob_local_count_trap(void) {
@@ -120,7 +120,7 @@ void loob_local_count_trap(void) {
 // CHECK-LABEL: define void @uoob_local_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void uoob_local_count_trap(void) {
@@ -132,7 +132,7 @@ void uoob_local_count_trap(void) {
 // CHECK-LABEL: define void @too_big_local_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void too_big_local_count_trap(void) {
@@ -147,7 +147,7 @@ void too_big_local_count_trap(void) {
 // CHECK-LABEL: define void @overflow_local_unsigned_count_trap(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_local_unsigned_count_trap(void) {
@@ -172,7 +172,7 @@ void overflow_unsigned_count_size_ok(void *__sized_by(count * size) buf, size_t 
 // CHECK-LABEL: define void @overflow_unsigned_count_size_trap2(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_size_trap2(void *__sized_by(count * size) buf, size_t count, size_t size) {
@@ -188,7 +188,7 @@ void overflow_unsigned_count_size_trap2(void *__sized_by(count * size) buf, size
 // CHECK-LABEL: define void @overflow_unsigned_count_size_index_trap(
 // CHECK-SAME: ptr nofree noundef readnone captures(none) [[BUF:%.*]], i64 noundef [[COUNT:%.*]], i64 noundef [[SIZE:%.*]]) local_unnamed_addr #[[ATTR3]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void overflow_unsigned_count_size_index_trap(int *__counted_by(count * size) buf, size_t count, size_t size) {

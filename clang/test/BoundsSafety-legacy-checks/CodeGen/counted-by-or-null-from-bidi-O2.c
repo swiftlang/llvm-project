@@ -42,7 +42,7 @@ int * __counted_by_or_null(len) foo(int * __bidi_indexable p, int len) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP37]], [[CMP34]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META9]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7:[0-9]+]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -82,7 +82,7 @@ void bar_assign(int * __counted_by_or_null(len) p, int len) {
 // CHECK-LABEL: define dso_local void @ptr_oob(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR5:[0-9]+]] {
 // CHECK-NEXT:  [[TRAP:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR7]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 //
 void ptr_oob(void) {

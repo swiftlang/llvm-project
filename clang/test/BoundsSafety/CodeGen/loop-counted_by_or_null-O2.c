@@ -27,12 +27,12 @@ void use(int *__bidi_indexable q);
 // CHECK-NEXT:    ret void
 // CHECK:       [[FOR_BODY]]:
 // CHECK-NEXT:    [[I_04:%.*]] = phi i32 [ 0, %[[FOR_BODY_LR_PH]] ], [ [[INC:%.*]], %[[FOR_BODY]] ]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    store ptr [[P]], ptr [[BYVAL_TEMP]], align 8
 // CHECK-NEXT:    store ptr [[Q_SROA_5_0]], ptr [[Q_SROA_5_0_BYVAL_TEMP_SROA_IDX]], align 8
 // CHECK-NEXT:    store ptr [[P]], ptr [[Q_SROA_7_0_BYVAL_TEMP_SROA_IDX]], align 8, !tbaa [[INTPTR_TBAA7:![0-9]+]]
-// CHECK-NEXT:    call void @use(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR3]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]]) #[[ATTR3]]
+// CHECK-NEXT:    call void @use(ptr nofreeobj noundef nonnull align 8 dead_on_return dereferenceable(24) [[BYVAL_TEMP]]) #[[ATTR3:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[BYVAL_TEMP]])
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_04]], 1
 // CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i32 [[INC]], [[LEN]]
 // CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[FOR_COND_CLEANUP]], label %[[FOR_BODY]], !llvm.loop [[LOOP10:![0-9]+]]

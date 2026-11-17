@@ -30,7 +30,7 @@ int * __counted_by(len) baz(int len);
 // CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META8:![0-9]+]]
 // CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META9:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META10:![0-9]+]]
@@ -69,7 +69,7 @@ struct Outer *foo(int len) {
 // CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META8]]
 // CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META10]]

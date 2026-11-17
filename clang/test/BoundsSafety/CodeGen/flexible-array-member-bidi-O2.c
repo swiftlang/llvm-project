@@ -27,7 +27,7 @@ struct Simple {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT1:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], align 4, !tbaa {{![0-9]+}}
@@ -51,7 +51,7 @@ void simple_no_flexbase_update(struct Simple * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT1:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    store i32 11, ptr [[P2_SROA_0_0_COPYLOAD]], align 4, !tbaa {{![0-9]+}}
@@ -76,7 +76,7 @@ void simple_flexbase_update(struct Simple * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT1:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], align 4, !tbaa {{![0-9]+}}
@@ -109,7 +109,7 @@ int * __counted_by(len) baz(int len);
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT37:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT37]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP29_SROA_0_0_COPYLOAD]], align 8, !tbaa {{![0-9]+}}
@@ -146,7 +146,7 @@ void shared_no_flexbase_update(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT44:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT44]]:
 // CHECK-NEXT:    [[PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[AGG_TEMP36_SROA_0_0_COPYLOAD]], i64 8
@@ -182,7 +182,7 @@ void shared_no_flexbase_update_reverse(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT44:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT44]]:
 // CHECK-NEXT:    [[PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[P2_SROA_0_0_COPYLOAD]], i64 8
@@ -212,7 +212,7 @@ void shared_flexbase_update(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT37:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT37]]:
 // CHECK-NEXT:    store i32 11, ptr [[P2_SROA_0_0_COPYLOAD]], align 8, !tbaa {{![0-9]+}}
@@ -242,7 +242,7 @@ void shared_flexbase_update_reverse(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT44:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT44]]:
 // CHECK-NEXT:    [[PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[AGG_TEMP36_SROA_0_0_COPYLOAD]], i64 8
@@ -280,7 +280,7 @@ void shared_flexbase_self_assign(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT37:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT37]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP29_SROA_0_0_COPYLOAD]], align 8, !tbaa {{![0-9]+}}
@@ -317,7 +317,7 @@ void shared_flexbase_self_assign_reverse(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT11:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT11]]:
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], align 8, !tbaa {{![0-9]+}}
@@ -347,7 +347,7 @@ void shared_flexbase_self_assign_fr(struct Shared * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT11:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT11]]:
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]], align 8, !tbaa {{![0-9]+}}
@@ -395,7 +395,7 @@ struct Double {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT1:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], align 4, !tbaa {{![0-9]+}}
@@ -419,7 +419,7 @@ void double_no_flexbase_update_once(struct Double * __bidi_indexable p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[TMP1]], i1 [[TMP2]], i1 false, !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT1:.*]], label %[[TRAP:.*]], !prof {{![0-9]+}}, !annotation {{![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation {{![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation {{![0-9]+}}
 // CHECK-NEXT:    unreachable, !annotation {{![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    store i32 11, ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]], align 4, !tbaa {{![0-9]+}}

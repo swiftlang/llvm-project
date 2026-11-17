@@ -31,7 +31,7 @@ typedef struct {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[CMP67_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr align 1 [[FLEX]], i8 0, i64 [[CONV]], i1 false)
@@ -84,7 +84,7 @@ void *set(flex_t *flex, unsigned size) {
 // CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND192]], label %[[TRAP:.*]], label %[[CONT159:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT159]]:
 // CHECK-NEXT:    tail call void @llvm.memcpy.p0.p0.i64(ptr align 1 [[DEST]], ptr align 1 [[SRC]], i64 [[CONV]], i1 false)
@@ -137,7 +137,7 @@ void *cpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[OR_COND177:%.*]] = select i1 [[OR_COND176]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND177]], label %[[TRAP:.*]], label %[[CONT159:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT159]]:
 // CHECK-NEXT:    tail call void @llvm.memcpy.p0.p0.i64(ptr align 1 [[DEST]], ptr align 1 [[SRC]], i64 [[CONV]], i1 false)
@@ -187,7 +187,7 @@ void *__unsafe_indexable pcpy(flex_t *dest, const flex_t *src, unsigned size) {
 // CHECK-NEXT:    [[OR_COND192:%.*]] = select i1 [[OR_COND191]], i1 true, i1 [[CMP156_NOT]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND192]], label %[[TRAP:.*]], label %[[CONT159:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT159]]:
 // CHECK-NEXT:    tail call void @llvm.memmove.p0.p0.i64(ptr align 1 [[DEST]], ptr align 1 [[SRC]], i64 [[CONV]], i1 false)

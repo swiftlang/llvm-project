@@ -22,7 +22,7 @@ int TestOK() {
 // CHECK-O2-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-O2-NEXT:  [[ENTRY:.*:]]
 // CHECK-O2-NEXT:    [[P:%.*]] = alloca i8, align 1
-// CHECK-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[P]]) #[[ATTR4:[0-9]+]]
+// CHECK-O2-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[P]])
 // CHECK-O2-NEXT:    [[TMP0:%.*]] = getelementptr inbounds nuw i8, ptr [[P]], i64 1
 // CHECK-O2-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[P]], i64 4, {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[TMP1]], [[TMP0]], {{!annotation ![0-9]+}}
@@ -30,10 +30,10 @@ int TestOK() {
 // CHECK-O2-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP2]], [[TMP3]], {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    br i1 [[OR_COND]], label %[[BOUNDSCHECK_NULL:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[TRAP]]:
-// CHECK-O2-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[BOUNDSCHECK_NULL]]:
-// CHECK-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[P]]) #[[ATTR4]]
+// CHECK-O2-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[P]])
 // CHECK-O2-NEXT:    ret void
 //
 void TestTrap() {

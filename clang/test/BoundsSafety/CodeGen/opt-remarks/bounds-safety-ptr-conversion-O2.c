@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
 // IR:  br i1 %[[NULL_CHECK]], label %[[LABEL_CONT:[a-z0-9.]+]], label %[[LABEL_TRAP_RES:[a-z0-9.]+]], !dbg ![[LOC_12_25]], !annotation ![[NULL_CHECK_ANNOT]]
 
 // IR: [[LABEL_TRAP_RES]]:
-// IR:  tail call void @llvm.ubsantrap(i8 25) #2, !dbg ![[TRAP_LOC_MISSING:[0-9]+]], !annotation ![[ALL_TRAPS_ANNOT:[0-9]+]]
+// IR:  tail call void @llvm.ubsantrap(i8 25), !dbg ![[TRAP_LOC_MISSING:[0-9]+]], !annotation ![[ALL_TRAPS_ANNOT:[0-9]+]]
 // IR:  unreachable, !dbg ![[TRAP_LOC_MISSING]]
 
 // IR: [[LABEL_CONT]]:

@@ -29,7 +29,7 @@
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]]
@@ -54,7 +54,7 @@ int *__counted_by(count) cb_in_from_bidi(int count, int *__bidi_indexable p) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP37]], [[CMP34]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[TMP0:%.*]] = inttoptr i64 [[P_COERCE_FCA_0_EXTRACT]] to ptr
@@ -70,7 +70,7 @@ int *__counted_by(count) cb_in_from_indexable(int count, int *__indexable p) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = icmp ult i32 [[COUNT]], 2
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -85,7 +85,7 @@ int *__counted_by(count) cb_in_from_single(int count, int *__single p) {
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[COUNT]], 0, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -102,7 +102,7 @@ int *__counted_by(count) cb_in_from_cb(int count, int *__counted_by(count) p) {
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP_NOT]], [[SPEC_SELECT_NOT]], !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -130,7 +130,7 @@ int *__counted_by(count) cb_in_from_cb2(int count, int *__counted_by(len) p, int
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -159,7 +159,7 @@ int *__counted_by(count) cb_in_from_cbn(int count, int *__counted_by_or_null(cou
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -175,7 +175,7 @@ int *__counted_by(count) cb_in_from_cbn2(int count, int *__counted_by_or_null(le
 // CHECK-NEXT:    [[OR_COND:%.*]] = icmp ult i32 [[TMP0]], 2, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -192,7 +192,7 @@ int *__counted_by(*count) cb_out_from_single(int *__single count, int *__single 
 // CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[SPEC_SELECT]], [[TOBOOL_NOT]], !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -223,7 +223,7 @@ int *__counted_by_or_null(count) cbn_in_from_single(int count, int *__single p) 
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[AGG_TEMP_SROA_0_0_COPYLOAD]]
@@ -238,7 +238,7 @@ void *__sized_by(size) sb_in_from_bidi(int size, void *__bidi_indexable p) {
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = icmp ult i32 [[SIZE]], 5
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]
@@ -262,7 +262,7 @@ void *__sized_by(size) sb_in_from_single(int size, int *__single p) {
 // CHECK-NEXT:    [[OR_COND23:%.*]] = select i1 [[OR_COND]], i1 true, i1 [[CMP15_NOT]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK-NEXT:    br i1 [[OR_COND23]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[AGG_TEMP1_SROA_0_0_COPYLOAD]]
@@ -280,7 +280,7 @@ void *__ended_by(end) eb_in_from_bidi(void *__single end, void *__bidi_indexable
 // CHECK-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP1]], [[CMP]]
 // CHECK-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret ptr [[P]]

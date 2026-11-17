@@ -62,7 +62,7 @@ struct struct_1 * access_struct_1_all_checks_removable(
 // CHECK-NEXT:    [[DOTNOT27:%.*]] = icmp ugt ptr [[TMP0]], [[ADD_PTR]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[DOTNOT27]], label %[[TRAP:.*]], label %[[CONT1:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT1]]:
 // CHECK-NEXT:    [[TMP1:%.*]] = load ptr, ptr [[BOUND_PTR_ARITH]], align 8, {{!tbaa ![0-9]+}}

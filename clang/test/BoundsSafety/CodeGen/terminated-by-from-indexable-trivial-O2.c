@@ -35,7 +35,7 @@ const int *__terminated_by(2) good_2(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_null(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int *__null_terminated bad_null(void) {
@@ -46,7 +46,7 @@ int *__null_terminated bad_null(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_no_term(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[TRAP:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int *__null_terminated bad_no_term(void) {
@@ -57,7 +57,7 @@ const int *__null_terminated bad_no_term(void) {
 // CHECK-LABEL: define dso_local noalias noundef nonnull ptr @bad_bidi_lower_bound(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 const int *__terminated_by(3) bad_bidi_lower_bound(void) {

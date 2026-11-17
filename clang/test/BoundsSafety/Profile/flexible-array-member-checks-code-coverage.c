@@ -27,7 +27,7 @@ void bar(struct s *p);
 // CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[DOTNOT]], i1 true, i1 [[DOTNOT51]], !prof [[PROF6:![0-9]+]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label [[TRAP:%.*]], label %[[CONT27:.*]], !prof [[PROF6]], {{!annotation ![0-9]+}}
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT27]]:
 // CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[BUF]], align 4, {{!tbaa ![0-9]+}}

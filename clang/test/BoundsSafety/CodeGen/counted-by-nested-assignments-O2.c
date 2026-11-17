@@ -24,7 +24,7 @@
 // CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp slt i64 [[SUB_PTR_DIV]], [[CONV]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[CMP26_NOT]], label %[[TRAP]], label %[[CONT:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 0, ptr [[X]], align 4, !tbaa [[TBAA1:![0-9]+]]
@@ -60,7 +60,7 @@ void foo(int *__counted_by(count) x, unsigned count) {
 // CHECK-NEXT:    [[OR_COND40:%.*]] = and i1 [[OR_COND_NOT41]], [[CMP29]], !annotation [[META5]]
 // CHECK-NEXT:    br i1 [[OR_COND40]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, !annotation [[META5]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], !annotation [[META5]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META5]]
 // CHECK-NEXT:    unreachable, !annotation [[META5]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    store i32 0, ptr [[BOUND_PTR_ARITH]], align 4, !tbaa [[TBAA1]]

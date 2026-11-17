@@ -75,7 +75,7 @@
 // CHECK-O2-NEXT:    [[DOTNOT:%.*]] = icmp ult ptr [[BOUND_PTR_ARITH]], [[P_COERCE0]], {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    br i1 [[DOTNOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[TRAP]]:
-// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK-O2:       [[CONT]]:
 // CHECK-O2-NEXT:    [[DOTFCA_0_INSERT:%.*]] = insertvalue { ptr, ptr } poison, ptr [[BOUND_PTR_ARITH]], 0

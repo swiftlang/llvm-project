@@ -12,7 +12,7 @@
 // CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[ARG]], null, !annotation [[META9:![0-9]+]]
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label [[BOUNDSCHECK_NULL:%.*]], label [[TRAP:%.*]], !annotation [[META9]]
 // CHECK:       trap:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       boundscheck.null:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[AGG_RESULT]], i8 0, i64 24, i1 false)
@@ -30,7 +30,7 @@ int *__bidi_indexable to_bidi(int * arg) {
 // CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[ARG]], null, !annotation [[META9]]
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label [[BOUNDSCHECK_NULL:%.*]], label [[TRAP_CRITEDGE:%.*]], !annotation [[META9]]
 // CHECK:       trap.critedge:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       boundscheck.null:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[AGG_RESULT]], i8 0, i64 24, i1 false)
@@ -47,7 +47,7 @@ int *__bidi_indexable to_bidi_literal_count(int * arg) {
 // CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr [[ARG]], null, !annotation [[META9]]
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label [[BOUNDSCHECK_NULL:%.*]], label [[TRAP_CRITEDGE:%.*]], !annotation [[META9]]
 // CHECK:       trap.critedge:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4]], !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
 // CHECK-NEXT:    unreachable, !annotation [[META9]]
 // CHECK:       boundscheck.null:
 // CHECK-NEXT:    tail call void @llvm.memset.p0.i64(ptr noundef nonnull align 8 dereferenceable(24) [[AGG_RESULT]], i8 0, i64 24, i1 false)

@@ -23,7 +23,7 @@ struct T {
 // CHECK-NEXT:    [[OR_COND:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND]], label %[[CONT6:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR4:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT6]]:
 // CHECK-NEXT:    store i32 3, ptr [[BOUND_PTR_ARITH5]], align 4, {{!tbaa ![0-9]+}}
@@ -39,7 +39,7 @@ void foo(int *buf __counted_by(len), int len) {
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR3:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[A:%.*]] = alloca [10 x i32], align 4
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[A]]) #[[ATTR5:[0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[A]])
 // CHECK-NEXT:    [[ADD_PTR3_I:%.*]] = getelementptr inbounds nuw i8, ptr [[A]], i64 40
 // CHECK-NEXT:    [[BOUND_PTR_ARITH5_I:%.*]] = getelementptr i8, ptr [[A]], i64 -40
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ult ptr [[BOUND_PTR_ARITH5_I]], [[ADD_PTR3_I]], {{!annotation ![0-9]+}}
@@ -47,10 +47,10 @@ void foo(int *buf __counted_by(len), int len) {
 // CHECK-NEXT:    [[OR_COND_I:%.*]] = and i1 [[TMP0]], [[TMP1]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND_I]], label %[[FOO_EXIT:.*]], label %[[TRAP_I:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP_I]]:
-// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR4]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[FOO_EXIT]]:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[A]]) #[[ATTR5]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[A]])
 // CHECK-NEXT:    ret i32 0
 //
 int main() {

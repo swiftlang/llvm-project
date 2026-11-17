@@ -25,7 +25,7 @@ void foo () {
 
 // CHECK-LABEL: @bar(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation !{{.*}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation !{{.*}}
 // CHECK-NEXT:    unreachable
 //
 void bar () {

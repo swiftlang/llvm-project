@@ -27,7 +27,7 @@ void success() {
 // CHECK-LABEL: define dso_local void @fail(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR2:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5:[0-9]+]], !annotation [[META6:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6:![0-9]+]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 //
 void fail() {
@@ -43,7 +43,7 @@ void fail() {
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[TMP0]], 0, !annotation [[META8:![0-9]+]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META8]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META8]]
 // CHECK-NEXT:    unreachable, !annotation [[META8]]
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    ret void
@@ -58,7 +58,7 @@ void pass_out_len(int *__counted_by(*out_len) arr, int *out_len) {
 // CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META8]]
 // CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[BOUNDSCHECK_NULL:.*]], !annotation [[META8]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR5]], !annotation [[META6]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // CHECK-NEXT:    unreachable, !annotation [[META6]]
 // CHECK:       [[BOUNDSCHECK_NULL]]:
 // CHECK-NEXT:    ret void

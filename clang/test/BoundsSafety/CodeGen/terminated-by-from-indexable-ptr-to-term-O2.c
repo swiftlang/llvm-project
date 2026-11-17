@@ -11,7 +11,7 @@
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT:%.*]] = icmp ugt ptr [[PTR_COERCE0]], [[PTR_TO_TERM_COERCE0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[TERMINATED_BY_ONE_PAST_TERM_PTR:%.*]] = getelementptr i8, ptr [[PTR_TO_TERM_COERCE0]], i64 4, {{!annotation ![0-9]+}}
@@ -41,7 +41,7 @@ int *__null_terminated indexable_indexable(int *__indexable ptr, int *__indexabl
 // CHECK-NEXT:    [[OR_COND10:%.*]] = or i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], [[DOTNOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND10]], label %[[TRAP:.*]], label %[[CONT6:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT6]]:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8
@@ -68,7 +68,7 @@ int *__null_terminated bidi_indexable_single(int *__bidi_indexable ptr, int *__s
 // CHECK-NEXT:    [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT:%.*]] = icmp ugt ptr [[PTR_COERCE0]], [[PTR_TO_TERM_COERCE0]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[TERMINATED_BY_ONE_PAST_TERM_PTR:%.*]] = getelementptr i8, ptr [[PTR_TO_TERM_COERCE0]], i64 8, {{!annotation ![0-9]+}}
@@ -98,7 +98,7 @@ int *__single *__terminated_by(-1) nested_indexable_indexable(int *__single *__i
 // CHECK-NEXT:    [[OR_COND10:%.*]] = or i1 [[TERMINATED_BY_CHECK_PTR_LE_TERM_PTR_NOT]], [[DOTNOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND10]], label %[[TRAP:.*]], label %[[CONT6:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT6]]:
 // CHECK-NEXT:    [[AGG_TEMP1_SROA_2_0_PTR_SROA_IDX:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 8

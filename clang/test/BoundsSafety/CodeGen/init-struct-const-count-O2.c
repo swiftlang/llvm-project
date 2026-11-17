@@ -28,7 +28,7 @@ void consume_cb(struct cb);
 // SAME-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[COUNT_PARAM]], 0, !annotation [[META6:![0-9]+]]
 // SAME-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -66,7 +66,7 @@ void init_list_cb(int count_param, int*__counted_by(count_param) ptr) {
 // SAME-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // SAME-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -99,7 +99,7 @@ void init_list_cb_bidi(int count_param, int* __bidi_indexable ptr) {
 // NEW-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[COUNT_PARAM]], 0, !annotation [[META6:![0-9]+]]
 // NEW-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -148,7 +148,7 @@ void compound_literal_init_cb(int count_param, int*__counted_by(count_param) ptr
 // NEW-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // NEW-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -186,7 +186,7 @@ void consume_cbon(struct cbon);
 // SAME-NEXT:    [[CMP_NOT:%.*]] = and i1 [[CMP_NOT47]], [[DOTNOT]], !annotation [[META6]]
 // SAME-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -227,7 +227,7 @@ void init_list_cbon(int count_param, int*__counted_by_or_null(count_param) ptr) 
 // SAME-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
 // SAME-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -262,7 +262,7 @@ void init_list_cbon_bidi(int count_param, int*__bidi_indexable ptr) {
 // NEW-NEXT:    [[CMP_NOT:%.*]] = and i1 [[CMP_NOT47]], [[DOTNOT]], !annotation [[META6]]
 // NEW-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -314,7 +314,7 @@ void compound_literal_init_cbon(int count_param, int*__counted_by_or_null(count_
 // NEW-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
 // NEW-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -350,7 +350,7 @@ void consume_sb(struct sb);
 // SAME-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[COUNT_PARAM]], 0, !annotation [[META6]]
 // SAME-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -387,7 +387,7 @@ void init_list_sb(int count_param, char*__sized_by(count_param) ptr) {
 // SAME-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // SAME-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -420,7 +420,7 @@ void init_list_bidi(int count_param, char*__bidi_indexable ptr) {
 // NEW-NEXT:    [[CMP_NOT:%.*]] = icmp slt i32 [[COUNT_PARAM]], 0, !annotation [[META6]]
 // NEW-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -468,7 +468,7 @@ void compound_literal_init_sb(int count_param, char*__sized_by(count_param) ptr)
 // NEW-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP28]], [[CMP25]]
 // NEW-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT:.*]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext nneg i32 [[COUNT_PARAM]] to i64
@@ -506,7 +506,7 @@ void consume_sbon(struct sbon);
 // SAME-NEXT:    [[CMP_NOT:%.*]] = and i1 [[CMP_NOT47]], [[DOTNOT]], !annotation [[META6]]
 // SAME-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -546,7 +546,7 @@ void init_list_sbon(int count_param, char*__sized_by_or_null(count_param) ptr) {
 // SAME-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
 // SAME-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // SAME:       [[TRAP]]:
-// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// SAME-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // SAME-NEXT:    unreachable, !annotation [[META6]]
 // SAME:       [[CONT]]:
 // SAME-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -581,7 +581,7 @@ void init_list_sbon_bidi(int count_param, char*__bidi_indexable ptr) {
 // NEW-NEXT:    [[CMP_NOT:%.*]] = and i1 [[CMP_NOT47]], [[DOTNOT]], !annotation [[META6]]
 // NEW-NEXT:    br i1 [[CMP_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64
@@ -632,7 +632,7 @@ void compound_literal_init_sbon(int count_param, char*__sized_by_or_null(count_p
 // NEW-NEXT:    [[SPEC_SELECT:%.*]] = and i1 [[CMP35]], [[CMP32]]
 // NEW-NEXT:    br i1 [[SPEC_SELECT]], label %[[CONT]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META6]]
 // NEW:       [[TRAP]]:
-// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR3]], !annotation [[META6]]
+// NEW-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META6]]
 // NEW-NEXT:    unreachable, !annotation [[META6]]
 // NEW:       [[CONT]]:
 // NEW-NEXT:    [[C_SROA_0_0_INSERT_EXT:%.*]] = zext i32 [[COUNT_PARAM]] to i64

@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
 
 
 // IR: [[FOO_LABEL_TRAP]]:
-// IR-NEXT:   tail call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[LOC_10_16]], !annotation ![[ANNOT_UB_AND_LB:[0-9]+]]
+// IR-NEXT:   tail call void @llvm.ubsantrap(i8 25), !dbg ![[LOC_10_16]], !annotation ![[ANNOT_UB_AND_LB:[0-9]+]]
 // IR-NEXT:   unreachable, !dbg ![[LOC_10_16]], !annotation ![[ANNOT_UB_AND_LB]]
 //
 // IR: [[FOO_LABEL_CONT]]:
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
 
 // IR-LABEL: @main
 // IR: entry
-// IR-NEXT:   call void @llvm.ubsantrap(i8 25) #{{[0-9]+}}, !dbg ![[TRAP_LOC_16_5:[0-9]+]]
+// IR-NEXT:   call void @llvm.ubsantrap(i8 25), !dbg ![[TRAP_LOC_16_5:[0-9]+]]
 
 // IR-DAG: ![[LOC_10_5]] = !DILocation(line: 10, column: 5
 // IR-DAG: ![[LOC_10_16]] = !DILocation(line: 10, column: 16

@@ -8,7 +8,7 @@
 // O2-LABEL: define dso_local noundef i32 @foo(
 // O2-SAME: ptr nofree noundef readnone captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // O2-NEXT:  [[ENTRY:.*:]]
-// O2-NEXT:    tail call void @llvm.ubsantrap(i8 25) #[[ATTR2:[0-9]+]], {{!annotation ![0-9]+}}
+// O2-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // O2-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 // O0-LABEL: define dso_local i32 @foo(

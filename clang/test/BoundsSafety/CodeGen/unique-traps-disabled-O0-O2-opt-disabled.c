@@ -70,7 +70,7 @@
 // OPT2-NEXT:    [[TMP2:%.*]] = icmp ule ptr [[TMP1]], [[WIDE_PTR_UB]], !annotation [[META14]]
 // OPT2-NEXT:    br i1 [[TMP2]], label %[[CONT:.*]], label %[[TRAP:.*]], !prof [[PROF15:![0-9]+]], !annotation [[META14]]
 // OPT2:       [[TRAP]]:
-// OPT2-NEXT:    call void @llvm.ubsantrap(i8 25) #[[ATTR3:[0-9]+]], !annotation [[META16:![0-9]+]]
+// OPT2-NEXT:    call void @llvm.ubsantrap(i8 25), !annotation [[META16:![0-9]+]]
 // OPT2-NEXT:    unreachable, !annotation [[META16]]
 // OPT2:       [[CONT]]:
 // OPT2-NEXT:    [[TMP3:%.*]] = icmp ule ptr [[ARRAYIDX]], [[TMP1]], !annotation [[META14]]
@@ -89,12 +89,11 @@ int consume(int* __bidi_indexable ptr, int idx) {
 // OPT0: attributes #[[ATTR0]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // OPT0: attributes #[[ATTR1:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 // OPT0: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
-// OPT0: attributes #[[ATTR3]] = { nomerge noreturn nounwind }
+// OPT0: attributes #[[ATTR3]] = { nomerge }
 //.
 // OPT2: attributes #[[ATTR0]] = { nounwind "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // OPT2: attributes #[[ATTR1:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
 // OPT2: attributes #[[ATTR2:[0-9]+]] = { cold noreturn nounwind memory(inaccessiblemem: write) }
-// OPT2: attributes #[[ATTR3]] = { noreturn nounwind }
 //.
 // OPT0: [[META0:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
 // OPT0: [[META1]] = !{!"bounds-safety-check-ptr-le-upper-bound"}
