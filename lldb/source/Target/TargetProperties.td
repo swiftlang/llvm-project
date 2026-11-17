@@ -51,6 +51,9 @@ let Definition = "target_experimental", Path = "target.experimental" in {
   def UseDIL : Property<"use-DIL", "Boolean">,
     Global, DefaultTrue,
     Desc<"If true, use the DIL implementation for frame variable evaluation.">;
+  def ReloadModuleScripts: Property<"reload-module-scripts", "Boolean">,
+    Global, DefaultFalse,
+    Desc<"If true, load a module's scripts again every time the target sees the module, instead of once per target. This is only meant for scripts that relied on running several times, and will be removed.">;
 }
 
 let Definition = "target", Path = "target" in {
