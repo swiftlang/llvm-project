@@ -2,9 +2,15 @@ set(SWIFT_SOURCES
   SwiftDemanglingPartsTest.cpp
 )
 
+set(SWIFT_LIBS
+  lldbPluginSwiftLanguage
+  lldbPluginSwiftLanguageRuntime
+)
+
 set(LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_SOURCES)
+  unset(SWIFT_LIBS)
 endif()
 
 add_lldb_unittest(LLDBCoreTests
@@ -48,4 +54,5 @@ add_lldb_unittest(LLDBCoreTests
     lldbUtilityHelpers
     lldbHostHelpers
     LLVMTestingSupport
+    ${SWIFT_LIBS}
   )

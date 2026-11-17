@@ -3,6 +3,8 @@ set(SWIFT_SOURCES PdbAstBuilderSwift.cpp)
 set(LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_SOURCES)
+else()
+  set(_swift_libs_param SWIFT_LIBS swiftDemangling)
 endif()
 ## END SWIFT
 
@@ -32,6 +34,9 @@ add_lldb_library(lldbPluginSymbolFileNativePDB
     lldbUtility
     lldbPluginTypeSystemClang
     lldbPluginObjectFilePDB
+  ## BEGIN SWIFT
+  ${_swift_libs_param}
+  ## END SWIFT
   CLANG_LIBS
     clangAST
     clangLex

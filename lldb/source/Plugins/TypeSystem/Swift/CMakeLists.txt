@@ -18,6 +18,16 @@ add_lldb_library(lldbPluginTypeSystemSwift PLUGIN
     lldbTarget
     lldbUtility
     lldbPluginExpressionParserSwift
+    lldbPluginSymbolFileDWARF
+
+  SWIFT_LIBS
+    swiftAST
+    swiftASTSectionImporter
+    swiftBasic
+    swiftClangImporter
+    swiftFrontend
+    swiftSIL
+    swiftSerialization
 
   LINK_COMPONENTS
     Support
