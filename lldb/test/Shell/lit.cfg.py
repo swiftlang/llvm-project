@@ -18,10 +18,6 @@ sys.path.append(os.path.join(config.lldb_src_root, "test"))
 site.addsitedir(os.path.dirname(__file__))
 from helper import toolchain
 
-import lldbprewarm
-
-lldbprewarm.prewarm(lit_config, config)
-
 # name: The name of this test suite.
 config.name = "lldb-shell"
 
