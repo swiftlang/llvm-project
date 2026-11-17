@@ -3112,9 +3112,9 @@ public:
       bool LowerOnlyCheck = false, llvm::Value **UpperPtr = nullptr,
       llvm::Value **LowerPtr = nullptr, bool IsNullAllowed = false);
 
-  void EmitPtrCastLECheck(
-      llvm::Value *LHS, llvm::Value *RHS, BoundsSafetyTrapKind TrapKind,
-      BoundsSafetyTrapCtx::Kind TrapCtx = BoundsSafetyTrapCtx::UNKNOWN);
+  void EmitPtrCastLECheck(llvm::Value *LHS, llvm::Value *RHS,
+                          BoundsSafetyTrapKind TrapKind,
+                          BoundsSafetyTrapCtx::Kind TrapCtx, TrapReason &TR);
   void EmitBoundsSafetyBoundsCheck(
       llvm::Type *ElemTy, llvm::Value *Ptr, llvm::Value *Upper,
       llvm::Value *Lower, bool AcceptNullPt = false,

@@ -129,12 +129,13 @@ llvm::Value *CodeGenFunction::GetWidePointerElement(Address Addr,
 
 void CodeGenFunction::EmitPtrCastLECheck(llvm::Value *LHS, llvm::Value *RHS,
                                          BoundsSafetyTrapKind TrapKind,
-                                         BoundsSafetyTrapCtx::Kind TrapCtx) {
+                                         BoundsSafetyTrapCtx::Kind TrapCtx,
+                                         TrapReason &TR) {
   // TODO(dliew): rdar://109574814: opt-remarks could be added here.
   {
     BoundsSafetyOptRemarkScope Scope(this, GetBoundsSafetyOptRemarkForTrap(TrapKind));
     llvm::Value *Check = Builder.CreateICmpULE(LHS, RHS);
-    EmitBoundsSafetyTrapCheck(Check, TrapKind, TrapCtx);
+    EmitBoundsSafetyTrapCheck(Check, TrapKind, TrapCtx, &TR);
   }
 }
 
@@ -1706,6 +1707,20 @@ void CodeGenFunction::EmitFlexibleArrayCountCheck(
   llvm::Value *Ptr = EmitWideToRawPtr(BasePtr, /*BoundsCheck*/ false, TrapCtx,
                                       /*LowerOnlyCheck*/ false, &Upper, &Lower);
 
+  // Describe the check for the trap reasons.
+  QualType BasePtrTy = BasePtr->getType();
+  QualType SinglePtrTy = getContext().getPointerType(
+      BasePtrTy->getPointeeType(), BoundsSafetyPointerAttributes::single());
+  auto PD = CGM.BuildPartialTrapReason(diag::trap_bs_flexible_array_member);
+  PD << /*%0=*/(E->getKind() == BoundsCheckKind::FlexibleArrayCountDeref)
+     << /*%1=*/BasePtrTy << /*%2=*/SinglePtrTy << /*%3=*/BasePtr
+     << /*%4=*/cast<MemberExpr>(FamPtr->IgnoreImpCasts())->getMemberDecl()
+     << /*%5=*/Count;
+  auto BuildFamTrapReason = [&](TrapReason &TR, unsigned Kind) {
+    CGM.BuildTrapReason(diag::trap_bs_flexible_array_member, TR)
+        << /*%0-%5=*/PD << /*%6=*/Kind;
+  };
+
   llvm::BasicBlock *NullBB = nullptr;
   // Deref doesn't survive with null.
   if (E->getKind() != BoundsCheckKind::FlexibleArrayCountDeref) {
@@ -1732,7 +1747,10 @@ void CodeGenFunction::EmitFlexibleArrayCountCheck(
       ConvertTypeForMem(BasePtr->getType()->getPointeeType());
   llvm::Constant *One = llvm::ConstantInt::get(SizeTy, 1);
   llvm::Value *PtrPlusSize = Builder.CreateGEP(BaseElemTy, Ptr, One, "");
-  EmitPtrCastLECheck(Ptr, PtrPlusSize, BNS_TRAP_PTR_PAST_END_OVERFLOW);
+  TrapReason OverflowTR;
+  BuildFamTrapReason(OverflowTR, diag::BoundsSafetyFamCheckKind::PtrOverflow);
+  EmitPtrCastLECheck(Ptr, PtrPlusSize, BNS_TRAP_PTR_PAST_END_OVERFLOW,
+                     BoundsSafetyTrapCtx::UNKNOWN, OverflowTR);
 
   // XXX: Some redundant bounds checks are performed on the struct base pointer
   // in `EmitMemberExpr` in order to emit FamPtr. This is not a big problem
@@ -1747,7 +1765,9 @@ void CodeGenFunction::EmitFlexibleArrayCountCheck(
     llvm::Value *Zero = llvm::ConstantInt::get(UserProvidedCount->getType(), 0);
     llvm::Value *ZeroLE =
         Builder.CreateICmpSLE(Zero, UserProvidedCount, "flex.count.minus");
-    EmitBoundsSafetyTrapCheck(ZeroLE, BNS_TRAP_COUNT_NEGATIVE, TrapCtx);
+    TrapReason TR;
+    BuildFamTrapReason(TR, diag::BoundsSafetyFamCheckKind::CountNegative);
+    EmitBoundsSafetyTrapCheck(ZeroLE, BNS_TRAP_COUNT_NEGATIVE, TrapCtx, &TR);
   }
 
   {
@@ -1757,11 +1777,19 @@ void CodeGenFunction::EmitFlexibleArrayCountCheck(
     // Ensure `FamPtr (Ptr + FamOffset) <= Upper`.
     // This is necessary because we later do `Upper - FamPtr` to get the
     // avaiable count.
-    EmitPtrCastLECheck(FamPtrVal, Upper, BNS_TRAP_PTR_GT_UPPER_BOUND, TrapCtx);
+    TrapReason FamAboveUpperTR;
+    BuildFamTrapReason(FamAboveUpperTR,
+                       diag::BoundsSafetyFamCheckKind::FamAboveUpper);
+    EmitPtrCastLECheck(FamPtrVal, Upper, BNS_TRAP_PTR_GT_UPPER_BOUND, TrapCtx,
+                       FamAboveUpperTR);
 
     // Ensure Lower <= Ptr.
+    static_assert(diag::BoundsSafetyFamCheckKind::PtrBelowLower ==
+                      diag::BoundsSafetyPtrCheckKind::Lower,
+                  "EmitBoundsSafetyBoundsCheck appends "
+                  "BoundsSafetyPtrCheckKind::Lower to PD");
     EmitBoundsSafetyBoundsCheck(nullptr, Ptr, nullptr, Lower,
-                             /*AcceptNullPtr*/ false, TrapCtx);
+                                /*AcceptNullPtr*/ false, TrapCtx, &PD);
 
     QualType ElemTy = FamPtr->getType()->getPointeeType();
 
@@ -1791,7 +1819,10 @@ void CodeGenFunction::EmitFlexibleArrayCountCheck(
     // Ensure `Count <= PointerDerivedCount (Upper - FamPtr)`.
     llvm::Value *CountCheck = Builder.CreateICmpULE(
         UserProvidedCount, PointerDerivedCount, "flex.count.check");
-    EmitBoundsSafetyTrapCheck(CountCheck, BNS_TRAP_FLEX_COUNT_GT_BOUNDS);
+    TrapReason TR;
+    BuildFamTrapReason(TR, diag::BoundsSafetyFamCheckKind::CountTooBig);
+    EmitBoundsSafetyTrapCheck(CountCheck, BNS_TRAP_FLEX_COUNT_GT_BOUNDS,
+                              BoundsSafetyTrapCtx::UNKNOWN, &TR);
   }
 
   if (NullBB)
