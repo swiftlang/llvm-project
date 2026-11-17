@@ -20,7 +20,7 @@ class TestSwiftEmbeddedRuntimeFailureMessage(TestBase):
 
     def run_to_failure(self, extra_flags):
         """Run until the program traps and return the stopped thread."""
-        self.build(dictionary={"SWIFTFLAGS_EXTRAS": extra_flags})
+        self.build(dictionary={"TEST_SWIFTFLAGS_EXTRAS": extra_flags})
         target = lldbutil.run_to_breakpoint_make_target(self)
         process = target.LaunchSimple(None, None, self.get_process_working_directory())
         self.assertTrue(process, PROCESS_IS_VALID)
@@ -57,10 +57,10 @@ class TestSwiftEmbeddedRuntimeFailureMessage(TestBase):
         self.check_frame(thread, self.failure_line(extra_flags))
 
     def check_without_asserts(self, extra_flags, message=None):
-        self.check_stop_reason("-O", extra_flags, message)
+        self.check_stop_reason("", extra_flags, message)
 
     def check_with_asserts(self, extra_flags, message=None):
-        self.check_stop_reason("-O -assert-config Debug", extra_flags, message)
+        self.check_stop_reason("-assert-config Debug", extra_flags, message)
 
     @skipUnlessDarwin
     @swiftTest
