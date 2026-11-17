@@ -165,6 +165,15 @@ CompareHeapCFAs(const StackID &lhs, const StackID &rhs, Process &process) {
 // END SWIFT
 
 bool StackID::IsYoungerThan(const StackID &other, Process &process) const {
+  switch (process.CompareCFAs(*this, other)) {
+  case CFAComparison::Younger:
+    return true;
+  case CFAComparison::Older:
+    return false;
+  case CFAComparison::NoOpinion:
+    break;
+  }
+
   // BEGIN SWIFT
   switch (CompareHeapCFAs(*this, other, process)) {
   case HeapCFAComparisonResult::Younger:

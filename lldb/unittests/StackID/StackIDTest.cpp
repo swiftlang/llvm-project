@@ -40,6 +40,7 @@ public:
 
 struct MockProcess : Process {
   llvm::DenseMap<addr_t, addr_t> memory_map;
+  CFAComparison opinion = CFAComparison::NoOpinion;
 
   MockProcess(TargetSP target_sp, ListenerSP listener_sp)
       : Process(target_sp, listener_sp) {}
@@ -60,6 +61,9 @@ struct MockProcess : Process {
   llvm::StringRef GetPluginName() override { return ""; }
   void RefreshStateAfterStop() override {}
   bool DoUpdateThreadList(ThreadList &, ThreadList &) override { return false; }
+  CFAComparison CompareCFAs(const StackID &, const StackID &) override {
+    return opinion;
+  }
 };
 
 enum OnStack { Yes, No };
@@ -147,4 +151,17 @@ TEST_F(StackIDTest, HeapHeapCFAComparisonDecreasing) {
 
   EXPECT_TRUE(middle_cfa.IsYoungerThan(oldest_cfa, *process));
   EXPECT_FALSE(oldest_cfa.IsYoungerThan(middle_cfa, *process));
+}
+
+TEST_F(StackIDTest, ProcessOrdersCFAs) {
+  auto process = std::make_shared<MockProcess>(m_target_sp,
+                                               Listener::MakeListener("dummy"));
+
+  MockStackID younger(/*cfa*/ 10, OnStack::Yes);
+  MockStackID older(/*cfa*/ 100, OnStack::Yes);
+  // Without an opinion from the process, the stack is assumed to grow down.
+  EXPECT_TRUE(younger.IsYoungerThan(older, *process));
+
+  process->opinion = CFAComparison::Older;
+  EXPECT_FALSE(younger.IsYoungerThan(older, *process));
 }
