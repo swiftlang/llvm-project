@@ -16,6 +16,7 @@
 #include "llvm/DWARFLinker/Classic/DWARFLinkerCompileUnit.h"
 #include "llvm/DWARFLinker/DWARFLinkerBase.h"
 #include "llvm/DWARFLinker/IndexedValuesMap.h"
+#include "llvm/DWARFLinker/RelocationFixups.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
@@ -553,6 +554,8 @@ private:
     DebugDieValuePool &StringOffsetPool;
     DebugDieValuePool AddrPool;
 
+    RelocationFixups RelocFixups;
+
     /// Allocator used for all the DIEValue objects.
     BumpPtrAllocator &DIEAlloc;
 
@@ -601,7 +604,7 @@ private:
 
     /// Emit the .debug_addr section for the \p Unit.
     LLVM_ABI Error emitDebugAddrSection(CompileUnit &Unit,
-                                        const uint16_t DwarfVersion) const;
+                                        const uint16_t DwarfVersion);
 
     using ExpressionHandlerRef = function_ref<void(
         SmallVectorImpl<uint8_t> &, SmallVectorImpl<uint8_t> &,
@@ -644,6 +647,8 @@ private:
       /// Is there a DW_AT_APPLE_origin in the CU?
       bool HasAppleOrigin = false;
 
+      RelocationFixups::AttributeSource Source;
+
       AttributesInfo() = default;
     };
 
@@ -672,10 +677,15 @@ private:
                                         CompileUnit &Unit);
 
     /// Clone a DWARF expression that may be referencing another DIE.
+    /// \p Cloned, if set, receives where its operations were cloned to in
+    /// \p OutputBuffer. With \p KeepAddrIndices, DW_OP_addrx and DW_OP_constx
+    /// index the output .debug_addr, whose entries carry their relocations.
     void cloneExpression(DataExtractor &Data, DWARFExpression Expression,
                          const DWARFFile &File, CompileUnit &Unit,
                          SmallVectorImpl<uint8_t> &OutputBuffer,
-                         int64_t AddrRelocAdjustment, bool IsLittleEndian);
+                         int64_t AddrRelocAdjustment, bool IsLittleEndian,
+                         RelocationFixups::ClonedExpression *Cloned = nullptr,
+                         bool KeepAddrIndices = false);
 
     /// Clone an attribute referencing another DIE and add
     /// it to \p Die.
@@ -684,7 +694,7 @@ private:
                                  const DWARFFile &File, CompileUnit &Unit,
                                  AttributeSpec AttrSpec,
                                  const DWARFFormValue &Val,
-                                 bool IsLittleEndian);
+                                 AttributesInfo &Info, bool IsLittleEndian);
 
     /// Clone an attribute referencing another DIE and add
     /// it to \p Die.
