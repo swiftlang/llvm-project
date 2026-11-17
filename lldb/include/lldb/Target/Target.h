@@ -1776,6 +1776,10 @@ public:
 
     bool GetRunAtInitialStop() const { return m_at_initial_stop; }
 
+    void SetOneShot(bool one_shot) { m_one_shot = one_shot; }
+
+    bool IsOneShot() const { return m_one_shot; }
+
     void SetSuppressOutput(bool suppress_output) {
       m_suppress_output = suppress_output;
     }
@@ -1793,6 +1797,7 @@ public:
     bool m_active = true;
     bool m_auto_continue = false;
     bool m_at_initial_stop = true;
+    bool m_one_shot = false;
     bool m_suppress_output = false;
 
     StopHook(lldb::TargetSP target_sp, lldb::user_id_t uid);
