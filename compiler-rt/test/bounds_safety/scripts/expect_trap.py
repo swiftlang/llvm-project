@@ -159,17 +159,29 @@ def check_trap_instruction(lldb, thread, process, arch):
     return True, f"{mnemonic} {operands}"
 
 
-def find_test_frame(thread, source_basename):
+def find_test_frame(thread, source_basename, merged=False):
     """Walk stack frames to find first frame matching the test source.
 
-    Skips frames with line number 0 (e.g. the trap function itself which
-    has the source filename but no meaningful line info).
+    Skips frames with line number 0 if `merged` is False
+    (e.g. the trap function itself which has the source filename but no
+    meaningful line info).
+
+    If `merged` is True the trap is assumed to be a merged trap. A merged trap's
+    location is the merge of the locations of all the traps that were merged,
+    which has line number 0 when they are on different lines. So instead of
+    skipping frames with line number 0 the artificial `__clang_trap_msg` frames
+    are skipped.
     """
     for frame in thread:
         line_entry = frame.GetLineEntry()
         if not line_entry.IsValid():
             continue
-        if line_entry.GetLine() == 0:
+        if merged:
+            func_name = frame.GetFunctionName()
+            if func_name is not None and func_name.startswith(
+                    "__clang_trap_msg$"):
+                continue
+        elif line_entry.GetLine() == 0:
             continue
         file_spec = line_entry.GetFileSpec()
         if file_spec.GetFilename() == source_basename:
@@ -359,7 +371,8 @@ def check_trap(lldb, process, expectation, verify_source, merged_traps=False,
             # Check function name
             expected_func = expectation  # just a string
             source_basename = os.path.basename(verify_source)
-            frame, line_entry = find_test_frame(thread, source_basename)
+            frame, line_entry = find_test_frame(thread, source_basename,
+                                                merged=True)
             if frame is None:
                 log.error("no stack frame found in '%s'", source_basename)
                 log_stop_info(thread)
