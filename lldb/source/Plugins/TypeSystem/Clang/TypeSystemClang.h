@@ -878,9 +878,7 @@ public:
 
   std::optional<uint64_t>
   GetByteStride(lldb::opaque_compiler_type_t type,
-                ExecutionContextScope *exe_scope) override {
-    return {};
-  }
+                ExecutionContextScope *exe_scope) override;
 
   lldb::Encoding GetEncoding(lldb::opaque_compiler_type_t type) override;
 
