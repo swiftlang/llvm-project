@@ -9,6 +9,7 @@
 #include "clang/CodeGen/CodeGenAction.h"
 #include "BackendConsumer.h"
 #include "CGCall.h"
+#include "CGDebugInfo.h"
 #include "CodeGenModule.h"
 #include "CoverageMappingGen.h"
 #include "MacroPPCallbacks.h"
@@ -307,6 +308,8 @@ void BackendConsumer::HandleTranslationUnit(ASTContext &C) {
       ManglingFullSourceLocs.push_back(std::make_pair(NameHash, Loc));
     }
   }
+  if (CodeGen::CGDebugInfo *DI = Gen->CGM().getModuleDebugInfo())
+    DIFileSources = DI->getDIFileSources();
 
   if (CodeGenOpts.ClearASTBeforeBackend) {
     LLVM_DEBUG(llvm::dbgs() << "Clearing AST...\n");
@@ -546,19 +549,32 @@ bool BackendConsumer::ResourceLimitDiagHandler(
   return true;
 }
 
+OptionalFileEntryRef
+BackendConsumer::getSourceFile(const llvm::DIFile *File,
+                               ArrayRef<StringRef> Names) const {
+  auto It = DIFileSources.find(File);
+  // A DIFile shared by several files identifies none of them, and looking up
+  // its name could find the wrong one.
+  if (It != DIFileSources.end())
+    return It->second;
+  FileManager &FileMgr = Context->getSourceManager().getFileManager();
+  for (StringRef Name : Names)
+    if (auto FE = FileMgr.getOptionalFileRef(Name))
+      return FE;
+  return std::nullopt;
+}
+
 const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
     const llvm::DiagnosticInfoWithLocationBase &D, bool &BadDebugInfo,
     StringRef &Filename, unsigned &Line, unsigned &Column) const {
   SourceManager &SourceMgr = Context->getSourceManager();
-  FileManager &FileMgr = SourceMgr.getFileManager();
   SourceLocation DILoc;
 
   if (D.isLocationAvailable()) {
     D.getLocation(Filename, Line, Column);
     if (Line > 0) {
-      auto FE = FileMgr.getOptionalFileRef(Filename);
-      if (!FE)
-        FE = FileMgr.getOptionalFileRef(D.getAbsolutePath());
+      auto FE = getSourceFile(D.getLocation().getFile(),
+                              {Filename, D.getAbsolutePath()});
       if (FE) {
         // If -gcolumn-info was not used, Column will be 0. This upsets the
         // source manager, so pass 1 if Column is not set.
@@ -795,11 +811,10 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
   // Try debug info first for accurate source locations.
   if (!D.getDebugInlineChain().empty()) {
     SourceManager &SM = Context->getSourceManager();
-    FileManager &FM = SM.getFileManager();
     for (const auto &[I, Info] : llvm::enumerate(D.getDebugInlineChain())) {
       SourceLocation Loc;
       if (Info.Line > 0)
-        if (auto FE = FM.getOptionalFileRef(Info.Filename))
+        if (auto FE = getSourceFile(Info.File, Info.Filename))
           Loc = SM.translateFileLineCol(*FE, Info.Line,
                                         Info.Column ? Info.Column : 1);
       EmitNote(Loc, Info.FuncName, I == 0);
