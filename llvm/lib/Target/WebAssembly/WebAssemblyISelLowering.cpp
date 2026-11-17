@@ -787,14 +787,15 @@ static MachineBasicBlock *
 LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
                  const WebAssemblySubtarget *Subtarget,
                  const TargetInstrInfo &TII) {
-  MachineInstr &CallParams = *CallResults.getPrevNode();
-  assert(CallParams.getOpcode() == WebAssembly::CALL_PARAMS);
   assert(CallResults.getOpcode() == WebAssembly::CALL_RESULTS ||
          CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS);
+  bool IsRetCall = CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS;
+  MachineInstr &CallParams = *CallResults.getPrevNode();
+  assert(CallParams.getOpcode() ==
+         (IsRetCall ? WebAssembly::RET_CALL_PARAMS : WebAssembly::CALL_PARAMS));
 
   bool IsIndirect =
       CallParams.getOperand(0).isReg() || CallParams.getOperand(0).isFI();
-  bool IsRetCall = CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS;
 
   bool IsFuncrefCall = false;
   if (IsIndirect && CallParams.getOperand(0).isReg()) {
@@ -1354,6 +1355,13 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
         }
       }
     }
+
+    // A byval argument is copied into this function's stack frame below, and
+    // a tail call releases that frame before the callee reads the copy.
+    if (llvm::any_of(CLI.Outs, [](const ISD::OutputArg &Out) {
+          return Out.Flags.isByVal() && Out.Flags.getByValSize() != 0;
+        }))
+      NoTail("WebAssembly does not support tail calling with byval arguments");
   }
 
   SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
