@@ -615,8 +615,8 @@ void ThreadPlanStepOut::CalculateReturnValue() {
       if (!frame_sp)
           return;
 
-      m_swift_error_return =
-            swift_runtime->GetErrorReturnLocationAfterReturn(frame_sp);
+      m_swift_error_return = swift_runtime->GetErrorReturnLocationAfterReturn(
+          frame_sp, m_immediate_step_from_function);
     }
     if (m_swift_error_return) {
       ConstString name("swift_thrown_error");

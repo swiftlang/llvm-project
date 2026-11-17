@@ -2305,8 +2305,14 @@ void SwiftLanguageRuntime::DidFinishExecutingUserExpression(
 }
 
 std::optional<Value> SwiftLanguageRuntime::GetErrorReturnLocationAfterReturn(
-    lldb::StackFrameSP frame_sp) {
+    lldb::StackFrameSP frame_sp, Function *returned_from) {
   std::optional<Value> error_val;
+
+  // An async function passes its error to the continuation in swiftself.
+  bool is_async =
+      returned_from &&
+      IsAnySwiftAsyncFunctionSymbol(
+          returned_from->GetMangled().GetMangledName().GetStringRef());
 
   llvm::StringRef error_reg_name;
   ArchSpec arch_spec(GetTargetRef().GetArchitecture());
@@ -2315,10 +2321,10 @@ std::optional<Value> SwiftLanguageRuntime::GetErrorReturnLocationAfterReturn(
     error_reg_name = "r6";
     break;
   case llvm::Triple::ArchType::aarch64:
-    error_reg_name = "x21";
+    error_reg_name = is_async ? "x20" : "x21";
     break;
   case llvm::Triple::ArchType::x86_64:
-    error_reg_name = "r12";
+    error_reg_name = is_async ? "r13" : "r12";
     break;
   default:
     break;

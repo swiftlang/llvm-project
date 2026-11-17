@@ -19,7 +19,6 @@ class TestCase(lldbtest.TestBase):
     @swiftTest
     @skipEmbeddedSwift
     @skipIf(archs=["x86_64"], bugnumber="rdar://192464251")
-    @skipIf(oslist=["linux"], archs=["aarch64"])
     def test(self):
         """Test the type and the return value of async funclets"""
         self.build()
@@ -48,3 +47,16 @@ class TestCase(lldbtest.TestBase):
                 "v_" + function.removeprefix("f_")
             )
             self.assertEqual(returned, describe(variable))
+
+    @swiftTest
+    @skipEmbeddedSwift
+    @skipIf(archs=["x86_64"], bugnumber="rdar://192464251")
+    def test_thrown_error(self):
+        """Test the error thrown by an async function"""
+        self.build()
+        _, _, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "break in throwing", lldb.SBFileSpec("main.swift")
+        )
+        thread.StepOut()
+        self.assertFalse(thread.GetStopReturnValue().IsValid())
+        self.assertEqual(thread.GetStopErrorValue().GetTypeName(), "a.E")

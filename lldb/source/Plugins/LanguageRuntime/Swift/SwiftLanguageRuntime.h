@@ -615,7 +615,8 @@ public:
                                                          bool persistent);
 
   std::optional<Value>
-  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp);
+  GetErrorReturnLocationAfterReturn(lldb::StackFrameSP frame_sp,
+                                    Function *returned_from = nullptr);
 
   std::optional<Value>
   GetErrorReturnLocationBeforeReturn(lldb::StackFrameSP frame_sp,
