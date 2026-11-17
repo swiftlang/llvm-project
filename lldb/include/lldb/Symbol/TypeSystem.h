@@ -645,8 +645,6 @@ public:
 
   virtual void ClearModuleDependentCaches() {}
 
-  virtual void ModulesDidLoad(ModuleList &module_list) {}
-
   // END SWIFT
 
 protected:
