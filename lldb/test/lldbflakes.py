@@ -21,16 +21,32 @@ MAX_ATTEMPTS = 3
 # On Windows, any failure or timeout is rerun until the flakes in LLDB's
 # Windows support are fixed.
 # rdar://188906589
-RERUN_ALL_FAILURES = platform.system() == "Windows"
+RERUN_ALL_FAILURES = False
+
+# Rerunning every failure on Windows is meant to surface flakiness, not to hide
+# it, so a test that needed a rerun still counts as a failure. These codes are
+# distinct from lit's FLAKYPASS, which does not count as a failure.
+FLAKYPASS = lit.Test.ResultCode(
+    "FLAKYPASS_FAILURE", "Passed With Retry (Counted As Failure)", True
+)
+FLAKYFAIL = lit.Test.ResultCode("FLAKYFAIL", "Failed With Retry", True)
 # END SWIFT
 
 def _hit_known_flake(output):
     return any(flake.search(output) for flake in KNOWN_FLAKES)
 
 
-def execute_with_reruns(execute_once):
+def _is_expected_to_fail(test):
+    try:
+        return test.isExpectedToFail()
+    except ValueError:
+        return True
+
+
+def execute_with_reruns(test, execute_once):
     """Run execute_once, which returns a lit.Test.Result, until it stops
-    failing with a known flake, or with any failure on Windows."""
+    failing with a known flake, or with any failure on Windows. Tests that are
+    expected to fail are never rerun."""
     outputs = []
     for attempt in range(MAX_ATTEMPTS):
         result = execute_once()
@@ -38,6 +54,8 @@ def execute_with_reruns(execute_once):
             "Attempt %d of %d: %s\n%s"
             % (attempt + 1, MAX_ATTEMPTS, result.code.name, result.output)
         )
+        if _is_expected_to_fail(test):
+            break
         if RERUN_ALL_FAILURES and result.code.isFailure:
             continue
         if result.code != lit.Test.FAIL or not _hit_known_flake(result.output):
@@ -46,7 +64,12 @@ def execute_with_reruns(execute_once):
     # A pass that needed a rerun is reported apart from a clean pass so that
     # the flakiness stays visible.
     if attempt > 0:
-        if result.code == lit.Test.PASS:
+        if RERUN_ALL_FAILURES:
+            if result.code == lit.Test.PASS:
+                result.code = FLAKYPASS
+            elif result.code.isFailure:
+                result.code = FLAKYFAIL
+        elif result.code == lit.Test.PASS:
             result.code = lit.Test.FLAKYPASS
         result.attempts = attempt + 1
         result.max_allowed_attempts = MAX_ATTEMPTS
