@@ -478,6 +478,11 @@ Interpreter::Visit(const IdentifierNode &node) {
       return llvm::make_error<DILDiagnosticError>(
           m_expr, message, node.GetLocation(), node.GetName().size());
     // END SWIFT
+    if (std::string message =
+            m_stack_frame.GetMissingVariableDiagnostic(node.GetName());
+        !message.empty())
+      return llvm::make_error<DILDiagnosticError>(
+          m_expr, message, node.GetLocation(), node.GetName().size());
     std::string errMsg =
         llvm::formatv("use of undeclared identifier '{0}'", node.GetName());
     return llvm::make_error<DILDiagnosticError>(
