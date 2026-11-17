@@ -21,6 +21,7 @@
 #include "Plugins/Language/Swift/LogChannelSwift.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "Plugins/TypeSystem/Swift/SwiftDemangle.h"
+#include "lldb/Core/Debugger.h"
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
 #include "lldb/Host/SafeMachO.h"
 #include "lldb/Symbol/Variable.h"
@@ -4635,6 +4636,26 @@ bool SwiftLanguageRuntime::IsAllowedRuntimeValue(ConstString name) {
 
 bool SwiftLanguageRuntime::CouldHaveDynamicValue(ValueObject &in_value) {
   return ::CouldHaveDynamicValue(in_value);
+}
+
+/// Returns whether \p target is the Swift REPL.
+static bool IsSwiftREPL(Target &target) {
+  return target.GetDebugger().REPLIsActive() &&
+         target.GetProcessLaunchInfo().GetArg0().ends_with("repl_swift");
+}
+
+bool SwiftLanguageRuntime::IsPreferredLanguageRuntimeFor(
+    ValueObject &in_value) {
+  // Resolve Objective-C objects in Swift code, including the Swift REPL, as
+  // Swift objects.
+  if (in_value.GetObjectRuntimeLanguage() != eLanguageTypeObjC)
+    return false;
+  ExecutionContext exe_ctx(in_value.GetExecutionContextRef());
+  if (StackFrame *frame = exe_ctx.GetFramePtr())
+    if (frame->GetLanguage().name == llvm::dwarf::DW_LNAME_Swift)
+      return true;
+  Target *target = exe_ctx.GetTargetPtr();
+  return target && IsSwiftREPL(*target);
 }
 
 CompilerType
