@@ -55,7 +55,12 @@ add_llvm_external_project(clang)
 add_llvm_external_project(flang)
 
 # Begin Swift MOD
-if(LLVM_EXTERNAL_SWIFT_SOURCE_DIR AND "swift" IN_LIST LLVM_EXTERNAL_PROJECTS AND APPLE)
+option(LLVM_ENSURE_SWIFT_CONFIGURES_BEFORE_LLDB
+  "If swift is configured as an external project,
+   configure it before LLDB (and ensure cmark and
+   SwiftDriver are configured as well)"
+  OFF)
+if(LLVM_EXTERNAL_SWIFT_SOURCE_DIR AND "swift" IN_LIST LLVM_EXTERNAL_PROJECTS AND LLVM_ENSURE_SWIFT_CONFIGURES_BEFORE_LLDB)
   if(LLVM_EXTERNAL_CMARK_SOURCE_DIR AND "cmark" IN_LIST LLVM_EXTERNAL_PROJECTS)
     add_llvm_external_project(cmark)
   endif()
