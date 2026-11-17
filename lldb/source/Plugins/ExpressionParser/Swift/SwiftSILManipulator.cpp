@@ -105,7 +105,7 @@ swift::SILValue SwiftSILManipulator::emitLValueForVariable(
                            swift::LoadOwnershipQualifier::Trivial);
   auto type = var->getTypeInContext();
   auto loweredType = converter.getLoweredRValueType(
-      swift::TypeExpansionContext::minimal(), type);
+      function.getTypeExpansionContext(), type);
 
   // The fact that self is unowned is not preserved in the inner
   // lldb_expr function. By casting the value to $*@sil_unowned ...
