@@ -536,24 +536,6 @@ VariableList *StackFrame::GetVariableList(bool get_file_globals,
   return m_variable_list_sp.get();
 }
 
-// BEGIN SWIFT
-std::string
-StackFrame::GetVariableNotCapturedDiagnostic(llvm::StringRef missing_var_name) {
-  Language *lang_plugin = Language::FindPlugin(GetLanguage().AsLanguageType());
-  if (lang_plugin == nullptr)
-    return "";
-  Function *parent_func =
-      lang_plugin->FindParentOfClosureWithVariable(missing_var_name, m_sc);
-  if (!parent_func)
-    return "";
-  return llvm::formatv("A variable named '{0}' existed in function '{1}', but "
-                       "it was not captured in the closure.\nHint: the "
-                       "variable may be available in a parent frame.",
-                       missing_var_name,
-                       parent_func->GetDisplayName().GetStringRef());
-}
-// END SWIFT
-
 VariableListSP
 StackFrame::GetInScopeVariableList(bool get_file_globals,
                                    bool include_synthetic_vars,
@@ -775,17 +757,12 @@ ValueObjectSP StackFrame::LegacyGetValueForVariableExpressionPath(
       return valobj_sp;
   }
   if (!valobj_sp) {
-    // BEGIN SWIFT
-    // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-    // rdar://152321823
-    if (std::string message =
-            GetVariableNotCapturedDiagnostic(name_const_string);
+    if (std::string message = GetMissingVariableDiagnostic(name_const_string);
         !message.empty())
       error = Status::FromErrorString(message.c_str());
     else
-    // END SWIFT
-    error = Status::FromErrorStringWithFormatv(
-        "no variable named '{0}' found in this frame", name_const_string);
+      error = Status::FromErrorStringWithFormatv(
+          "no variable named '{0}' found in this frame", name_const_string);
     return ValueObjectSP();
   }
 
@@ -1493,6 +1470,14 @@ SourceLanguage StackFrame::GetLanguage() {
   if (cu)
     return SourceLanguage{cu->GetLanguage()};
   return {};
+}
+
+std::string StackFrame::GetMissingVariableDiagnostic(llvm::StringRef name) {
+  Language *language = Language::FindPlugin(GetLanguage().AsLanguageType());
+  if (!language)
+    return {};
+  return language->GetMissingVariableDiagnostic(
+      name, GetSymbolContext(eSymbolContextModule | eSymbolContextFunction));
 }
 
 SourceLanguage StackFrame::GuessLanguage() {
