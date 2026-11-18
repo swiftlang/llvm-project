@@ -39,6 +39,7 @@
 
 #include <cassert>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -2536,9 +2537,174 @@ SwiftLanguage::GetFunctionNameInfo(ConstString name) const {
   return {func_name_type, ConstString(basename)};
 }
 
-std::string SwiftLanguage::GetParentNameIfClosure(Function &func) const {
-  return SwiftLanguageRuntime::GetParentNameIfClosure(func);
+/// If `sc` represents a closure, returns sc.function and all parent
+/// functions up to and including the first function that is not a closure. If
+/// `sc` is not a closure, returns a list containing only sc.function.
+static llvm::SmallVector<Function *>
+GetParentFunctionsWhileClosure(const SymbolContext &sc) {
+  // The algorithm below terminates on the assumption that
+  // `GetParentNameIfClosure()` produces an empty string when composing that
+  // function with itself enough times. For safety, define an upper limit.
+  constexpr auto upper_limit = 8;
+
+  llvm::SmallVector<Function *> parents;
+  Function *root = sc.function;
+  if (root == nullptr)
+    return parents;
+
+  parents.push_back(root);
+  for (int idx = 0; idx < upper_limit; idx++) {
+    std::string parent = SwiftLanguageRuntime::GetParentNameIfClosure(*root);
+    if (parent.empty())
+      break;
+
+    // Find the enclosing function, if it exists.
+    SymbolContextList sc_list;
+    std::vector<Module::LookupInfo> lookup_info =
+        Module::LookupInfo::MakeLookupInfos(
+            ConstString(parent), lldb::FunctionNameType::eFunctionNameTypeFull,
+            lldb::eLanguageTypeSwift);
+    sc.module_sp->FindFunctions(lookup_info, CompilerDeclContext(),
+                                ModuleFunctionSearchOptions(), sc_list);
+    if (sc_list.GetSize() != 1 || sc_list[0].function == nullptr)
+      break;
+    parents.push_back(sc_list[0].function);
+    root = sc_list[0].function;
+  }
+  return parents;
 }
+
+/// Scans the line table of `function` looking for the first entry whose line
+/// number is `line_number`. If no such entry is found, returns the entry
+/// closest to but after `line_number`.
+static std::optional<Address> FindAddressForLineNumber(Function &function,
+                                                       uint32_t line_number) {
+  CompileUnit *cu = function.GetCompileUnit();
+  LineTable *line_table = cu ? cu->GetLineTable() : nullptr;
+  if (line_table == nullptr)
+    return std::nullopt;
+
+  // Get the first line entry for this function.
+  AddressRange func_range = function.GetAddressRanges().front();
+  uint32_t first_entry_idx;
+  {
+    LineEntry first_line_entry;
+    line_table->FindLineEntryByAddress(func_range.GetBaseAddress(),
+                                       first_line_entry, &first_entry_idx);
+  }
+
+  LineEntry best_match;
+  for (uint32_t entry_idx = first_entry_idx; entry_idx < line_table->GetSize();
+       entry_idx++) {
+    LineEntry next_line;
+    line_table->GetLineEntryAtIndex(entry_idx, next_line);
+
+    // Stop if this entry is outside the range of `function`.
+    Address base_addr = next_line.range.GetBaseAddress();
+    if (!func_range.ContainsFileAddress(base_addr))
+      break;
+
+    // Stop on an exact match.
+    if (next_line.line == line_number) {
+      best_match = next_line;
+      break;
+    }
+
+    // Otherwise, keep track of the best match so far.
+    if (next_line.line > line_number && next_line.line < best_match.line)
+      best_match = next_line;
+  }
+
+  return best_match.range.GetBaseAddress();
+}
+
+/// Given a list of functions, returns a map: Function -> VariableList
+/// containing local variables of each function.
+static std::map<Function *, VariableList>
+GetFuncToLocalVariablesMap(llvm::ArrayRef<Function *> funcs) {
+  std::map<Function *, VariableList> map;
+  for (Function *function : funcs) {
+    VariableList &variable_list = map[function];
+    Block &block = function->GetBlock(true /*can_create=*/);
+    block.AppendBlockVariables(
+        true /*can_create=*/, true /*get_child_block_variables=*/,
+        true /*stop_if_child_block_is_inlined_function=*/,
+        [](Variable *v) { return true; }, &variable_list);
+  }
+  return map;
+}
+
+/// Returns the first line associated with `function`.
+static uint32_t GetLineNumberForFunction(Function &function) {
+  SupportFileNSP func_decl_file_nsp = std::make_shared<SupportFile>();
+  uint32_t line_num = 0;
+  function.GetStartLineSourceInfo(func_decl_file_nsp, line_num);
+  return line_num;
+}
+
+/// Checks if `var` is in scope inside `function` at line `line_number`.
+/// If this check can't be done, a best-effort comparison of:
+///    line_number >= var.line_number
+/// is performed.
+static bool IsVariableInScopeAtLine(uint32_t line_number,
+                                    std::optional<Address> line_addr,
+                                    Variable &var) {
+  auto fallback_line_comp = [&] {
+    return line_number >= var.GetDeclaration().GetLine();
+  };
+
+  if (!line_addr)
+    return fallback_line_comp();
+
+  Block *defining_block = line_addr->CalculateSymbolContextBlock();
+  if (defining_block)
+    return var.IsInScope(*defining_block, *line_addr);
+  return fallback_line_comp();
+}
+
+/// If `closure_sc` represents a closure, returns the parent function where a
+/// variable named `variable_name` exists, or nullptr.
+static Function *
+FindParentOfClosureWithVariable(llvm::StringRef variable_name,
+                                const SymbolContext &closure_sc) {
+  llvm::SmallVector<Function *> function_chain =
+      GetParentFunctionsWhileClosure(closure_sc);
+  if (function_chain.empty())
+    return nullptr;
+
+  std::map<Function *, VariableList> func_to_locals =
+      GetFuncToLocalVariablesMap(function_chain);
+
+  llvm::ArrayRef<Function *> children =
+      llvm::ArrayRef(function_chain).drop_back();
+  llvm::ArrayRef<Function *> parents =
+      llvm::ArrayRef(function_chain).drop_front();
+
+  for (auto [parent, child] : llvm::zip_equal(parents, children)) {
+    VariableList &parent_variables = func_to_locals[parent];
+    uint32_t child_line_number = GetLineNumberForFunction(*child);
+    std::optional<Address> parent_line_addr =
+        FindAddressForLineNumber(*parent, child_line_number);
+
+    for (const VariableSP &var : parent_variables)
+      if (var->GetName() == variable_name &&
+          IsVariableInScopeAtLine(child_line_number, parent_line_addr, *var))
+        return parent;
+  }
+  return nullptr;
+}
+std::string
+SwiftLanguage::GetMissingVariableDiagnostic(llvm::StringRef name,
+                                            const SymbolContext &sc) const {
+  Function *parent_func = FindParentOfClosureWithVariable(name, sc);
+  if (!parent_func)
+    return {};
+  return llvm::formatv("A variable named '{0}' existed in function '{1}', but "
+                       "it was not captured in the closure.\nHint: the "
+                       "variable may be available in a parent frame.",
+                       name, parent_func->GetDisplayName().GetStringRef());
+}
+
 //------------------------------------------------------------------
 // Static Functions
 //------------------------------------------------------------------
