@@ -423,7 +423,8 @@ unsigned TypeSystemClike::GetTypeQualifiers(lldb::opaque_compiler_type_t type) {
 }
 
 std::optional<uint64_t>
-TypeSystemClike::GetByteStride(lldb::opaque_compiler_type_t type) {
+TypeSystemClike::GetByteStride(lldb::opaque_compiler_type_t type,
+                               ExecutionContextScope *exe_scope) {
   return std::nullopt;
 }
 
