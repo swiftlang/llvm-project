@@ -784,8 +784,12 @@ ValueObjectSP StackFrame::LegacyGetValueForVariableExpressionPath(
       error = Status::FromErrorString(message.c_str());
     else
     // END SWIFT
-    error = Status::FromErrorStringWithFormatv(
-        "no variable named '{0}' found in this frame", name_const_string);
+    if (std::string message = GetMissingVariableDiagnostic(name_const_string);
+        !message.empty())
+      error = Status::FromErrorString(message.c_str());
+    else
+      error = Status::FromErrorStringWithFormatv(
+          "no variable named '{0}' found in this frame", name_const_string);
     return ValueObjectSP();
   }
 
@@ -1493,6 +1497,14 @@ SourceLanguage StackFrame::GetLanguage() {
   if (cu)
     return SourceLanguage{cu->GetLanguage()};
   return {};
+}
+
+std::string StackFrame::GetMissingVariableDiagnostic(llvm::StringRef name) {
+  Language *language = Language::FindPlugin(GetLanguage().AsLanguageType());
+  if (!language)
+    return {};
+  return language->GetMissingVariableDiagnostic(
+      name, GetSymbolContext(eSymbolContextModule | eSymbolContextFunction));
 }
 
 SourceLanguage StackFrame::GuessLanguage() {
