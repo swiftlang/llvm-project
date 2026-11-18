@@ -515,6 +515,10 @@ public:
   /// guess if exact information is not available.
   virtual SourceLanguage GuessLanguage();
 
+  /// Returns an explanation of why this frame has no variable named \p name,
+  /// from the plugin of the frame's language, or an empty string.
+  std::string GetMissingVariableDiagnostic(llvm::StringRef name);
+
   /// Attempt to econstruct the ValueObject for a given raw address touched by
   /// the current instruction.  The ExpressionPath should indicate how to get
   /// to this value using "frame variable."
@@ -566,17 +570,6 @@ public:
   void CalculateExecutionContext(ExecutionContext &exe_ctx) override;
 
   virtual lldb::RecognizedStackFrameSP GetRecognizedFrame();
-
-  // BEGIN SWIFT
-  // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-  // rdar://152321823
-  /// If `sc` represents a "closure-like" function according to `lang`, and
-  /// `missing_var_name` can be found in a parent context, create a diagnostic
-  /// explaining that this variable is available but not captured by the
-  /// closure.
-  std::string
-  GetVariableNotCapturedDiagnostic(llvm::StringRef missing_var_name);
-  // END SWIFT
 
   // Return a ThreadPlanSP or an error.  Returning an empty ThreadPlanSP means
   // the frame doesn't have a custom step plan, only return an error if the

@@ -469,15 +469,11 @@ Interpreter::Visit(const IdentifierNode &node) {
     identifier = LookupEnumValue(node.GetName(), m_stack_frame);
 
   if (!identifier) {
-    // BEGIN SWIFT
-    // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-    // rdar://152321823
     if (std::string message =
-            m_stack_frame.GetVariableNotCapturedDiagnostic(node.GetName());
+            m_stack_frame.GetMissingVariableDiagnostic(node.GetName());
         !message.empty())
       return llvm::make_error<DILDiagnosticError>(
           m_expr, message, node.GetLocation(), node.GetName().size());
-    // END SWIFT
     std::string errMsg =
         llvm::formatv("use of undeclared identifier '{0}'", node.GetName());
     return llvm::make_error<DILDiagnosticError>(
