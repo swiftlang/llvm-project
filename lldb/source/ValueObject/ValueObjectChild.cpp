@@ -117,9 +117,15 @@ bool ValueObjectChild::UpdateValue() {
       m_value.SetValueType(parent->GetValue().GetValueType());
 
       Flags parent_type_flags(parent_type.GetTypeInfo());
+      // If instances of both the parent's type and the base class are pointers,
+      // as with a Swift class and its Swift base class, the base class child's
+      // value is the parent's pointer. An Objective-C base class of a Swift
+      // class is instead stored at the address that the pointer points to.
       const bool is_instance_ptr_base =
-          ((m_is_base_class) &&
-           (parent_type_flags.AnySet(lldb::eTypeInstanceIsPointer)));
+          m_is_base_class &&
+          parent_type_flags.AnySet(lldb::eTypeInstanceIsPointer) &&
+          Flags(GetCompilerType().GetTypeInfo())
+              .AnySet(lldb::eTypeInstanceIsPointer);
 
       if (parent->GetCompilerType().ShouldTreatScalarValueAsAddress()) {
         // BEGIN SWIFT MOD
@@ -155,19 +161,9 @@ bool ValueObjectChild::UpdateValue() {
             m_value.SetValueType(Value::ValueType::FileAddress);
         } break;
         case eAddressTypeLoad:
-          // BEGIN SWIFT MOD
-          // We need to detect when we cross TypeSystem boundaries,
-          // e.g. when we try to print Obj-C fields of a Swift object.
-          if (parent->GetCompilerType().GetTypeSystem()->SupportsLanguage(
-                  lldb::eLanguageTypeSwift) &&
-              GetCompilerType().GetTypeSystem()->SupportsLanguage(
-                  lldb::eLanguageTypeSwift))
-            m_value.SetValueType(is_instance_ptr_base
-                                     ? Value::ValueType::Scalar
-                                     : Value::ValueType::LoadAddress);
-          else
-            m_value.SetValueType(Value::ValueType::LoadAddress);
-          // END SWIFT MOD
+          m_value.SetValueType(is_instance_ptr_base
+                                   ? Value::ValueType::Scalar
+                                   : Value::ValueType::LoadAddress);
           break;
         case eAddressTypeHost:
           m_value.SetValueType(Value::ValueType::HostAddress);
