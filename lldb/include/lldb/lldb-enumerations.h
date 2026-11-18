@@ -872,7 +872,8 @@ enum SymbolType {
   eSymbolTypeObjCMetaClass,
   eSymbolTypeObjCIVar,
   eSymbolTypeReExported,
-  eSymbolTypeASTFile   // A symbol whose name is the path to a compiler AST file
+  /// The symbol's name is the path to a compiler AST file.
+  eSymbolTypeASTFile
 };
 
 enum SectionType {

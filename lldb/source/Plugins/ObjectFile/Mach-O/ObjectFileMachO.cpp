@@ -2965,7 +2965,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
         break;
 
       case N_AST:
-        // A path to a compiler AST file
+        // AST file path: name,,NO_SECT,0,0
         type = eSymbolTypeASTFile;
         break;
 
