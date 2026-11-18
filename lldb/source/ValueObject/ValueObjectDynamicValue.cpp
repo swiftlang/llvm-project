@@ -21,7 +21,6 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/ValueObject/ValueObject.h"
 #include "lldb/lldb-types.h"
-#include "llvm/BinaryFormat/Dwarf.h"
 
 #include <cstring>
 #include <optional>
@@ -162,21 +161,7 @@ bool ValueObjectDynamicValue::UpdateValue() {
   LanguageRuntime *runtime = nullptr;
   lldb::LanguageType known_type = m_parent->GetObjectRuntimeLanguage();
 
-#ifdef LLDB_ENABLE_SWIFT
-  // An Objective-C object inside a Swift frame.
-  if (known_type == eLanguageTypeObjC)
-    if ((exe_ctx.GetFramePtr() && exe_ctx.GetFramePtr()->GetLanguage().name ==
-                                      llvm::dwarf::DW_LNAME_Swift) ||
-        (exe_ctx.GetTargetPtr() && exe_ctx.GetTargetPtr()->IsSwiftREPL())) {
-      runtime = process->GetLanguageRuntime(lldb::eLanguageTypeSwift);
-      if (runtime)
-        found_dynamic_type = runtime->GetDynamicTypeAndAddress(
-            *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
-            value_type, local_buffer);
-    }
-#endif // LLDB_ENABLE_SWIFT
-  if (!found_dynamic_type &&
-      known_type != lldb::eLanguageTypeUnknown &&
+  if (known_type != lldb::eLanguageTypeUnknown &&
       known_type != lldb::eLanguageTypeC) {
     runtime = process->GetLanguageRuntime(known_type);
     if (auto *preferred_runtime =
@@ -194,7 +179,7 @@ bool ValueObjectDynamicValue::UpdateValue() {
       found_dynamic_type = runtime->GetDynamicTypeAndAddress(
           *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
           value_type, local_buffer);
-  } else if (!found_dynamic_type) {
+  } else {
     runtime = process->GetLanguageRuntime(lldb::eLanguageTypeC_plus_plus);
     if (runtime)
       found_dynamic_type = runtime->GetDynamicTypeAndAddress(

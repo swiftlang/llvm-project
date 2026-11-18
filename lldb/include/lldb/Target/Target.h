@@ -1610,11 +1610,6 @@ public:
   CreateUtilityFunction(std::string expression, std::string name,
                         lldb::LanguageType language, ExecutionContext &exe_ctx);
 
-#ifdef LLDB_ENABLE_SWIFT
-  /// Return whether this is the Swift REPL.
-  bool IsSwiftREPL();
-#endif // LLDB_ENABLE_SWIFT
-
 public:
 
   // Install any files through the platform that need be to installed prior to

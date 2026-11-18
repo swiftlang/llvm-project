@@ -2968,14 +2968,6 @@ Target::CreateUtilityFunction(std::string expression, std::string name,
   return std::move(utility_fn);
 }
 
-#ifdef LLDB_ENABLE_SWIFT
-
-bool Target::IsSwiftREPL() {
-  return m_debugger.REPLIsActive() &&
-         GetProcessLaunchInfo().GetArg0().ends_with("repl_swift");
-}
-#endif // LLDB_ENABLE_SWIFT
-
 void Target::SettingsInitialize() { Process::SettingsInitialize(); }
 
 void Target::SettingsTerminate() { Process::SettingsTerminate(); }

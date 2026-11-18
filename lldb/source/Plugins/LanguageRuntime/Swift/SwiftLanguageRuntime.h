@@ -397,6 +397,7 @@ public:
                                                      bool catch_bp,
                                                      bool throw_bp) override;
   bool CouldHaveDynamicValue(ValueObject &in_value) override;
+  bool IsPreferredLanguageRuntimeFor(ValueObject &in_value) override;
   llvm::Error GetObjectDescription(Stream &str, ValueObject &object) override;
   CompilerType GetConcreteType(ExecutionContextScope *exe_scope,
                                ConstString abstract_type_name) override;
