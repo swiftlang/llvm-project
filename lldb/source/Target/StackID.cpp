@@ -10,6 +10,7 @@
 #include "lldb/Symbol/Block.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/SymbolContext.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Thread.h"
@@ -165,7 +166,10 @@ CompareHeapCFAs(const StackID &lhs, const StackID &rhs, Process &process) {
 // END SWIFT
 
 bool StackID::IsYoungerThan(const StackID &other, Process &process) const {
-  switch (process.CompareCFAs(*this, other)) {
+  CFAComparison comparison = process.CompareCFAs(*this, other);
+  if (comparison == CFAComparison::NoOpinion)
+    comparison = LanguageRuntime::CompareCFAs(process, *this, other);
+  switch (comparison) {
   case CFAComparison::Younger:
     return true;
   case CFAComparison::Older:
