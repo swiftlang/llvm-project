@@ -3121,10 +3121,12 @@ public:
       llvm::Value *Lower, bool AcceptNullPt = false,
       BoundsSafetyTrapCtx::Kind TrapCtx = BoundsSafetyTrapCtx::UNKNOWN,
       PartialDiagnostic *PD = nullptr);
-  void EmitBoundsSafetyRangeCheck(
-      llvm::Value *LowerBound, llvm::Value *LowerAccess,
-      llvm::Value *UpperAccess, llvm::Value *UpperBound,
-      BoundsSafetyTrapCtx::Kind TrapCtx = BoundsSafetyTrapCtx::UNKNOWN);
+  void EmitBoundsSafetyRangeCheck(llvm::Value *LowerBound,
+                                  llvm::Value *LowerAccess,
+                                  llvm::Value *UpperAccess,
+                                  llvm::Value *UpperBound,
+                                  BoundsSafetyTrapCtx::Kind TrapCtx,
+                                  const PartialDiagnostic &PD);
   LValue EmitWidePtrArraySubscriptExpr(const ArraySubscriptExpr *E,
                                        bool Accessed = true);
 

@@ -1,8 +1,18 @@
-
-// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o %t_bidi.ll
 // RUN: echo "; __SEPERATOR__" > %t.sep
-// RUN: cat %t_bidi.ll %t.sep %t_bidi.ll > %t_bidi.repeated.ll
-// RUN: FileCheck %s --input-file=%t_bidi.repeated.ll
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm %s -o %t_bidi_basic.ll
+// RUN: cat %t_bidi_basic.ll %t.sep %t_bidi_basic.ll > %t_bidi_basic.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC \
+// RUN:   --input-file=%t_bidi_basic.repeated.ll
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm %s -o %t_bidi_detailed.ll
+// RUN: cat %t_bidi_detailed.ll %t.sep %t_bidi_detailed.ll > %t_bidi_detailed.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED \
+// RUN:   --input-file=%t_bidi_detailed.repeated.ll
 #include <ptrcheck.h>
 
 typedef struct Data {
@@ -18,9 +28,10 @@ int operation(Data_t* __bidi_indexable d) {
 
 // In first copy of the file
 // CHECK-DAG: [[OPT_REMARK:![0-9]+]] = !{!"bounds-safety-check-ptr-ge-lower-bound"}
-// CHECK-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Dereferencing below bounds", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// BASIC-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Dereferencing below bounds", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$member access below lower bound in 'd->a'", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
 // CHECK-DAG: [[TRAP_LOC:![0-9]+]] = !DILocation(line: 0, scope: [[TRAP_SCOPE]], inlinedAt: [[SRC_LOC:![0-9]+]])
-// CHECK-DAG: [[SRC_LOC]] = !DILocation(line: 16, column: 15, scope: {{![0-9]+}}) 
+// CHECK-DAG: [[SRC_LOC]] = !DILocation(line: 26, column: 15, scope: {{![0-9]+}})
 // CHECK-LABEL: ; __SEPERATOR__
 
 // In second copy of the file

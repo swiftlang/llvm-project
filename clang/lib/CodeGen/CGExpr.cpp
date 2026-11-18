@@ -255,12 +255,15 @@ void CodeGenFunction::EmitBoundsSafetyBoundsCheck(
     EmitBlock(NullBB);
 }
 
-void CodeGenFunction::EmitBoundsSafetyRangeCheck(llvm::Value *LowerBound,
-                                              llvm::Value *LowerAccess,
-                                              llvm::Value *UpperAccess,
-                                              llvm::Value *UpperBound,
-                                              BoundsSafetyTrapCtx::Kind TrapCtx) {
+void CodeGenFunction::EmitBoundsSafetyRangeCheck(
+    llvm::Value *LowerBound, llvm::Value *LowerAccess, llvm::Value *UpperAccess,
+    llvm::Value *UpperBound, BoundsSafetyTrapCtx::Kind TrapCtx,
+    const PartialDiagnostic &PD) {
   // rdar://109574814: opt-remarks could be added here.
+
+  // `PD` provides the trap diagnostic to use and all of its arguments except
+  // the last which is the check that failed (`diag::BoundsSafetyPtrCheckKind`).
+  assert(PD.getDiagID() != 0 && "PD must specify the trap diagnostic");
 
   // LowerBound <= LowerAccess <= UpperAccess <= UpperBound.
   // This function assumes that LowerAccess <= UpperAccess and
@@ -270,14 +273,22 @@ void CodeGenFunction::EmitBoundsSafetyRangeCheck(llvm::Value *LowerBound,
     BoundsSafetyOptRemarkScope Scope(this, BNS_OR_PTR_GE_UPPER_BOUND);
     llvm::Value *UpperCheck = Builder.CreateICmpULE(UpperAccess, UpperBound);
     assert(TrapCtx != BoundsSafetyTrapCtx::UNKNOWN);
-    EmitBoundsSafetyTrapCheck(UpperCheck, BNS_TRAP_PTR_GE_UPPER_BOUND, TrapCtx);
+    TrapReason TR;
+    CGM.BuildTrapReason(PD.getDiagID(), TR)
+        << PD << diag::BoundsSafetyPtrCheckKind::Upper;
+    EmitBoundsSafetyTrapCheck(UpperCheck, BNS_TRAP_PTR_GE_UPPER_BOUND, TrapCtx,
+                              &TR);
   }
 
   if (LowerBound != LowerAccess) {
     BoundsSafetyOptRemarkScope Scope(this, BNS_OR_PTR_LT_LOWER_BOUND);
     llvm::Value *LowerCheck = Builder.CreateICmpULE(LowerBound, LowerAccess);
     assert(TrapCtx != BoundsSafetyTrapCtx::UNKNOWN);
-    EmitBoundsSafetyTrapCheck(LowerCheck, BNS_TRAP_PTR_LT_LOWER_BOUND, TrapCtx);
+    TrapReason TR;
+    CGM.BuildTrapReason(PD.getDiagID(), TR)
+        << PD << diag::BoundsSafetyPtrCheckKind::Lower;
+    EmitBoundsSafetyTrapCheck(LowerCheck, BNS_TRAP_PTR_LT_LOWER_BOUND, TrapCtx,
+                              &TR);
   }
 }
 
@@ -6700,8 +6711,11 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
       llvm::Value *Ptr = Addr.getBasePointer();
       llvm::Value *OnePastTheEndPtr = Builder.CreateGEP(Addr.getElementType(), Ptr,
           llvm::ConstantInt::get(SizeTy, 1));
-      EmitBoundsSafetyRangeCheck(Lower ? Lower : Ptr, Ptr, OnePastTheEndPtr, Upper,
-                              BoundsSafetyTrapCtx::DEREF);
+      auto PD =
+          CGM.BuildPartialTrapReason(diag::trap_bs_upper_lower_overflow_bound);
+      PD << /*%0=*/diag::BoundsCheckContextKind::MemberAccess << /*%1=*/E;
+      EmitBoundsSafetyRangeCheck(Lower ? Lower : Ptr, Ptr, OnePastTheEndPtr,
+                                 Upper, BoundsSafetyTrapCtx::DEREF, PD);
     }
     /* TO_UPSTREAM(BoundsSafety) OFF*/
 
