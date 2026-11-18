@@ -205,7 +205,7 @@ typedef struct {
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[PAYLOAD]], i64 [[TMP2]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    [[OR_COND136_NOT138:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp samesign ugt i64 [[TMP2]], 6, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND137:%.*]] = and i1 [[OR_COND136_NOT138]], [[CMP38]], {{!annotation ![0-9]+}}
@@ -317,7 +317,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK:       [[FOR_BODY_LR_PH]]:
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
 // CHECK-NEXT:    [[SUB_PTR_LHS_CAST:%.*]] = ptrtoaddr ptr [[ADD_PTR]] to i64, {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
@@ -409,7 +409,7 @@ struct arrays {
 // CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr inbounds nuw i8, ptr [[PAYLOAD]], i64 [[TMP2]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[BOUND_PTR_ARITH:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 7
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp samesign ugt i64 [[TMP2]], 6, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = and i1 [[OR_COND146_NOT148]], [[CMP38]], {{!annotation ![0-9]+}}
@@ -541,7 +541,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
 // CHECK-NEXT:    [[UPPER116:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 64
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
@@ -640,7 +640,7 @@ void concat_to_arrays_struct_can_remove_arrays_check_opaque(struct arrays *array
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
 // CHECK-NEXT:    [[CMP14_NOT:%.*]] = icmp ule ptr [[BOUND_PTR_ARITH]], [[ADD_PTR]], {{!annotation ![0-9]+}}
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    [[OR_COND146_NOT148:%.*]] = and i1 [[CMP14_NOT]], [[CMP26_NOT]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[CMP38:%.*]] = icmp samesign ugt i64 [[TMP2]], 6, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    [[OR_COND147:%.*]] = and i1 [[OR_COND146_NOT148]], [[CMP38]], {{!annotation ![0-9]+}}
@@ -776,7 +776,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[UPPER78:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 32
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
 // CHECK-NEXT:    [[UPPER116:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 64
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
@@ -880,7 +880,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
 // CHECK-NEXT:    [[UPPER116:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 64
 // CHECK-NEXT:    [[ZEXT:%.*]] = zext i32 [[N]] to i64
-// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]], {{!annotation ![0-9]+}}
+// CHECK-NEXT:    [[CMP26_NOT:%.*]] = icmp uge ptr [[BOUND_PTR_ARITH]], [[PAYLOAD]]
 // CHECK-NEXT:    br label %[[FOR_BODY:.*]]
 // CHECK:       [[FOR_COND_CLEANUP]]:
 // CHECK-NEXT:    ret void
