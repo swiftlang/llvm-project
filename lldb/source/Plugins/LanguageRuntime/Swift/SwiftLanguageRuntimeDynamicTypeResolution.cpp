@@ -4423,6 +4423,12 @@ bool SwiftLanguageRuntime::IsStoredInlineInBuffer(CompilerType type) {
 
 llvm::Error SwiftLanguageRuntime::FixupVariableLocation(Variable &variable,
                                                         Value &value) {
+  // Report why the size of the variable's type is unknown, instead of
+  // presenting a variable that has no readable value.
+  if (CompilerType type = value.GetCompilerType())
+    if (llvm::Expected<uint64_t> size = type.GetByteSize(&GetProcess()); !size)
+      return size.takeError();
+
   // Resilient globals are stored in a fixed-size buffer. Values that don't
   // fit are boxed on the heap and the buffer holds a pointer to the box.
   if (value.GetValueType() != Value::ValueType::FileAddress)

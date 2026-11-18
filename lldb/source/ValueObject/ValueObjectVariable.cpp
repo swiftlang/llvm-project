@@ -31,7 +31,6 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-private-enumerations.h"
 #include "lldb/lldb-types.h"
-#include "llvm/Support/Error.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -148,25 +147,6 @@ bool ValueObjectVariable::UpdateValue() {
   m_error.Clear();
 
   Variable *variable = m_variable_sp.get();
-  // Check if the type has size 0. If so, there is nothing to update,
-  // unless the type is C++ where even empty structs have a non-zero
-  // size.
-  CompilerType var_type(GetCompilerType());
-  if (var_type.IsValid() &&
-      var_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
-    ExecutionContext exe_ctx(GetExecutionContextRef());
-    auto size_or_err =
-        var_type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
-    if (!size_or_err) {
-      m_error = Status::FromError(size_or_err.takeError());
-      return false;
-    }
-    if (*size_or_err == 0) {
-      m_value.SetCompilerType(var_type);
-      return m_error.Success();
-    }
-  }
-
   DWARFExpressionList &expr_list = variable->LocationExpressionList();
 
   if (variable->GetLocationIsConstantValueData()) {
