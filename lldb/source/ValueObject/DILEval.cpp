@@ -608,16 +608,12 @@ Interpreter::Visit(const IdentifierNode &node) {
   }
 
   if (!identifier) {
-    // BEGIN SWIFT
-    // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-    // rdar://152321823
-    if (auto frame_sp = m_exe_ctx.GetFrameSP())
+    if (lldb::StackFrameSP frame_sp = m_exe_ctx.GetFrameSP())
       if (std::string message =
-              frame_sp->GetVariableNotCapturedDiagnostic(node.GetName());
+              frame_sp->GetMissingVariableDiagnostic(node.GetName());
           !message.empty())
         return llvm::make_error<DILDiagnosticError>(
             m_expr, message, node.GetLocation(), node.GetName().size());
-    // END SWIFT
     std::string errMsg =
         llvm::formatv("use of undeclared identifier '{0}'", node.GetName());
     return llvm::make_error<DILDiagnosticError>(
