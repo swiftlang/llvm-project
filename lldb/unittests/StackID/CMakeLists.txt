@@ -5,4 +5,5 @@ add_lldb_unittest(StackIDTests
       lldbCore
       lldbTarget
       lldbPluginPlatformMacOSX
+      lldbPluginSwiftLanguageRuntime
   )
