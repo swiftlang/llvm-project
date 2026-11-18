@@ -586,8 +586,12 @@ public:
   bool IsTaggedPointer(lldb::addr_t addr, CompilerType type);
   /// \return true if this is an Objective-C object.
   bool IsObjCInstance(ValueObject &instance);
-  std::pair<lldb::addr_t, bool> FixupPointerValue(lldb::addr_t addr,
-                                                  CompilerType type) override;
+  /// Returns \p addr without its spare bits, and whether the result needs to
+  /// be dereferenced to get at the instance.
+  std::pair<lldb::addr_t, bool> StripPointerValue(lldb::addr_t addr,
+                                                  CompilerType type);
+  llvm::Expected<lldb::addr_t> FixupPointerValue(lldb::addr_t pointer,
+                                                 CompilerType type) override;
   lldb::addr_t FixupAddress(lldb::addr_t addr, CompilerType type,
                             Status &error) override;
   llvm::Error FixupVariableLocation(Variable &variable, Value &value) override;

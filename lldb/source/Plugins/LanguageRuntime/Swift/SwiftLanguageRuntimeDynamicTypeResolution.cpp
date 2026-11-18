@@ -4192,7 +4192,7 @@ bool SwiftLanguageRuntime::IsTaggedPointer(lldb::addr_t addr,
 }
 
 std::pair<lldb::addr_t, bool>
-SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t addr, CompilerType type) {
+SwiftLanguageRuntime::StripPointerValue(lldb::addr_t addr, CompilerType type) {
   // A pointer to a Clang object has no spare bits.
   if (TypeSystemSwift::IsForeignReferenceType(type))
     return {addr, false};
@@ -4226,6 +4226,16 @@ SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t addr, CompilerType type) {
   return {addr, false};
 }
 
+llvm::Expected<lldb::addr_t>
+SwiftLanguageRuntime::FixupPointerValue(lldb::addr_t pointer,
+                                        CompilerType type) {
+  auto [addr, needs_deref] = StripPointerValue(pointer, type);
+  if (!needs_deref)
+    return addr;
+  // Read the pointer to the Objective-C object.
+  return GetProcess().ReadPointerFromMemory(addr);
+}
+
 lldb::addr_t SwiftLanguageRuntime::FixupAddress(lldb::addr_t addr,
                                                 CompilerType type,
                                                 Status &error) {
@@ -4233,7 +4243,7 @@ lldb::addr_t SwiftLanguageRuntime::FixupAddress(lldb::addr_t addr,
   // If yes, return the fixed-up address we just read.
   lldb::addr_t stripped_addr = LLDB_INVALID_ADDRESS;
   bool extra_deref;
-  std::tie(stripped_addr, extra_deref) = FixupPointerValue(addr, type);
+  std::tie(stripped_addr, extra_deref) = StripPointerValue(addr, type);
   if (extra_deref) {
     Target &target = GetProcess().GetTarget();
     size_t ptr_size = GetProcess().GetAddressByteSize();
