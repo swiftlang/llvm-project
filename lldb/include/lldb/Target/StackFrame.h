@@ -577,17 +577,6 @@ public:
 
   virtual lldb::RecognizedStackFrameSP GetRecognizedFrame();
 
-  // BEGIN SWIFT
-  // Implement LanguageCPlusPlus::GetParentNameIfClosure and upstream this.
-  // rdar://152321823
-  /// If `sc` represents a "closure-like" function according to `lang`, and
-  /// `missing_var_name` can be found in a parent context, create a diagnostic
-  /// explaining that this variable is available but not captured by the
-  /// closure.
-  std::string
-  GetVariableNotCapturedDiagnostic(llvm::StringRef missing_var_name);
-  // END SWIFT
-
   // Return a ThreadPlanSP or an error.  Returning an empty ThreadPlanSP means
   // the frame doesn't have a custom step plan, only return an error if the
   // frame intended to provide a plan but there was an error in doing so.

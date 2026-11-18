@@ -122,7 +122,10 @@ public:
   std::pair<lldb::FunctionNameType, std::optional<ConstString>>
   GetFunctionNameInfo(ConstString name) const override;
 
-  std::string GetParentNameIfClosure(Function &func) const override;
+  std::string
+  GetMissingVariableDiagnostic(llvm::StringRef name,
+                               const SymbolContext &sc) const override;
+
   //------------------------------------------------------------------
   // Static Functions
   //------------------------------------------------------------------

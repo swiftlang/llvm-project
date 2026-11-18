@@ -844,18 +844,6 @@ static std::optional<std::string> ApplyLLDBCastFixIts(StringRef expr_text) {
   return cast_regex.sub("\\1unsafeBitCast(\\2, to: \\3.self)", expr_text);
 }
 
-/// If `sc` represents a "closure-like" function according to `lang`, and
-/// `var_name` can be found in a parent context, create a diagnostic
-/// explaining that this variable is available but not captured by the closure.
-static std::string
-CreateVarInParentScopeDiagnostic(StringRef var_name,
-                                 StringRef parent_func_name) {
-  return llvm::formatv("A variable named '{0}' existed in function '{1}', but "
-                       "it was not captured in the closure.\nHint: the "
-                       "variable may be available in a parent frame.",
-                       var_name, parent_func_name);
-}
-
 /// If `diagnostic_manager` contains a "cannot find <var_name> in scope"
 /// diagnostic, attempt to enhance it by showing if `var_name` is used inside a
 /// closure, not captured, but defined in a parent scope.
@@ -889,12 +877,10 @@ static void EnhanceNotInScopeDiagnostics(DiagnosticManager &diagnostic_manager,
     StringRef var_name = match_groups[2];
     StringRef suffix = match_groups[3];
 
-    Function *parent_func =
-        swift_lang->FindParentOfClosureWithVariable(var_name, sc);
-    if (!parent_func)
+    std::string new_message =
+        swift_lang->GetMissingVariableDiagnostic(var_name, sc);
+    if (new_message.empty())
       continue;
-    std::string new_message = CreateVarInParentScopeDiagnostic(
-        var_name, parent_func->GetDisplayName());
 
     std::string new_rendered =
         llvm::formatv("{0}: {1}\n{2}", prefix, new_message, suffix);
