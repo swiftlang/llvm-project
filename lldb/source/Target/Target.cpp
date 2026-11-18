@@ -3252,8 +3252,11 @@ Target::StopHookSP Target::CreateStopHook(StopHook::StopHookKind kind,
   else
     m_stop_hooks[new_uid] = stop_hook_sp;
 
-  if (m_module_added_hooks.collecting && !internal)
-    m_module_added_hooks.stop_hooks.push_back(stop_hook_sp);
+  if (!internal) {
+    std::lock_guard<std::mutex> guard(m_module_added_hooks.mutex);
+    if (m_module_added_hooks.collecting)
+      m_module_added_hooks.stop_hooks.push_back(stop_hook_sp);
+  }
   return stop_hook_sp;
 }
 
@@ -3317,9 +3320,13 @@ Target::GetStopHooks(bool internal) const {
 }
 
 void Target::RunCollectedInitialStopHooks() {
-  std::vector<StopHookSP> stop_hooks =
-      std::exchange(m_module_added_hooks.stop_hooks, {});
-  std::vector<HookSP> hooks = std::exchange(m_module_added_hooks.hooks, {});
+  std::vector<StopHookSP> stop_hooks;
+  std::vector<HookSP> hooks;
+  {
+    std::lock_guard<std::mutex> guard(m_module_added_hooks.mutex);
+    stop_hooks = std::exchange(m_module_added_hooks.stop_hooks, {});
+    hooks = std::exchange(m_module_added_hooks.hooks, {});
+  }
 
   // Without a stopped process that this thread can read, these run with the
   // others at the initial stop or the next stop. While we gain control of a
@@ -4954,8 +4961,11 @@ Target::HookSP Target::CreateHook(Hook::HookKind kind) {
     break;
   }
   m_hooks[new_uid] = hook_sp;
-  if (m_module_added_hooks.collecting)
-    m_module_added_hooks.hooks.push_back(hook_sp);
+  {
+    std::lock_guard<std::mutex> guard(m_module_added_hooks.mutex);
+    if (m_module_added_hooks.collecting)
+      m_module_added_hooks.hooks.push_back(hook_sp);
+  }
   return hook_sp;
 }
 

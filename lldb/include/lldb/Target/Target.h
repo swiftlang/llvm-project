@@ -2113,10 +2113,14 @@ public:
   /// \return
   ///     The previous value.
   bool SetCollectingHooks(bool collecting) {
+    std::lock_guard<std::mutex> guard(m_module_added_hooks.mutex);
     return std::exchange(m_module_added_hooks.collecting, collecting);
   }
 
-  bool IsCollectingHooks() const { return m_module_added_hooks.collecting; }
+  bool IsCollectingHooks() const {
+    std::lock_guard<std::mutex> guard(m_module_added_hooks.mutex);
+    return m_module_added_hooks.collecting;
+  }
 
   /// Run the collected stop hooks and hooks that were added with
   /// --at-initial-stop if the process is stopped, and stop tracking them. A
@@ -2339,7 +2343,15 @@ protected:
   /// The stop hooks and hooks that a module's __lldb_module_added_to_target
   /// adds for this target, collected while it runs, so we can run the ones
   /// added with --at-initial-stop once it returns.
+  ///
+  /// One ModulesDidLoad call loads its modules' scripts one at a time, on the
+  /// calling thread, after reading their symbols in parallel. But the dynamic
+  /// loader on the private state thread and an SB API client, for example
+  /// with SBTarget::AddModule, can each load scripts for this target at the
+  /// same time, so the mutex guards the rest. We only hold it to update these
+  /// fields, never while calling out.
   struct ModuleLoadedScriptHooks {
+    mutable std::mutex mutex;
     bool collecting = false;
     std::vector<StopHookSP> stop_hooks;
     std::vector<HookSP> hooks;
