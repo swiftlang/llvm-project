@@ -1,5 +1,6 @@
 
 #include "lldb/Target/StackID.h"
+#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "Plugins/Platform/MacOSX/PlatformMacOSX.h"
 #include "Plugins/Platform/MacOSX/PlatformRemoteMacOSX.h"
 #include "lldb/Core/Debugger.h"
@@ -95,8 +96,12 @@ TEST_F(StackIDTest, StackHeapCFAComparison) {
   MockStackID cfa_on_stack(/*cfa*/ 100, OnStack::Yes);
   MockStackID cfa_on_heap(/*cfa*/ 10, OnStack::No);
 
-  EXPECT_TRUE(cfa_on_stack.IsYoungerThan(cfa_on_heap, *process));
-  EXPECT_FALSE(cfa_on_heap.IsYoungerThan(cfa_on_stack, *process));
+  EXPECT_EQ(SwiftLanguageRuntime::CompareHeapCFAs(cfa_on_stack, cfa_on_heap,
+                                                  *process),
+            CFAComparison::Younger);
+  EXPECT_EQ(SwiftLanguageRuntime::CompareHeapCFAs(cfa_on_heap, cfa_on_stack,
+                                                  *process),
+            CFAComparison::Older);
 }
 
 TEST_F(StackIDTest, HeapHeapCFAComparison) {
@@ -116,14 +121,26 @@ TEST_F(StackIDTest, HeapHeapCFAComparison) {
   MockStackID middle_cfa(/*cfa*/ 108, OnStack::No);
   MockStackID youngest_cfa(/*cfa*/ 100, OnStack::No);
 
-  EXPECT_TRUE(youngest_cfa.IsYoungerThan(oldest_cfa, *process));
-  EXPECT_FALSE(oldest_cfa.IsYoungerThan(youngest_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(youngest_cfa, oldest_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(oldest_cfa, youngest_cfa, *process),
+      CFAComparison::Older);
 
-  EXPECT_TRUE(youngest_cfa.IsYoungerThan(middle_cfa, *process));
-  EXPECT_FALSE(middle_cfa.IsYoungerThan(youngest_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(youngest_cfa, middle_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(middle_cfa, youngest_cfa, *process),
+      CFAComparison::Older);
 
-  EXPECT_TRUE(middle_cfa.IsYoungerThan(oldest_cfa, *process));
-  EXPECT_FALSE(oldest_cfa.IsYoungerThan(middle_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(middle_cfa, oldest_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(oldest_cfa, middle_cfa, *process),
+      CFAComparison::Older);
 }
 
 TEST_F(StackIDTest, HeapHeapCFAComparisonDecreasing) {
@@ -143,14 +160,26 @@ TEST_F(StackIDTest, HeapHeapCFAComparisonDecreasing) {
   MockStackID middle_cfa(/*cfa*/ 90, OnStack::No);
   MockStackID youngest_cfa(/*cfa*/ 100, OnStack::No);
 
-  EXPECT_TRUE(youngest_cfa.IsYoungerThan(oldest_cfa, *process));
-  EXPECT_FALSE(oldest_cfa.IsYoungerThan(youngest_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(youngest_cfa, oldest_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(oldest_cfa, youngest_cfa, *process),
+      CFAComparison::Older);
 
-  EXPECT_TRUE(youngest_cfa.IsYoungerThan(middle_cfa, *process));
-  EXPECT_FALSE(middle_cfa.IsYoungerThan(youngest_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(youngest_cfa, middle_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(middle_cfa, youngest_cfa, *process),
+      CFAComparison::Older);
 
-  EXPECT_TRUE(middle_cfa.IsYoungerThan(oldest_cfa, *process));
-  EXPECT_FALSE(oldest_cfa.IsYoungerThan(middle_cfa, *process));
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(middle_cfa, oldest_cfa, *process),
+      CFAComparison::Younger);
+  EXPECT_EQ(
+      SwiftLanguageRuntime::CompareHeapCFAs(oldest_cfa, middle_cfa, *process),
+      CFAComparison::Older);
 }
 
 TEST_F(StackIDTest, ProcessOrdersCFAs) {

@@ -254,6 +254,11 @@ public:
   /// Return the async context address using the target's specific register.
   static lldb::addr_t GetAsyncContext(RegisterContext *regctx);
 
+  /// If at least one of the stack IDs (lhs, rhs) is a heap CFA, perform the
+  /// swift-specific async frame comparison. Otherwise, returns NoOpinion.
+  static CFAComparison CompareHeapCFAs(const StackID &lhs, const StackID &rhs,
+                                       Process &process);
+
   static bool
   IsSwiftAsyncAwaitResumePartialFunctionSymbol(llvm::StringRef name);
 
@@ -849,6 +854,8 @@ protected:
   GetRuntimeUnwindPlan(lldb::ProcessSP process_sp,
                        lldb_private::RegisterContext *regctx,
                        bool &behaves_like_zeroth_frame) override;
+
+  CFAComparison CompareCFAs(const StackID &lhs, const StackID &rhs) override;
 
   bool GetTargetOfPartialApply(SymbolContext &curr_sc, ConstString &apply_name,
                                SymbolContext &sc);

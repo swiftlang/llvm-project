@@ -3922,6 +3922,82 @@ SwiftLanguageRuntime::GetRuntimeUnwindPlan(ProcessSP process_sp,
   return plan;
 }
 
+/// Given two async contexts, source and maybe_parent, chase continuation
+/// pointers to check if maybe_parent can be reached from source. The search
+/// stops when it hits the end of the chain (parent_ctx == 0) or a safety limit
+/// in case of an invalid continuation chain.
+static llvm::Expected<bool> IsReachableParent(lldb::addr_t source,
+                                              lldb::addr_t maybe_parent,
+                                              Process &process) {
+  maybe_parent = process.FixDataAddress(maybe_parent);
+  auto max_num_frames = 512;
+  for (lldb::addr_t parent_ctx = source; parent_ctx && max_num_frames;
+       max_num_frames--) {
+    lldb::addr_t old_parent_ctx = parent_ctx;
+    // The continuation's context is the first field of an async context.
+    llvm::Expected<lldb::addr_t> parent_ctx_or_err =
+        process.ReadPointerFromMemory(old_parent_ctx);
+    if (!parent_ctx_or_err)
+      return llvm::createStringError(llvm::formatv(
+          "Failed to read parent async context of: {0:x}. Error: {1}",
+          old_parent_ctx, llvm::toString(parent_ctx_or_err.takeError())));
+    parent_ctx = *parent_ctx_or_err;
+    if (process.FixDataAddress(parent_ctx) == maybe_parent)
+      return true;
+  }
+  if (max_num_frames == 0)
+    return llvm::createStringError(
+        llvm::formatv("Failed to read continuation chain from {0:x} to "
+                      "possible parent {1:x}. Reached limit of frames.",
+                      source, maybe_parent));
+  return false;
+}
+
+CFAComparison SwiftLanguageRuntime::CompareHeapCFAs(const StackID &lhs,
+                                                    const StackID &rhs,
+                                                    Process &process) {
+  const bool lhs_cfa_on_stack = lhs.IsCFAOnStack(process);
+  const bool rhs_cfa_on_stack = rhs.IsCFAOnStack(process);
+  if (lhs_cfa_on_stack && rhs_cfa_on_stack)
+    return CFAComparison::NoOpinion;
+
+  // If one of the frames has a CFA on the stack and the other doesn't, we are
+  // at the boundary between an asynchronous and a synchronous function.
+  // Synchronous functions cannot call asynchronous functions, therefore the
+  // synchronous frame is always younger.
+  if (lhs_cfa_on_stack && !rhs_cfa_on_stack)
+    return CFAComparison::Younger;
+  if (!lhs_cfa_on_stack && rhs_cfa_on_stack)
+    return CFAComparison::Older;
+
+  const lldb::addr_t lhs_cfa = lhs.GetCallFrameAddressWithoutMetadata();
+  const lldb::addr_t rhs_cfa = rhs.GetCallFrameAddressWithoutMetadata();
+  // If the cfas are the same, fallback to the usual scope comparison.
+  if (lhs_cfa == rhs_cfa)
+    return CFAComparison::NoOpinion;
+
+  // Both CFAs are on the heap and they are distinct.
+  // LHS is younger if and only if its continuation async context is (directly
+  // or indirectly) RHS.
+  llvm::Expected<bool> lhs_younger =
+      IsReachableParent(lhs_cfa, rhs_cfa, process);
+  if (auto E = lhs_younger.takeError())
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Unwind), std::move(E), "{0}");
+  else if (*lhs_younger)
+    return CFAComparison::Younger;
+  llvm::Expected<bool> lhs_older = IsReachableParent(rhs_cfa, lhs_cfa, process);
+  if (auto E = lhs_older.takeError())
+    LLDB_LOG_ERROR(GetLog(LLDBLog::Unwind), std::move(E), "{0}");
+  else if (*lhs_older)
+    return CFAComparison::Older;
+  return CFAComparison::NoOpinion;
+}
+
+CFAComparison SwiftLanguageRuntime::CompareCFAs(const StackID &lhs,
+                                                const StackID &rhs) {
+  return CompareHeapCFAs(lhs, rhs, GetProcess());
+}
+
 UnwindPlanSP SwiftLanguageRuntime::GetFollowAsyncContextUnwindPlan(
     ProcessSP process_sp, RegisterContext *regctx, ArchSpec &arch,
     bool &behaves_like_zeroth_frame) {
