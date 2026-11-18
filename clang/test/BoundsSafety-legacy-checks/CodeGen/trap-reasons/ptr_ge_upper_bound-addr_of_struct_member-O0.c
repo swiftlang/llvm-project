@@ -1,13 +1,32 @@
-
-// RUN: %clang_cc1 -DTYPE=__bidi_indexable -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o %t_bidi.ll
 // RUN: echo "; __SEPERATOR__" > %t.sep
-// RUN: cat %t_bidi.ll %t.sep %t_bidi.ll > %t_bidi.repeated.ll
-// RUN: FileCheck %s --input-file=%t_bidi.repeated.ll
 
-// RUN: %clang_cc1 -DTYPE=__indexable -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o %t_idx.ll
-// RUN: echo "; __SEPERATOR__" > %t.sep
-// RUN: cat %t_idx.ll %t.sep %t_idx.ll > %t_idx.repeated.ll
-// RUN: FileCheck %s --input-file=%t_idx.repeated.ll
+// RUN: %clang_cc1 -DTYPE=__bidi_indexable -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=basic -emit-llvm %s -o %t_bidi_basic.ll
+// RUN: cat %t_bidi_basic.ll %t.sep %t_bidi_basic.ll > %t_bidi_basic.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC \
+// RUN:   --input-file=%t_bidi_basic.repeated.ll
+
+// RUN: %clang_cc1 -DTYPE=__bidi_indexable -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=detailed -emit-llvm %s -o %t_bidi_detailed.ll
+// RUN: cat %t_bidi_detailed.ll %t.sep %t_bidi_detailed.ll > %t_bidi_detailed.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED \
+// RUN:   --input-file=%t_bidi_detailed.repeated.ll
+
+// RUN: %clang_cc1 -DTYPE=__indexable -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=basic -emit-llvm %s -o %t_idx_basic.ll
+// RUN: cat %t_idx_basic.ll %t.sep %t_idx_basic.ll > %t_idx_basic.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC \
+// RUN:   --input-file=%t_idx_basic.repeated.ll
+
+// RUN: %clang_cc1 -DTYPE=__indexable -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=detailed -emit-llvm %s -o %t_idx_detailed.ll
+// RUN: cat %t_idx_detailed.ll %t.sep %t_idx_detailed.ll > %t_idx_detailed.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED \
+// RUN:   --input-file=%t_idx_detailed.repeated.ll
 
 #include <ptrcheck.h>
 
@@ -26,9 +45,10 @@ int* TYPE operation(Data_t* TYPE d) {
 
 // In first copy of the file
 // CHECK-DAG: [[OPT_REMARK:![0-9]+]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// CHECK-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer to struct above bounds while taking address of struct member", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// BASIC-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer to struct above bounds while taking address of struct member", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$taking address of struct member above upper bound in '&d->a'", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
 // CHECK-DAG: [[TRAP_LOC:![0-9]+]] = !DILocation(line: 0, scope: [[TRAP_SCOPE]], inlinedAt: [[SRC_LOC:![0-9]+]])
-// CHECK-DAG: [[SRC_LOC]] = !DILocation(line: 24, column: 12, scope: {{![0-9]+}}) 
+// CHECK-DAG: [[SRC_LOC]] = !DILocation(line: 43, column: 12, scope: {{![0-9]+}})
 // CHECK-LABEL: ; __SEPERATOR__
 
 // In second copy of the file
