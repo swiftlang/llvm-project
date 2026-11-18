@@ -22,31 +22,31 @@ int * __counted_by(len) baz(int len);
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @baz(i32 noundef [[LEN]]) #[[ATTR4:[0-9]+]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[CALL1:%.*]] = tail call ptr @bar(i32 noundef [[LEN]]) #[[ATTR4]]
-// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META5:![0-9]+]]
+// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META6:![0-9]+]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META7:![0-9]+]]
-// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META7]]
-// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META8:![0-9]+]]
-// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META8]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META8:![0-9]+]]
+// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META8]]
+// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META9:![0-9]+]]
+// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META9]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9:![0-9]+]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META10:![0-9]+]]
+// CHECK-NEXT:    unreachable, !annotation [[META10]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META10:![0-9]+]]
-// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[BOUNDSCHECK_NULL97:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META10]]
+// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META11:![0-9]+]]
+// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[BOUNDSCHECK_NULL97:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META11]]
 // CHECK:       [[FLEX_BASE_NONNULL]]:
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[CALL1]], i64 16
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ule ptr [[CALL1]], [[TMP1]], !annotation [[META11:![0-9]+]]
-// CHECK-NEXT:    [[DOTNOT108:%.*]] = icmp ule ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META12:![0-9]+]]
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ult ptr [[CALL1]], [[ADD_PTR3]], !annotation [[META12]]
-// CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[DOTNOT108]], [[TMP2]], !annotation [[META10]]
-// CHECK-NEXT:    [[OR_COND110:%.*]] = select i1 [[DOTNOT]], i1 [[TMP3]], i1 false, !annotation [[META10]]
-// CHECK-NEXT:    br i1 [[OR_COND110]], label %[[BOUNDSCHECK_NULL97]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META11]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ule ptr [[CALL1]], [[TMP1]], !annotation [[META12:![0-9]+]]
+// CHECK-NEXT:    [[DOTNOT108:%.*]] = icmp ule ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META13:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ult ptr [[CALL1]], [[ADD_PTR3]], !annotation [[META13]]
+// CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[DOTNOT108]], [[TMP2]], !annotation [[META11]]
+// CHECK-NEXT:    [[OR_COND110:%.*]] = select i1 [[DOTNOT]], i1 [[TMP3]], i1 false, {{!prof ![0-9]+}}, !annotation [[META11]]
+// CHECK-NEXT:    br i1 [[OR_COND110]], label %[[BOUNDSCHECK_NULL97]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META12]]
 // CHECK:       [[BOUNDSCHECK_NULL97]]:
 // CHECK-NEXT:    [[LEN70:%.*]] = getelementptr inbounds nuw i8, ptr [[CALL1]], i64 8
-// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN70]], align 8, !tbaa [[TBAA14:![0-9]+]]
-// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA18:![0-9]+]]
+// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN70]], align 8, !tbaa [[TBAA16:![0-9]+]]
+// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA20:![0-9]+]]
 // CHECK-NEXT:    ret ptr [[CALL1]]
 //
 struct Outer *foo(int len) {
@@ -63,31 +63,31 @@ struct Outer *foo(int len) {
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @baz(i32 noundef [[LEN]]) #[[ATTR4]]
 // CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
 // CHECK-NEXT:    [[CALL1:%.*]] = tail call ptr @bar(i32 noundef [[LEN]]) #[[ATTR4]]
-// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META5]]
+// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META6]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
-// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META7]]
-// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META7]]
-// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META8]]
-// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META8]]
+// CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META8]]
+// CHECK-NEXT:    [[ADD_PTR3:%.*]] = getelementptr i8, ptr [[TMP0]], i64 16, !annotation [[META8]]
+// CHECK-NEXT:    [[CMP9_NOT:%.*]] = icmp slt i32 [[LEN]], 0, !annotation [[META9]]
+// CHECK-NEXT:    br i1 [[CMP9_NOT]], label %[[TRAP:.*]], label %[[CONT:.*]], !annotation [[META9]]
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META9]]
-// CHECK-NEXT:    unreachable, !annotation [[META9]]
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), !annotation [[META10]]
+// CHECK-NEXT:    unreachable, !annotation [[META10]]
 // CHECK:       [[CONT]]:
-// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META10]]
-// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[BOUNDSCHECK_NULL:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META10]]
+// CHECK-NEXT:    [[FLEX_BASE_NULL_CHECK_NOT:%.*]] = icmp eq ptr [[CALL1]], null, !annotation [[META11]]
+// CHECK-NEXT:    br i1 [[FLEX_BASE_NULL_CHECK_NOT]], label %[[BOUNDSCHECK_NULL:.*]], label %[[FLEX_BASE_NONNULL:.*]], !annotation [[META11]]
 // CHECK:       [[FLEX_BASE_NONNULL]]:
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i8, ptr [[CALL1]], i64 16
-// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ule ptr [[CALL1]], [[TMP1]], !annotation [[META11]]
-// CHECK-NEXT:    [[DOTNOT108:%.*]] = icmp ule ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META12]]
-// CHECK-NEXT:    [[TMP2:%.*]] = icmp ult ptr [[CALL1]], [[ADD_PTR3]], !annotation [[META12]]
-// CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[DOTNOT108]], [[TMP2]], !annotation [[META10]]
-// CHECK-NEXT:    [[OR_COND110:%.*]] = select i1 [[DOTNOT]], i1 [[TMP3]], i1 false, !annotation [[META10]]
-// CHECK-NEXT:    br i1 [[OR_COND110]], label %[[BOUNDSCHECK_NULL]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META11]]
+// CHECK-NEXT:    [[DOTNOT:%.*]] = icmp ule ptr [[CALL1]], [[TMP1]], !annotation [[META12]]
+// CHECK-NEXT:    [[DOTNOT108:%.*]] = icmp ule ptr [[TMP1]], [[ADD_PTR3]], !annotation [[META13]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp ult ptr [[CALL1]], [[ADD_PTR3]], !annotation [[META13]]
+// CHECK-NEXT:    [[TMP3:%.*]] = and i1 [[DOTNOT108]], [[TMP2]], !annotation [[META11]]
+// CHECK-NEXT:    [[OR_COND110:%.*]] = select i1 [[DOTNOT]], i1 [[TMP3]], i1 false, {{!prof ![0-9]+}}, !annotation [[META11]]
+// CHECK-NEXT:    br i1 [[OR_COND110]], label %[[BOUNDSCHECK_NULL]], label %[[TRAP]], {{!prof ![0-9]+}}, !annotation [[META12]]
 // CHECK:       [[BOUNDSCHECK_NULL]]:
-// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA18]]
+// CHECK-NEXT:    store ptr [[CALL]], ptr [[CALL1]], align 8, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[LEN78:%.*]] = getelementptr inbounds nuw i8, ptr [[CALL1]], i64 8
-// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN78]], align 8, !tbaa [[TBAA14]]
+// CHECK-NEXT:    store i32 [[LEN]], ptr [[LEN78]], align 8, !tbaa [[TBAA16]]
 // CHECK-NEXT:    ret ptr [[CALL1]]
 //
 struct Outer *foo2(int len) {
@@ -98,20 +98,20 @@ struct Outer *foo2(int len) {
     return p;
 }
 //.
-// CHECK: [[META2:![0-9]+]] = !{!"int", [[META3:![0-9]+]], i64 0}
-// CHECK: [[META3]] = !{!"omnipotent char", [[META4:![0-9]+]], i64 0}
-// CHECK: [[META4]] = !{!"Simple C/C++ TBAA"}
-// CHECK: [[META5]] = !{[[META6:![0-9]+]]}
-// CHECK: [[META6]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
-// CHECK: [[META7]] = !{!"bounds-safety-check-flexible-count-gt-bounds"}
-// CHECK: [[META8]] = !{!"bounds-safety-generic"}
-// CHECK: [[META9]] = !{!"bounds-safety-generic", !"bounds-safety-check-one-past-end-overflow", !"bounds-safety-check-ptr-lt-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound", !"bounds-safety-check-count-negative", !"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-flexible-count-gt-bounds"}
-// CHECK: [[META10]] = !{!"bounds-safety-check-ptr-neq-null"}
-// CHECK: [[META11]] = !{!"bounds-safety-check-one-past-end-overflow"}
-// CHECK: [[META12]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// CHECK: [[TBAA14]] = !{[[META15:![0-9]+]], [[META2]], i64 8}
-// CHECK: [[META15]] = !{!"Inner", [[META16:![0-9]+]], i64 0, [[META2]], i64 8}
-// CHECK: [[META16]] = !{!"p1 int", [[META17:![0-9]+]], i64 0}
-// CHECK: [[META17]] = !{!"any pointer", [[META3]], i64 0}
-// CHECK: [[TBAA18]] = !{[[META15]], [[META16]], i64 0}
+// CHECK: [[META3:![0-9]+]] = !{!"int", [[META4:![0-9]+]], i64 0}
+// CHECK: [[META4]] = !{!"omnipotent char", [[META5:![0-9]+]], i64 0}
+// CHECK: [[META5]] = !{!"Simple C/C++ TBAA"}
+// CHECK: [[META6]] = !{[[META7:![0-9]+]]}
+// CHECK: [[META7]] = !{!"bounds-safety-missed-optimization-nuw", !"Check can not be removed because the arithmetic operation might wrap in the unsigned sense. Optimize the check by adding conditions to check for overflow before doing the operation"}
+// CHECK: [[META8]] = !{!"bounds-safety-check-flexible-count-gt-bounds"}
+// CHECK: [[META9]] = !{!"bounds-safety-generic"}
+// CHECK: [[META10]] = !{!"bounds-safety-generic", !"bounds-safety-check-one-past-end-overflow", !"bounds-safety-check-ptr-lt-upper-bound", !"bounds-safety-check-ptr-ge-lower-bound", !"bounds-safety-check-count-negative", !"bounds-safety-check-ptr-le-upper-bound", !"bounds-safety-check-flexible-count-gt-bounds"}
+// CHECK: [[META11]] = !{!"bounds-safety-check-ptr-neq-null"}
+// CHECK: [[META12]] = !{!"bounds-safety-check-one-past-end-overflow"}
+// CHECK: [[META13]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
+// CHECK: [[TBAA16]] = !{[[META17:![0-9]+]], [[META3]], i64 8}
+// CHECK: [[META17]] = !{!"Inner", [[META18:![0-9]+]], i64 0, [[META3]], i64 8}
+// CHECK: [[META18]] = !{!"p1 int", [[META19:![0-9]+]], i64 0}
+// CHECK: [[META19]] = !{!"any pointer", [[META4]], i64 0}
+// CHECK: [[TBAA20]] = !{[[META17]], [[META18]], i64 0}
 //.
