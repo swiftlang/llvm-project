@@ -1,5 +1,11 @@
-
-// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=basic -emit-llvm %s -o - | \
+// RUN:   FileCheck --check-prefixes=CHECK,BASIC %s
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone \
+// RUN:   -dwarf-version=5 -fbounds-safety \
+// RUN:   -fbounds-safety-debug-trap-reasons=detailed -emit-llvm %s -o - | \
+// RUN:   FileCheck --check-prefixes=CHECK,DETAILED %s
 #include <ptrcheck.h>
 
 // Don't need to test `__indexable` src because there is no lower bound check.
@@ -17,5 +23,6 @@ int* __single operation(int* __bidi_indexable i) {
 // CHECK-NEXT: call void @llvm.ubsantrap(i8 25) {{.*}}!dbg [[TRAP_LOC:![0-9]+]]
 
 // CHECK-DAG: [[TRAP_LOC]] = !DILocation(line: 0, scope: [[TRAP_SCOPE:![0-9]+]], inlinedAt: [[LOC]])
-// CHECK-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer below bounds while casting", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE]], type: {{.+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
-// CHECK-DAG: [[LOC]] = !DILocation(line: 8, column: 12, scope: {{![0-9]+}})
+// BASIC-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer below bounds while casting", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE]], type: {{.+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$converting 'int *__bidi_indexable' to 'int *__single' where pointer 'i' is below its lower bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE]], type: {{.+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// CHECK-DAG: [[LOC]] = !DILocation(line: 14, column: 12, scope: {{![0-9]+}})
