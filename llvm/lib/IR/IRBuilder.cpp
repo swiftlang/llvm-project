@@ -212,7 +212,7 @@ Value *IRBuilderBase::CreateTypeSize(Type *Ty, TypeSize Size) {
 
 Value *IRBuilderBase::CreateAllocationSize(Type *DestTy, AllocaInst *AI) {
   const DataLayout &DL = getDataLayout();
-  TypeSize ElemSize = DL.getTypeAllocSize(AI->getAllocatedType());
+  TypeSize ElemSize = AI->getAllocationBaseSize(DL);
   Value *Size = CreateTypeSize(DestTy, ElemSize);
   if (AI->isArrayAllocation())
     Size = CreateMul(CreateZExtOrTrunc(AI->getArraySize(), DestTy), Size);
