@@ -21,6 +21,7 @@ def trap_bs_fallback : Trap<"%0">;
 def trap_bs_upper_lower_overflow_bound : Trap<
   "%enum_select<BoundsCheckContextKind>{"
     "%Indexing{indexing}|"
+    "%Dereferencing{dereferencing}|"
     "%TODO{TODO}"
   "}0 %enum_select<BoundsSafetyPtrCheckKind>{"
     "%Upper{above upper bound}|"

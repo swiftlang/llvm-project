@@ -3110,7 +3110,8 @@ public:
       const Expr *E, bool BoundsCheck = false,
       BoundsSafetyTrapCtx::Kind TrapCtx = BoundsSafetyTrapCtx::UNKNOWN,
       bool LowerOnlyCheck = false, llvm::Value **UpperPtr = nullptr,
-      llvm::Value **LowerPtr = nullptr, bool IsNullAllowed = false);
+      llvm::Value **LowerPtr = nullptr, bool IsNullAllowed = false,
+      PartialDiagnostic *PD = nullptr);
 
   void EmitPtrCastLECheck(llvm::Value *LHS, llvm::Value *RHS,
                           BoundsSafetyTrapKind TrapKind,
