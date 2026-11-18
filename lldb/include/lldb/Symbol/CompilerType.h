@@ -446,7 +446,8 @@ public:
   /// Return the size of the type in bits.
   llvm::Expected<uint64_t> GetBitSize(ExecutionContextScope *exe_scope) const;
 
-  /// Return the stride of the type in bits.
+  /// Return the stride of the type in bytes. This is the distance between
+  /// consecutive elements of this type in contiguous storage (e.g. array).
   std::optional<uint64_t>
   GetByteStride(ExecutionContextScope *exe_scope) const;
   
