@@ -79,9 +79,12 @@ LLDBExplicitSwiftModuleLoader::create(
       ctx, tracker, loadMode, ExplicitSwiftModuleMapPath,
       ExplicitSwiftModuleInputs, IgnoreSwiftSourceInfoFile,
       std::move(swift_mm), std::move(clang_mm));
-  return std::make_unique<LLDBExplicitSwiftModuleLoader>(
+  auto loader = std::make_unique<LLDBExplicitSwiftModuleLoader>(
       ctx, cas, action_cache, tracker, loadMode, IgnoreSwiftSourceInfoFile,
       std::move(casml), std::move(esml));
+  if (!MainSwiftModuleMap->empty())
+    loader->m_main_module = MainSwiftModuleMap->begin()->getKey().str();
+  return loader;
 }
 
 bool LLDBExplicitSwiftModuleLoader::enabled() const {
@@ -131,11 +134,20 @@ LLDBExplicitSwiftModuleLoader::loadModule(swift::SourceLoc importLoc,
   if (!enabled())
     return nullptr;
 
+  swift::ModuleDecl *decl = nullptr;
   if (m_casml)
-    if (swift::ModuleDecl *decl =
-            m_casml->loadModule(importLoc, path, AllowMemoryCache))
-      return decl;
-  return m_esml->loadModule(importLoc, path, AllowMemoryCache);
+    decl = m_casml->loadModule(importLoc, path, AllowMemoryCache);
+  if (!decl)
+    decl = m_esml->loadModule(importLoc, path, AllowMemoryCache);
+  // Simulate the effect of the BypassResilience flag in the
+  // MemoryBufferSerializedModuleLoader. The main module was compiled
+  // together with the code being debugged, so its layout can be
+  // trusted and the debugger can access private members directly
+  // rather than through dispatch thunks.
+  if (decl && decl->getName().str() == m_main_module &&
+      !decl->isBuiltFromInterface())
+    decl->setBypassResilience();
+  return decl;
 }
 
 void LLDBExplicitSwiftModuleLoader::loadExtensions(

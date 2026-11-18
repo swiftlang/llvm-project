@@ -92,6 +92,8 @@ protected:
   /// The explicit Swift module loader (ESML).
   std::unique_ptr<swift::ExplicitSwiftModuleLoader> m_esml;
   llvm::StringSet<> m_known_modules;
+  /// The name of the main module, which bypasses resilience.
+  std::string m_main_module;
 };
 } // namespace lldb_private
 #endif
