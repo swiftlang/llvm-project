@@ -75,7 +75,7 @@ int read_from_global_array_can_remove_checks() {
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[CALL]], 4
 // CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
 // CHECK:       [[FOR_BODY_4]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int read_from_global_array_can_remove_checks_opaque() {
@@ -92,7 +92,7 @@ int read_from_global_array_can_remove_checks_opaque() {
 // CHECK-LABEL: define dso_local noundef i32 @read_from_global_array_trap_last_iter(
 // CHECK-SAME: ) local_unnamed_addr #[[ATTR4:[0-9]+]] {
 // CHECK-NEXT:  [[TRAP:.*:]]
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int read_from_global_array_trap_last_iter() {
@@ -132,7 +132,7 @@ int read_from_global_array_trap_last_iter() {
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[CALL]], 4
 // CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
 // CHECK:       [[FOR_BODY_4]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int read_from_global_array_trap_last_iter_opaque() {
@@ -175,7 +175,7 @@ int read_from_global_array_trap_last_iter_opaque() {
 // CHECK-NEXT:    [[TMP5:%.*]] = icmp ugt i32 [[N]], 4
 // CHECK-NEXT:    br i1 [[TMP5]], label %[[FOR_BODY_4:.*]], label %[[FOR_COND_CLEANUP]]
 // CHECK:       [[FOR_BODY_4]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 int read_from_global_array_cannot_rename(unsigned n) {
@@ -211,7 +211,7 @@ typedef struct {
 // CHECK-NEXT:    [[OR_COND137:%.*]] = and i1 [[OR_COND136_NOT138]], [[CMP38]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND137]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 10
@@ -332,7 +332,7 @@ void concat_to_separate_clobals(hdr_t *p_buf) {
 // CHECK-NEXT:    [[OR_COND137:%.*]] = select i1 [[OR_COND136_NOT138]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND137]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0142]], i64 4
@@ -415,7 +415,7 @@ struct arrays {
 // CHECK-NEXT:    [[OR_COND147:%.*]] = and i1 [[OR_COND146_NOT148]], [[CMP38]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND147]], label %[[CONT121:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT121]]:
 // CHECK-NEXT:    [[UPPER97:%.*]] = getelementptr inbounds nuw i8, ptr [[ARRAYS]], i64 48
@@ -556,7 +556,7 @@ void concat_to_arrays_struct_can_remove_arrays_check(struct arrays *arrays, hdr_
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND147]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0152]], i64 4
@@ -646,7 +646,7 @@ void concat_to_arrays_struct_can_remove_arrays_check_opaque(struct arrays *array
 // CHECK-NEXT:    [[OR_COND147:%.*]] = and i1 [[OR_COND146_NOT148]], [[CMP38]], {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND147]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50:%.*]] = getelementptr i8, ptr [[P_BUF]], i64 11
@@ -791,7 +791,7 @@ void concat_to_arrays_struct_trap_on_last_iter(struct arrays *arrays, hdr_t *p_b
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND147]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0152]], i64 4
@@ -895,7 +895,7 @@ void concat_to_arrays_struct_trap_on_last_iter_opaque(struct arrays *arrays, hdr
 // CHECK-NEXT:    [[OR_COND147:%.*]] = select i1 [[OR_COND146_NOT148]], i1 [[CMP38]], i1 false, {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK-NEXT:    br i1 [[OR_COND147]], label %[[CONT:.*]], label %[[TRAP:.*]], {{!prof ![0-9]+}}, {{!annotation ![0-9]+}}
 // CHECK:       [[TRAP]]:
-// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25) {{#[0-9]+}}, {{!annotation ![0-9]+}}
+// CHECK-NEXT:    tail call void @llvm.ubsantrap(i8 25), {{!annotation ![0-9]+}}
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 // CHECK:       [[CONT]]:
 // CHECK-NEXT:    [[ADD_PTR50]] = getelementptr inbounds nuw i8, ptr [[PARAMS_SROA_0_0151]], i64 4
