@@ -138,11 +138,14 @@ public:
   virtual TypeAndOrName FixUpDynamicType(const TypeAndOrName &type_and_or_name,
                                          ValueObject &static_value) = 0;
 
-  /// This allows a language runtime to adjust references depending on the type.
-  /// \return true if the resulting address needs to be dereferenced.
-  virtual std::pair<lldb::addr_t, bool> FixupPointerValue(lldb::addr_t addr,
-                                                          CompilerType type) {
-    return {addr, false};
+  /// Returns the address of the instance that \p pointer refers to, where
+  /// \p pointer is the value of an object of \p type, whose instances are
+  /// pointers (see eTypeInstanceIsPointer). A runtime can remove information
+  /// that it stores in the spare bits of such pointers, or follow a reference
+  /// that refers to the instance indirectly.
+  virtual llvm::Expected<lldb::addr_t> FixupPointerValue(lldb::addr_t pointer,
+                                                         CompilerType type) {
+    return pointer;
   }
 
   /// This allows a language runtime to adjust references depending on the type.

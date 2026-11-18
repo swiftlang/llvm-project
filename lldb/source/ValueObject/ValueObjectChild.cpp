@@ -122,29 +122,23 @@ bool ValueObjectChild::UpdateValue() {
            (parent_type_flags.AnySet(lldb::eTypeInstanceIsPointer)));
 
       if (parent->GetCompilerType().ShouldTreatScalarValueAsAddress()) {
-        // BEGIN SWIFT MOD
         lldb::addr_t addr = parent->GetPointerValue().address;
-
+        // The language runtime knows how a pointer that is an instance of the
+        // parent's type refers to the instance.
         if (parent_type_flags.AnySet(lldb::eTypeInstanceIsPointer))
-          if (auto process_sp = GetProcessSP())
-            if (auto runtime = process_sp->GetLanguageRuntime(
+          if (lldb::ProcessSP process_sp = GetProcessSP())
+            if (LanguageRuntime *runtime = process_sp->GetLanguageRuntime(
                     parent_type.GetMinimumLanguage())) {
-              bool deref;
-              std::tie(addr, deref) =
-                  runtime->FixupPointerValue(addr, parent_type);
-              // The runtime will always return an address in the target.
-              // So make sure we force that here.
-              parent->SetAddressTypeOfChildren(eAddressTypeLoad);
-              if (deref) {
-                // Read the pointer to the Objective-C object.
-                Target &target = process_sp->GetTarget();
-                size_t ptr_size = process_sp->GetAddressByteSize();
-                target.ReadMemory(Address(addr), &addr, ptr_size, m_error, true);
+              if (llvm::Expected<lldb::addr_t> instance_addr =
+                      runtime->FixupPointerValue(addr, parent_type)) {
+                addr = *instance_addr;
+                // The runtime returns an address in the target.
+                parent->SetAddressTypeOfChildren(eAddressTypeLoad);
+              } else {
+                m_error = Status::FromError(instance_addr.takeError());
               }
             }
-
         m_value.GetScalar() = addr;
-        // END SWIFT MOD
 
         switch (parent->GetAddressTypeOfChildren()) {
         case eAddressTypeFile: {
