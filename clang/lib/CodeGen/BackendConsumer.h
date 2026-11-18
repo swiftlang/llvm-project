@@ -13,10 +13,14 @@
 #include "clang/CodeGen/CodeGenAction.h"
 #include "clang/CodeGen/ModuleLinker.h"
 
+#include "clang/Basic/FileEntry.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/Support/Timer.h"
 
 namespace llvm {
+  class DIFile;
   class DiagnosticInfoDontCall;
 }
 
@@ -59,6 +63,9 @@ class BackendConsumer : public ASTConsumer {
   std::vector<std::pair<llvm::hash_code, FullSourceLoc>>
     ManglingFullSourceLocs;
 
+  /// The source file of each DIFile that clang created, or std::nullopt for a
+  /// DIFile shared by several files, which identifies none of them.
+  llvm::DenseMap<const llvm::DIFile *, OptionalFileEntryRef> DIFileSources;
 
   // This is here so that the diagnostic printer knows the module a diagnostic
   // refers to.
@@ -103,6 +110,13 @@ public:
 
   std::optional<FullSourceLoc> getFunctionSourceLocation(
     const llvm::Function &F) const;
+
+  /// Find the source file for a debug location in \p File, falling back to
+  /// looking up \p Names in order if \p File is not in DIFileSources. Debug
+  /// locations in DIFiles that clang did not create, e.g. from LLVM IR input,
+  /// are matched to source files by name.
+  OptionalFileEntryRef getSourceFile(const llvm::DIFile *File,
+                                     ArrayRef<StringRef> Names) const;
 
   void DiagnosticHandlerImpl(const llvm::DiagnosticInfo &DI);
   /// Specialized handler for InlineAsm diagnostic.
