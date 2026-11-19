@@ -714,20 +714,12 @@ FormatManager::FormatManager()
       m_language_categories_map(), m_named_summaries_map(this),
       m_categories_map(this), m_default_category_name("default"),
       m_system_category_name("system"),
-      m_vectortypes_category_name("VectorTypes"),
-      m_runtime_synths_category_name("runtime-synthetics") {
+      m_vectortypes_category_name("VectorTypes") {
   LoadSystemFormatters();
   LoadVectorFormatters();
 
-  GetCategory(m_runtime_synths_category_name); // EnableCategory() won't enable
-                                               // a non-existant category, so
-                                               // create this one first even if
-                                               // empty
-
   EnableCategory(m_vectortypes_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
-  EnableCategory(m_runtime_synths_category_name, TypeCategoryMap::Last,
-                 {lldb::eLanguageTypeObjC_plus_plus, lldb::eLanguageTypeSwift});
   EnableCategory(m_system_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
 }

@@ -85,6 +85,11 @@ static constexpr llvm::StringRef g_swift_mangling_prefixes[] = {
 /// The mangling scheme that this plugin registered.
 static Mangled::ManglingScheme g_swift_scheme = Mangled::eManglingSchemeNone;
 
+/// The category that turns the synthetic children that Swift classes get from
+/// the Objective-C runtime on and off. It has no formatters of its own.
+static constexpr llvm::StringLiteral
+    g_runtime_synths_category("runtime-synthetics");
+
 void SwiftLanguage::Initialize() {
   LogChannelSwift::Initialize();
   static ConstString g_SwiftSharedStringClass("_TtCs21__SharedStringStorage");
@@ -94,6 +99,15 @@ void SwiftLanguage::Initialize() {
                                 CreateInstance, &DebuggerInitialize);
   g_swift_scheme = Mangled::RegisterManglingScheme(g_swift_mangling_prefixes,
                                                    eLanguageTypeSwift);
+
+  lldb::TypeCategoryImplSP runtime_synths_sp;
+  if (DataVisualization::Categories::GetCategory(
+          ConstString(g_runtime_synths_category), runtime_synths_sp)) {
+    runtime_synths_sp->AddLanguage(eLanguageTypeObjC_plus_plus);
+    runtime_synths_sp->AddLanguage(eLanguageTypeSwift);
+    DataVisualization::Categories::Enable(runtime_synths_sp,
+                                          TypeCategoryMap::Last);
+  }
 
   lldb_private::formatters::NSString_Additionals::GetAdditionalSummaries()
       .emplace(
@@ -1174,7 +1188,7 @@ private:
 HardcodedFormatters::HardcodedSyntheticFinder
 SwiftLanguage::GetHardcodedSynthetics() {
   static std::once_flag g_initialize;
-  static ConstString g_runtime_synths_category_name("runtime-synthetics");
+  static ConstString g_runtime_synths_category_name(g_runtime_synths_category);
   static HardcodedFormatters::HardcodedSyntheticFinder g_formatters;
 
   std::call_once(g_initialize, []() -> void {
@@ -1557,6 +1571,21 @@ SwiftLanguage::GetPossibleFormattersMatches(
         {name, valobj.GetTargetSP()->GetDebugger().GetScriptInterpreter(),
          TypeImpl(compiler_type), FormattersMatchCandidate::Flags{}});
   return result;
+}
+
+std::vector<lldb::LanguageType>
+SwiftLanguage::GetFormatterLanguages(lldb::LanguageType language) const {
+  // Swift classes can derive from Objective-C classes, and Objective-C objects
+  // can be instances of Swift classes.
+  if (language == eLanguageTypeSwift)
+    return {eLanguageTypeSwift, eLanguageTypeObjC};
+  if (language == eLanguageTypeObjC)
+    return {eLanguageTypeSwift};
+  // C++ code can use Swift types through Swift/C++ interoperability.
+  if (Language::LanguageIsCPlusPlus(language) &&
+      language != eLanguageTypeObjC_plus_plus)
+    return {eLanguageTypeSwift};
+  return {};
 }
 
 static void SplitDottedName(llvm::StringRef name,
