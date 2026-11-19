@@ -2686,7 +2686,8 @@ def warn_unsequenced_mod_mod : Warning<
 def warn_unsequenced_mod_use : Warning<
   "unsequenced modification and access to %0">, InGroup<Unsequenced>;
 def warn_unsequenced_use_use_volatile : Warning<
-  "unsequenced accesses to volatile qualified %0">, InGroup<Unsequenced>;
+  "unsequenced accesses to volatile qualified %0">,
+  InGroup<UnsequencedVolatile>;
 
 def select_initialized_entity_kind : TextSubstitution<
   "%select{copying variable|copying parameter|initializing template parameter|"
