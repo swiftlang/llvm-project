@@ -1306,7 +1306,7 @@ void ASTDeclReader::VisitObjCInterfaceDecl(ObjCInterfaceDecl *ID) {
       // If we already have a definition, keep the definition invariant and
       // merge the data.
       MergeImpl.MergeDefinitionData(Canon, std::move(ID->data()));
-      ID->Data = Canon->Data;
+      ID->mergeDuplicateDefinitionWithCommon(Canon->getDefinition());
     } else {
       // Set the definition data of the canonical declaration, so other
       // redeclarations will see it.
@@ -1416,7 +1416,7 @@ void ASTDeclReader::VisitObjCProtocolDecl(ObjCProtocolDecl *PD) {
       // If we already have a definition, keep the definition invariant and
       // merge the data.
       MergeImpl.MergeDefinitionData(Canon, std::move(PD->data()));
-      PD->Data = Canon->Data;
+      PD->mergeDuplicateDefinitionWithCommon(Canon->getDefinition());
     } else {
       // Set the definition data of the canonical declaration, so other
       // redeclarations will see it.

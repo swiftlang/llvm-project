@@ -1251,6 +1251,11 @@ class ObjCInterfaceDecl : public ObjCContainerDecl
   /// could provide a definition.
   llvm::PointerIntPair<DefinitionData *, 1, bool> Data;
 
+  /// Whether this declaration was a definition which was demoted due to a
+  /// module merge.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned IsThisDeclarationADemotedDefinition : 1;
+
   ObjCInterfaceDecl(const ASTContext &C, DeclContext *DC, SourceLocation AtLoc,
                     const IdentifierInfo *Id, ObjCTypeParamList *typeParamList,
                     SourceLocation CLoc, ObjCInterfaceDecl *PrevDecl,
@@ -1530,6 +1535,12 @@ public:
   /// actually also a definition.
   bool isThisDeclarationADefinition() const {
     return getDefinition() == this;
+  }
+
+  /// Whether this declaration was a definition in some module but was forced
+  /// to be a declaration.
+  bool isThisDeclarationADemotedDefinition() const {
+    return IsThisDeclarationADemotedDefinition;
   }
 
   /// Determine whether this class has been defined.
@@ -2113,6 +2124,11 @@ class ObjCProtocolDecl : public ObjCContainerDecl,
   /// could provide a definition.
   llvm::PointerIntPair<DefinitionData *, 1, bool> Data;
 
+  /// Whether this declaration was a definition which was demoted due to a
+  /// module merge.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned IsThisDeclarationADemotedDefinition : 1;
+
   ObjCProtocolDecl(ASTContext &C, DeclContext *DC, IdentifierInfo *Id,
                    SourceLocation nameLoc, SourceLocation atStartLoc,
                    ObjCProtocolDecl *PrevDecl);
@@ -2269,6 +2285,12 @@ public:
   /// definition.
   bool isThisDeclarationADefinition() const {
     return getDefinition() == this;
+  }
+
+  /// Whether this declaration was a definition in some module but was forced
+  /// to be a declaration.
+  bool isThisDeclarationADemotedDefinition() const {
+    return IsThisDeclarationADemotedDefinition;
   }
 
   /// Starts the definition of this Objective-C protocol.
