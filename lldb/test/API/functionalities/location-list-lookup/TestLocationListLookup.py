@@ -40,6 +40,7 @@ class LocationListLookupTestCase(TestBase):
     @skipIf(bugnumber = "rdar://135577167")
     @skipIf(oslist=["linux"], archs=["arm"])
     @skipIfDarwin
+    @skipIfWasm  # argv is not readable after the abort() trap
     def test_loclist_frame_var(self):
         self.build()
         self.check_local_vars(self.launch(), check_expr=False)
