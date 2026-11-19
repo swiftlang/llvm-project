@@ -208,6 +208,7 @@ public:
       return *BufferOS;
     return *FileOS;
   }
+  std::optional<StringRef> getFillPath() const override;
 
   /// Attempt to open a temporary file for \p OutputPath.
   ///
@@ -223,10 +224,8 @@ public:
   Error initializeStream();
   Error reset();
 
-  OnDiskOutputFile(StringRef OutputPath, std::optional<OutputConfig> Config,
-                   const OnDiskOutputBackend::OutputSettings &Settings)
-      : Config(applySettings(std::move(Config), Settings)),
-        OutputPath(OutputPath.str()) {}
+  OnDiskOutputFile(StringRef OutputPath, OutputConfig Config)
+      : Config(Config), OutputPath(OutputPath.str()) {}
 
   OutputConfig Config;
   const std::string OutputPath;
@@ -445,6 +444,26 @@ areFilesDifferent(const llvm::Twine &Source, const llvm::Twine &Destination) {
   return FileDifference::SameContents;
 }
 
+/// Returns true if the content written for an output with \p Config is
+/// converted, e.g. to CRLF line endings.
+static bool needsTextConversion(OutputConfig Config) {
+#if defined(_WIN32)
+  return Config.getTextWithCRLF();
+#elif defined(__MVS__)
+  return Config.getText();
+#else
+  return false;
+#endif
+}
+
+std::optional<StringRef> OnDiskOutputFile::getFillPath() const {
+  // keep() moves the temporary file into place, if there's one. The content
+  // can be put there as-is, unless it needs text conversion.
+  if (!TempPath || needsTextConversion(Config))
+    return std::nullopt;
+  return *TempPath;
+}
+
 Error OnDiskOutputFile::reset() {
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
@@ -599,21 +618,29 @@ Error OnDiskOutputBackend::makeAbsolute(SmallVectorImpl<char> &Path) const {
 }
 
 Expected<std::unique_ptr<OutputFileImpl>>
-OnDiskOutputBackend::createFileImpl(StringRef Path,
-                                    std::optional<OutputConfig> Config) {
+OutputBackend::createFileOnDisk(StringRef Path,
+                                std::optional<OutputConfig> Config) {
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
   SmallString<256> AbsPath;
   if (Path != "-") {
     AbsPath = Path;
-    if (Error E = makeAbsolute(AbsPath))
-      return std::move(E);
+    if (std::error_code EC = sys::fs::make_absolute(AbsPath))
+      return convertToOutputError(AbsPath, EC);
     Path = AbsPath;
   }
 
-  auto File = std::make_unique<OnDiskOutputFile>(Path, Config, Settings);
+  auto File = std::make_unique<OnDiskOutputFile>(
+      Path,
+      Config.value_or(OnDiskOutputBackend::OutputSettings().DefaultConfig));
   if (Error E = File->initializeStream())
     return std::move(E);
 
   return std::move(File);
+}
+
+Expected<std::unique_ptr<OutputFileImpl>>
+OnDiskOutputBackend::createFileImpl(StringRef Path,
+                                    std::optional<OutputConfig> Config) {
+  return createFileOnDisk(Path, applySettings(std::move(Config), Settings));
 }

@@ -18,6 +18,7 @@
 #define LLVM_SUPPORT_VIRTUALOUTPUTFILE_H
 
 #include "llvm/ADT/FunctionExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
@@ -36,6 +37,12 @@ public:
   virtual Error keep() = 0;
   virtual Error discard() = 0;
   virtual raw_pwrite_stream &getOS() = 0;
+
+  /// Returns the path of the file that \a keep() moves into place as the
+  /// output, if the complete content can be put there as-is instead of being
+  /// written to \a getOS(), see \a OutputFile::fillAndKeep(). The default
+  /// implementation returns std::nullopt.
+  virtual std::optional<StringRef> getFillPath() const { return std::nullopt; }
 };
 
 class LLVM_ABI NullOutputFileImpl final
@@ -81,6 +88,21 @@ public:
   /// If there's an open proxy from \a createProxy(), calls \a discard() to
   /// clean up temporaries followed by \a report_fatal_error().
   LLVM_ABI Error keep();
+
+  /// Keep an output with its complete content put in a file by \p Fill,
+  /// instead of what was written to the stream. \p Fill is called with the
+  /// path of the file, and must create or replace it with the content, e.g. by
+  /// cloning a file. If the output is kept by moving a file into place, see
+  /// \a OutputFileImpl::getFillPath(), \p Fill puts the content there, and
+  /// \a keep() moves it into place. Otherwise, \p Fill puts it in a temporary
+  /// file, which is written to the output before keeping it. Errors if this
+  /// fails.
+  ///
+  /// \pre Nothing has been written to the stream.
+  ///
+  /// If it has already been closed, or if there's an open proxy, calls
+  /// \a report_fatal_error() like \a keep().
+  LLVM_ABI Error fillAndKeep(function_ref<Error(StringRef Path)> Fill);
 
   /// Discard an output, cleaning up any temporary state. Errors if clean-up
   /// fails.
