@@ -12,6 +12,8 @@
 
 #include "SwiftLanguage.h"
 
+#include "SwiftStdlibFormatters.h"
+#include "SwiftUIFormatters.h"
 #include "SwiftUnsafeTypes.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
@@ -406,6 +408,12 @@ static void LoadSwiftFormatters(lldb::TypeCategoryImplSP swift_category_sp) {
       lldb_private::formatters::swift::UnsafeTypeSyntheticFrontEndCreator,
       "Swift.[Mutable]Span", ConstString("^Swift\\.(Mutable)?Span<.+>?"),
       synth_flags, true);
+
+  AddCXXSynthetic(
+      swift_category_sp,
+      lldb_private::formatters::swift::UniqueBoxSyntheticFrontEndCreator,
+      "Swift.UniqueBox", ConstString("^Swift[.]UniqueBox<.+>$"), synth_flags,
+      true);
 
   DictionaryConfig::Get().RegisterSyntheticChildrenCreators(swift_category_sp,
                                                             synth_flags);
