@@ -2756,6 +2756,8 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   case Type::ValueTerminated:
     return getTypeInfo(cast<ValueTerminatedType>(T)->desugar().getTypePtr());
   /* TO_UPSTREAM(BoundsSafety) OFF */
+  case Type::LateParsedAttr:
+    return getTypeInfo(cast<LateParsedAttrType>(T)->desugar().getTypePtr());
 
   case Type::LateParsedAttr:
     return getTypeInfo(cast<LateParsedAttrType>(T)->desugar().getTypePtr());
