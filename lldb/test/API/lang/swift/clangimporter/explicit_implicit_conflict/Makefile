@@ -8,7 +8,8 @@ all: Lib.swift.o libImplicit $(EXE)
 include Makefile.rules
 
 # Built with explicit modules and only depends on Avail.
-Lib.swift.o: Lib.swift
+Lib.swift.o: Lib.swift \
+             $(call tool_prereq,$(SWIFTC_PATH)) $(call tool_prereq,$(SWIFT_FRONTEND_PATH))
 	"$(MAKE)" MAKE_DSYM=$(MAKE_DSYM) CC=$(CC) SWIFTC=$(SWIFTC) \
 		ARCH=$(ARCH) DSYMUTIL=$(DSYMUTIL) \
 		SWIFT_SOURCES=Lib.swift MODULENAME=Lib \
