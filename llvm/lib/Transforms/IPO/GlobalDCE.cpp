@@ -521,6 +521,14 @@ void GlobalDCEPass::PropagateLivenessToConditionallyUsed(Module &M) {
 PreservedAnalyses GlobalDCEPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Changed = false;
 
+  // Only the analyses of the deleted functions need to be cleared.
+  FunctionAnalysisManager *FAM = nullptr;
+  if (MAM.isPassRegistered<FunctionAnalysisManagerModuleProxy>()) {
+    if (auto *FAMProxy =
+            MAM.getCachedResult<FunctionAnalysisManagerModuleProxy>(M))
+      FAM = &FAMProxy->getManager();
+  }
+
   // The algorithm first computes the set L of global variables that are
   // trivially live.
   //
@@ -622,6 +630,8 @@ PreservedAnalyses GlobalDCEPass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (Function &F : M)
     if (!AliveGlobals.count(&F)) {
       DeadFunctions.push_back(&F);         // Keep track of dead globals
+      if (FAM)
+        FAM->clear(F, F.getName());
       if (!F.isDeclaration())
         F.deleteBody();
     }
@@ -706,9 +716,13 @@ PreservedAnalyses GlobalDCEPass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeIdMap.clear();
   VFESafeVTablesAndFns.clear();
 
-  if (Changed)
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  if (!Changed)
+    return PreservedAnalyses::all();
+
+  PreservedAnalyses PA;
+  PA.preserve<FunctionAnalysisManagerModuleProxy>();
+  PA.preserveSet<AllAnalysesOn<Function>>();
+  return PA;
 }
 
 void GlobalDCEPass::printPipeline(
