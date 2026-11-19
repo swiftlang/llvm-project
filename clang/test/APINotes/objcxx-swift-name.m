@@ -3,6 +3,8 @@
 // RUN: %clang_cc1 -fmodules -fblocks -fimplicit-module-maps -fmodules-cache-path=%t/ModulesCache/CxxInterop -fdisable-module-hash -fapinotes-modules -fsyntax-only -I %S/Inputs/Headers -F %S/Inputs/Frameworks %s -ast-dump -ast-dump-filter SomeClass -x objective-c++ | FileCheck %s
 // RUN: %clang_cc1 -fmodules -fblocks -fimplicit-module-maps -fmodules-cache-path=%t/ModulesCache/CxxInterop -fdisable-module-hash -fapinotes-modules -fsyntax-only -I %S/Inputs/Headers -F %S/Inputs/Frameworks %s -ast-dump -ast-dump-filter "unnamed enum" -x objective-c++ | FileCheck -check-prefix=CHECK-ANONYMOUS-ENUM %s
 
+// REQUIRES: rdar://95739262
+
 #import <CXXInteropKit/CXXInteropKit.h>
 
 // CHECK: Dumping NSSomeClass:
