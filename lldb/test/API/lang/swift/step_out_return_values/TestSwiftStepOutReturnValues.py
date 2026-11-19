@@ -79,6 +79,8 @@ class TestCase(lldbtest.TestBase):
             "f_has_class",
             "f_closure",
             "f_throws",
+            "f_typed_throws",
+            "f_typed_throws_large",
             "f_no_payload",
             "f_raw_value",
             "f_tuple",
