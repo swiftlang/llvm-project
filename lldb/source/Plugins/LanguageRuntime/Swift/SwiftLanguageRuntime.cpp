@@ -2305,14 +2305,8 @@ void SwiftLanguageRuntime::DidFinishExecutingUserExpression(
 }
 
 std::optional<Value> SwiftLanguageRuntime::GetErrorReturnLocationAfterReturn(
-    lldb::StackFrameSP frame_sp, Function *returned_from) {
+    lldb::StackFrameSP frame_sp, bool is_async) {
   std::optional<Value> error_val;
-
-  // An async function passes its error to the continuation in swiftself.
-  bool is_async =
-      returned_from &&
-      IsAnySwiftAsyncFunctionSymbol(
-          returned_from->GetMangled().GetMangledName().GetStringRef());
 
   llvm::StringRef error_reg_name;
   ArchSpec arch_spec(GetTargetRef().GetArchitecture());
@@ -2400,6 +2394,47 @@ std::optional<Value> SwiftLanguageRuntime::GetErrorReturnLocationBeforeReturn(
 
   need_to_check_after_return = func->CanThrow();
   return error_val;
+}
+
+std::optional<Value>
+SwiftLanguageRuntime::GetThrownErrorLocation(StackFrame &frame) {
+  bool need_to_check_after_return = false;
+  std::optional<Value> location = GetErrorReturnLocationBeforeReturn(
+      frame.shared_from_this(), need_to_check_after_return);
+  if (location)
+    return location;
+  if (!need_to_check_after_return)
+    return std::nullopt;
+  // The error is returned in a register, which can only be read once the
+  // function has returned. Use an invalid Value to tell GetThrownError to read
+  // it from the caller's frame. An async function passes its error to the
+  // continuation in swiftself rather than swifterror, so record whether the
+  // function is async in the Value's scalar.
+  Function *function = frame.GetSymbolContext(eSymbolContextFunction).function;
+  bool is_async =
+      function && IsAnySwiftAsyncFunctionSymbol(
+                      function->GetMangled().GetMangledName().GetStringRef());
+  Value read_after_return{Scalar(is_async ? 1 : 0)};
+  read_after_return.SetValueType(Value::ValueType::Invalid);
+  return read_after_return;
+}
+
+std::optional<lldb::ValueObjectSP>
+SwiftLanguageRuntime::GetThrownError(StackFrame &frame,
+                                     const Value &location) {
+  std::optional<Value> error_location = location;
+  if (location.GetValueType() == Value::ValueType::Invalid)
+    error_location = GetErrorReturnLocationAfterReturn(
+        frame.shared_from_this(),
+        /*is_async=*/!location.GetScalar().IsZero());
+  if (!error_location)
+    return std::nullopt;
+
+  // Even if the error value can't be computed, the function threw, so return
+  // a (possibly null) error rather than letting the caller show a bogus return
+  // value.
+  return CalculateErrorValueObjectFromValue(
+      *error_location, ConstString("swift_thrown_error"), /*persistent=*/true);
 }
 
 lldb::BreakpointResolverSP
