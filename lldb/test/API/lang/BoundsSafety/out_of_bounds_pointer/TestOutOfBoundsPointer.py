@@ -154,6 +154,8 @@ class TestOutOfBoundsPointer(TestBase):
     @expectedFailureAll(debug_info=["pdb"])
     def test_bidi_unknown_type_size(self):
         self.build()
+        # FIXME: Some buffers are randomly identified as Objective-C objects.
+        self.runCmd("settings set target.prefer-dynamic-value no-dynamic-values")
 
         (_, self.process, _, bkpt) = lldbutil.run_to_source_breakpoint(
             self, r"// break here:.+", lldb.SBFileSpec("bidi_check_unknown_type_size.c")
@@ -258,6 +260,8 @@ class TestOutOfBoundsPointer(TestBase):
     @expectedFailureAll(debug_info=["pdb"])
     def test_idx_unknown_type_size(self):
         self.build()
+        # FIXME: Some buffers are randomly identified as Objective-C objects.
+        self.runCmd("settings set target.prefer-dynamic-value no-dynamic-values")
 
         (_, self.process, _, bkpt) = lldbutil.run_to_source_breakpoint(
             self, r"// break here:.+", lldb.SBFileSpec("idx_check_unknown_type_size.c")
