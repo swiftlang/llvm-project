@@ -1,0 +1,93 @@
+# REQUIRES: ondisk_cas
+
+# Verify that dsymutil only creates the CAS from a .cas-config file when it
+# needs to load something from it.
+
+# RUN: rm -rf %t && split-file %s %t
+
+# An object that doesn't reference anything in the CAS must not create it.
+
+# RUN: mkdir -p %t/plain
+# RUN: cp %p/../Inputs/DWARF5/1.o %t/plain/1.o
+# RUN: echo '{"CASPath": "%/t/plain-cas"}' > %t/plain/.cas-config
+# RUN: dsymutil --linker classic -y %t/plain.map -oso-prepend-path=%t/plain \
+# RUN:   -o %t/plain-classic.dSYM
+# RUN: dsymutil --linker parallel -y %t/plain.map -oso-prepend-path=%t/plain \
+# RUN:   -o %t/plain-parallel.dSYM
+# RUN: llvm-dwarfdump --debug-info %t/plain-classic.dSYM \
+# RUN:   | FileCheck %s --check-prefix=PLAIN
+# RUN: llvm-dwarfdump --debug-info %t/plain-parallel.dSYM \
+# RUN:   | FileCheck %s --check-prefix=PLAIN
+# RUN: not ls %t/plain-cas
+
+# PLAIN: DW_TAG_compile_unit
+# PLAIN: DW_AT_name ("a.cpp")
+
+# An object referencing a module by CAS ID loads it from the CAS found next to
+# the object.
+
+# RUN: llvm-cas --cas %t/cas --make-blob --data %p/../Inputs/CAS/A.pcm
+# RUN: mkdir -p %t/local
+# RUN: cp %p/../Inputs/CAS/tu.o %t/local/tu.o
+# RUN: echo '{"CASPath": "%/t/cas"}' > %t/local/.cas-config
+# RUN: dsymutil --linker classic -f -y %t/local.map -oso-prepend-path=%t/local \
+# RUN:   -o - | llvm-dwarfdump --debug-info - | FileCheck %s
+# RUN: dsymutil --linker parallel -f -y %t/local.map -oso-prepend-path=%t/local \
+# RUN:   -o - | llvm-dwarfdump --debug-info - | FileCheck %s
+
+# If the CAS next to the object doesn't have the module, fall back to the CAS
+# found from the first object in the debug map.
+
+# RUN: mkdir -p %t/global %t/other
+# RUN: cp %p/../Inputs/DWARF5/1.o %t/global/1.o
+# RUN: echo '{"CASPath": "%/t/cas"}' > %t/global/.cas-config
+# RUN: cp %p/../Inputs/CAS/tu.o %t/other/tu.o
+# RUN: echo '{"CASPath": "%/t/empty-cas"}' > %t/other/.cas-config
+# RUN: dsymutil --linker classic -f -y %t/global.map -oso-prepend-path=%t \
+# RUN:   -o %t/global-classic.o 2>&1 | FileCheck %s --check-prefix=WARN
+# RUN: llvm-dwarfdump --debug-info %t/global-classic.o | FileCheck %s
+# RUN: dsymutil --linker parallel -f -y %t/global.map -oso-prepend-path=%t \
+# RUN:   -o %t/global-parallel.o 2>&1 | FileCheck %s --check-prefix=WARN
+# RUN: llvm-dwarfdump --debug-info %t/global-parallel.o | FileCheck %s
+# RUN: ls %t/empty-cas
+
+# WARN: warning: failed to load CAS object: unknown object
+
+# CHECK: DW_TAG_compile_unit
+# CHECK: DW_AT_name ("A")
+# CHECK: DW_TAG_structure_type
+# CHECK-NEXT: DW_AT_name ("A")
+# CHECK-NEXT: DW_AT_byte_size (0x04)
+# CHECK: DW_TAG_compile_unit
+# CHECK: DW_AT_name ("/^tmp/tu.c")
+
+#--- plain.map
+---
+triple:          'arm64-apple-darwin'
+objects:
+  - filename: 1.o
+    symbols:
+      - { sym: __Z4foo2i, objAddr: 0x0, binAddr: 0x10000, size: 0x8 }
+      - { sym: _main, objAddr: 0x8, binAddr: 0x10008, size: 0x8 }
+...
+
+#--- local.map
+---
+triple:          'arm64-apple-darwin'
+objects:
+  - filename: tu.o
+    symbols:
+      - { sym: _main, objAddr: 0x0, binAddr: 0x100000328, size: 0x14 }
+...
+
+#--- global.map
+---
+triple:          'arm64-apple-darwin'
+objects:
+  - filename: global/1.o
+    symbols:
+      - { sym: __Z4foo2i, objAddr: 0x0, binAddr: 0x10000, size: 0x8 }
+  - filename: other/tu.o
+    symbols:
+      - { sym: _main, objAddr: 0x0, binAddr: 0x100000328, size: 0x14 }
+...
