@@ -1017,6 +1017,24 @@ TEST_F(TestTypeSystemSwiftTypeRef, Error) {
   }
 }
 
+TEST_F(TestTypeSystemSwiftTypeRef, CanonicalizeVoidTypeAlias) {
+  using namespace swift::Demangle;
+  Demangler dem;
+  TestingNodeBuilder b(dem);
+  {
+    // Swift.Void on its own.
+    NodePointer void_alias = b.Node(
+        Node::Kind::TypeAlias, b.Node(Node::Kind::Module, swift::STDLIB_NAME),
+        b.Node(Node::Kind::Identifier, "Void"));
+    CompilerType sugared = GetCompilerType(b.Mangle(b.GlobalType(void_alias)));
+    CompilerType empty_tuple =
+        GetCompilerType(b.Mangle(b.GlobalType(b.Node(Node::Kind::Tuple))));
+    ASSERT_EQ(sugared.GetCanonicalType().GetMangledTypeName(),
+              empty_tuple.GetMangledTypeName());
+    ASSERT_TRUE(sugared.GetCanonicalType().IsVoidType());
+  }
+}
+
 TEST_F(TestTypeSystemSwiftTypeRef, Canonicalize) {
   using namespace swift::Demangle;
   Demangler dem;
