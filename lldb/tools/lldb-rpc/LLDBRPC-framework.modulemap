@@ -1,0 +1,5 @@
+framework module LLDBRPC {
+  umbrella header "LLDBRPC.h"
+  export *
+  module * { export * }
+}

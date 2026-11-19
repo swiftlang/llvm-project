@@ -68,6 +68,25 @@ if(NOT APPLE_EMBEDDED)
   )
 endif()
 
+# Copy the module map so LLDB.framework can be imported as a Clang module.
+add_custom_command(TARGET liblldb POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          $<TARGET_FILE_DIR:liblldb>/Modules
+  COMMAND ${CMAKE_COMMAND} -E copy
+          ${LLDB_SOURCE_DIR}/cmake/modules/LLDB-framework.modulemap
+          $<TARGET_FILE_DIR:liblldb>/Modules/module.modulemap
+  COMMENT "LLDB.framework: copy module map"
+)
+
+if(NOT APPLE_EMBEDDED)
+  add_custom_command(TARGET liblldb POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            Versions/Current/Modules
+            ${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Modules
+    COMMENT "LLDB.framework: create Modules symlink"
+  )
+endif()
+
 find_program(unifdef_EXECUTABLE unifdef)
 
 # Wrap output in a target, so lldb-framework can depend on it.
