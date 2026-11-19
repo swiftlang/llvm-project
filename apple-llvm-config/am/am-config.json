@@ -9,6 +9,6 @@
 },
 {
   "target": "stable/23.x",
-  "upstream": "llvm.org/release/23.x"
+  "upstream": "swift/release/6.5.x"
 }
 ]
