@@ -125,6 +125,10 @@ class TestCase(lldbtest.TestBase):
             "f_existential",
             # FIXME: This function has the type () -> ().
             "f_generic",
+            # FIXME: For a typed error, the error register holds 1, not the
+            # error.
+            "f_typed_throwing",
+            "f_typed_throwing_large",
         ]
         if not self.isEmbeddedSwift():
             # FIXME: These have a value only in Embedded Swift. Printing the

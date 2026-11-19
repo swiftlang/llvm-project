@@ -101,6 +101,8 @@ func f_throws() throws -> Int { return 14 }
 func f_throwing() throws -> Int { throw E() }
 func f_typed_throws() throws(E) -> Int { return 17 }
 func f_typed_throws_large() throws(LargeE) -> Int { return 18 }
+func f_typed_throwing() throws(E) -> Int { throw E() }
+func f_typed_throwing_large() throws(LargeE) -> Int { throw LargeE() }
 func f_three_int() -> ThreeInt { return ThreeInt() }
 func f_no_payload() -> NoPayload { return .c }
 func f_raw_value() -> RawValue { return .y }
@@ -142,6 +144,16 @@ func main() {
     _ = try f_throwing()
   } catch let v_throwing {
     _ = v_throwing
+  }
+  do {
+    _ = try f_typed_throwing()
+  } catch let v_typed_throwing {
+    _ = v_typed_throwing
+  }
+  do {
+    _ = try f_typed_throwing_large()
+  } catch let v_typed_throwing_large {
+    _ = v_typed_throwing_large
   }
   let v_three_int = f_three_int()
   let v_no_payload = f_no_payload()
