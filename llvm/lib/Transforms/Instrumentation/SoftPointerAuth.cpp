@@ -454,9 +454,12 @@ Constant *SoftPointerAuth::transformInitializer(GlobalVariable *global,
 
     // Drill down to the current position.
     Constant *addr = global;
-    if (pathToInitializer.size() != 1)
-      addr = ConstantExpr::getInBoundsGetElementPtr(global->getValueType(),
-                                                    addr, pathToInitializer);
+    if (pathToInitializer.size() != 1) {
+      addr = ConstantExpr::getGetElementPtr(
+          M->getDataLayout(), global->getValueType(), addr, pathToInitializer,
+          GEPNoWrapFlags::inBounds());
+      assert(addr && "constant path not representable as a ptradd?");
+    }
 
     // Store the transformed vlaue to this position.
     builder.CreateStore(transformedInitializer, addr);
