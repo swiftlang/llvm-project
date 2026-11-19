@@ -31,9 +31,9 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-private-enumerations.h"
 #include "lldb/lldb-types.h"
-#include "llvm/Support/Error.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 #include <cassert>
 #include <memory>
@@ -128,30 +128,25 @@ lldb::ValueType ValueObjectVariable::GetValueType() const {
   return lldb::eValueTypeInvalid;
 }
 
+/// Returns whether objects of the type of \p valobj occupy no memory, so that
+/// \p valobj has a value without a location.
+static bool HasNoStorage(ValueObject &valobj) {
+  ExecutionContext exe_ctx(valobj.GetExecutionContextRef());
+  llvm::Expected<uint64_t> size = valobj.GetCompilerType().GetByteSize(
+      exe_ctx.GetBestExecutionContextScope());
+  if (!size) {
+    // Without a size, assume that objects of the type occupy memory.
+    llvm::consumeError(size.takeError());
+    return false;
+  }
+  return *size == 0;
+}
+
 bool ValueObjectVariable::UpdateValue() {
   SetValueIsValid(false);
   m_error.Clear();
 
   Variable *variable = m_variable_sp.get();
-  // Check if the type has size 0. If so, there is nothing to update,
-  // unless the type is C++ where even empty structs have a non-zero
-  // size.
-  CompilerType var_type(GetCompilerType());
-  if (var_type.IsValid() &&
-      var_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
-    ExecutionContext exe_ctx(GetExecutionContextRef());
-    auto size_or_err =
-        var_type.GetByteSize(exe_ctx.GetBestExecutionContextScope());
-    if (!size_or_err) {
-      m_error = Status::FromError(size_or_err.takeError());
-      return false;
-    }
-    if (*size_or_err == 0) {
-      m_value.SetCompilerType(var_type);
-      return m_error.Success();
-    }
-  }
-
   DWARFExpressionList &expr_list = variable->LocationExpressionList();
 
   if (variable->GetLocationIsConstantValueData()) {
@@ -161,6 +156,8 @@ bool ValueObjectVariable::UpdateValue() {
       if (m_data.GetDataStart() && m_data.GetByteSize())
         m_value.SetBytes(m_data.GetDataStart(), m_data.GetByteSize());
       m_value.SetContext(Value::ContextType::Variable, variable);
+    } else if (HasNoStorage(*this)) {
+      m_value.SetCompilerType(GetCompilerType());
     } else
       m_error = Status::FromErrorString("empty constant data");
     // constant bytes can't be edited - sorry
@@ -278,6 +275,12 @@ bool ValueObjectVariable::UpdateValue() {
       }
 
       SetValueIsValid(m_error.Success());
+    } else if (HasNoStorage(*this)) {
+      // A variable whose type occupies no memory needs no location.
+      llvm::consumeError(maybe_value.takeError());
+      m_value.SetCompilerType(GetCompilerType());
+      m_resolved_value.SetContext(Value::ContextType::Invalid, nullptr);
+      m_resolved_value_is_implicit = true;
     } else {
       m_error = Status::FromError(maybe_value.takeError());
       // could not find location, won't allow editing
