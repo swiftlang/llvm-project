@@ -8003,7 +8003,7 @@ void TypeLocReader::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
 }
 
 void TypeLocReader::VisitCountAttributedTypeLoc(CountAttributedTypeLoc TL) {
-  // Nothing to do
+  TL.setAttrRange(readSourceRange());
 }
 
 /* TO_UPSTREAM(BoundsSafety) ON */
