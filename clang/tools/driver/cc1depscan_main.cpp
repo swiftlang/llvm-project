@@ -28,7 +28,6 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/ActionCache.h"
 #include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/BLAKE3.h"
@@ -525,10 +524,9 @@ static int scanAndUpdateCC1Inline(
     return 1;
 
   dependencies::DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [DB = DB] {
+  Opts.MakeVFS = [] {
     auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-    return llvm::cas::createCASProvidingFileSystem(
-        DB, llvm::vfs::createPhysicalFileSystem());
+    return llvm::vfs::createPhysicalFileSystem();
   };
   Opts.Compilation = dependencies::IncludeTreeCompilation{CASOpts, DB, Cache};
   Opts.AsCompilation = true;
@@ -987,10 +985,9 @@ int ScanServer::listen() {
     reportError("cannot create ActionCache");
 
   dependencies::DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [CAS] {
+  Opts.MakeVFS = [] {
     auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-    return llvm::cas::createCASProvidingFileSystem(
-        CAS, llvm::vfs::createPhysicalFileSystem());
+    return llvm::vfs::createPhysicalFileSystem();
   };
   Opts.Compilation = dependencies::IncludeTreeCompilation{CASOpts, CAS, Cache};
   Opts.AsCompilation = true;

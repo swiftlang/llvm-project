@@ -117,10 +117,8 @@ public:
 };
 
 /// Represents an open file.
-class LLVM_ABI File : public RTTIExtends<File, RTTIRoot> {
+class LLVM_ABI File {
 public:
-  static const char ID;
-
   /// Destroy the file after closing it (if open).
   /// Sub-classes should generally call close() inside their destructors.  We
   /// cannot do that from the base class, since close is virtual.

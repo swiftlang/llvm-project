@@ -18,14 +18,6 @@ namespace llvm::cas {
 class ObjectStore;
 class CASID;
 
-/// Abstract class represents an open file backed by a CAS.
-class CASBackedFile : public RTTIExtends<CASBackedFile, vfs::File> {
-public:
-  LLVM_ABI static const char ID;
-  /// Get the CAS reference for the contents of the file.
-  virtual cas::ObjectRef getObjectRefForContent() = 0;
-};
-
 /// Abstract class represents a CAS backed file system.
 class CASBackedFileSystem
     : public llvm::RTTIExtends<CASBackedFileSystem, vfs::FileSystem> {
@@ -37,28 +29,15 @@ public:
   /// open the file twice.
   /// The IsText parameter is used to distinguish whether the file should be
   /// opened as a binary or text file.
-  LLVM_ABI llvm::Expected<
+  virtual llvm::Expected<
       std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
   getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize = -1,
                                bool RequiresNullTerminator = true,
-                               bool IsVolatile = false, bool IsText = true);
+                               bool IsVolatile = false, bool IsText = true) = 0;
 
   /// Get ObjectRef of a file from its path.
   LLVM_ABI llvm::Expected<cas::ObjectRef>
   getObjectRefForFileContent(const Twine &Name);
-
-  /// Implementation for openFileForRead using CASBackedFile.
-  ErrorOr<std::unique_ptr<vfs::File>>
-  openFileForRead(const Twine &Path) override {
-    auto F = openCASBackedFileForRead(Path);
-    if (!F)
-      return errorToErrorCode(F.takeError());
-    return std::move(*F);
-  }
-
-  /// Get CASBackedFile for read.
-  virtual llvm::Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForRead(const Twine &Path) = 0;
 
   /// Get a proxy FS that has an independent working directory.
   virtual IntrusiveRefCntPtr<CASBackedFileSystem>

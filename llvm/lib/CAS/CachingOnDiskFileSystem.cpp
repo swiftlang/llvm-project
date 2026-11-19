@@ -91,8 +91,13 @@ public:
                                        bool FollowSymlinks) final;
   ErrorOr<vfs::Status> status(const Twine &Path) final;
   bool exists(const Twine &Path) final;
-  Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForReadImpl(const Twine &Path) final;
+  ErrorOr<std::unique_ptr<vfs::File>> openFileForRead(const Twine &Path) final;
+  Expected<std::pair<std::unique_ptr<MemoryBuffer>, ObjectRef>>
+  getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                               bool RequiresNullTerminator, bool IsVolatile,
+                               bool IsText) final;
+  Expected<DirectoryEntry *> lookupFileEntry(const Twine &Path,
+                                             StringRef PathRef);
   vfs::directory_iterator dir_begin(const Twine &Dir,
                                     std::error_code &EC) final {
     auto IterOr = getDirectoryIterator(Dir);
@@ -222,7 +227,7 @@ CachingOnDiskFileSystem::CachingOnDiskFileSystem(
 
 CachingOnDiskFileSystem::CachingOnDiskFileSystem(ObjectStore &DB) : DB(DB) {}
 
-class CachingOnDiskFileSystemImpl::VFSFile final : public CASBackedFile {
+class CachingOnDiskFileSystemImpl::VFSFile final : public vfs::File {
 public:
   ErrorOr<vfs::Status> status() final {
     return Entry->getStatus(Name, /*FollowSymlinks=*/true);
@@ -240,8 +245,6 @@ public:
     SmallString<256> Storage;
     return Object->getMemoryBuffer(RequestedName.toStringRef(Storage));
   }
-
-  cas::ObjectRef getObjectRefForContent() final { return *Entry->getRef(); }
 
   /// Closes the file.
   std::error_code close() final { return std::error_code(); }
@@ -482,11 +485,9 @@ bool CachingOnDiskFileSystemImpl::exists(const Twine &Path) {
   return true;
 }
 
-Expected<std::unique_ptr<CASBackedFile>>
-CachingOnDiskFileSystemImpl::openCASBackedFileForReadImpl(const Twine &Path) {
-  PathStorage PathStorage(Path);
-  StringRef PathRef = PathStorage.Path;
-
+Expected<CachingOnDiskFileSystemImpl::DirectoryEntry *>
+CachingOnDiskFileSystemImpl::lookupFileEntry(const Twine &Path,
+                                             StringRef PathRef) {
   Expected<DirectoryEntry *> ExpectedEntry = lookupPath(PathRef);
   if (!ExpectedEntry)
     return ExpectedEntry.takeError();
@@ -496,7 +497,39 @@ CachingOnDiskFileSystemImpl::openCASBackedFileForReadImpl(const Twine &Path) {
     return createFileError(Path,
                            std::make_error_code(std::errc::invalid_argument));
 
-  return std::make_unique<VFSFile>(DB, *Entry, PathRef);
+  return Entry;
+}
+
+ErrorOr<std::unique_ptr<vfs::File>>
+CachingOnDiskFileSystemImpl::openFileForRead(const Twine &Path) {
+  PathStorage PathStorage(Path);
+  StringRef PathRef = PathStorage.Path;
+
+  Expected<DirectoryEntry *> Entry = lookupFileEntry(Path, PathRef);
+  if (!Entry)
+    return errorToErrorCode(Entry.takeError());
+
+  return std::unique_ptr<vfs::File>(
+      std::make_unique<VFSFile>(DB, **Entry, PathRef));
+}
+
+Expected<std::pair<std::unique_ptr<MemoryBuffer>, ObjectRef>>
+CachingOnDiskFileSystemImpl::getBufferAndObjectRefForFile(
+    const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
+    bool IsVolatile, bool IsText) {
+  PathStorage PathStorage(Name);
+  StringRef PathRef = PathStorage.Path;
+
+  Expected<DirectoryEntry *> Entry = lookupFileEntry(Name, PathRef);
+  if (!Entry)
+    return Entry.takeError();
+
+  ObjectRef Ref = *(*Entry)->getRef();
+  Expected<ObjectProxy> Object = DB.getProxy(Ref);
+  if (!Object)
+    return Object.takeError();
+  assert(Object->getNumReferences() == 0 && "Expected a leaf node");
+  return std::pair{Object->getMemoryBuffer(PathRef), Ref};
 }
 
 ErrorOr<vfs::directory_iterator>

@@ -10,6 +10,7 @@
 #define LLVM_CAS_CASPROVIDINGFILESYSTEM_H
 
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/CAS/CASFileSystem.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 
@@ -21,10 +22,10 @@ class FileSystem;
 namespace cas {
 class ObjectStore;
 
-/// Implements \p vfs::File::getObjectRefForContent() by ingesting the file
-/// buffer into the \p DB, unless the \p UnderlyingFS already supports \p
-/// vfs::File::getObjectRefForContent().
-LLVM_ABI std::unique_ptr<llvm::vfs::FileSystem> createCASProvidingFileSystem(
+/// Implements \c CASBackedFileSystem::getBufferAndObjectRefForFile() by
+/// ingesting the file buffer into \p DB. Files opened with \c openFileForRead
+/// are ingested too.
+LLVM_ABI std::unique_ptr<CASBackedFileSystem> createCASProvidingFileSystem(
     std::shared_ptr<ObjectStore> DB,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> UnderlyingFS);
 
