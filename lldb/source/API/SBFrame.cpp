@@ -690,7 +690,8 @@ const char *SBFrame::Disassemble() const {
   }
 
   if (auto *frame = exe_ctx->GetFramePtr())
-    return ConstString(frame->Disassemble()).GetCString();
+    return GetDebuggerStringPool(exe_ctx->GetTargetRef())
+        .Intern(frame->Disassemble());
 
   return nullptr;
 }
