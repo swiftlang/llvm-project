@@ -4,7 +4,7 @@
 #
 ##===----------------------------------------------------------------------===##
 
-cmake_minimum_required(VERSION 3.31.0)
+cmake_minimum_required(VERSION 3.20)
 project(omptest LANGUAGES CXX)
 
 option(LIBOMPTEST_BUILD_STANDALONE
