@@ -1,18 +1,29 @@
 public class PublicBase {}
 
 private class PrivateSubclass: PublicBase, CustomStringConvertible {
-  var description = "Easy as pie"
-}
-
-func makeIt() -> PublicBase {
-  return PrivateSubclass()
-}
-
-class Main {
-  func main() {
-    let x = makeIt()
-    print("break here \(x)")
+  var description: String
+  init(description: String) {
+    self.description = description
   }
 }
 
-Main().main()
+private class PrivateClass: CustomStringConvertible {
+  var description = "Meat pie"
+}
+
+func makePublic() -> PublicBase {
+  return PrivateSubclass(description: "Easy as pie")
+}
+
+func makeAnyObject() -> AnyObject {
+  return PrivateSubclass(description: "Any pie")
+}
+
+@main enum Entry {
+  static func main() {
+    let x = makePublic()
+    let y = makeAnyObject()
+    let z = PrivateClass()
+    print("break here", x, y, z)
+  }
+}

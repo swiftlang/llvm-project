@@ -17,6 +17,8 @@ class TestCase(TestBase):
         self.runCmd(f"log enable lldb expr -f {log}")
 
         self.expect("frame variable -O x", substrs=["Easy as pie"])
+        self.expect("frame variable -O y", substrs=["Any pie"])
+        self.expect("frame variable -O z", substrs=["Meat pie"])
         self.filecheck_log(log, __file__)
 
         # Clear the log.
@@ -25,10 +27,16 @@ class TestCase(TestBase):
         self.runCmd(f"log enable lldb expr -f {log}")
 
         self.expect("dwim-print -O -- x", substrs=["Easy as pie"])
+        self.expect("dwim-print -O -- y", substrs=["Any pie"])
+        self.expect("dwim-print -O -- z", substrs=["Meat pie"])
         self.filecheck_log(log, __file__)
 
         # Verify po used the mangled name of the static type - which is public,
         # and not the private dynamic type.
         #
         # CHECK: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "1a10PublicBaseCD")
+        # CHECK: stringForPrintObject(_:mangledTypeName:) succeeded
+        # CHECK: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "yXlD")
+        # CHECK: stringForPrintObject(_:mangledTypeName:) succeeded
+        # CHECK: stringForPrintObject(UnsafeRawPointer(bitPattern: {{[0-9]+}}), mangledTypeName: "yXlD")
         # CHECK: stringForPrintObject(_:mangledTypeName:) succeeded
