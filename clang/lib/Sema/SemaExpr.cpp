@@ -27127,6 +27127,38 @@ ExprResult Sema::BuildForgePtrExpr(SourceLocation KWLoc,
       return ExprError();
   }
 
+  // Warn about every use of the forge builtins (directly or via the
+  // __unsafe_forge_* macros).
+  //
+  // Don't warn when instantiating a template. The forge is diagnosed once when
+  // the template definition is parsed (even if it is never instantiated), so
+  // warning again for each instantiation would only produce duplicate
+  // diagnostics at the same location.
+  if (!inTemplateInstantiation()) {
+    SourceLocation DiagLoc = SourceMgr.getExpansionLoc(KWLoc);
+    unsigned ForgeKind = diag::BoundsSafetyForgeKind::BidiIndexable;
+    if (IsForgeSingle) {
+      ForgeKind = diag::BoundsSafetyForgeKind::Single;
+    } else if (IsForgeTerminated) {
+      // __unsafe_forge_null_terminated is __unsafe_forge_terminated_by with a
+      // zero terminator.
+      const auto *VTT = ResultType->getAs<ValueTerminatedType>();
+      bool IsNull = !Terminator->isValueDependent() &&
+                    VTT->getTerminatorValue(Context).isZero();
+      if (IsNull)
+        ForgeKind = diag::BoundsSafetyForgeKind::NullTerminated;
+      else
+        ForgeKind = diag::BoundsSafetyForgeKind::TerminatedBy;
+    }
+    // FIXME: The diagnostic names the forge kind, not what the user wrote. For
+    // example, a use of __builtin_unsafe_forge_single is reported as
+    // '__unsafe_forge_single'. See rdar://193157103.
+    Diag(DiagLoc, SourceMgr.isInSystemHeader(DiagLoc)
+                      ? diag::warn_bounds_safety_unsafe_forge_sdk
+                      : diag::warn_bounds_safety_unsafe_forge)
+        << ForgeKind;
+  }
+
   ExprValueKind VK = Expr::getValueKindForType(ResultType);
   return new (Context)
       ForgePtrExpr(ResultType, VK, RvalueAddr.get(), RvalueSize.get(),
