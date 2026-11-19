@@ -17,3 +17,8 @@ CDef
 @protocol P0
 -(void)m5;
 @end
+
+#define CDef2 \
+@interface D \
+-(void)m9; \
+@end
