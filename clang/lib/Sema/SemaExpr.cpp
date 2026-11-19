@@ -27142,9 +27142,10 @@ ExprResult Sema::BuildForgePtrExpr(SourceLocation KWLoc,
     } else if (IsForgeTerminated) {
       // __unsafe_forge_null_terminated is __unsafe_forge_terminated_by with a
       // zero terminator.
-      const auto *VTT = ResultType->getAs<ValueTerminatedType>();
+      llvm::APSInt TermVal;
       bool IsNull = !Terminator->isValueDependent() &&
-                    VTT->getTerminatorValue(Context).isZero();
+                    Terminator->EvaluateAsTerminatorValue(TermVal, Context) &&
+                    TermVal.isZero();
       if (IsNull)
         ForgeKind = diag::BoundsSafetyForgeKind::NullTerminated;
       else
