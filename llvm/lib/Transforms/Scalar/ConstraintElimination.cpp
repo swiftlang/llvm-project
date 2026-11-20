@@ -14,6 +14,7 @@
 #include "llvm/Transforms/Scalar/ConstraintElimination.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -495,6 +496,8 @@ public:
   const ConstraintSystem &getCS(bool Signed) const {
     return Signed ? SignedCS : UnsignedCS;
   }
+
+  const DataLayout &getDataLayout() const { return State.DL; }
 
   void popLastConstraint(bool Signed) {
     assert(DecomposeCache.empty() && "Cache must be cleared");
@@ -2490,6 +2493,61 @@ static RowTy getDecompositionLinkRow(Value *V, const ConstraintTy &C,
   return NewVariables.empty() ? Row : RowTy();
 }
 
+/// Checks the signed relation \p A \p Pred \p B, splitting signed min/max
+/// results across their respective operands.
+static bool isSignedMinMaxCmpKnownTrue(CmpInst::Predicate Pred, Value *A,
+                                       Value *B, ConstraintInfo &Info) {
+  if (!A->getType()->isIntegerTy())
+    return false;
+
+  // Canonicalize to "<" and "<=".
+  if (Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SGE) {
+    Pred = CmpInst::getSwappedPredicate(Pred);
+    std::swap(A, B);
+  }
+
+  if (Pred != CmpInst::ICMP_SLT && Pred != CmpInst::ICMP_SLE)
+    return false;
+
+  const DataLayout &DL = Info.getDataLayout();
+  Decomposition D = decompose(A, Info, /*IsSigned=*/true, Info.getState());
+  if (D.sub(decompose(B, Info, /*IsSigned=*/true, Info.getState())))
+    return false;
+
+  for (const DecompEntry &E : D.Vars) {
+    auto *MM = dyn_cast<MinMaxIntrinsic>(E.Variable);
+    if (!MM || !MM->isSigned())
+      continue;
+    Decomposition Rest(D.Offset);
+    int64_t Coefficient = 0;
+    for (const DecompEntry &Other : D.Vars) {
+      if (Other.Variable != MM)
+        Rest.Vars.push_back(Other);
+      else if (AddOverflow(Coefficient, Other.Coefficient, Coefficient))
+        return false;
+    }
+    if (Coefficient == 0)
+      continue;
+    auto IsKnown = [&](Value *Op) {
+      Decomposition Side = decompose(Op, Info, /*IsSigned=*/true, Info.getState());
+      if (Side.mul(Coefficient) || Side.add(Rest) || Side.mul(-1))
+        return false;
+      SmallVector<Value *> NewVariables;
+      const auto &Value2Index = Info.getValue2Index(/*Signed=*/true);
+      RowTy R = getRowForLessEqual(Decomposition(Pred == CmpInst::ICMP_SLT),
+                                   Side, Value2Index, NewVariables);
+      return !R.empty() && R.back().Id <= Value2Index.size() &&
+             Info.getCS(/*Signed=*/true).isConditionImpliedInSubSystem(R);
+    };
+    if ((MM->getIntrinsicID() == Intrinsic::smax) == (Coefficient > 0)
+            ? IsKnown(MM->getLHS()) && IsKnown(MM->getRHS())
+            : IsKnown(MM->getLHS()) || IsKnown(MM->getRHS()))
+      return true;
+  }
+
+  return false;
+}
+
 static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
                                           Value *B, Instruction *CheckInst,
                                           ConstraintInfo &Info) {
@@ -2580,6 +2638,9 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
       }
     }
   }
+
+  if (isSignedMinMaxCmpKnownTrue(Pred, A, B, Info))
+    return true;
 
   /* TO_UPSTREAM(BoundsSafety) ON*/
   // Failed to prove the condition; record a missed optimization when the
