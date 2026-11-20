@@ -25,6 +25,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Basic/DiagnosticTrap.h" // TO_UPSTREAM(BoundsSafety)
 #include "clang/CodeGenUtils/ExprUtils.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -933,8 +934,13 @@ void AggExprEmitter::EmitBoundsSafetyPointerConversion(CastExpr *E) {
           CGF, BNS_OR_BIDI_TO_INDEXABLE_PTR_LT_LOWER_BOUND);
       llvm::Value *Lower = CGF.GetWidePointerElement(PtrAddr, WPIndex::Lower);
       llvm::Value *Check = Builder.CreateICmpUGE(Ptr, Lower);
-      CGF.EmitBoundsSafetyTrapCheck(Check,
-                                 BNS_TRAP_BIDI_TO_INDEXABLE_PTR_LT_LOWER_BOUND);
+      TrapReason TR;
+      CGF.CGM.BuildTrapReason(diag::trap_bs_bidi_to_indexable_lower_bound, TR)
+          << /*%0=*/E->getSubExpr()->getType() << /*%1=*/E->getType()
+          << /*%2=*/E->getSubExpr();
+      CGF.EmitBoundsSafetyTrapCheck(
+          Check, BNS_TRAP_BIDI_TO_INDEXABLE_PTR_LT_LOWER_BOUND,
+          BoundsSafetyTrapCtx::UNKNOWN, &TR);
     }
   }
 
