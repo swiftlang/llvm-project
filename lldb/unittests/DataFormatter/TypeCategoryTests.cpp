@@ -42,8 +42,8 @@ public:
 /// Returns whether \p category provides its summary for a type named "T" to a
 /// value of \p language.
 static bool AppliesTo(TypeCategoryImpl &category, LanguageType language) {
-  FormattersMatchVector candidates = {
-      {"T", nullptr, TypeImpl(), FormattersMatchCandidate::Flags()}};
+  FormattersMatchVector candidates = {{ConstString("T"), nullptr, TypeImpl(),
+                                       FormattersMatchCandidate::Flags()}};
   TypeSummaryImplSP summary;
   return category.Get(language, candidates, summary);
 }
@@ -56,11 +56,12 @@ TEST(TypeCategoryTests, IsApplicable) {
 
   FormatManager format_manager;
   auto make_category = [&](llvm::StringRef name, LanguageType language) {
-    TypeCategoryImplSP category = format_manager.GetCategory(name);
+    TypeCategoryImplSP category = format_manager.GetCategory(ConstString(name));
     category->AddTypeSummary("T", eFormatterMatchExact,
                              std::make_shared<StringSummaryFormat>(
                                  TypeSummaryImpl::Flags(), "summary"));
-    format_manager.EnableCategory(name, TypeCategoryMap::Default, language);
+    format_manager.EnableCategory(ConstString(name), TypeCategoryMap::Default,
+                                  language);
     return category;
   };
 
