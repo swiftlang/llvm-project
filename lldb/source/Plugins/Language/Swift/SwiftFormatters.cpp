@@ -716,6 +716,11 @@ static bool RangeFamily_SummaryProvider(ValueObject &valobj, Stream &stream,
       valobj.GetChildMemberWithName(g_lowerBound, true));
   ValueObjectSP upperBound_sp(
       valobj.GetChildMemberWithName(g_upperBound, true));
+  // Newer stdlibs store Range's bounds as `_lowerBound` and `_upperBound`.
+  if (!lowerBound_sp)
+    lowerBound_sp = valobj.GetChildMemberWithName("_lowerBound", true);
+  if (!upperBound_sp)
+    upperBound_sp = valobj.GetChildMemberWithName("_upperBound", true);
 
   if (!lowerBound_sp || !upperBound_sp)
     return false;
