@@ -16,6 +16,7 @@
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StopInfo.h"
@@ -638,6 +639,15 @@ void ThreadPlanStepOut::CalculateReturnValue() {
         m_immediate_step_from_function->GetCompilerType()
             .GetFunctionReturnType();
     if (return_compiler_type) {
+      // Computing a type's size may require a type from the language runtime.
+      if (LanguageRuntime *runtime = m_process.GetLanguageRuntime(
+              return_compiler_type.GetMinimumLanguage())) {
+        std::optional<CompilerType> runtime_type = runtime->GetRuntimeType(
+            return_compiler_type,
+            ExecutionContextRef(&GetThread(), /*adopt_selected=*/false));
+        if (runtime_type && *runtime_type)
+          return_compiler_type = *runtime_type;
+      }
       lldb::ABISP abi_sp = m_process.GetABI();
       if (abi_sp)
         m_return_valobj_sp =
