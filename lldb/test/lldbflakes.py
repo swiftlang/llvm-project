@@ -18,17 +18,27 @@ KNOWN_FLAKES = [
 MAX_ATTEMPTS = 3
 
 # BEGIN SWIFT
-# On Windows, any failure or timeout is rerun until the flakes in LLDB's
-# Windows support are fixed.
-# rdar://188906589
-RERUN_ALL_FAILURES = platform.system() == "Windows"
+# Any failure or timeout is rerun. A test that only passes on a rerun is
+# reported as flaky but still fails the build, unless every failed attempt was
+# a known flake. lit's own FLAKYPASS is not a failure.
+RERUN_ALL_FAILURES = True
+FLAKYPASS = lit.Test.ResultCode(
+    "FLAKY_PASS", "Passed With Retry (Counted As Failure)", True
+)
 # END SWIFT
 
 def _hit_known_flake(output):
     return any(flake.search(output) for flake in KNOWN_FLAKES)
 
 
-def execute_with_reruns(execute_once):
+def _is_expected_to_fail(test):
+    try:
+        return test.isExpectedToFail()
+    except ValueError:
+        return True
+
+
+def execute_with_reruns(test, execute_once):
     """Run execute_once, which returns a lit.Test.Result, until it stops
     failing with a known flake, or with any failure on Windows."""
     outputs = []
@@ -38,6 +48,8 @@ def execute_with_reruns(execute_once):
             "Attempt %d of %d: %s\n%s"
             % (attempt + 1, MAX_ATTEMPTS, result.code.name, result.output)
         )
+        if _is_expected_to_fail(test):
+            break
         if RERUN_ALL_FAILURES and result.code.isFailure:
             continue
         if result.code != lit.Test.FAIL or not _hit_known_flake(result.output):
@@ -48,6 +60,10 @@ def execute_with_reruns(execute_once):
     if attempt > 0:
         if result.code == lit.Test.PASS:
             result.code = lit.Test.FLAKYPASS
+            # BEGIN SWIFT
+            if not all(_hit_known_flake(o) for o in outputs[:-1]):
+                result.code = FLAKYPASS
+            # END SWIFT
         result.attempts = attempt + 1
         result.max_allowed_attempts = MAX_ATTEMPTS
         result.output = "\n".join(outputs)
