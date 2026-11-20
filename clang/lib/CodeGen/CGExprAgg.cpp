@@ -316,8 +316,9 @@ public:
     EmitCheckedBoundPointerArithmetic(DestLV, E, Base, Index, Int32Ty, IsSub);
   }
 
-  void EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV, llvm::Value *Idx,
-                                  bool IsIdxSigned, bool IsSub);
+  void EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV,
+                                  llvm::Value *Idx, bool IsIdxSigned,
+                                  bool IsSub, const PartialDiagnostic &PD);
   void VisitAssumptionExpr(AssumptionExpr *E);
   void VisitForgePtrExpr(ForgePtrExpr *E);
   void VisitBoundsCheckExpr(BoundsCheckExpr *E) {
@@ -2038,7 +2039,9 @@ void AggExprEmitter::EmitCheckedBoundPointerArithmetic(
     QualType IdxType, bool IsSub) {
   const bool IsSigned = IdxType->isSignedIntegerOrEnumerationType();
   LValue BaseLV = CGF.EmitAggExprToLValue(Base);
-  EmitBoundPointerArithmetic(DestLV, BaseLV, Idx, IsSigned, IsSub);
+  auto PD = CGF.CGM.BuildPartialTrapReason();
+  PD << /*%0=*/E << /*%1=*/Base->getType() << /*%2=*/Base;
+  EmitBoundPointerArithmetic(DestLV, BaseLV, Idx, IsSigned, IsSub, PD);
 
   if (CGF.SanOpts.has(SanitizerKind::ArrayBounds))
     CGF.EmitBoundsCheck(E, Base, Idx, IdxType,
@@ -2061,8 +2064,10 @@ void AggExprEmitter::EmitCheckedBoundPointerArithmetic(
   EmitCheckedBoundPointerArithmetic(DestLV, E, Base, IdxVal, IdxType, IsSub);
 }
 
-void AggExprEmitter::EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV, llvm::Value *Idx,
-                                                bool IsIdxSigned, bool IsSub) {
+void AggExprEmitter::EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV,
+                                                llvm::Value *Idx,
+                                                bool IsIdxSigned, bool IsSub,
+                                                const PartialDiagnostic &PD) {
   // TODO(dliew): rdar://109574814: opt-remarks could be added here.
   Address PtrAddr = Builder.CreateStructGEP(BaseLV.getAddress(), 0);
   llvm::Value *Ptr = Builder.CreateLoad(PtrAddr);
@@ -2114,8 +2119,12 @@ void AggExprEmitter::EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV, ll
     llvm::Value *NewPtr =
         Builder.CreatePtrToInt(Ptr, CGF.SizeTy, "bound.ptr.arith.new");
     llvm::Value *NewGEOld = Builder.CreateICmpUGE(NewPtr, OldPtr);
+    TrapReason TR;
+    CGF.CGM.BuildTrapReason(diag::trap_bs_indexable_ptr_arith_lower_bound, TR)
+        << /*%0-%2=*/PD;
     CGF.EmitBoundsSafetyTrapCheck(
-        NewGEOld, BoundsSafetyTrapKind::BNS_TRAP_INDEXABLE_PTR_NEW_LT_OLD);
+        NewGEOld, BoundsSafetyTrapKind::BNS_TRAP_INDEXABLE_PTR_NEW_LT_OLD,
+        BoundsSafetyTrapCtx::UNKNOWN, &TR);
   }
 }
 

@@ -119,5 +119,15 @@ def trap_bs_terminated_by_term_assign : Trap<!strconcat(
 def trap_bs_bidi_to_indexable_lower_bound : Trap<
   "converting %0 to %1 where pointer %2 is below its lower bound">;
 
+// Check that pointer arithmetic on an `__indexable` pointer doesn't move it
+// below its lower bound. The lower bound of an `__indexable` pointer is the
+// pointer itself.
+//
+// %0 - The pointer arithmetic expression.
+// %1 - The `__indexable` type of the pointer.
+// %2 - The pointer.
+def trap_bs_indexable_ptr_arith_lower_bound : Trap<
+  "pointer arithmetic %0 moves %1 pointer %2 below its lower bound">;
+
 }
 }
