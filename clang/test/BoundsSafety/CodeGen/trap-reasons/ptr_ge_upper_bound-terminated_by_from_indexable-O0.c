@@ -1,13 +1,50 @@
-
-// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o %t.ll
 // RUN: echo "; __SEPERATOR__" > %t.sep
+
+// =============================================================================
+// Null terminator
+// =============================================================================
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm %s -o %t.ll
 // RUN: cat %t.ll %t.sep %t.ll > %t.repeated.ll
-// RUN: FileCheck %s --input-file=%t.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC,NULL --input-file=%t.repeated.ll
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm %s -o %t2.ll
+// RUN: cat %t2.ll %t.sep %t2.ll > %t2.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED-NULL,NULL \
+// RUN:   --input-file=%t2.repeated.ll
+
+// =============================================================================
+// Non-null terminator
+// =============================================================================
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm -DNON_NULL_TERM %s -o %t3.ll
+// RUN: cat %t3.ll %t.sep %t3.ll > %t3.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC,NON-NULL --input-file=%t3.repeated.ll
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm -DNON_NULL_TERM %s -o %t4.ll
+// RUN: cat %t4.ll %t.sep %t4.ll > %t4.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED-NON-NULL,NON-NULL \
+// RUN:   --input-file=%t4.repeated.ll
+
 #include <ptrcheck.h>
 
+#ifndef NON_NULL_TERM
 void convert(const char* __indexable str) {
     const char* __null_terminated convert = __unsafe_null_terminated_from_indexable(str);
 }
+#else
+void convert(const char* __indexable str) {
+    const char* __terminated_by(-1) convert = __unsafe_terminated_by_from_indexable(-1, str);
+}
+#endif
 
 // We effectively need to walk the IR backwards starting from the debug info
 // and then locating the expected IR instructions. We don't have a good way
@@ -18,7 +55,9 @@ void convert(const char* __indexable str) {
 
 // In first copy of the file
 // CHECK-DAG: [[OPT_REMARK:![0-9]+]] = !{!"bounds-safety-check-ptr-lt-upper-bound"}
-// CHECK-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer above bounds while converting __indexable to __terminated_by", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// BASIC-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$Pointer above bounds while converting __indexable to __terminated_by", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-NULL-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$converting 'const char *__indexable' to 'const char *__null_terminated' where pointer 'str' is above its upper bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-NON-NULL-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$converting 'const char *__indexable' to 'const char *__terminated_by(-1)' where pointer 'str' is above its upper bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
 // CHECK-DAG: [[TRAP_LOC:![0-9]+]] = !DILocation(line: 0, scope: [[TRAP_SCOPE]], inlinedAt: [[SRC_LOC:![0-9]+]])
 // CHECK-LABEL: ; __SEPERATOR__
 
@@ -29,4 +68,5 @@ void convert(const char* __indexable str) {
 // CHECK: br i1 %{{.+}}, label %{{.+}}, label %[[TRAP_LABEL:[a-z0-9]+]], !dbg [[SRC_LOC]], !prof ![[PROFILE_METADATA:[0-9]+]], !annotation [[OPT_REMARK]]
 // CHECK: [[TRAP_LABEL]]:
 // CHECK-NEXT: call void @llvm.ubsantrap(i8 25) {{.*}}!dbg [[TRAP_LOC]]
-// CHECK: [[SRC_LOC]] = !DILocation(line: 9, column: 45, scope: {{![0-9]+}})
+// NULL: [[SRC_LOC]] = !DILocation(line: 41, column: 45, scope: {{![0-9]+}})
+// NON-NULL: [[SRC_LOC]] = !DILocation(line: 45, column: 47, scope: {{![0-9]+}})
