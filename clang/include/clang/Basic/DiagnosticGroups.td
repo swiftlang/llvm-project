@@ -1974,6 +1974,13 @@ def BoundsSafetyCountAttrArithConstantCount :
   DiagGroup<"bounds-safety-externally-counted-ptr-arith-constant-count">;
 def BoundsSafetyLegacyChecksEnabled :
   DiagGroup<"bounds-safety-legacy-checks-enabled">;
+// Warnings that identify unsafe constructs in adopted code.
+def BoundsSafetyUnsafeForges : DiagGroup<"bounds-safety-unsafe-forges">;
+def BoundsSafetyUnsafeForgesSdk : DiagGroup<"bounds-safety-unsafe-forges-sdk">;
+def BoundsSafetyUnsafe : DiagGroup<"bounds-safety-unsafe",
+                                   [BoundsSafetyUnsafeForges]>;
+def BoundsSafetyUnsafeSdk : DiagGroup<"bounds-safety-unsafe-sdk",
+                                      [BoundsSafetyUnsafeForgesSdk]>;
 // TO_UPSTREAM(BoundsSafety) OFF
 
 // -fbounds-safety and bounds annotation related warnings
