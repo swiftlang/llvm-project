@@ -316,17 +316,8 @@ public:
     EmitCheckedBoundPointerArithmetic(DestLV, E, Base, Index, Int32Ty, IsSub);
   }
 
-  void EmitBoundPointerArithmetic(LValue DestLV, const Expr *Base, llvm::Value *Idx,
-                                  bool IsIdxSigned, bool IsSub);
   void EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV, llvm::Value *Idx,
                                   bool IsIdxSigned, bool IsSub);
-  void EmitBoundPointerArithmetic(LValue DestLV, const Expr *Base, const Expr *Idx,
-                                  bool IsSub = false) {
-    llvm::Value *Index = CGF.EmitAnyExpr(Idx).getScalarVal();
-    const bool IsSigned = Idx->getType()->isSignedIntegerOrEnumerationType();
-
-    EmitBoundPointerArithmetic(DestLV, Base, Index, IsSigned, IsSub);
-  }
   void VisitAssumptionExpr(AssumptionExpr *E);
   void VisitForgePtrExpr(ForgePtrExpr *E);
   void VisitBoundsCheckExpr(BoundsCheckExpr *E) {
@@ -2068,12 +2059,6 @@ void AggExprEmitter::EmitCheckedBoundPointerArithmetic(
     QualType IdxType, bool IsSub) {
   llvm::Value *IdxVal = CGF.EmitScalarExpr(Idx);
   EmitCheckedBoundPointerArithmetic(DestLV, E, Base, IdxVal, IdxType, IsSub);
-}
-
-void AggExprEmitter::EmitBoundPointerArithmetic(LValue DestLV, const Expr *Base,
-                                                llvm::Value *Idx, bool IsSigned, bool IsSub) {
-  LValue BaseLV = CGF.EmitAggExprToLValue(Base);
-  EmitBoundPointerArithmetic(DestLV, BaseLV, Idx, IsSigned, IsSub);
 }
 
 void AggExprEmitter::EmitBoundPointerArithmetic(LValue DestLV, LValue BaseLV, llvm::Value *Idx,
