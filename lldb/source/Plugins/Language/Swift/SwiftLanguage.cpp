@@ -1559,6 +1559,16 @@ SwiftLanguage::GetPossibleFormattersMatches(
   return result;
 }
 
+bool SwiftLanguage::IsCategoryApplicable(
+    lldb::LanguageType category_language,
+    lldb::LanguageType valobj_language) const {
+  if (category_language != eLanguageTypeSwift)
+    return Language::IsCategoryApplicable(category_language, valobj_language);
+  return valobj_language == eLanguageTypeSwift ||
+         valobj_language == eLanguageTypeObjC ||
+         valobj_language == eLanguageTypeObjC_plus_plus;
+}
+
 static void SplitDottedName(llvm::StringRef name,
                             std::vector<llvm::StringRef> &parts,
                             char sep = '.') {

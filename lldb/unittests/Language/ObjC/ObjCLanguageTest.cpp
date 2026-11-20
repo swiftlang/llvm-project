@@ -155,3 +155,14 @@ TEST_P(ObjCMethodNameTextFiture, TestIsPossibleObjCMethodName) {
 
 INSTANTIATE_TEST_SUITE_P(ObjCMethodNameTests, ObjCMethodNameTextFiture,
                          testing::ValuesIn(g_objc_method_name_test_cases));
+
+TEST(ObjCLanguage, IsCategoryApplicable) {
+  ObjCLanguage language;
+  for (lldb::LanguageType c_or_objc :
+       {lldb::eLanguageTypeC89, lldb::eLanguageTypeC, lldb::eLanguageTypeC99,
+        lldb::eLanguageTypeObjC})
+    EXPECT_TRUE(
+        language.IsCategoryApplicable(lldb::eLanguageTypeObjC, c_or_objc));
+  EXPECT_FALSE(language.IsCategoryApplicable(lldb::eLanguageTypeObjC,
+                                             lldb::eLanguageTypeC_plus_plus));
+}
