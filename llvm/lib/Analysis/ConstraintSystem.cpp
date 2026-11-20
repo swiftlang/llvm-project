@@ -14,6 +14,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -210,6 +211,7 @@ void ConstraintSystem::dump() const {
 }
 
 bool ConstraintSystem::mayHaveSolution() {
+  assertNotConsumed();
   LLVM_DEBUG(dbgs() << "---\n");
   LLVM_DEBUG(dump());
   bool HasSolution = mayHaveSolutionImpl();
@@ -219,6 +221,7 @@ bool ConstraintSystem::mayHaveSolution() {
 
 std::pair<ConstraintSystem, ConstraintSystem::RowTy>
 ConstraintSystem::getSubSystem(ArrayRef<Entry> R) const {
+  assertNotConsumed();
   assert((R.empty() || R.back().Id <= NumVariables) &&
          "query must only use variables of the system");
   // Only constraints that share a variable (transitively) with a query R can
@@ -280,6 +283,7 @@ ConstraintSystem::getSubSystem(ArrayRef<Entry> R) const {
 }
 
 bool ConstraintSystem::isImpliedBySingleRow(ArrayRef<Entry> R) const {
+  assertNotConsumed();
   int64_t C = getConstant(R);
   if (hasConstantEntry(R))
     R = R.drop_front();
@@ -294,7 +298,7 @@ bool ConstraintSystem::isImpliedBySingleRow(ArrayRef<Entry> R) const {
   });
 }
 
-bool ConstraintSystem::isConditionImplied(RowTy R) const {
+std::optional<bool> ConstraintSystem::tryTrivialImplication(RowTy &R) const {
   // If all variable coefficients are 0, we have 'C >= 0'. If the constant is >=
   // 0, R is always true, regardless of the system.
   if (isConstantOnly(R))
@@ -302,13 +306,33 @@ bool ConstraintSystem::isConditionImplied(RowTy R) const {
 
   // If there is no solution with the negation of R added to the system, the
   // condition must hold based on the existing constraints.
-  R = ConstraintSystem::negate(std::move(R));
+  R = negate(std::move(R));
   if (R.empty())
     return false;
 
+  return std::nullopt;
+}
+
+bool ConstraintSystem::isConditionImplied(RowTy R) const & {
+  assertNotConsumed();
+  if (auto Trivial = tryTrivialImplication(R))
+    return *Trivial;
   auto Copy = *this;
   Copy.addRow(R, NumVariables);
   return !Copy.mayHaveSolution();
+}
+
+bool ConstraintSystem::isConditionImplied(RowTy R) && {
+  assertNotConsumed();
+  bool Result;
+  if (auto Trivial = tryTrivialImplication(R)) {
+    Result = *Trivial;
+  } else {
+    addRow(R, NumVariables);
+    Result = !mayHaveSolution();
+  }
+  markConsumed();
+  return Result;
 }
 
 bool ConstraintSystem::isConditionImpliedInSubSystem(ArrayRef<Entry> R) const {
@@ -321,6 +345,6 @@ bool ConstraintSystem::isConditionImpliedInSubSystem(ArrayRef<Entry> R) const {
     return getConstant(R) >= 0;
 
   // A single query: build the component and solve it in place.
-  const auto &[SubCS, NewR] = getSubSystem(R);
-  return SubCS.isConditionImplied(NewR);
+  auto [SubCS, NewR] = getSubSystem(R);
+  return std::move(SubCS).isConditionImplied(std::move(NewR));
 }
