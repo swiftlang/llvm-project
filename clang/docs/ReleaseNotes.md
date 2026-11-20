@@ -683,6 +683,31 @@ features cannot lower the translation-unit ABI level;
                                                ^~
   ```
 
+- Added `-Wlifetime-safety-capture-by-violation` to detect a parameter that the
+  body captures by the enclosing object, by global storage, or by another
+  reference parameter, while none of its
+  `[[clang::lifetime_capture_by]]` attributes names that entity or `unknown`.
+  For example:
+
+  ```c++
+  struct Cap { const int *p; };
+  struct S {
+    const int *field;
+    // warning: 'x' is captured by this object but is not marked
+    // [[clang::lifetime_capture_by_this]]
+    void store(Cap &c, const int &x [[clang::lifetime_capture_by(c)]]) {
+      field = &x;
+    }
+  };
+
+  // warning: 's' is captured by 'v' but is not marked
+  // [[clang::lifetime_capture_by(v)]]
+  void add(std::vector<std::string_view> &v, std::vector<std::string_view> &w,
+           std::string_view s [[clang::lifetime_capture_by(w)]]) {
+    v.push_back(s);
+  }
+  ```
+
 - Added `-Wlifetime-safety-dangling-field` to detect dangling field references
   when stack memory escapes to class fields. This is part of `-Wlifetime-safety`
   and detects cases where local variables or parameters are stored in fields but
