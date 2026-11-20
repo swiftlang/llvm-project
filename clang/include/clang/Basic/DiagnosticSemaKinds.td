@@ -11374,6 +11374,45 @@ def warn_lifetime_safety_destructor_use_after_invalidation
 def note_lifetime_safety_owned_field_suggestion
     : Note<"if %0 is owned by the class, mark the method [[clang::lifetimebound]]">;
 
+// Diagnostics of the type-ownership analyses.
+def warn_type_ownership_annotation_mismatch : Warning<
+  "type %q0 is annotated as '%1' but was inferred as '%2'">,
+  InGroup<TypeOwnershipAnnotationMismatch>, DefaultIgnore;
+
+def warn_type_ownership_could_not_infer_self_containment : Warning<
+  "could not infer the self-containment of type %q0">,
+  InGroup<TypeOwnershipFailedToInfer>, DefaultIgnore;
+
+def warn_type_ownership_suggest_trivially_self_contained : Warning<
+  "type %q0 was inferred as 'trivially-self-contained'">,
+  InGroup<TypeOwnershipSuggestTriviallySelfContained>, DefaultIgnore;
+
+def warn_type_ownership_suggest_self_contained : Warning<
+  "type %q0 was inferred as 'self-contained'">,
+  InGroup<TypeOwnershipSuggestSelfContained>, DefaultIgnore;
+
+def warn_type_ownership_suggest_view : Warning<
+  "type %q0 was inferred as 'view'">,
+  InGroup<TypeOwnershipSuggestView>, DefaultIgnore;
+
+def note_type_ownership_holds_field_inferred : Note<
+  "holds field %quoted0 of type %q1 that "
+  "%select{was inferred as '%3'|was annotated as '%3'|could not be inferred}2">;
+
+def note_type_ownership_derives_from_base_inferred : Note<
+  "derives from class %q0 that "
+  "%select{was inferred as '%2'|was annotated as '%2'|could not be inferred}1">;
+
+def note_type_ownership_holds_field : Note<
+  "holds %select{reference|unmanaged raw-pointer}0 "
+  "field %quoted1">;
+
+def note_type_ownership_opaque_dtor : Note<
+  "declares a destructor whose body is not visible">;
+
+def note_type_ownership_not_instantiated_dtor : Note<
+  "destructor was not instantiated for this specialization">;
+
 // For non-floating point, expressions of the form x == x or x != x
 // should result in a warning, since these always evaluate to a constant.
 // Array comparisons have similar warnings

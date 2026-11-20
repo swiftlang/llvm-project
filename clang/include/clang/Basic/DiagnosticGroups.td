@@ -799,6 +799,26 @@ Turns on all the warnings in the lifetime-safety umbrella.
   }];
 }
 
+// Groups for the type-ownership analyses.
+def TypeOwnershipAnnotationMismatch
+    : DiagGroup<"type-ownership-annotation-mismatch">;
+def TypeOwnershipFailedToInfer
+    : DiagGroup<"type-ownership-failed-to-infer">;
+def TypeOwnershipSuggestTriviallySelfContained
+    : DiagGroup<"type-ownership-suggest-trivially-self-contained">;
+def TypeOwnershipSuggestSelfContained
+    : DiagGroup<"type-ownership-suggest-self-contained">;
+def TypeOwnershipSuggestView
+    : DiagGroup<"type-ownership-suggest-view">;
+def TypeOwnershipSuggestions
+    : DiagGroup<"type-ownership-suggestions",
+                [TypeOwnershipSuggestTriviallySelfContained,
+                 TypeOwnershipSuggestSelfContained,
+                 TypeOwnershipSuggestView]>;
+def TypeOwnership
+    : DiagGroup<"type-ownership", [TypeOwnershipAnnotationMismatch,
+                                   TypeOwnershipFailedToInfer]>;
+
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def DllexportExplicitInstantiation :
