@@ -1557,11 +1557,14 @@ Value *ScalarExprEmitter::EmitBoundsSafetyPointerConversion(CastExpr *E) {
         bool NeedBoundsCheck =
         DstTy->isSinglePointerType() && !DstTy->isBoundsAttributedType();
         bool TrackSize = false;
+        auto PD =
+            CGF.CGM.BuildPartialTrapReason(diag::trap_bs_convert_to_single);
+        PD << /*%0=*/SrcTy << /*%1=*/DstTy << /*%2=*/E->getSubExpr();
         return CGF.EmitWideToRawPtr(
-                                    E->getSubExpr(), /*BoundsCheck=*/NeedBoundsCheck,
-                                    /*TrapCtx=*/BoundsSafetyTrapCtx::CAST, /*LowerOnlyCheck=*/TrackSize,
-                                    /*UpperPtr=*/nullptr, /*LowerPtr=*/nullptr,
-                                    /*IsNullAllowed=*/DstTy->isSinglePointerType());
+            E->getSubExpr(), /*BoundsCheck=*/NeedBoundsCheck,
+            /*TrapCtx=*/BoundsSafetyTrapCtx::CAST, /*LowerOnlyCheck=*/TrackSize,
+            /*UpperPtr=*/nullptr, /*LowerPtr=*/nullptr,
+            /*IsNullAllowed=*/DstTy->isSinglePointerType(), &PD);
     }
     // No additional check is needed between single and unsafe pointers.
     return Visit(E->getSubExpr());
