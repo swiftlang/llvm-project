@@ -23,7 +23,7 @@ def trap_bs_upper_lower_overflow_bound : Trap<
     "%Indexing{indexing}|"
     "%Dereferencing{dereferencing}|"
     "%MemberAccess{member access}|"
-    "%TODO{TODO}"
+    "%TakingAddressOfMember{taking address of struct member}"
   "}0 %enum_select<BoundsSafetyPtrCheckKind>{"
     "%Upper{above upper bound}|"
     "%Overflow{overflows address space}|"

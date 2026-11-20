@@ -796,9 +796,15 @@ void AggExprEmitter::VisitUnaryAddrOf(UnaryOperator *E) {
         if (Base->getType()->getAs<PointerType>()->hasRawPointerLayout()) {
           Ptr = CGF.EmitScalarExpr(Base);
         } else {
+          auto PD = CGF.CGM.BuildPartialTrapReason(
+              diag::trap_bs_upper_lower_overflow_bound);
+          PD << /*%0=*/diag::BoundsCheckContextKind::TakingAddressOfMember
+             << /*%1=*/E;
           Ptr = CGF.EmitWideToRawPtr(
               Base, /*BoundsCheck=*/true,
-              /*BoundsSafetyTrapCtx=*/BoundsSafetyTrapCtx::ADDR_OF_STRUCT_MEMBER);
+              /*TrapCtx=*/BoundsSafetyTrapCtx::ADDR_OF_STRUCT_MEMBER,
+              /*LowerOnlyCheck=*/false, /*UpperPtr=*/nullptr,
+              /*LowerPtr=*/nullptr, /*IsNullAllowed=*/false, &PD);
         }
         llvm::Value *GepIndices[] = {
           Builder.getInt32(0), Builder.getInt32(MemberIdx)
