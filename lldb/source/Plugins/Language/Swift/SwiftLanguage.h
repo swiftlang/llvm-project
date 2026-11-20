@@ -51,6 +51,9 @@ public:
   GetPossibleFormattersMatches(ValueObject &valobj,
                                lldb::DynamicValueType use_dynamic) override;
 
+  bool IsCategoryApplicable(lldb::LanguageType category_language,
+                            lldb::LanguageType valobj_language) const override;
+
   std::unique_ptr<TypeScavenger> GetTypeScavenger() override;
 
   const char *GetLanguageSpecificTypeLookupHelp() override;
