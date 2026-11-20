@@ -12,114 +12,220 @@
 //    `Derived() : Base(new int)` passes. Inherited ctors (`using Base::Base`)
 //    are not in CXXRecordDecl::ctors() either. Only the first direct view
 //    base counts.
-//  - View-type pointees and view-type fields are not owning pointers yet.
-//    Self-contained types are only the arithmetic and the explicitly
-//    swift_attr("Escapable") ones; none is inferred.
+//  - Self-contained types are only the arithmetic, the explicitly
+//    swift_attr("Escapable") and the gsl::Owner ones.
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/Analyses/LifetimeSafety/DirectViewInference.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeAnnotations.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSafety.h"
 #include "clang/Analysis/Analyses/LifetimeSafety/LifetimeSummary.h"
 #include "clang/Analysis/CallGraphFixPoint.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticSema.h"
-#include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include <optional>
+#include <variant>
 
 namespace clang::lifetimes {
 namespace {
 
-enum class NotDirectViewReason {
-  // No member function (but dtors) captures a pointer-to-self-contained
-  // parameter in a field, and there is no single public pointer-like field:
-  NoBorrowNoPublicPointer,
-  // Member functions capture pointer-to-self-contained parameters in different
-  // fields. At is the member function capturing in a field other than P, of
-  // the prior ones:
-  MethodInconsistentBorrow,
-  // A member function captures parameters in multiple fields:
-  MethodMultipleBorrow,
-  // A member function (dtors included) may invalidate the borrow capturer P:
-  BorrowInvalidated,
-  // A member function captures a pointer-to-self-contained parameter in a
-  // field, while a direct view base class is the borrow capturer P:
-  MethodBorrowBesidesBase,
-  // A member function captures a pointer to a non-self-contained type in a
-  // field:
-  MethodCapturesNonSelfContained,
-  // A member function captures a pointer-to-self-contained parameter in a
-  // field P that is not pointer-like:
-  MethodBorrowInNonPointerField,
+// Direct view inference is based on the generic rules below. A type that
+// violates any rule is not a direct view. The rules are sound: when it is
+// unknown whether an object or a type has a property, the rule assumes that it
+// does not.
+//
+// Vocabulary:
+//   RefOrPointerLike type:  a pointer, a reference, or a gsl::Pointer type.
+//   Self-contained type:    an arithmetic type, a Swift "Escapable" type, a
+//                           gsl::Owner type, or an array of such.
+//   Direct pointer:         a pointer or reference to a self-contained type,
+//                           or a gsl::Pointer type.
+//
+// Rules:
+// 1. One borrow field. Exactly one of the following holds:
+//    a) The member functions, except the destructor, capture direct pointer
+//       parameters in exactly one field, P.
+//    b) The type has a single public non-const direct pointer field, P.
+// 2. No sub-borrow: no member function captures a parameter that is not a
+//    direct pointer.
+// 3. No stealing: the borrow field P is RefOrPointerLike. For example,
+//    capturing a direct pointer parameter in a gsl::Owner field borrows and
+//    then owns.
+// 4. No invalidation of the borrow field: no member function invalidates P.
+// 5. A wrapper of a direct view is a direct view: P can be a base class that is
+//    a direct view, provided that no rule above is violated.
+
+// Immutable pair: the field and where it is established
+struct EstablishedBorrowField {
+  FieldT const F = nullptr;
+  // Where F is established: the member function capturing in it, the field
+  // itself for a public direct pointer field, or the record for a base.
+  const NamedDecl *const At = nullptr;
 };
 
-// \p RD is explicitly marked self-contained: swift_attr("Escapable").
+// The reasons why a record is not a direct view, each with the arguments that
+// its note needs.
+namespace reason {
+struct NoUniqueBorrowField {};
+
+struct MethodInconsistentBorrow {
+  EstablishedBorrowField EstablishedBF;
+  FieldT AnotherBF;
+};
+
+struct MethodCapturesNonSelfContained {};
+
+struct BorrowFieldMaySteal {
+  FieldT P;
+};
+
+struct MethodInvalidatesBorrow {
+  FieldT P;
+};
+} // namespace reason
+
+// The index of a reason selects its text in
+// note_interop_not_direct_view_reason, so the order must match the %select
+// there.
+using NotDirectViewReason =
+    std::variant<reason::NoUniqueBorrowField, reason::MethodInconsistentBorrow,
+                 reason::MethodCapturesNonSelfContained,
+                 reason::BorrowFieldMaySteal, reason::MethodInvalidatesBorrow>;
+static_assert(std::variant_size_v<NotDirectViewReason> == 5,
+              "update the %select in note_interop_not_direct_view_reason");
+
+// \p RD is explicitly marked self-contained: swift_attr("Escapable"), or
+// [[gsl::Owner]].
 bool hasSelfContainedAttr(const CXXRecordDecl *RD) {
-  return llvm::any_of(RD->specific_attrs<SwiftAttrAttr>(),
+  return isGslOwnerType(RD) ||
+         llvm::any_of(RD->specific_attrs<SwiftAttrAttr>(),
                       [](const SwiftAttrAttr *A) {
                         return A->getAttribute() == "Escapable";
                       });
 }
 
-// The results of the analysis. They are emitted together by flush(), after all
-// records are analyzed.
+// \p P is a field of reference type.
+bool isReferenceTypedField(const FieldT &P) {
+  if (const auto *FD = dyn_cast_if_present<const FieldDecl *>(P))
+    return FD->getType()->isReferenceType();
+  return false;
+}
+
+// Streams the field or the base class \p F to \p DB.
+void streamField(const StreamingDiagnostic &DB, FieldT F) {
+  assert(F);
+  if (const auto *D = dyn_cast<const FieldDecl *>(F))
+    DB << D;
+  else
+    DB << cast<const CXXBaseSpecifier *>(F)->getType();
+}
+
+/// The results of the analysis. They are emitted together by flush(), after all
+/// records are analyzed.
 class Reports {
 public:
-  // \p RD is a direct view type.
-  void directView(const CXXRecordDecl *RD) { Items[RD] = {RD}; }
+  /// \p RD is a direct view type.
+  void isDirectView(const CXXRecordDecl *RD) { set(RD, ReportItem{}); }
 
-  // Explains why \p RD is not a direct view type. \p At is the declaration at
-  // fault. \p P is the capturer of the prior member functions, if known.
-  void whyNotDirectView(const CXXRecordDecl *RD, NotDirectViewReason Why,
-                        const Decl *At, FieldT P) {
-    Items[RD] = {RD, Why, At, P};
+  /// Explains why \p RD is not a direct view type: \p At is the declaration at
+  /// fault.
+  void whyNotDirectView(const CXXRecordDecl *RD, const NamedDecl *At,
+                        NotDirectViewReason Why) {
+    assert(RD && At);
+    set(RD, ReportItem{At, std::move(Why)});
   }
 
   void flush(DiagnosticsEngine &Diags) const {
-    for (const auto &[_, I] : Items) {
+    for (const auto &[RD, I] : Items) {
       if (!I.At) {
-        if (hasSelfContainedAttr(I.RD))
-          Diags.Report(I.RD->getLocation(),
+        if (hasSelfContainedAttr(RD))
+          Diags.Report(RD->getLocation(),
                        diag::warn_interop_self_contained_direct_view)
-              << I.RD;
-        Diags.Report(I.RD->getLocation(), diag::remark_interop_direct_view)
-            << I.RD;
+              << RD;
+        Diags.Report(RD->getLocation(), diag::remark_interop_direct_view) << RD;
         continue;
       }
-      if (I.RD->hasAttr<PointerAttr>())
-        Diags.Report(I.RD->getLocation(),
+      if (RD->hasAttr<PointerAttr>())
+        Diags.Report(RD->getLocation(),
                      diag::warn_interop_gsl_pointer_not_direct_view)
-            << I.RD;
-      Diags.Report(I.RD->getLocation(), diag::remark_interop_not_direct_view)
-          << I.RD;
-      auto DB = Diags.Report(I.At->getLocation(),
+            << RD;
+      Diags.Report(RD->getLocation(), diag::remark_interop_not_direct_view)
+          << RD;
+
+      // A structured binding cannot be captured before C++20.
+      const NamedDecl *At = I.At;
+      auto DB = Diags.Report(At->getLocation(),
                              diag::note_interop_not_direct_view_reason);
-      DB << static_cast<unsigned>(I.Why);
-      if (const auto *D = dyn_cast_if_present<const Decl *>(I.P))
-        DB << cast<NamedDecl>(D);
-      else if (const auto *B =
-                   dyn_cast_if_present<const CXXBaseSpecifier *>(I.P))
-        DB << B->getType();
+
+      DB << static_cast<unsigned>(I.Why.index());
+      // Streams the arguments of each reason, in the order of its %select text.
+      // Every reason has a handler, so a new one must decide its arguments.
+      std::visit(llvm::makeVisitor(
+                     [](const reason::NoUniqueBorrowField &) {},
+                     [&](const reason::MethodInconsistentBorrow &R) {
+                       streamField(DB, R.EstablishedBF.F);
+                       DB << R.EstablishedBF.At;
+                       streamField(DB, R.AnotherBF);
+                       DB << isa<const CXXBaseSpecifier *>(R.EstablishedBF.F)
+                          << At;
+                     },
+                     [](const reason::MethodCapturesNonSelfContained &) {},
+                     [&](const reason::BorrowFieldMaySteal &R) {
+                       streamField(DB, R.P);
+                     },
+                     [&](const reason::MethodInvalidatesBorrow &R) {
+                       streamField(DB, R.P);
+                     }),
+                 I.Why);
     }
   }
 
 private:
-  struct Item {
-    const CXXRecordDecl *RD;
-    NotDirectViewReason Why = NotDirectViewReason::NoBorrowNoPublicPointer;
-    const Decl *At = nullptr; // Null if RD is a direct view type.
-    FieldT P = {};
+  struct ReportItem {
+    /// The declaration at fault, or null if the record is a direct view.
+    const NamedDecl *At = nullptr;
+    /// Why the record is not a direct view. Only meaningful if \p At is set.
+    NotDirectViewReason Why;
   };
-  // The latest result of each record, in the order of the first one.
-  llvm::MapVector<const CXXRecordDecl *, Item> Items;
+
+  // A reason may be immutable, so is ReportItem: replace instead of assigning.
+  void set(const CXXRecordDecl *RD, ReportItem Item) {
+    Items.erase(RD);
+    Items.try_emplace(RD, std::move(Item));
+  }
+
+  llvm::DenseMap<const CXXRecordDecl *, ReportItem> Items;
 };
 
-// \p T is self-contained, i.e., Swift escapable: an arithmetic type, or a
-// record explicitly marked swift_attr("Escapable").
-bool isSelfContained(QualType T) {
+/// \return the member functions of \p R: its methods, and the specializations
+/// of its member function templates in this TU.
+llvm::SmallVector<const CXXMethodDecl *>
+memberFunctions(const CXXRecordDecl *R) {
+  llvm::SmallVector<const CXXMethodDecl *> Result(R->methods());
+  for (const Decl *D : R->decls())
+    if (const auto *FTD = dyn_cast<FunctionTemplateDecl>(D))
+      for (const FunctionDecl *Spec : FTD->specializations())
+        if (const auto *MD = dyn_cast<CXXMethodDecl>(Spec))
+          Result.push_back(MD);
+  return Result;
+}
+
+/// \p T is arithmetic, swift_attr("Escapable"), gsl::Owner, or an array of
+/// such.
+bool isSelfContainedType(QualType T) {
+  if (T.isNull())
+    return false;
+  return true;
+  if (const ArrayType *AT = T->getAsArrayTypeUnsafe())
+    return isSelfContainedType(AT->getElementType());
   if (T->isArithmeticType())
     return true;
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
@@ -127,32 +233,31 @@ bool isSelfContained(QualType T) {
   return RD && hasSelfContainedAttr(RD);
 }
 
-// \p PVD is an owning pointer: a pointer or reference to a self-contained
-// type, or a gsl::Owner type.
-bool isOwningPointer(const ParmVarDecl *PVD) {
-  QualType T = PVD->getType();
-  if (isGslOwnerType(T))
+bool isDirectPointerType(const QualType T) {
+  if (T.isNull())
+    return false;
+  if (isGslPointerType(T))
     return true;
-  return (T->isPointerType() || T->isReferenceType()) &&
-         isSelfContained(T->getPointeeType());
+  return isReferenceOrPointerLikeType(T) &&
+         isSelfContainedType(T->getPointeeType());
 }
 
-/// \return the fields that parameter \p Idx of \p M is captured in, or null.
-/// A constructor's capture is in its lifetimebound summary, an ordinary
-/// method's in its captured-by-`this` summary.
-const FieldSet *getCapturingFields(const FunctionSummary &Sum,
-                                   const CXXMethodDecl *M, unsigned Idx) {
-  ParamOrThis P = ParamOrThis::forParam(Idx);
+/// \return the fields that parameter \p ParamIdx of \p M is captured in.
+llvm::SetVector<FieldT> getCapturingFields(const FunctionSummary &Sum,
+                                           const CXXMethodDecl *M,
+                                           unsigned ParamIdx) {
+  ParamOrThis P = ParamOrThis::forParam(ParamIdx);
+  llvm::SetVector<FieldT> Results;
+
   if (isa<CXXConstructorDecl>(M)) {
     for (const LifetimeBoundAssertion &A : Sum.getLifetimeBoundFor(P))
-      if (A.L == Level::Value && !A.F.isAll())
-        return &A.F;
-    return nullptr;
+      if (!A.F.isAll())
+        Results.insert_range(A.F.fields());
   }
   for (const CapturedByAssertion &A : Sum.getCapturedByFor(P))
-    if (isSupportedCapturedBySummary(A) && A.Q.isThis() && !A.F.isAll())
-      return &A.F;
-  return nullptr;
+    if (A.Q.isThis() && !A.F.isAll())
+      Results.insert_range(A.F.fields());
+  return Results;
 }
 
 /// A member function with its summary, and the parameters that it captures in
@@ -162,127 +267,89 @@ struct MethodInfo {
   const CXXMethodDecl *Method;
   const FunctionDecl *Def;
   const FunctionSummary &Sum;
-  llvm::SmallVector<unsigned, 1> Captured;
+  llvm::SmallVector<unsigned, 1> CapturedParams;
 
-  const FieldSet &fieldsOf(unsigned Idx) const {
-    return *getCapturingFields(Sum, Method, Idx);
+  /// \return a finite set of borrowing fields
+  llvm::SetVector<FieldT> borrowFieldsOf(unsigned Idx) const {
+    return getCapturingFields(Sum, Method, Idx);
   }
 };
 
-// Rule: the member function captures no pointer to a non-self-contained type.
-// Copy and move operations copy P, so they are skipped. Then drops the
-// captures of non-owning parameters: only owning ones count from here on.
-bool checkNoNonSelfContainedCapture(MethodInfo &I, const FieldT &P,
-                                    Reports &Out) {
-  bool IsCopyOrMove =
-      I.Method->isCopyAssignmentOperator() ||
-      I.Method->isMoveAssignmentOperator() ||
-      (isa<CXXConstructorDecl>(I.Method) &&
-       cast<CXXConstructorDecl>(I.Method)->isCopyOrMoveConstructor());
-  for (unsigned Idx : I.Captured) {
-    const ParmVarDecl *PVD = I.Def->getParamDecl(Idx);
-    QualType T = PVD->getType();
-    if (!IsCopyOrMove && (T->isPointerType() || T->isReferenceType()) &&
-        !isOwningPointer(PVD)) {
-      Out.whyNotDirectView(
-          I.Record, NotDirectViewReason::MethodCapturesNonSelfContained,
-          I.Method, P);
-      return false;
-    }
-  }
-  llvm::erase_if(I.Captured, [&](unsigned Idx) {
-    return !isOwningPointer(I.Def->getParamDecl(Idx));
-  });
-  return true;
-}
-
-// Rule: no member function captures in a field if a direct view base class is
-// the borrow capturer \p P.
-bool checkNoBorrowBesidesBase(const MethodInfo &I, const FieldT &P,
-                              Reports &Out) {
-  if (!dyn_cast_if_present<const CXXBaseSpecifier *>(P))
-    return true;
-  Out.whyNotDirectView(I.Record, NotDirectViewReason::MethodBorrowBesidesBase,
-                       I.Method, P);
-  return false;
-}
-
-// Rule: the member function captures parameters in one field only.
-bool checkCapturesInOneField(const MethodInfo &I, const FieldT &P,
+/// Checks that a member function captures parameters in one field only. If the
+/// check passes and \p P is unset, the function establishes \p P.
+/// \return true iff the check passes.
+bool checkCapturesInOneField(const MethodInfo &I,
+                             std::optional<EstablishedBorrowField> &P,
                              Reports &Out) {
-  if (I.Captured.size() == 1 &&
-      I.fieldsOf(I.Captured.front()).fields().size() == 1)
-    return true;
-  Out.whyNotDirectView(I.Record, NotDirectViewReason::MethodMultipleBorrow,
-                       I.Method, P);
-  return false;
-}
+  // P, if set, goes first, so a conflicting field is reported against it.
+  llvm::SetVector<FieldT> BFields;
 
-// Rule: the field \p P that the member function captures in is pointer-like: a
-// pointer or a gsl::Pointer type. A base class is a gsl::Pointer.
-bool checkCapturesInPointerLikeField(const MethodInfo &I, const FieldT &P,
-                                     Reports &Out) {
-  const auto *FD =
-      dyn_cast_if_present<FieldDecl>(dyn_cast_if_present<const Decl *>(P));
-  if (!FD || isPointerLikeType(FD->getType()))
-    return true;
-  Out.whyNotDirectView(I.Record,
-                       NotDirectViewReason::MethodBorrowInNonPointerField,
-                       I.Method, P);
-  return false;
-}
-
-// Rule: the member function captures in the field \p P that the prior ones
-// capture in. Sets \p P if it is the first one.
-bool checkCapturesInSameField(const MethodInfo &I, FieldT &P, Reports &Out) {
-  FieldT Curr = I.fieldsOf(I.Captured.front()).fields().front();
-  if (!P.isNull() && Curr != P) {
-    Out.whyNotDirectView(
-        I.Record, NotDirectViewReason::MethodInconsistentBorrow, I.Method, P);
+  if (P)
+    BFields.insert(P->F);
+  for (unsigned CapturedParmIdx : I.CapturedParams)
+    BFields.insert_range(I.borrowFieldsOf(CapturedParmIdx));
+  if (BFields.size() > 1) {
+    // Without a prior P, this function captures in both fields.
+    EstablishedBorrowField First =
+        P ? *P : EstablishedBorrowField{BFields[0], I.Def};
+    Out.whyNotDirectView(I.Record, I.Def,
+                         reason::MethodInconsistentBorrow{First, BFields[1]});
     return false;
   }
-  P = Curr;
+  if (!P && !BFields.empty())
+    P.emplace(EstablishedBorrowField{BFields.front(), I.Def});
   return true;
 }
 
-/// Checks member function \p M against the capturer \p P of the prior checked
-/// ones, and sets \p P if it is the first to capture.
-/// The skipped member functions: destructors, implicit and deleted ones, those
-/// without parameters, defaulted copy/move operations, those without a summary
-/// (no body, or not analyzed), and members of an instantiated record that are
-/// not yet instantiated.
-/// \return false if \p R is not a direct view because of \p M. Reports why.
+/// Check that a member function does not sub-borrow, i.e., capturing a
+/// parameter that is not a direct pointer.
+/// \return true if check passes
+bool checkNoSubBorrowCapture(const MethodInfo &I, Reports &Out) {
+  auto *SubBorrowParm = llvm::find_if(I.CapturedParams, [&I](unsigned Idx) {
+    return !isDirectPointerType(I.Def->getParamDecl(Idx)->getType());
+  });
+
+  if (SubBorrowParm != I.CapturedParams.end()) {
+    Out.whyNotDirectView(I.Record, I.Def->getParamDecl(*SubBorrowParm),
+                         reason::MethodCapturesNonSelfContained{});
+    return false;
+  }
+  return true;
+}
+
+/// Checks member function \p M while ignoring destructor or copy/move
+/// constructors/assignment.
+/// \param P is the sole borrow field, or unset if not found yet. It is set by
+/// this function if the check passes.
+/// \return true if the check passes.
 bool checkMethod(const CXXRecordDecl *R, const CXXMethodDecl *M,
-                 const LifetimeInference &LI, FieldT &P, Reports &Out) {
+                 const LifetimeInference &LI,
+                 std::optional<EstablishedBorrowField> &P, Reports &Out) {
   if (isa<CXXDestructorDecl>(M) || M->isImplicit() || M->isDeleted() ||
+      M->isCopyAssignmentOperator() || M->isMoveAssignmentOperator() ||
       M->getNumParams() == 0)
     return true;
-  // Copy and move operations copy P.
-  if (M->isDefaulted() &&
-      (M->isCopyAssignmentOperator() || M->isMoveAssignmentOperator() ||
-       (isa<CXXConstructorDecl>(M) &&
-        cast<CXXConstructorDecl>(M)->isCopyOrMoveConstructor())))
+  if (auto *Ctor = dyn_cast<CXXConstructorDecl>(M);
+      Ctor && Ctor->isCopyOrMoveConstructor())
     return true;
-  // A member of an instantiated record that is still a template, i.e. not yet
-  // instantiated, is ignored.
-  if (M->isTemplateInstantiation() && !M->isDefined())
-    return true;
+
   const FunctionDecl *Def = M->getDefinition();
   const FunctionSummary *Sum = Def ? LI.getSummary(Def) : nullptr;
+
   if (!Sum)
     return true;
+
   MethodInfo I{R, M, Def, *Sum, {}};
+
   for (unsigned Idx = 0; Idx < Def->getNumParams(); ++Idx)
-    if (getCapturingFields(*Sum, M, Idx))
-      I.Captured.push_back(Idx);
-  if (!checkNoNonSelfContainedCapture(I, P, Out))
-    return false;
-  if (I.Captured.empty())
+    if (!getCapturingFields(*Sum, M, Idx).empty())
+      I.CapturedParams.push_back(Idx);
+  if (I.CapturedParams.empty())
     return true;
-  return checkNoBorrowBesidesBase(I, P, Out) &&
-         checkCapturesInOneField(I, P, Out) &&
-         checkCapturesInSameField(I, P, Out) &&
-         checkCapturesInPointerLikeField(I, P, Out);
+  // Report sub-borrow capture if any first:
+  if (!checkNoSubBorrowCapture(I, Out))
+    return false;
+  return checkCapturesInOneField(I, P, Out);
 }
 
 // \p F is \p P, or \p F is a subobject of \p P.
@@ -290,8 +357,7 @@ bool isPartOf(FieldT F, FieldT P) {
   if (F == P)
     return true;
   const auto *B = dyn_cast_if_present<const CXXBaseSpecifier *>(P);
-  const auto *FD =
-      dyn_cast_if_present<FieldDecl>(dyn_cast_if_present<const Decl *>(F));
+  const auto *FD = dyn_cast_if_present<const FieldDecl *>(F);
   if (!B || !FD)
     return false;
   const CXXRecordDecl *BaseRD = B->getType()->getAsCXXRecordDecl();
@@ -302,29 +368,47 @@ bool isPartOf(FieldT F, FieldT P) {
           BaseRD->isDerivedFrom(Parent));
 }
 
-// Rule: no member function of \p R, dtors included, may invalidate the borrow
-// capturer \p P. The skipped ones: static, implicit and deleted ones, those
-// without a summary, and members of an instantiated record that are not yet
-// instantiated.
-// \return false if one may, reporting why.
+/// Checks that the borrow field \p P, which must be set, is RefOrPointerLike.
+/// \return true if the check passes
+bool checkCapturesInPointerLikeField(const CXXRecordDecl *RD, const FieldT &P,
+                                     Reports &Out) {
+  assert(P);
+  const auto *FD = dyn_cast<const FieldDecl *>(P);
+  if (!FD || isReferenceOrPointerLikeType(FD->getType()))
+    return true;
+  // Base cannot capture if it is not a gsl::Pointer, so no need to check.
+  Out.whyNotDirectView(RD, FD, reason::BorrowFieldMaySteal{P});
+  return false;
+}
+
+/// Checks that no member function invalidates the borrow field \p P, which
+/// must be set.
+/// \return true if the check passes
 bool checkNoBorrowInvalidation(const CXXRecordDecl *R,
                                const LifetimeInference &LI, const FieldT &P,
                                Reports &Out) {
-  for (const CXXMethodDecl *M : R->methods()) {
+  for (const CXXMethodDecl *M : memberFunctions(R)) {
     if (M->isStatic() || M->isImplicit() || M->isDeleted() ||
         (M->isTemplateInstantiation() && !M->isDefined()))
       continue;
+
     const FunctionDecl *Def = M->getDefinition();
     const FunctionSummary *Sum = Def ? LI.getSummary(Def) : nullptr;
+
     if (!Sum)
       continue;
+
     const FieldSet *Invalidated =
         Sum->getInvalidatedFor(ParamOrThis::forThis());
-    if (Invalidated &&
-        (Invalidated->isAll() ||
-         llvm::any_of(Invalidated->fields(),
-                      [&](FieldT F) { return isPartOf(F, P); }))) {
-      Out.whyNotDirectView(R, NotDirectViewReason::BorrowInvalidated, M, P);
+
+    if (!Invalidated)
+      continue;
+
+    auto IsPartOfP = [&P](FieldT F) { return isPartOf(F, P); };
+
+    if (Invalidated->isAll() ||
+        llvm::any_of(Invalidated->fields(), IsPartOfP)) {
+      Out.whyNotDirectView(R, M, reason::MethodInvalidatesBorrow{P});
       return false;
     }
   }
@@ -340,22 +424,21 @@ void addImplicitGslPointerAttr(const CXXRecordDecl *R) {
     Redecl->addAttr(PointerAttr::CreateImplicit(Ctx, /*DerefType=*/nullptr));
 }
 
-// \return the only public pointer-like field of \p R, or null if there is none
-// or more than one. A pointer-like type is as isPointerLikeType says, minus
-// function pointers; a raw pointer must point to a self-contained type.
-const FieldDecl *getSinglePublicPointerField(const CXXRecordDecl *R) {
-  const FieldDecl *Found = nullptr;
+/// \return true iff there is exactly one public non-const direct pointer field
+/// of \p R. Populates \p P with the found one.
+bool getUniquePublicPointerField(const CXXRecordDecl *R,
+                                 std::optional<EstablishedBorrowField> &P) {
   for (const FieldDecl *F : R->fields()) {
     QualType T = F->getType();
-    if (F->getAccess() != AS_public || !isPointerLikeType(T) ||
-        T->isFunctionPointerType() ||
-        (T->isPointerType() && !isSelfContained(T->getPointeeType())))
+
+    if (F->getAccess() != AS_public || !isDirectPointerType(T) ||
+        T.isConstQualified())
       continue;
-    if (Found)
-      return nullptr;
-    Found = F;
+    if (P)
+      return false;
+    P.emplace(EstablishedBorrowField{F, F});
   }
-  return Found;
+  return bool(P);
 }
 
 // Records whether \p R is a direct view or, if known, why it is not. Unions
@@ -366,28 +449,32 @@ bool checkRecord(const CXXRecordDecl *R, const LifetimeInference &LI,
                  Reports &Out) {
   if (!R->hasDefinition() || !R->isCompleteDefinition() || R->isUnion())
     return false;
-  FieldT P; // The capturer all member functions agree on.
-  // A direct view base is the borrow capturer. Bases are checked first, so an
-  // inferred one is marked.
-  for (const CXXBaseSpecifier &B : R->bases())
-    if (isGslPointerType(B.getType())) {
-      P = &B;
-      break;
-    }
-  for (const CXXMethodDecl *M : R->methods())
+
+  std::optional<EstablishedBorrowField> P; // The sole borrow field.
+
+  // Rule 5: a direct view base is the borrow field.
+  auto *Base = llvm::find_if(R->bases(), [](const CXXBaseSpecifier &B) {
+    return isGslPointerType(B.getType());
+  });
+
+  if (Base != R->bases().end())
+    P.emplace(EstablishedBorrowField{Base, R});
+  for (const CXXMethodDecl *M : memberFunctions(R))
     if (!checkMethod(R, M, LI, P, Out))
       return false;
-  // Without a capturing member function, the public pointer field is P.
-  if (P.isNull())
-    if (const FieldDecl *F = getSinglePublicPointerField(R))
-      P = F;
-  if (P.isNull()) {
-    Out.whyNotDirectView(R, NotDirectViewReason::NoBorrowNoPublicPointer, R, P);
+  // If no member function captures in a field, the unique public non-const
+  // direct pointer field is P:
+  if (!P && !getUniquePublicPointerField(R, P)) {
+    Out.whyNotDirectView(R, R, reason::NoUniqueBorrowField{});
     return false;
   }
-  if (!checkNoBorrowInvalidation(R, LI, P, Out))
+  if (!checkCapturesInPointerLikeField(R, P->F, Out))
     return false;
-  Out.directView(R);
+  // A reference cannot be invalidated.
+  if (!isReferenceTypedField(P->F) &&
+      !checkNoBorrowInvalidation(R, LI, P->F, Out))
+    return false;
+  Out.isDirectView(R);
   addImplicitGslPointerAttr(R);
   return true;
 }
@@ -469,17 +556,17 @@ void DirectViewInference::run(TranslationUnitDecl *TU,
   // TODO: the status of a record is not monotonic yet, so no fix-point: each
   // record is checked once, dependencies first.
   Reports Out;
-  // A record with an undefined member function cannot be judged. Implicit,
-  // defaulted, deleted and pure virtual ones have no body to wait for.
+  // A record with an undefined member function, including a specialization of a
+  // member function template, cannot be judged. Implicit, defaulted, deleted
+  // and pure virtual ones have no body to wait for.
   llvm::SmallVector<const CXXRecordDecl *> Analyzable;
-  llvm::copy_if(Records, std::back_inserter(Analyzable),
-                [](const CXXRecordDecl *R) {
-                  return llvm::all_of(R->methods(), [](const CXXMethodDecl *M) {
-                    return M->isImplicit() || M->isDefaulted() ||
-                           M->isDeleted() || M->isPureVirtual() ||
-                           M->isDefined();
-                  });
-                });
+  llvm::copy_if(
+      Records, std::back_inserter(Analyzable), [](const CXXRecordDecl *R) {
+        return llvm::all_of(memberFunctions(R), [](const CXXMethodDecl *M) {
+          return M->isImplicit() || M->isDefaulted() || M->isDeleted() ||
+                 M->isPureVirtual() || M->isDefined();
+        });
+      });
   auto Graph = buildRecordDependencyGraph(Analyzable);
   for (const CXXRecordDecl *R : Graph.getOrder())
     checkRecord(R, LI, Out);

@@ -22,7 +22,10 @@ FieldSet FieldSet::of(FieldT S) {
 
 bool FieldSet::isAll() const { return Fields.empty(); }
 
-llvm::ArrayRef<FieldT> FieldSet::fields() const { return Fields; }
+llvm::ArrayRef<FieldT> FieldSet::fields() const {
+  assert(!isAll());
+  return Fields;
+}
 
 void FieldSet::merge(const FieldSet &Other) {
   if (isAll())
@@ -151,8 +154,8 @@ static std::string name(const FunctionDecl *FD, ParamOrThis P) {
 }
 
 static std::string name(FieldT F) {
-  if (const auto *D = dyn_cast<const Decl *>(F))
-    return cast<NamedDecl>(D)->getNameAsString();
+  if (const auto *D = dyn_cast<const FieldDecl *>(F))
+    return D->getNameAsString();
   return cast<const CXXBaseSpecifier *>(F)->getType().getAsString();
 }
 

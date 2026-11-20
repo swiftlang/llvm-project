@@ -649,7 +649,15 @@ void FactsGenerator::VisitInitListExpr(const InitListExpr *ILE) {
     // (e.g., an int). Only flow if the element carries any.
     if (!hasOrigins(ILE->getInit(0)))
       return;
-    killAndFlowOrigin(*ILE, *ILE->getInit(0));
+    OriginList *Dst = getOriginsList(*ILE);
+    OriginList *Src = getOriginsList(*ILE->getInit(0));
+    assert(Src->getLength() >= Dst->getLength() &&
+           "Element has fewer origin levels than the list");
+    // Drop Src's inner levels, e.g., `*&x` in `View{&x}`; Dst has no slot
+    // for them.
+    for (; Dst; Dst = Dst->peelOuterOrigin(), Src = Src->peelOuterOrigin())
+      CurrentBlockFacts.push_back(FactMgr.createFact<OriginFlowFact>(
+          Dst->getOuterOriginID(), Src->getOuterOriginID(), /*Kill=*/true));
   }
 }
 

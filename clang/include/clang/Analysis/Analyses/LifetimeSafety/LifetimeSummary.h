@@ -62,25 +62,29 @@ namespace clang::lifetimes {
 enum class Level : unsigned char { Value = 0, ReferentValue = 1 };
 
 /// A field or a base class subobject.
-using FieldT = llvm::PointerUnion<const Decl *, const CXXBaseSpecifier *>;
+using FieldT = llvm::PointerUnion<const FieldDecl *, const CXXBaseSpecifier *>;
 
-/// A set of fields of an object (a sub-object set).  Absent means all
+/// A set of fields of an object (a sub-object set), or the full set: all
 /// subobjects (the whole object).
 ///
-/// Two FieldSet F and F2, F <= F2 iff F is a superset of F2. (F is no-less
-/// informative than F2. Greatest is TOP, AKA unknown.)
+/// F <= F2 iff F2 is the full set, or neither is and F is a superset of F2. (F
+/// is no less informative than F2. The full set is the greatest, AKA unknown.)
 class FieldSet {
-public:
-  /// Absent: all subobjects.
   FieldSet() = default;
+
+public:
   static FieldSet of(FieldT S);
+  /// All subobjects: the whole object.
+  static FieldSet fullSet() {return FieldSet{};};
 
   bool isAll() const;
   llvm::ArrayRef<FieldT> fields() const;
 
+  /// Unions \p Other into this set. Both must be sets of the same object. If
+  /// either is the full set, the result is the full set.
   void merge(const FieldSet &Other);
 
-  /// F <= F2: F2 is absent, or both are present and F is a superset of F2.
+  /// F <= F2: F2 is the full set, or neither is and F is a superset of F2.
   bool operator<=(const FieldSet &F2) const;
 
 private:
@@ -213,13 +217,14 @@ public:
   /// Add assertion: the return object MAY depend on the value of \p P at \p L,
   /// through fields \p F.
   /// \return false, doing nothing, if the assertion already exists.
-  bool addLifetimeBound(ParamOrThis P, Level L, FieldSet F = FieldSet());
+  bool addLifetimeBound(ParamOrThis P, Level L,
+                        FieldSet F = FieldSet::fullSet());
 
   /// Add assertion: the value of \p P at \p L MAY be held by the value of \p Q
   /// at \p QL, through fields \p F.
   /// \return false, doing nothing, if the assertion already exists.
   bool addCapturedByAssertion(ParamOrThis P, Level L, ParamOrThis Q, Level QL,
-                              FieldSet F = FieldSet());
+                              FieldSet F = FieldSet::fullSet());
 
   /// Add assertion: the value of \p P at \p L MUST not escape.
   /// \return false, doing nothing, if the assertion already exists.
@@ -227,7 +232,7 @@ public:
 
   /// Add assertion: the pointer-like (fields \p F of) \p P MAY be invalidated.
   /// \return false, doing nothing, if the assertion already exists.
-  bool addInvalidated(ParamOrThis P, FieldSet F = FieldSet());
+  bool addInvalidated(ParamOrThis P, FieldSet F = FieldSet::fullSet());
 
   /// \return the summary of the function, which the builder gives up.
   FunctionSummary build();

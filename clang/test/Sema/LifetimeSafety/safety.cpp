@@ -5505,3 +5505,10 @@ void explicit_or_destructor_use(bool b) {
     use(r);
 } // expected-note {{local variable 'backing' is destroyed here}} expected-note {{later used by the destructor of 'r' at scope exit}}
 } // namespace ScopeExitUse
+
+namespace InitListDepthMismatch {
+struct [[gsl::Pointer]] SV { const char *p; };
+struct [[gsl::Pointer]] Val { const SV *val; };
+// Used to crash: `&x` has more origin levels than `Val`.
+Val f(const SV &x) { return {&x}; }
+} // namespace InitListDepthMismatch

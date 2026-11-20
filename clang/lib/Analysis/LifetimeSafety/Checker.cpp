@@ -73,7 +73,8 @@ bool isInnerPlaceholderLoan(const Loan &L) {
 
 /// \return the FieldSet of the placeholder base of \p L. Undefined if the base
 /// is not a placeholder.
-/// If \p L does not represent fields of the base, the field set is empty.
+/// If \p L does not represent fields of the base, the field set is the full
+/// set.
 /// If \p L represents sub-objects of fields of the base, the field set only
 /// consists of direct fields of the base.
 FieldSet getFieldsOfPlaceholderBaseForSummary(const Loan &L) {
@@ -81,7 +82,7 @@ FieldSet getFieldsOfPlaceholderBaseForSummary(const Loan &L) {
   llvm::ArrayRef<PathElement> Elements = Path.getElements();
 
   if (Elements.empty() || !Elements.front().isField())
-    return FieldSet{};
+    return FieldSet::fullSet();
   return FieldSet::of(Elements.front().getFieldDecl());
 }
 
@@ -287,17 +288,17 @@ public:
     };
     auto AddLifetimeBoundParamOrThis = [&](const Loan &L, bool IsMoved) {
       if (isa<ReturnEscapeFact>(OEF) && !IsMoved)
-        LifetimeBoundSumAsserts[getLeveledParamOrThisFromLoan(L)] = FieldSet{};
+        LifetimeBoundSumAsserts.insert_or_assign(
+            getLeveledParamOrThisFromLoan(L), FieldSet::fullSet());
       if (auto *CtorD = dyn_cast<CXXConstructorDecl>(FD);
           CtorD && !isGslOwnerType(CtorD->getParent()))
         if (auto *FEF = dyn_cast<FieldEscapeFact>(OEF); FEF && !IsMoved) {
           auto P = getLeveledParamOrThisFromLoan(L);
           auto SingleFieldSet = FieldSet::of(FEF->getFieldDecl());
-          auto It = LifetimeBoundSumAsserts.find(P);
-          if (It != LifetimeBoundSumAsserts.end())
+          auto [It, Inserted] =
+              LifetimeBoundSumAsserts.try_emplace(P, SingleFieldSet);
+          if (!Inserted)
             It->second.merge(SingleFieldSet);
-          else
-            LifetimeBoundSumAsserts[P] = SingleFieldSet;
         }
     };
     auto MovedAtEscape = MovedLoans.getMovedLoans(OEF);
@@ -339,8 +340,7 @@ public:
     // Add NoEscape:
     for (const ParmVarDecl *PVD : FDecl->parameters()) {
       QualType T = PVD->getType();
-      if ((isPointerLikeType(T) || T->isReferenceType()) &&
-          !MayEscapeParams.contains(PVD))
+      if (isReferenceOrPointerLikeType(T) && !MayEscapeParams.contains(PVD))
         SummaryBuilder->addNoEscape(ParamOrThis::forParam(PVD), Level::Value);
     }
 
@@ -436,8 +436,7 @@ public:
   /// \return the entry loan of \p P at \p Lvl, if it has one. For a reference
   /// parameter, Level::Value is the loan of the reference, and
   /// Level::ReferentValue is the loan of the referenced object.
-  std::optional<LoanID> getEntryLoan(ParamOrThis P,
-                                     Level Lvl = Level::Value) {
+  std::optional<LoanID> getEntryLoan(ParamOrThis P, Level Lvl = Level::Value) {
     OriginList *List = nullptr;
     if (P.isThis()) {
       if (auto ThisOrigins = FactMgr.getOriginMgr().getThisOrigins())

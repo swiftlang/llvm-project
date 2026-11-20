@@ -222,7 +222,7 @@ bool isPointerLikeType(QualType QT) {
   return isGslPointerType(QT) || QT->isPointerType() || QT->isNullPtrType();
 }
 
-static bool isReferenceOrPointerLikeType(QualType QT) {
+bool isReferenceOrPointerLikeType(QualType QT) {
   return QT->isReferenceType() || isPointerLikeType(QT);
 }
 

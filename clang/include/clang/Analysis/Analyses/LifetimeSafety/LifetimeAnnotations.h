@@ -29,6 +29,8 @@ namespace clang ::lifetimes {
 bool isInStlNamespace(const Decl *D);
 
 bool isPointerLikeType(QualType QT);
+// Tells whether the type is a reference or isPointerLikeType.
+bool isReferenceOrPointerLikeType(QualType QT);
 
 /// Returns the most recent declaration of the method to ensure all
 /// lifetime-bound attributes from redeclarations are considered.
