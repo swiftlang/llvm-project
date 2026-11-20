@@ -46,6 +46,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
@@ -59,6 +60,8 @@ using namespace SCEVPatternMatch;
 #define DEBUG_TYPE "constraint-elimination"
 
 STATISTIC(NumCondsRemoved, "Number of instructions removed");
+STATISTIC(NumDoesHoldDepthLimitHit,
+          "Number of doesHold queries cut off by the nesting depth limit");
 DEBUG_COUNTER(EliminatedCounter, "conds-eliminated",
               "Controls which conditions are eliminated");
 
@@ -435,9 +438,22 @@ class ConstraintInfo {
 
   struct State &State;
 
+public:
+  /// Maximum nesting of doesHold queries. Deeper queries conservatively return
+  /// false.
+  static constexpr unsigned MaxDoesHoldDepth = 2;
+
+private:
   /// Decompositions computed against the current state of the systems. Must be
   /// cleared when the system changes.
   DenseMap<PointerIntPair<Value *, 1, bool>, Decomposition> DecomposeCache;
+
+  /// Current nesting depth of doesHold.
+  unsigned DoesHoldDepth = 0;
+
+  /// Number of doesHold queries that have been cut off by MaxDoesHoldDepth so
+  /// far.
+  unsigned NumDepthLimitHits = 0;
 
 public:
   DenseMap<PointerIntPair<Value *, 1, bool>, Decomposition> &
@@ -445,6 +461,8 @@ public:
     return DecomposeCache;
   }
 
+  unsigned getNumDepthLimitHits() const { return NumDepthLimitHits; }
+  
   ConstraintInfo(struct State &State, ArrayRef<Value *> FunctionArgs)
       : UnsignedCS(FunctionArgs), SignedCS(FunctionArgs), State(State) {
     auto &Value2Index = getValue2Index(false);
@@ -863,8 +881,12 @@ static Decomposition decompose(Value *V, ConstraintInfo &Info, bool IsSigned,
   if (It != Cache.end())
     return It->second;
 
+  unsigned HitsBefore = Info.getNumDepthLimitHits();
   Decomposition Result = decomposeImpl(V, Info, IsSigned, State);
-  Info.getDecomposeCache().insert({Key, Result});
+  // If a doesHold query was cut off while decomposing, the result may be less
+  // precise than what a shallower query could compute, so don't cache it.
+  if (Info.getNumDepthLimitHits() == HitsBefore)
+    Info.getDecomposeCache().insert({Key, Result});
   return Result;
 }
 
@@ -1256,6 +1278,15 @@ ConstraintInfo::tryWithLinkRows(Value *A, Value *B, const ConstraintTy &C,
 }
 
 bool ConstraintInfo::doesHold(CmpInst::Predicate Pred, Value *A, Value *B) {
+  // Decomposing A and B may itself call doesHold, once per level of a chain of
+  // operations. Cut off deep nesting to bound stack usage and compile time.
+  if (DoesHoldDepth >= MaxDoesHoldDepth) {
+    ++NumDoesHoldDepthLimitHit;
+    ++NumDepthLimitHits;
+    return false;
+  }
+  SaveAndRestore DepthScope(DoesHoldDepth, DoesHoldDepth + 1);
+
   auto R = getConstraintForSolving(Pred, A, B);
   if (R.empty())
     return false;
