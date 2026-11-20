@@ -10,6 +10,7 @@
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Core/Mangled.h"
+#include "lldb/Target/Language.h"
 #include "lldb/lldb-enumerations.h"
 
 #include "gtest/gtest.h"
@@ -105,4 +106,18 @@ TEST(SwiftLanguage, ParsesSwiftFunctionNames) {
   ASSERT_TRUE(method);
   EXPECT_EQ(method->basename, ConstString("baz"));
   EXPECT_EQ(method->kind, Mangled::FunctionNameKind::Method);
+}
+
+TEST(SwiftLanguage, IsCategoryApplicable) {
+  SubsystemRAII<SwiftLanguage> langs;
+  Language *language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+  ASSERT_NE(language, nullptr);
+
+  for (lldb::LanguageType swift_or_objc :
+       {lldb::eLanguageTypeSwift, lldb::eLanguageTypeObjC,
+        lldb::eLanguageTypeObjC_plus_plus})
+    EXPECT_TRUE(language->IsCategoryApplicable(lldb::eLanguageTypeSwift,
+                                               swift_or_objc));
+  EXPECT_FALSE(language->IsCategoryApplicable(lldb::eLanguageTypeSwift,
+                                              lldb::eLanguageTypeC_plus_plus));
 }
