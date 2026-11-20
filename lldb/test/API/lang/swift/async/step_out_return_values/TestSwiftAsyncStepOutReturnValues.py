@@ -30,6 +30,8 @@ class TestCase(lldbtest.TestBase):
             ("f_string", "() async -> Swift.String"),
             ("f_two_int", "() async -> a.TwoInt"),
             ("f_throws", "() async throws -> Swift.Int"),
+            ("f_typed_throws", "() async throws(a.E) -> Swift.Int"),
+            ("f_typed_throws_large", "() async throws(a.LargeE) -> Swift.Int"),
         ]:
             frame = thread.frames[0]
             self.assertIn(
