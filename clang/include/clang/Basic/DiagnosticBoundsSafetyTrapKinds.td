@@ -100,5 +100,15 @@ def trap_bs_terminated_by_ptr_arith : Trap<!strconcat(
   "incrementing ", TerminatedByType, " pointer past the ", TerminatedByTerm,
   " in %0")>;
 
+// Check that an assignment through a `__terminated_by` pointer doesn't
+// overwrite its terminator.
+//
+// %0 - The location being assigned to.
+// %1-%3 - The `__terminated_by` type of the pointer.
+// %4 - The pointer.
+def trap_bs_terminated_by_term_assign : Trap<!strconcat(
+  "assigning to %0 overwrites the ", TerminatedByTerm, " of ",
+  TerminatedByType, " pointer %4")>;
+
 }
 }

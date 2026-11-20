@@ -386,7 +386,16 @@ void CodeGenFunction::EmitValueTerminatedAssignmentCheck(
   llvm::Value *Term = EmitTerminator(TermVal, Val->getType());
 
   llvm::Value *Check = Builder.CreateICmpNE(Val, Term);
-  EmitBoundsSafetyTrapCheck(Check, BNS_TRAP_TERMINATED_BY_TERM_ASSIGN);
+  auto PD = CGM.BuildPartialTrapReason();
+  PD << /*%0=*/E->getLHS();
+  // Adds %1-%3 to PD.
+  AddTerminatedByTypeToTrapReason(PD, PtrE->getType());
+  PD << /*%4=*/PtrE;
+  TrapReason TR;
+  CGM.BuildTrapReason(diag::trap_bs_terminated_by_term_assign, TR)
+      << /*%0-%4=*/PD;
+  EmitBoundsSafetyTrapCheck(Check, BNS_TRAP_TERMINATED_BY_TERM_ASSIGN,
+                            BoundsSafetyTrapCtx::UNKNOWN, &TR);
 }
 
 
