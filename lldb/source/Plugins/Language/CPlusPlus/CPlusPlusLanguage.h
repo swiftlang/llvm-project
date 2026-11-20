@@ -67,6 +67,9 @@ public:
   std::unique_ptr<TypeScavenger> GetTypeScavenger() override;
   lldb::TypeCategoryImplSP GetFormatters() override;
 
+  bool IsCategoryApplicable(lldb::LanguageType category_language,
+                            lldb::LanguageType valobj_language) const override;
+
   HardcodedFormatters::HardcodedSummaryFinder GetHardcodedSummaries() override;
 
   HardcodedFormatters::HardcodedSyntheticFinder
