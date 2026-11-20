@@ -883,15 +883,14 @@ static bool isKnownNoWrap(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
 
   // For a constant Op1, the ranges of Op0 for which the operation does not
   // wrap are known exactly; check if the systems imply one of them.
-  auto *C = dyn_cast<ConstantInt>(Op1);
-  if (!C)
-    return false;
+  if (auto *C = dyn_cast<ConstantInt>(Op1)) {
+    auto Range = ConstantRange::makeExactNoWrapRegion(
+        Opcode, C->getValue(),
+        Signed ? OBO::NoSignedWrap : OBO::NoUnsignedWrap);
+    return doesHoldInRange(Info, Op0, Range, Signed);
+  }
 
-  return doesHoldInRange(Info, Op0,
-                         ConstantRange::makeExactNoWrapRegion(
-                             Opcode, C->getValue(),
-                             Signed ? OBO::NoSignedWrap : OBO::NoUnsignedWrap),
-                         Signed);
+  return false;
 }
 
 /// Returns true if \p V is known to not wrap in signed or unsigned, depending
@@ -1404,6 +1403,8 @@ bool ConstraintInfo::isKnownPositive(Value *V) {
 
 std::optional<bool> ConstraintInfo::getKnownSign(Value *V,
                                                  bool StrictlyNegative) {
+  if (auto *CI = dyn_cast<ConstantInt>(V))
+    return CI->isNegative();
   KnownBits Known = computeKnownBits(V, State.DL);
   if (Known.isNonNegative())
     return false;
