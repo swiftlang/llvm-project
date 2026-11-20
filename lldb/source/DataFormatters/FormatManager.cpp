@@ -588,28 +588,15 @@ FormatManager::GetTypeForCache(ValueObject &valobj,
 
 std::vector<lldb::LanguageType>
 FormatManager::GetCandidateLanguages(lldb::LanguageType lang_type) {
-  switch (lang_type) {
-  case lldb::eLanguageTypeSwift:
-    return {lldb::eLanguageTypeSwift, lldb::eLanguageTypeObjC};
-  case lldb::eLanguageTypeObjC:
-    return {lldb::eLanguageTypeObjC, lldb::eLanguageTypeSwift};
-  case lldb::eLanguageTypeC:
-  case lldb::eLanguageTypeC89:
-  case lldb::eLanguageTypeC99:
-  case lldb::eLanguageTypeC11:
-  // BEGIN SWIFT
-    return {lldb::eLanguageTypeC_plus_plus, lldb::eLanguageTypeObjC};
-  case lldb::eLanguageTypeC_plus_plus:
-  case lldb::eLanguageTypeC_plus_plus_03:
-  case lldb::eLanguageTypeC_plus_plus_11:
-  case lldb::eLanguageTypeC_plus_plus_14:
-    // Swift can format C++ types due to Swift/C++ iterop.
-    return {lldb::eLanguageTypeC_plus_plus, lldb::eLanguageTypeObjC, lldb::eLanguageTypeSwift};
-  // END SWIFT
-  default:
-    return {lang_type};
-  }
-  llvm_unreachable("Fully covered switch");
+  std::vector<lldb::LanguageType> candidates;
+  Language::ForEach([&](Language *language) {
+    for (lldb::LanguageType candidate :
+         language->GetFormatterLanguages(lang_type))
+      if (!llvm::is_contained(candidates, candidate))
+        candidates.push_back(candidate);
+    return IterationAction::Continue;
+  });
+  return candidates;
 }
 
 LanguageCategory *
@@ -727,20 +714,12 @@ FormatManager::FormatManager()
       m_language_categories_map(), m_named_summaries_map(this),
       m_categories_map(this), m_default_category_name("default"),
       m_system_category_name("system"),
-      m_vectortypes_category_name("VectorTypes"),
-      m_runtime_synths_category_name("runtime-synthetics") {
+      m_vectortypes_category_name("VectorTypes") {
   LoadSystemFormatters();
   LoadVectorFormatters();
 
-  GetCategory(m_runtime_synths_category_name); // EnableCategory() won't enable
-                                               // a non-existant category, so
-                                               // create this one first even if
-                                               // empty
-
   EnableCategory(m_vectortypes_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
-  EnableCategory(m_runtime_synths_category_name, TypeCategoryMap::Last,
-                 {lldb::eLanguageTypeObjC_plus_plus, lldb::eLanguageTypeSwift});
   EnableCategory(m_system_category_name, TypeCategoryMap::Last,
                  lldb::eLanguageTypeObjC_plus_plus);
 }
