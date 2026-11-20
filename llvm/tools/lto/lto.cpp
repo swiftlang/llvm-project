@@ -461,7 +461,13 @@ void lto_codegen_add_must_preserve_symbol(lto_code_gen_t cg,
 static void maybeParseOptions(lto_code_gen_t cg) {
   if (optionParsingState != OptParsingState::Done) {
     // Parse options if any were set by the lto_codegen_debug_options* function.
-    unwrap(cg)->parseCodeGenDebugOptions();
+    LibLTOCodeGenerator *CG = unwrap(cg);
+    CG->parseCodeGenDebugOptions();
+    // The target options were read when the generator was created. Read them
+    // again to pick up the options that were just parsed, unless
+    // lto_set_debug_options already parsed them before that.
+    if (optionParsingState == OptParsingState::NotParsed)
+      CG->setTargetOptions(codegen::InitTargetOptionsFromCodeGenFlags(Triple()));
     lto_add_attrs(cg);
     optionParsingState = OptParsingState::Done;
   }
