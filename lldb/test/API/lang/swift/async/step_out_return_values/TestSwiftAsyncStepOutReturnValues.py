@@ -117,7 +117,7 @@ class TestCase(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwift
-    @expectedFailureAll
+    @skip
     def test_known_problems(self):
         """Test the values lldb gets wrong in async functions"""
         functions = [

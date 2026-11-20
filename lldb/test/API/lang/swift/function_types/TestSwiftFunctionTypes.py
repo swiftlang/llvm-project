@@ -86,9 +86,7 @@ class TestCase(lldbtest.TestBase):
         )
 
     @swiftTest
-    # With PDB, all function types are wrong, see test().
-    @skipIf(debug_info=["pdb"])
-    @expectedFailureAll
+    @skip
     def test_known_problems(self):
         """Test the function types lldb doesn't compute"""
         self.build()

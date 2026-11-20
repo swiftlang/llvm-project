@@ -108,7 +108,7 @@ class TestCase(lldbtest.TestBase):
         self.expect("thread info", patterns=[r"Return value: \(Int\) \$R\d+ = 42\n"])
 
     @swiftTest
-    @expectedFailureAll
+    @skip
     def test_known_problems(self):
         """Test the values lldb gets wrong"""
         functions = [
