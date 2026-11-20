@@ -18,6 +18,41 @@ def describe(value):
 
 class TestCase(lldbtest.TestBase):
 
+    def return_value_problems(self, functions):
+        """Step out of each function in functions and return how the values
+        they returned or threw differ from v_<name>, the variables run()
+        assigns them to."""
+        self.build()
+        _, process, thread, _ = lldbutil.run_to_source_breakpoint(
+            self, "// step out", lldb.SBFileSpec("main.swift")
+        )
+        problems = []
+        seen = []
+        while thread:
+            function = re.search(
+                r"(\w+)(<[^>]*>)?\(", thread.frames[0].GetFunctionName()
+            )[1]
+            if function in functions:
+                seen.append(function)
+                call_line = thread.frames[1].GetLineEntry().GetLine()
+                thread.StepOut()
+                return_value = thread.GetStopReturnValue()
+                if not return_value.IsValid():
+                    return_value = thread.GetStopErrorValue()
+                returned = describe(return_value) if return_value.IsValid() else None
+                if thread.frames[0].GetLineEntry().GetLine() == call_line:
+                    thread.StepOver()
+                variable = thread.frames[0].FindVariable(
+                    "v_" + function.removeprefix("f_")
+                )
+                expected = describe(variable)
+                if returned != expected:
+                    problems.append("%s: %s != %s" % (function, returned, expected))
+            process.Continue()
+            thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
+        self.assertEqual(sorted(seen), sorted(functions))
+        return problems
+
     @swiftTest
     @skipEmbeddedSwift
     @skipIf(archs=["x86_64"], bugnumber="rdar://192464251")
@@ -67,6 +102,21 @@ class TestCase(lldbtest.TestBase):
 
     @swiftTest
     @skipEmbeddedSwift
+    @skipIf(archs=["x86_64"], bugnumber="rdar://192464251")
+    def test_values(self):
+        """Test the values returned by async functions"""
+        functions = [
+            "f_optional_int",
+            "f_optional_nil",
+            "f_optional_class",
+            "f_optional_string",
+            "f_array",
+            "f_dictionary",
+        ]
+        self.assertEqual(self.return_value_problems(functions), [])
+
+    @swiftTest
+    @skipEmbeddedSwift
     @expectedFailureAll
     def test_known_problems(self):
         """Test the values lldb gets wrong in async functions"""
@@ -86,44 +136,9 @@ class TestCase(lldbtest.TestBase):
             "f_existential",
             # FIXME: This function has the type () -> ().
             "f_generic",
-            # FIXME: lldb can't compute the size of these types.
-            "f_optional_int",
-            "f_optional_nil",
-            "f_optional_class",
-            "f_optional_string",
-            "f_array",
-            "f_dictionary",
             # FIXME: For a typed error, the error register holds 1, not the
             # error.
             "f_typed_throwing",
             "f_typed_throwing_large",
         ]
-        self.build()
-        _, process, thread, _ = lldbutil.run_to_source_breakpoint(
-            self, "break in known problem", lldb.SBFileSpec("main.swift")
-        )
-        problems = []
-        seen = []
-        while thread:
-            function = re.search(
-                r"(\w+)(<[^>]*>)?\(", thread.frames[0].GetFunctionName()
-            )[1]
-            seen.append(function)
-            call_line = thread.frames[1].GetLineEntry().GetLine()
-            thread.StepOut()
-            return_value = thread.GetStopReturnValue()
-            if not return_value.IsValid():
-                return_value = thread.GetStopErrorValue()
-            returned = describe(return_value) if return_value.IsValid() else None
-            if thread.frames[0].GetLineEntry().GetLine() == call_line:
-                thread.StepOver()
-            variable = thread.frames[0].FindVariable(
-                "v_" + function.removeprefix("f_")
-            )
-            expected = describe(variable)
-            if returned != expected:
-                problems.append("%s: %s != %s" % (function, returned, expected))
-            process.Continue()
-            thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
-        self.assertEqual(seen, functions)
-        self.assertEqual(problems, [])
+        self.assertEqual(self.return_value_problems(functions), [])

@@ -84,55 +84,55 @@ func f_throwing() async throws -> Int {
 }
 
 func f_two_double() async -> TwoDouble {
-  return TwoDouble() // break in known problem
+  return TwoDouble() // step out
 }
 func f_two_float() async -> TwoFloat {
-  return TwoFloat() // break in known problem
+  return TwoFloat() // step out
 }
 func f_wrapped_double() async -> WrappedDouble {
-  return WrappedDouble() // break in known problem
+  return WrappedDouble() // step out
 }
 func f_float_int() async -> FloatInt {
-  return FloatInt() // break in known problem
+  return FloatInt() // step out
 }
 func f_float_int_tuple() async -> (Float, Int) {
-  return (3.5, 11) // break in known problem
+  return (3.5, 11) // step out
 }
 func f_three_int() async -> ThreeInt {
-  return ThreeInt() // break in known problem
+  return ThreeInt() // step out
 }
 func f_payload() async -> Payload {
-  return .number(5) // break in known problem
+  return .number(5) // step out
 }
 func f_existential() async -> any P {
-  return 13 // break in known problem
+  return 13 // step out
 }
 func f_generic<T>(_ t: T) async -> T {
-  return t // break in known problem
+  return t // step out
 }
 func f_optional_int() async -> Int? {
-  return 5 // break in known problem
+  return 5 // step out
 }
 func f_optional_nil() async -> Int? {
-  return nil // break in known problem
+  return nil // step out
 }
 func f_optional_class() async -> K? {
-  return K() // break in known problem
+  return K() // step out
 }
 func f_optional_string() async -> String? {
-  return "optional" // break in known problem
+  return "optional" // step out
 }
 func f_array() async -> [Int] {
-  return [1, 2, 3] // break in known problem
+  return [1, 2, 3] // step out
 }
 func f_dictionary() async -> [Int: String] {
-  return [1: "one"] // break in known problem
+  return [1: "one"] // step out
 }
 func f_typed_throwing() async throws(E) -> Int {
-  throw E() // break in known problem
+  throw E() // step out
 }
 func f_typed_throwing_large() async throws(LargeE) -> Int {
-  throw LargeE() // break in known problem
+  throw LargeE() // step out
 }
 
 func run() async {

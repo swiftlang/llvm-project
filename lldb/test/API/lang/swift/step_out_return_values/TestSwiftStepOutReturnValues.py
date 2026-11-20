@@ -84,22 +84,24 @@ class TestCase(lldbtest.TestBase):
             "f_no_payload",
             "f_raw_value",
             "f_tuple",
+            "f_optional_int",
+            "f_optional_nil",
+            "f_optional_class",
+            "f_optional_string",
+            "f_array",
             "answer",
             "increment",
             "staticAnswer",
             "computed",
         ]
-        if self.isEmbeddedSwift():
+        if not self.isEmbeddedSwift():
             functions += [
-                "f_optional_int",
-                "f_optional_nil",
-                "f_optional_class",
-                "f_optional_string",
-                "f_array",
+                # FIXME: In Embedded Swift, printing the dictionary crashes the
+                # type system validation.
+                "f_dictionary",
+                # rdar://192368824
+                "f_throwing",
             ]
-        else:
-            # rdar://192368824
-            functions.append("f_throwing")
         self.assertEqual(self.return_value_problems(functions), [])
         _, _, thread, _ = lldbutil.run_to_name_breakpoint(self, "f_int")
         thread.StepOut()
@@ -130,18 +132,7 @@ class TestCase(lldbtest.TestBase):
             "f_typed_throwing",
             "f_typed_throwing_large",
         ]
-        if not self.isEmbeddedSwift():
-            # FIXME: These have a value only in Embedded Swift. Printing the
-            # dictionary there crashes the type system validation.
-            functions += [
-                "f_optional_int",
-                "f_optional_nil",
-                "f_optional_class",
-                "f_optional_string",
-                "f_array",
-                "f_dictionary",
-            ]
-        else:
+        if self.isEmbeddedSwift():
             # FIXME: In Embedded Swift, lldb shows no thrown error.
             # rdar://192368824
             functions.append("f_throwing")
