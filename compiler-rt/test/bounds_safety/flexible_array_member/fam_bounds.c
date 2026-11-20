@@ -40,11 +40,13 @@ int main(int argc, const char **__counted_by(argc) argv) {
     struct flexible *__bidi_indexable flex =
         __unsafe_forge_bidi_indexable(struct flexible *, storage, 2);
     // FIXME: The `flexible array member 'elems' starts above the upper bound of
-    // pointer 'flex'` trap reason isn't used here because a prior
-    // `Dereferencing above bounds` check fires first (rdar://104875616). That
-    // check has no source location so the trap is reported at the call to
-    // `to_single`.
-    // upper@+1{Dereferencing above bounds}
+    // pointer 'flex'` trap reason isn't used here because a prior member
+    // access check on `flex->elems` fires first (rdar://104875616). That check
+    // has no source location so the trap is reported at the call to
+    // `to_single`. Its trap reason is misleading because `flex->elems` is
+    // created by Sema for the flexible array member checks rather than written
+    // by the user.
+    // upper@+1{member access above upper bound in 'flex->elems'}
     printf("%d\n", to_single(flex)->count);
   } else {
     // The pointer is below its lower bound.
@@ -52,10 +54,12 @@ int main(int argc, const char **__counted_by(argc) argv) {
         __unsafe_forge_bidi_indexable(int *, &storage[1], 2 * sizeof(int));
     struct flexible *__bidi_indexable flex = (struct flexible *)(ptr - 1);
     // FIXME: The `pointer 'flex' is below its lower bound` trap reason isn't
-    // used here because a prior `Dereferencing below bounds` check fires first
-    // (rdar://104875616). That check has no source location so the trap is
-    // reported at the call to `to_single`.
-    // lower@+1{Dereferencing below bounds}
+    // used here because a prior member access check on `flex->elems` fires
+    // first (rdar://104875616). That check has no source location so the trap
+    // is reported at the call to `to_single`. Its trap reason is misleading
+    // because `flex->elems` is created by Sema for the flexible array member
+    // checks rather than written by the user.
+    // lower@+1{member access below lower bound in 'flex->elems'}
     printf("%d\n", to_single(flex)->count);
   }
   return 0;
