@@ -1,22 +1,26 @@
-//===- PrefixMapper.cpp - Prefix mapping utility --------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// Prefix mapping utility.
+///
+//===----------------------------------------------------------------------===//
 
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/CAS/TreePath.h"
-#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
 using namespace llvm;
 
-std::optional<MappedPrefix> MappedPrefix::getFromJoined(StringRef JoinedMapping) {
+std::optional<MappedPrefix>
+MappedPrefix::getFromJoined(StringRef JoinedMapping) {
   auto Equals = JoinedMapping.find('=');
   if (Equals == StringRef::npos)
     return std::nullopt;
@@ -31,7 +35,8 @@ transformJoinedImpl(ArrayRef<StringT> JoinedMappings,
                     SmallVectorImpl<MappedPrefix> &Mappings) {
   size_t OriginalSize = Mappings.size();
   for (StringRef Joined : JoinedMappings) {
-    if (std::optional<MappedPrefix> Split = MappedPrefix::getFromJoined(Joined)) {
+    if (std::optional<MappedPrefix> Split =
+            MappedPrefix::getFromJoined(Joined)) {
       Mappings.push_back(*Split);
       continue;
     }
@@ -73,7 +78,8 @@ void MappedPrefix::transformJoinedIfValid(
 }
 
 void MappedPrefix::transformPairs(
-    ArrayRef<std::pair<std::string, std::string>> Pairs, SmallVectorImpl<MappedPrefix> &Split) {
+    ArrayRef<std::pair<std::string, std::string>> Pairs,
+    SmallVectorImpl<MappedPrefix> &Split) {
   for (auto &Pair : Pairs) {
     Split.push_back(MappedPrefix{Pair.first, Pair.second});
   }
@@ -104,32 +110,8 @@ static bool startsWith(StringRef Path, StringRef Prefix,
   return true;
 }
 
-static bool equals(StringRef Prefix1, StringRef Prefix2,
-                   sys::path::Style PathStyle) {
-  if (PathStyle == sys::path::Style::posix ||
-      (PathStyle == sys::path::Style::native &&
-       sys::path::is_style_posix(sys::path::Style::native)))
-    return Prefix1 == Prefix2;
-
-  if (Prefix1.size() != Prefix2.size())
-    return false;
-
-  // Windows prefix matching : case and separator insensitive
-  for (size_t I = 0, E = Prefix1.size(); I != E; ++I) {
-    bool Sep1 = sys::path::is_separator(Prefix1[I], PathStyle);
-    bool Sep2 = sys::path::is_separator(Prefix2[I], PathStyle);
-    if (Sep1 != Sep2)
-      return false;
-    if (Sep1)
-      continue;
-    if (toLower(Prefix1[I]) != toLower(Prefix2[I]))
-      return false;
-  }
-  return true;
-}
-
-std::optional<StringRef> PrefixMapper::mapImpl(StringRef Path,
-                                          SmallVectorImpl<char> &Storage) const {
+std::optional<StringRef>
+PrefixMapper::mapImpl(StringRef Path, SmallVectorImpl<char> &Storage) const {
   for (const MappedPrefix &Map : Mappings) {
     StringRef Old = Map.Old;
     StringRef New = Map.New;
@@ -140,12 +122,14 @@ std::optional<StringRef> PrefixMapper::mapImpl(StringRef Path,
       return New; // Exact match.
 
     // Don't remap "/old-suffix" with mapping "/old=/new".
-    if (!llvm::sys::path::is_separator(Suffix.front(), PathStyle))
+    bool OldEndsWithSeparator =
+        !Old.empty() && sys::path::is_separator(Old.back(), PathStyle);
+    if (!OldEndsWithSeparator &&
+        !sys::path::is_separator(Suffix.front(), PathStyle))
       continue;
 
-    // Drop the separator, append, and return.
     Storage.assign(New.begin(), New.end());
-    llvm::sys::path::append(Storage, PathStyle, Suffix.drop_front());
+    sys::path::append(Storage, PathStyle, Suffix);
     return StringRef(Storage.begin(), Storage.size());
   }
   return std::nullopt;
@@ -199,8 +183,8 @@ bool PrefixMapper::mapInPlace(std::string &Path) const {
 }
 
 void PrefixMapper::sort() {
-  // FIXME: Only works for posix right now since it doesn't handle case- and
-  // separator-insensitivity.
+  // FIXME: Compare the way startsWith() matches, so that sorting is case- and
+  // separator-insensitive with a Windows path style.
   std::stable_sort(Mappings.begin(), Mappings.end(),
                    [](const MappedPrefix &LHS, const MappedPrefix &RHS) {
                      return LHS.Old > RHS.Old;
@@ -235,6 +219,30 @@ std::optional<StringRef> TreePathPrefixMapper::getTreePath(StringRef Path) const
     return std::nullopt;
   }
   return (*Entry)->getTreePath();
+}
+
+static bool equals(StringRef Prefix1, StringRef Prefix2,
+                   sys::path::Style PathStyle) {
+  if (PathStyle == sys::path::Style::posix ||
+      (PathStyle == sys::path::Style::native &&
+       sys::path::is_style_posix(sys::path::Style::native)))
+    return Prefix1 == Prefix2;
+
+  if (Prefix1.size() != Prefix2.size())
+    return false;
+
+  // Windows prefix matching : case and separator insensitive
+  for (size_t I = 0, E = Prefix1.size(); I != E; ++I) {
+    bool Sep1 = sys::path::is_separator(Prefix1[I], PathStyle);
+    bool Sep2 = sys::path::is_separator(Prefix2[I], PathStyle);
+    if (Sep1 != Sep2)
+      return false;
+    if (Sep1)
+      continue;
+    if (toLower(Prefix1[I]) != toLower(Prefix2[I]))
+      return false;
+  }
+  return true;
 }
 
 void TreePathPrefixMapper::add(const MappedPrefix &Mapping) {
