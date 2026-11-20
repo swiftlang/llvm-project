@@ -49,14 +49,14 @@ int f(int i, char c, enum E e) {
     break;
   }
 
-  switch (e) { // expected-warning {{enumeration value 'D' not handled in switch}}
+  switch (e) { // expected-warning {{enumeration value 'D' not handled in switch}} expected-note {{add missing switch cases}}
   case A:
   case B ... C:
     break;
   }
 
   // A relocated range may overlap another range. 4 is B, 10 is not in enum E.
-  switch (e) { // reloc-warning {{enumeration value 'D' not handled in switch}}
+  switch (e) { // reloc-warning {{enumeration value 'D' not handled in switch}} reloc-note {{add missing switch cases}}
   case A ... C: // noreloc-note {{previous case defined here}}
   case 4 ... 10: // reloc-warning {{case value not in enumerated type 'enum E'}} noreloc-error {{duplicate case value '8'}}
     break;
