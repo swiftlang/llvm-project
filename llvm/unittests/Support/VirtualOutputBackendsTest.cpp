@@ -881,6 +881,86 @@ TEST(OnDiskBackendTest, Append) {
   EXPECT_TRUE(File3.equalsCurrentContent("some data\nmore data\nmore more\n"));
 }
 
+/// Returns a function for \a OutputFile::fillAndKeep() that writes \p Content
+/// to the temporary file and saves its path in \p FilledPath.
+static auto fillWith(StringRef Content, std::string &FilledPath) {
+  return [Content, &FilledPath](StringRef TempPath) -> Error {
+    FilledPath = TempPath.str();
+    std::error_code EC;
+    raw_fd_ostream OS(TempPath, EC);
+    if (EC)
+      return errorCodeToError(EC);
+    OS << Content;
+    return Error::success();
+  };
+}
+
+TEST(OnDiskBackendTest, FillAndKeep) {
+  OnDiskOutputBackendProvider Provider;
+  auto Backend = Provider.createBackend();
+  std::string FilePath = Provider.getFilePathToCreate();
+  OnDiskFile File(*Provider.D, FilePath);
+
+  auto fillOutput = [&](OutputConfig Config, StringRef Content,
+                        std::string &FilledPath) -> Error {
+    OutputFile O;
+    if (Error E = Backend->createFile(FilePath, Config).moveInto(O))
+      return E;
+    return O.fillAndKeep(fillWith(Content, FilledPath));
+  };
+
+  // The content is put in the temporary file of the output, which is moved
+  // into place.
+  std::string FilledPath;
+  ASSERT_THAT_ERROR(fillOutput(OutputConfig(), "some data", FilledPath),
+                    Succeeded());
+  EXPECT_EQ(sys::path::parent_path(FilePath),
+            sys::path::parent_path(FilledPath));
+  EXPECT_TRUE(File.equalsCurrentContent("some data"));
+  EXPECT_FALSE(sys::fs::exists(FilledPath));
+
+  // The output is kept like written content, e.g. for OnlyIfDifferent.
+  std::optional<sys::fs::UniqueID> ID = File.getCurrentUniqueID();
+  ASSERT_TRUE(ID);
+  ASSERT_THAT_ERROR(
+      fillOutput(OutputConfig().setOnlyIfDifferent(), "some data", FilledPath),
+      Succeeded());
+  EXPECT_TRUE(File.equalsCurrentContent("some data"));
+  EXPECT_FALSE(sys::fs::exists(FilledPath));
+#ifndef _WIN32
+  // On Windows, UniqueIDs are hashes of the file paths.
+  EXPECT_TRUE(File.hasUniqueID(*ID));
+#endif
+
+  ASSERT_THAT_ERROR(
+      fillOutput(OutputConfig().setAppend(), " appended", FilledPath),
+      Succeeded());
+  EXPECT_TRUE(File.equalsCurrentContent("some data appended"));
+
+  // Without a temporary file for the output, the content is put in another
+  // temporary file, and written to the output.
+  ASSERT_THAT_ERROR(
+      fillOutput(OutputConfig().setNoAtomicWrite(), "no temporary", FilledPath),
+      Succeeded());
+  EXPECT_NE(sys::path::parent_path(FilePath),
+            sys::path::parent_path(FilledPath));
+  EXPECT_TRUE(File.equalsCurrentContent("no temporary"));
+  EXPECT_FALSE(sys::fs::exists(FilledPath));
+
+  // If filling the temporary file fails, the output is discarded.
+  std::string FailedPath = Provider.getFilePathToCreateUnder("failed", "");
+  OnDiskFile Failed(*Provider.D, FailedPath);
+  OutputFile O;
+  ASSERT_THAT_ERROR(Backend->createFile(FailedPath).moveInto(O), Succeeded());
+  EXPECT_THAT_ERROR(O.fillAndKeep([&](StringRef TempPath) {
+    FilledPath = TempPath.str();
+    return createStringError("failed to fill");
+  }),
+                    FailedWithMessage("failed to fill"));
+  EXPECT_FALSE(Failed.getCurrentUniqueID());
+  EXPECT_FALSE(Failed.findTemp());
+}
+
 TEST(HashingBackendTest, HashOutput) {
   HashingOutputBackend<BLAKE3> Backend;
   OutputFile O1, O2, O3, O4, O5;
@@ -912,6 +992,39 @@ TEST(HashingBackendTest, HashOutput) {
   EXPECT_THAT_ERROR(O5.keep(), Succeeded());
   EXPECT_NE(Backend.getHashValueForFile("file1"),
             Backend.getHashValueForFile("file5"));
+}
+
+TEST(HashingBackendTest, FillAndKeep) {
+  // The default implementation writes the content of the temporary file to the
+  // output.
+  HashingOutputBackend<BLAKE3> Backend;
+  OutputFile O;
+  EXPECT_THAT_ERROR(Backend.createFile("file1").moveInto(O), Succeeded());
+  O << "some data";
+  EXPECT_THAT_ERROR(O.keep(), Succeeded());
+  std::string FilledPath;
+  EXPECT_THAT_ERROR(Backend.createFile("file2").moveInto(O), Succeeded());
+  EXPECT_THAT_ERROR(O.fillAndKeep(fillWith("some data", FilledPath)),
+                    Succeeded());
+  EXPECT_FALSE(sys::fs::exists(FilledPath));
+
+  std::optional<std::string> Hash1 = Backend.getHashValueForFile("file1");
+  ASSERT_TRUE(Hash1);
+  EXPECT_EQ(Hash1, Backend.getHashValueForFile("file2"));
+}
+
+TEST(NullBackendTest, FillAndKeep) {
+  // The temporary file isn't even filled for a null output.
+  OutputFile O;
+  EXPECT_THAT_ERROR(makeNullOutputBackend()->createFile("file").moveInto(O),
+                    Succeeded());
+  bool Filled = false;
+  EXPECT_THAT_ERROR(O.fillAndKeep([&](StringRef) {
+    Filled = true;
+    return Error::success();
+  }),
+                    Succeeded());
+  EXPECT_FALSE(Filled);
 }
 
 TEST(HashingBackendTest, ParallelHashOutput) {
