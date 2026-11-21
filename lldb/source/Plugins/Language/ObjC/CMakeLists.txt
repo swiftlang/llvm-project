@@ -1,8 +1,3 @@
-set(SWIFT_LIBS lldbPluginSwiftLanguage)
-if(NOT LLDB_ENABLE_SWIFT_SUPPORT)
-  unset(SWIFT_LIBS)
-endif()
-
 add_lldb_library(lldbPluginObjCLanguage PLUGIN
   ObjCLanguage.cpp
   CF.cpp
@@ -28,7 +23,6 @@ add_lldb_library(lldbPluginObjCLanguage PLUGIN
     lldbValueObject
     lldbPluginAppleObjCRuntime
     lldbPluginTypeSystemClang
-    ${SWIFT_LIBS}
   CLANG_LIBS
     clangAST
 )
