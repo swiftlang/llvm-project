@@ -258,11 +258,10 @@ static const Type *getElementOrValueTypeSingleStep(const Type *T) {
     return VT->getElementType().getTypePtr();
   if (const auto *AT = T->getAsCanonical<AtomicType>())
     return AT->getValueType().getTypePtr();
-  return T;
+  return T->getCanonicalTypeUnqualified()->getTypePtr();
 }
 static QualType getTransitiveElementOrValueType(QualType Ty) {
-  CanQualType CanonicalTy = Ty->getCanonicalTypeUnqualified();
-  const Type *T = CanonicalTy->getTypePtr();
+  const Type *T = Ty.getTypePtr();
   while (true) {
     const Type *Curr = getElementOrValueTypeSingleStep(T);
     if (Curr == T)
