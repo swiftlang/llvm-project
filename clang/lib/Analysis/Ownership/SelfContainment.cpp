@@ -301,8 +301,9 @@ private:
   /// inference.
   void reportSuggestionOrFailure(const RecordDecl *Def, const State &Res);
 
-  /// Infer from the fields of record \p Def.
-  /// \p RawPointerFields gathers the raw-pointers in the process.
+  /// Infer from the fields of \p Def, including those of anonymous records.
+  /// Raw-pointer fields are only gathered into \p RawPointerFields.
+  /// Whether they are managed is decided by handleRawPointerFields().
   State inferFields(const RecordDecl *Def,
                     SmallVector<const FieldDecl *> &RawPointerFields);
   State inferBaseClasses(const CXXRecordDecl *Def);
