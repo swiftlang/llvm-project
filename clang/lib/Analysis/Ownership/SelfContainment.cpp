@@ -543,8 +543,8 @@ State SelfContainmentAnalysis::inferDefinition(const RecordDecl *Def) {
   // Caching makes sure we only report these once per record.
   reportSuggestionOrFailure(Def, ClassRes);
 
-  // Don't hold references into the cache across recursive inference, because
-  // that can grow the map.
+  // We didn't hold references into the cache across recursive inference,
+  // because that can grow the map, thus we need a lookup here again.
   auto [Place, Inserted] = Cache.try_emplace(Def, std::move(ClassRes));
   assert(Inserted);
   return Place->second;
