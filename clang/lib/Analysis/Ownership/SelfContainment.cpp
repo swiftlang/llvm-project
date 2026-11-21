@@ -25,6 +25,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <cassert>
+#include <iterator>
 #include <optional>
 #include <variant>
 
@@ -236,8 +237,10 @@ struct State {
       Notes.clear();
     }
 
-    if (Outcome >= Result::Unknown)
-      llvm::append_range(Notes, Other.Notes);
+    if (Outcome >= Result::Unknown) {
+      Notes.reserve(Notes.size() + Other.Notes.size());
+      llvm::move(Other.Notes, std::back_inserter(Notes));
+    }
   }
 
   void addNote(Note &&N) & { Notes.emplace_back(std::move(N)); }
