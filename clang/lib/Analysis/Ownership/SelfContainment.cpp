@@ -249,24 +249,23 @@ struct State {
 };
 } // namespace
 
-static const Type *getElementOrValueTypeSingleStep(const Type *T) {
+static QualType getElementOrValueTypeSingleStep(QualType T) {
   if (const auto *AT = T->getAsCanonical<ArrayType>())
-    return AT->getElementType().getTypePtr();
+    return AT->getElementType();
   if (const auto *CT = T->getAsCanonical<ComplexType>())
-    return CT->getElementType().getTypePtr();
+    return CT->getElementType();
   if (const auto *VT = T->getAsCanonical<VectorType>())
-    return VT->getElementType().getTypePtr();
+    return VT->getElementType();
   if (const auto *AT = T->getAsCanonical<AtomicType>())
-    return AT->getValueType().getTypePtr();
-  return T->getCanonicalTypeUnqualified()->getTypePtr();
+    return AT->getValueType();
+  return T->getCanonicalTypeUnqualified();
 }
 static QualType getTransitiveElementOrValueType(QualType Ty) {
-  const Type *T = Ty.getTypePtr();
   while (true) {
-    const Type *Curr = getElementOrValueTypeSingleStep(T);
-    if (Curr == T)
-      return QualType{T, /*Quals=*/0};
-    T = Curr;
+    QualType Curr = getElementOrValueTypeSingleStep(Ty);
+    if (Curr == Ty)
+      return Ty;
+    Ty = Curr;
   }
 }
 
