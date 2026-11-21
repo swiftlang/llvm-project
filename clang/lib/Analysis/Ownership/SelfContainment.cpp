@@ -476,8 +476,10 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   if (!Dtor)
     return WithUnmanagedFields(Result::View);
 
-  // Implicit or defaulted destructor: the raw pointer fields are unmanaged.
-  if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor))
+  // Implicit, defaulted or deleted destructor: the raw pointer fields are
+  // unmanaged.
+  if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor) ||
+      Dtor->isDeleted())
     return WithUnmanagedFields(Result::View);
 
   // If the dtor body is present, check if it destroys the raw-pointer fields.

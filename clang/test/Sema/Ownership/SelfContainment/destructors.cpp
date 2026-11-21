@@ -18,6 +18,28 @@ struct D2 {
 };
 D2::~D2() = default;
 
+// Deleted destructors don't manage anything either.
+// expected-warning@+1 {{type 'DeletedDtor' was inferred as 'view'}}
+struct DeletedDtor {
+  int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~DeletedDtor() = delete;
+};
+
+struct Undestructible { // expected-warning {{type 'Undestructible' was inferred as 'trivially-self-contained'}}
+  ~Undestructible() = delete;
+};
+// expected-warning@+1 {{type 'ImplicitlyDeletedDtor' was inferred as 'view'}}
+struct ImplicitlyDeletedDtor {
+  int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  Undestructible u;
+};
+
+// expected-warning@+1 {{type 'DeletedDtorNoPtr' was inferred as 'self-contained'}}
+struct DeletedDtorNoPtr {
+  int i;
+  ~DeletedDtorNoPtr() = delete;
+};
+
 // expected-warning@+1 {{could not infer the self-containment of type 'D3'}}
 struct D3 {
   int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
@@ -52,3 +74,10 @@ template <class T> struct DeclaredOnly {
   ~DeclaredOnly(); // expected-note {{declares a destructor whose body is not visible}}
 };
 unsigned long size2 = sizeof(DeclaredOnly<char>);
+
+// expected-warning@+1 {{type 'DeletedInTemplate<char>' was inferred as 'view'}}
+template <class T> struct DeletedInTemplate {
+  T *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  ~DeletedInTemplate() = delete;
+};
+unsigned long size3 = sizeof(DeletedInTemplate<char>);
