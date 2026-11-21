@@ -19,17 +19,9 @@
 
 namespace clang {
 
-/// Returns true if the user explicitly enabled \p DiagID at \p Loc, e.g. via
-/// -W<group> or a pragma, as opposed to it being implied by -Weverything.
-/// See rdar://190622221.
-inline bool IsDiagExplicitlyEnabled(const DiagnosticsEngine &Diags,
-                                    unsigned DiagID, SourceLocation Loc) {
-  DiagnosticMapping Mapping = Diags.getDiagnosticMapping(DiagID, Loc);
-  return Mapping.isUser() && Mapping.getSeverity() != diag::Severity::Ignored;
-}
-
 /// Returns true if \p DiagID is enabled at \p Loc, ignoring enablement that
 /// comes only from -Weverything.
+/// See rdar://190622221.
 inline bool IsDiagEnabledExcludingWeverything(const DiagnosticsEngine &Diags,
                                               unsigned DiagID,
                                               SourceLocation Loc) {
@@ -42,8 +34,11 @@ inline bool IsDiagEnabledExcludingWeverything(const DiagnosticsEngine &Diags,
 
   if (Diags.isIgnored(DiagID, Loc))
     return false;
-  return !Diags.getEnableAllWarnings() ||
-         IsDiagExplicitlyEnabled(Diags, DiagID, Loc);
+
+  if (!Diags.getEnableAllWarnings())
+    return true;
+
+  return Mapping.isUser();
 }
 
 } // namespace clang
