@@ -16,3 +16,18 @@ union UnionPtr {
   int i;
   int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
 };
+
+// expected-warning@+1 {{type 'AnonUnionPtr' was inferred as 'view'}}
+struct AnonUnionPtr {
+  union {
+    int i;
+    int *p; // expected-note {{holds unmanaged raw-pointer field 'p'}}
+  };
+};
+
+// expected-warning@+1 {{type 'AnonStructPtr' was inferred as 'view'}}
+struct AnonStructPtr {
+  struct {
+    int *q; // expected-note {{holds unmanaged raw-pointer field 'q'}}
+  };
+};

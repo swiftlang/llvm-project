@@ -320,6 +320,11 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
   if (!R->isThisDeclarationADefinition())
     return true;
 
+  // Anonymous structs and unions are not types on their own.
+  // Their members are inferred as members of the enclosing record.
+  if (R->isAnonymousStructOrUnion())
+    return true;
+
   // Always infer (even if the record has an attribute) to look for mismatches.
   State InferenceResult = inferDefinitionOfRecord(R);
 
@@ -410,6 +415,13 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
     FieldsRes.cantBeTriviallySelfContained();
 
   for (const auto *F : Def->fields()) {
+    // The members of anonymous records are managed by this record.
+    if (F->isAnonymousStructOrUnion()) {
+      const RecordDecl *Anon = F->getType()->getAsRecordDecl()->getDefinition();
+      FieldsRes.join(inferFieldsOfRecord(Anon, RawPointerFields));
+      continue;
+    }
+
     QualType Ty = getTransitiveElementOrValueType(F->getType());
 
     // Reference fields are not self-contained.
@@ -492,6 +504,8 @@ State SelfContainmentAnalysis::handleRawPointerFields(
 
 State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
   assert(Def->isThisDeclarationADefinition());
+  assert(!Def->isAnonymousStructOrUnion() &&
+         "anonymous records are inferred as part of the enclosing record");
   if (auto It = Cache.find(Def); It != Cache.end())
     return It->second;
 
