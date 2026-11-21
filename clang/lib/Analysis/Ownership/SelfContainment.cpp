@@ -81,7 +81,7 @@ static std::optional<Result> getOwnershipAnnotation(const RecordDecl *R) {
 // Return the natural spelling of the field unless it's a lambda, in which case
 // use the name of the capture.
 static StringRef fieldDisplayName(const FieldDecl *F) {
-  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(F->getParent());
+  const auto *RD = dyn_cast<CXXRecordDecl>(F->getParent());
   if (RD && RD->isLambda()) {
     const LambdaCapture *Cap = RD->getCapture(F->getFieldIndex());
     return Cap->capturesThis() ? "this" : Cap->getCapturedVar()->getName();
