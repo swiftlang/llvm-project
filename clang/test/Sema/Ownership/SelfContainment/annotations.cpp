@@ -14,10 +14,9 @@ struct SWIFT_VIEW MatchingView { int &r; };
 // expected-warning@-1 {{type 'MatchingView' was inferred as 'view'}}
 // expected-note@-2 {{holds reference field 'r'}}
 
-// Self-contained is a different annotation than trivially self-contained.
+// Trivially self-contained classes match the self-contained annotation.
 struct SWIFT_SELF_CONTAINED AnnotatedEmpty {};
-// expected-warning@-1 {{type 'AnnotatedEmpty' is annotated as 'self-contained' but was inferred as 'trivially-self-contained'}}
-// expected-warning@-2 {{type 'AnnotatedEmpty' was inferred as 'trivially-self-contained'}}
+// expected-warning@-1 {{type 'AnnotatedEmpty' was inferred as 'trivially-self-contained'}}
 
 // Mismatches.
 struct SWIFT_SELF_CONTAINED ClaimsSelfContained { int &r; };
@@ -40,7 +39,7 @@ struct SWIFT_VIEW Inconclusive {
 // The annotation of a class is trusted over what the inference would find
 // when the class is used as a base or as a field.
 struct SWIFT_VIEW WronglyAnnotatedView {};
-// expected-warning@-1 {{type 'WronglyAnnotatedView' is annotated as 'view' but was inferred as 'trivially-self-contained'}}
+// expected-warning@-1 {{type 'WronglyAnnotatedView' is annotated as 'view' but was inferred as 'self-contained'}}
 // expected-warning@-2 {{type 'WronglyAnnotatedView' was inferred as 'trivially-self-contained'}}
 
 struct DerivesAnnotatedView : WronglyAnnotatedView {};

@@ -45,10 +45,16 @@ enum class Result {
 
 [[nodiscard]] static Result join(Result L, Result R) { return std::max(L, R); }
 
+// Users can only annotate self-contained; triviality is only for suggestions.
+[[nodiscard]] static Result withoutTriviality(Result Outcome) {
+  if (Outcome == Result::TriviallySelfContained)
+    return Result::SelfContained;
+  return Outcome;
+}
+
 [[nodiscard]] static StringRef asString(Result Outcome) {
   switch (Outcome) {
   case Result::TriviallySelfContained:
-    return "trivially-self-contained";
   case Result::SelfContained:
     return "self-contained";
   case Result::Unknown:
@@ -339,7 +345,7 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
     return true;
 
   // The annotation matches the inference.
-  if (Annotation.value() == InferenceResult.Outcome)
+  if (Annotation.value() == withoutTriviality(InferenceResult.Outcome))
     return true;
 
   unsigned MismatchDiagID = diag::warn_type_ownership_annotation_mismatch;
@@ -479,8 +485,9 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   // Implicit, defaulted or deleted destructor: the raw pointer fields are
   // unmanaged.
   if (!CXXDef->hasUserDeclaredDestructor() || hasDefaultedDestructor(Dtor) ||
-      Dtor->isDeleted())
+      Dtor->isDeleted()) {
     return WithUnmanagedFields(Result::View);
+  }
 
   // If the dtor body is present, check if it destroys the raw-pointer fields.
   // TODO: Implement this using LifetimeSafetyAnalysis and ownership_takes.
