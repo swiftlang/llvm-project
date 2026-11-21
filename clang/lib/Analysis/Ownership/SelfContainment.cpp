@@ -303,13 +303,13 @@ private:
 
   /// Infer from the fields of record \p Def.
   /// \p RawPointerFields gathers the raw-pointers in the process.
-  State inferFieldsOfRecord(const RecordDecl *Def,
-                            SmallVector<const FieldDecl *> &RawPointerFields);
-  State inferBaseClassesOfRecord(const CXXRecordDecl *Def);
+  State inferFields(const RecordDecl *Def,
+                    SmallVector<const FieldDecl *> &RawPointerFields);
+  State inferBaseClasses(const CXXRecordDecl *Def);
 
   /// Infer from the definition \p Def and report the outcome.
   /// The result is cached, so each record is inferred and reported only once.
-  State inferDefinitionOfRecord(const RecordDecl *Def);
+  State inferDefinition(const RecordDecl *Def);
 
   /// Check each raw-pointer field and decide if any of them are left unmanaged
   /// by the destructor.
@@ -336,7 +336,7 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
     return true;
 
   // Always infer (even if the record has an attribute) to look for mismatches.
-  State InferenceResult = inferDefinitionOfRecord(R);
+  State InferenceResult = inferDefinition(R);
 
   // The inference was inconclusive.
   if (InferenceResult.Outcome == Result::Unknown)
@@ -372,7 +372,7 @@ Result SelfContainmentAnalysis::useOfClass(const RecordDecl *Def) {
     return TrustedResult.value();
 
   // Infer if it didn't have one.
-  return inferDefinitionOfRecord(Def).Outcome;
+  return inferDefinition(Def).Outcome;
 }
 
 void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
@@ -401,8 +401,7 @@ void SelfContainmentAnalysis::reportSuggestionOrFailure(const RecordDecl *Def,
   emitNotes(Diags, Res.Notes);
 }
 
-State SelfContainmentAnalysis::inferBaseClassesOfRecord(
-    const CXXRecordDecl *Def) {
+State SelfContainmentAnalysis::inferBaseClasses(const CXXRecordDecl *Def) {
   assert(Def->isThisDeclarationADefinition());
   State BasesRes;
 
@@ -415,7 +414,7 @@ State SelfContainmentAnalysis::inferBaseClassesOfRecord(
   return BasesRes;
 }
 
-State SelfContainmentAnalysis::inferFieldsOfRecord(
+State SelfContainmentAnalysis::inferFields(
     const RecordDecl *Def, SmallVector<const FieldDecl *> &RawPointerFields) {
   assert(Def->isThisDeclarationADefinition());
   State FieldsRes;
@@ -428,7 +427,7 @@ State SelfContainmentAnalysis::inferFieldsOfRecord(
     // The members of anonymous records are managed by this record.
     if (F->isAnonymousStructOrUnion()) {
       const RecordDecl *Anon = F->getType()->getAsRecordDecl()->getDefinition();
-      FieldsRes.join(inferFieldsOfRecord(Anon, RawPointerFields));
+      FieldsRes.join(inferFields(Anon, RawPointerFields));
       continue;
     }
 
@@ -515,7 +514,7 @@ State SelfContainmentAnalysis::handleRawPointerFields(
   return WithUnmanagedFields(Result::Unknown);
 }
 
-State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
+State SelfContainmentAnalysis::inferDefinition(const RecordDecl *Def) {
   assert(Def->isThisDeclarationADefinition());
   assert(!Def->isAnonymousStructOrUnion() &&
          "anonymous records are inferred as part of the enclosing record");
@@ -526,11 +525,11 @@ State SelfContainmentAnalysis::inferDefinitionOfRecord(const RecordDecl *Def) {
 
   // Decompose into the base classes.
   if (const auto *Class = dyn_cast<CXXRecordDecl>(Def))
-    ClassRes.join(inferBaseClassesOfRecord(Class));
+    ClassRes.join(inferBaseClasses(Class));
 
   // Decompose into the fields.
   SmallVector<const FieldDecl *> RawPointerFields;
-  ClassRes.join(inferFieldsOfRecord(Def, RawPointerFields));
+  ClassRes.join(inferFields(Def, RawPointerFields));
 
   // TODO: Also check the type of the pointee. Even if the pointer is managed in
   // the dtor, the pointee type must be self-contained to conclude that our
