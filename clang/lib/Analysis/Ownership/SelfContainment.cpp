@@ -231,7 +231,9 @@ struct State {
 
   void join(Result Other) & { Outcome = ::join(Outcome, Other); }
 
-  /// Keep only the notes that explain the joined outcome.
+  /// Join the outcome of \p Other, keeping only the notes of the contributions
+  /// as bad as the joined outcome.
+  /// Self-contained outcomes keep no notes, as there is nothing to explain.
   void join(State &&Other) & {
     // A better contribution doesn't explain the outcome.
     if (Other.Outcome < Outcome)
