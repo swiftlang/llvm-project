@@ -325,11 +325,11 @@ bool SelfContainmentAnalysis::VisitRecordDecl(RecordDecl *R) {
   // Always infer (even if the record has an attribute) to look for mismatches.
   State InferenceResult = inferDefinitionOfRecord(R);
 
-  std::optional<Result> Annotation = getOwnershipAnnotation(R);
-
   // The inference was inconclusive.
   if (InferenceResult.Outcome == Result::Unknown)
     return true;
+
+  std::optional<Result> Annotation = getOwnershipAnnotation(R);
 
   // No explicit attribute to check against.
   if (!Annotation.has_value())
