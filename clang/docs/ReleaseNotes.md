@@ -807,6 +807,8 @@ features cannot lower the translation-unit ABI level;
 - Fixed missing sentinel attribute diagnostic discrepancy with explicit object
   parameters in variadic functions. (#GH200007)
 
+- Clang now diagnoses more details when a constraint evaluates to false.
+
 ### Improvements to Clang's time-trace
 
 ### Improvements to Coverage Mapping

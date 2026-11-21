@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 #include <utility>
 
@@ -191,17 +192,23 @@ public:
         reinterpret_cast<const uint8_t *>(Data), sizeof(unsigned) * Size));
   }
 
-  LLVM_ABI bool operator==(FoldingSetNodeIDRef) const;
-
-  bool operator!=(FoldingSetNodeIDRef RHS) const { return !(*this == RHS); }
-
-  /// Used to compare the "ordering" of two nodes as defined by the
-  /// profiled bits and their ordering defined by memcmp().
-  LLVM_ABI bool operator<(FoldingSetNodeIDRef) const;
-
   const unsigned *getData() const { return Data; }
   size_t getSize() const { return Size; }
 };
+
+inline bool operator==(FoldingSetNodeIDRef LHS, FoldingSetNodeIDRef RHS) {
+  return LHS.getSize() == RHS.getSize() &&
+         memcmp(LHS.getData(), RHS.getData(),
+                LHS.getSize() * sizeof(*LHS.getData())) == 0;
+}
+
+inline bool operator!=(FoldingSetNodeIDRef LHS, FoldingSetNodeIDRef RHS) {
+  return !(LHS == RHS);
+}
+
+/// Used to compare the "ordering" of two nodes as defined by the
+/// profiled bits and their ordering defined by memcmp().
+LLVM_ABI bool operator<(FoldingSetNodeIDRef LHS, FoldingSetNodeIDRef RHS);
 
 //===--------------------------------------------------------------------===//
 /// This class is used to gather all the unique data bits of a node.  When all
@@ -267,19 +274,7 @@ public:
     return FoldingSetNodeIDRef(Bits.data(), Bits.size()).computeStableHash();
   }
 
-  /// operator== - Used to compare two nodes to each other.
-  LLVM_ABI bool operator==(const FoldingSetNodeID &RHS) const;
-  LLVM_ABI bool operator==(const FoldingSetNodeIDRef RHS) const;
-
-  bool operator!=(const FoldingSetNodeID &RHS) const { return !(*this == RHS); }
-  bool operator!=(const FoldingSetNodeIDRef RHS) const {
-    return !(*this == RHS);
-  }
-
-  /// Used to compare the "ordering" of two nodes as defined by the
-  /// profiled bits and their ordering defined by memcmp().
-  LLVM_ABI bool operator<(const FoldingSetNodeID &RHS) const;
-  LLVM_ABI bool operator<(const FoldingSetNodeIDRef RHS) const;
+  operator FoldingSetNodeIDRef() const { return {Bits.data(), Bits.size()}; }
 
   /// Copy this node's data to a memory region allocated from the
   /// given allocator and return a FoldingSetNodeIDRef describing the
