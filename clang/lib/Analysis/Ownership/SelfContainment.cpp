@@ -292,7 +292,9 @@ public:
   bool VisitRecordDecl(RecordDecl *R) final;
 
 private:
-  /// Take the annotation of the class or infer one otherwise.
+  /// The outcome of using the class \p Def as a base or a field.
+  /// Uses take the annotation of the class if there is one, or infer it.
+  /// Definitions are always inferred, to check against their annotation.
   Result useOfClass(const RecordDecl *Def);
 
   /// Report the inference outcome as a warning or a warning about failed
