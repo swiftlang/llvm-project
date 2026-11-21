@@ -599,7 +599,8 @@ static bool processCmpIntrinsic(CmpIntrinsic *CI, LazyValueInfo *LVI) {
 
 // See if this min/max intrinsic always picks it's one specific operand.
 // If not, check whether we can canonicalize signed minmax into unsigned version
-static bool processMinMaxIntrinsic(MinMaxIntrinsic *MM, LazyValueInfo *LVI) {
+static bool processMinMaxIntrinsic(MinMaxIntrinsic *MM, LazyValueInfo *LVI,
+                                   DominatorTree *DT) {
   CmpInst::Predicate Pred = CmpInst::getNonStrictPredicate(MM->getPredicate());
   ConstantRange LHS_CR = LVI->getConstantRangeAtUse(MM->getOperandUse(0),
                                                     /*UndefAllowed*/ false);
@@ -617,6 +618,33 @@ static bool processMinMaxIntrinsic(MinMaxIntrinsic *MM, LazyValueInfo *LVI) {
     MM->eraseFromParent();
     return true;
   }
+
+  // A select condition that may be undef still constrains an operand if the
+  // operand is frozen, so that the condition and the min/max observe the same
+  // value:
+  //   select (m < 0), (shl x, (sub 0, smin(m, 0))), 0
+  //     --> m.fr = freeze m
+  //         select (m.fr < 0), (shl x, (sub 0, m.fr)), 0
+  auto TryFoldWithFreeze = [&](unsigned OpIdx,
+                               const ConstantRange &OtherRange) {
+    ConstantRange FrozenRange = LVI->getConstantRangeAtUse(
+        MM->getOperandUse(OpIdx),
+        /*UndefAllowed*/ false, /*AssumeFrozen*/ true);
+    if (!FrozenRange.icmp(Pred, OtherRange))
+      return false;
+    Value *Op = MM->getOperand(OpIdx);
+    auto *FI = new FreezeInst(Op, Op->getName() + ".fr", MM->getIterator());
+    if (!freezeUsesAfterDef(*FI, *DT)) {
+      FI->eraseFromParent();
+      return false;
+    }
+    ++NumMinMax;
+    MM->replaceAllUsesWith(FI);
+    MM->eraseFromParent();
+    return true;
+  };
+  if (TryFoldWithFreeze(0, RHS_CR) || TryFoldWithFreeze(1, LHS_CR))
+    return true;
 
   if (MM->isSigned() &&
       ConstantRange::areInsensitiveToSignednessOfICmpPredicate(LHS_CR,
@@ -681,7 +709,8 @@ static bool processSaturatingInst(SaturatingInst *SI, LazyValueInfo *LVI) {
 }
 
 /// Infer nonnull attributes for the arguments at the specified callsite.
-static bool processCallSite(CallBase &CB, LazyValueInfo *LVI) {
+static bool processCallSite(CallBase &CB, LazyValueInfo *LVI,
+                            DominatorTree *DT) {
 
   if (CB.getIntrinsicID() == Intrinsic::abs) {
     return processAbsIntrinsic(&cast<IntrinsicInst>(CB), LVI);
@@ -692,7 +721,7 @@ static bool processCallSite(CallBase &CB, LazyValueInfo *LVI) {
   }
 
   if (auto *MM = dyn_cast<MinMaxIntrinsic>(&CB)) {
-    return processMinMaxIntrinsic(MM, LVI);
+    return processMinMaxIntrinsic(MM, LVI, DT);
   }
 
   if (auto *WO = dyn_cast<WithOverflowInst>(&CB)) {
@@ -1354,7 +1383,7 @@ static bool runImpl(Function &F, LazyValueInfo *LVI, DominatorTree *DT,
         break;
       case Instruction::Call:
       case Instruction::Invoke:
-        BBChanged |= processCallSite(cast<CallBase>(II), LVI);
+        BBChanged |= processCallSite(cast<CallBase>(II), LVI, DT);
         break;
       case Instruction::SRem:
       case Instruction::SDiv:
