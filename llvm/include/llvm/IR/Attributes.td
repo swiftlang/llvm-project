@@ -444,7 +444,6 @@ def AllowDirectAccessInHotPatchFunction
     : StrBoolAttr<"allow_direct_access_in_hot_patch_function">;
 
 /// Target-independent string attributes.
-def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;
 def NoSignedZerosFPMath : StrBoolAttr<"no-signed-zeros-fp-math">;
 def NoJumpTables : StrBoolAttr<"no-jump-tables">;
 def NoInlineLineTables : StrBoolAttr<"no-inline-line-tables">;
@@ -504,7 +503,6 @@ class MergeRule<string F> {
   string MergeFunc = F;
 }
 
-def : MergeRule<"setAND<LessPreciseFPMADAttr>">;
 def : MergeRule<"setAND<NoSignedZerosFPMathAttr>">;
 def : MergeRule<"setOR<NoImplicitFloatAttr>">;
 def : MergeRule<"setOR<NoJumpTablesAttr>">;
