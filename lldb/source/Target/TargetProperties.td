@@ -48,9 +48,6 @@ let Definition = "target_experimental", Path = "target.experimental" in {
   def SwiftUseContextFreePrintObject: Property<"swift-use-context-free-po", "Boolean">,
     DefaultTrue,
     Desc<"If true, use the context-free po implementation for Swift.">;
-  def UseDIL : Property<"use-DIL", "Boolean">,
-    Global, DefaultTrue,
-    Desc<"If true, use the DIL implementation for frame variable evaluation.">;
   def UseDILForCreatingValues: Property<"use-DIL-for-creating-values", "Boolean">,
     Global, DefaultTrue,
     Desc<"If true, use the DIL implementation in API SBValue::CreateValueFromExpression.">;
