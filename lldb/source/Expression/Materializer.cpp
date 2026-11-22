@@ -524,22 +524,23 @@ public:
               GetName(), write_error.AsCString());
           return;
         }
+      } else if (valobj_sp->HasNoStorage()) {
+        // Without a location, a variable whose type occupies no memory has no
+        // data to copy into a temporary region. A null pointer serves as its
+        // address, because the expression never accesses any of its bytes.
+        Status write_error;
+        map.WritePointerToMemory(load_addr, 0, write_error);
+        if (!write_error.Success()) {
+          err = Status::FromErrorStringWithFormatv(
+              "couldn't write the address of variable {0} to memory: {1}",
+              GetName(), write_error.AsCString());
+          return;
+        }
       } else {
         DataExtractor data;
         Status extract_error;
         valobj_sp->GetData(data, extract_error);
         if (!extract_error.Success()) {
-          if (valobj_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
-            auto size_or_err = valobj_type.GetByteSize(frame_sp.get());
-            if (!size_or_err) {
-              err = Status::FromError(size_or_err.takeError());
-              return;
-            }
-            if (*size_or_err == 0) {
-              // We don't need to materialize empty structs in Swift.
-              return;
-            }
-          }
           err = Status::FromErrorStringWithFormatv(
               "couldn't get the value of {0}: {1}", GetName(),
               extract_error.AsCString());
@@ -649,12 +650,6 @@ public:
         return;
       }
 
-      // In the case where the value is of Swift generic type, resolve its
-      // dynamic type, because we may
-      // need to unbox the target.
-
-      CompilerType valobj_type = valobj_sp->GetCompilerType();
-
       lldb_private::DataExtractor data;
 
       Status extract_error;
@@ -665,17 +660,6 @@ public:
           extract_error);
 
       if (!extract_error.Success()) {
-        if (valobj_type.GetMinimumLanguage() == lldb::eLanguageTypeSwift) {
-          auto size_or_err = valobj_type.GetByteSize(frame_sp.get());
-          if (!size_or_err) {
-            err = Status::FromError(size_or_err.takeError());
-            return;
-          }
-          if (*size_or_err == 0)
-            // We don't need to dematerialize empty structs in Swift.
-            return;
-        }
-
         err = Status::FromErrorStringWithFormatv(
             "couldn't get the data for variable {0}", GetName());
         return;
