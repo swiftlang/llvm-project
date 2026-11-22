@@ -187,7 +187,6 @@ private:
   ConstString m_default_category_name;
   ConstString m_system_category_name;
   ConstString m_vectortypes_category_name;
-  ConstString m_runtime_synths_category_name;
 
   template <typename ImplSP>
   ImplSP Get(ValueObject &valobj, lldb::DynamicValueType use_dynamic);
