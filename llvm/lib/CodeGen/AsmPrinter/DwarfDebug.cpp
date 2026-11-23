@@ -3017,6 +3017,7 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
                               /*lineStreamLabel*/ nullptr,
                                /*streamLabelDefLoc*/ {},
                                /*IsEndOfFunction*/ true);
+    LineEntry.Subsection = Asm->OutStreamer->getCurrentSection().second;
     Asm->OutStreamer->getContext()
         .getMCDwarfLineTable(
             Asm->OutStreamer->getContext().getDwarfCompileUnitID())
