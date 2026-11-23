@@ -539,8 +539,6 @@ public:
     m_playground = b;
   }
 
-  lldb::BindGenericTypes GetSwiftBindGenericTypes() const;
-
   bool GetPlaygroundTransformHighPerformance() const {
     return m_playground_transforms_hp;
   }

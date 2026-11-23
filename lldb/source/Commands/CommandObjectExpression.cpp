@@ -177,17 +177,6 @@ Status CommandObjectExpression::CommandOptions::SetOptionValue(
     break;
   }
 
-  // BEGIN SWIFT
-  case '\x31': {
-    int32_t result;
-    result = OptionArgParser::ToOptionEnum(option_arg, BindGenTypeParamValue(),
-                                           0, error);
-    if (error.Success())
-      bind_generic_types = (BindGenericTypes)result;
-    break;
-  }
-  // END SWIFT
-
   default:
     llvm_unreachable("Unimplemented option");
   }
@@ -217,9 +206,6 @@ void CommandObjectExpression::CommandOptions::OptionParsingStarting(
   top_level = false;
   allow_jit = true;
   suppress_persistent_result = eLazyBoolCalculate;
-  // BEGIN SWIFT
-  bind_generic_types = eBindAuto;
-  // END SWIFT
 }
 
 llvm::ArrayRef<OptionDefinition>
@@ -268,11 +254,6 @@ CommandObjectExpression::CommandOptions::GetEvaluateExpressionOptions(
   else
     options.SetTimeout(std::nullopt);
 
-  // BEGIN SWIFT
-  if (bind_generic_types != eBindAuto)
-    llvm::cantFail(options.SetBooleanLanguageOption(
-        "swift-bind-generic-types", bind_generic_types == eBind));
-  // END SWIFT
   return options;
 }
 

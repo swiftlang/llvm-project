@@ -62,10 +62,6 @@ public:
     LanguageRuntimeDescriptionDisplayVerbosity m_verbosity;
     LazyBool auto_apply_fixits;
     LazyBool suppress_persistent_result;
-// BEGIN SWIFT
-    lldb::BindGenericTypes bind_generic_types;
-// END SWIFT
-
   private:
     std::vector<std::shared_ptr<OptionGroupLanguageExpression>>
         m_language_options;

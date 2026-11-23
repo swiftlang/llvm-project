@@ -816,14 +816,6 @@ let Command = "expression" in {
              "Expression results will be labeled with $-prefixed variables, "
              "e.g. $0, "
              "$1, etc.">;
-  // BEGIN SWIFT
-  def bind_generic_types : Option<"bind-generic-types", "\\x31">,
-                           EnumArg<"BindGenTypeParamValue">,
-                           Desc<"Controls whether any "
-                                "generic types in the current context should "
-                                "be bound to their dynamic "
-                                "type before evaluating. Defaults to auto.">;
-  // END SWIFT
 }
 
 let Command = "frame diag" in {
