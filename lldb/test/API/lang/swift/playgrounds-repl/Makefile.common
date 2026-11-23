@@ -10,7 +10,8 @@ endif
 include Makefile.rules
 
 ifneq ($(MAKECMDGOALS),libPlaygroundsRuntime.dylib)
-libPlaygroundsRuntime.dylib: PlaygroundsRuntime.swift
+libPlaygroundsRuntime.dylib: PlaygroundsRuntime.swift \
+                             $(call tool_prereq,$(SWIFTC_PATH)) $(call tool_prereq,$(SWIFT_FRONTEND_PATH))
 	"$(MAKE)" -C $(BUILDDIR) -f $(SRCDIR)/Makefile \
 		SWIFT_SOURCES= DYLIB_SWIFT_SOURCES=PlaygroundsRuntime.swift \
 		DYLIB_NAME=PlaygroundsRuntime libPlaygroundsRuntime.dylib

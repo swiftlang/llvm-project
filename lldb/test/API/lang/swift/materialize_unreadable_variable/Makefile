@@ -9,7 +9,8 @@ all: Lib.swiftmodule $(EXE)
 
 include Makefile.rules
 
-Lib.swiftmodule: $(SRCDIR)/Lib.swift NoRefl.swiftmodule
+Lib.swiftmodule: $(SRCDIR)/Lib.swift NoRefl.swiftmodule \
+                 $(call tool_prereq,$(SWIFTC_PATH)) $(call tool_prereq,$(SWIFT_FRONTEND_PATH))
 	"$(MAKE)" -f $(MAKEFILE_RULES) \
 		DYLIB_ONLY=YES \
 		DYLIB_NAME=Lib \
@@ -18,7 +19,8 @@ Lib.swiftmodule: $(SRCDIR)/Lib.swift NoRefl.swiftmodule
 		LD_EXTRAS="-L$(BUILDDIR) -lNoRefl"
 
 # -disable-reflection-metadata is what makes Opaque unreadable.
-NoRefl.swiftmodule: $(SRCDIR)/NoRefl.swift
+NoRefl.swiftmodule: $(SRCDIR)/NoRefl.swift \
+                    $(call tool_prereq,$(SWIFTC_PATH)) $(call tool_prereq,$(SWIFT_FRONTEND_PATH))
 	"$(MAKE)" -f $(MAKEFILE_RULES) \
 		DYLIB_ONLY=YES \
 		DYLIB_NAME=NoRefl \
