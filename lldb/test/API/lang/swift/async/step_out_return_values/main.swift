@@ -35,6 +35,11 @@ struct WrappedDouble {
   var value = 3.5
 }
 
+struct NestedFloats {
+  var two = TwoFloat()
+  var f: Float = 3.5
+}
+
 struct FloatInt {
   var f: Float = 1.5
   var i = 7
@@ -92,6 +97,12 @@ func f_two_float() async -> TwoFloat {
 func f_wrapped_double() async -> WrappedDouble {
   return WrappedDouble() // step out
 }
+func f_nested_floats() async -> NestedFloats {
+  return NestedFloats() // step out
+}
+func f_double_tuple() async -> (Double, Double) {
+  return (4.5, 5.5) // step out
+}
 func f_float_int() async -> FloatInt {
   return FloatInt() // step out
 }
@@ -142,6 +153,8 @@ func run() async {
   let v_two_double = await f_two_double()
   let v_two_float = await f_two_float()
   let v_wrapped_double = await f_wrapped_double()
+  let v_nested_floats = await f_nested_floats()
+  let v_double_tuple = await f_double_tuple()
   let v_float_int = await f_float_int()
   let v_float_int_tuple = await f_float_int_tuple()
   let v_three_int = await f_three_int()
@@ -164,7 +177,8 @@ func run() async {
   } catch let v_typed_throwing_large {
     _ = v_typed_throwing_large
   }
-  _ = (v_two_double, v_two_float, v_wrapped_double, v_float_int,
+  _ = (v_two_double, v_two_float, v_wrapped_double, v_nested_floats,
+       v_double_tuple, v_float_int,
        v_float_int_tuple, v_three_int, v_payload, v_existential, v_generic,
        v_optional_int, v_optional_nil, v_optional_class, v_optional_string,
        v_array, v_dictionary)

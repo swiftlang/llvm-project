@@ -106,6 +106,11 @@ class TestCase(lldbtest.TestBase):
     def test_values(self):
         """Test the values returned by async functions"""
         functions = [
+            "f_two_double",
+            "f_two_float",
+            "f_wrapped_double",
+            "f_nested_floats",
+            "f_double_tuple",
             "f_optional_int",
             "f_optional_nil",
             "f_optional_class",
@@ -121,10 +126,6 @@ class TestCase(lldbtest.TestBase):
     def test_known_problems(self):
         """Test the values lldb gets wrong in async functions"""
         functions = [
-            # FIXME: TypeSystemSwift reports no homogeneous aggregates.
-            "f_two_double",
-            "f_two_float",
-            "f_wrapped_double",
             # FIXME: Swift returns the float in a floating-point register.
             "f_float_int",
             "f_float_int_tuple",

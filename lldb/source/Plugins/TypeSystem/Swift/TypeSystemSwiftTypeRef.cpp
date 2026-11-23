@@ -4038,6 +4038,73 @@ bool TypeSystemSwiftTypeRef::IsAggregateType(opaque_compiler_type_t type) {
                       (ReconstructType(type)));
 }
 
+/// Add the floating-point leaves of \p aggregate to a homogeneous aggregate of
+/// \p count values of \p base_type. Return false if \p aggregate can't be
+/// decomposed that way.
+static bool CollectHomogeneousAggregate(CompilerType aggregate,
+                                        ExecutionContext &exe_ctx,
+                                        CompilerType &base_type,
+                                        uint32_t &base_byte_size,
+                                        uint32_t &count) {
+  Flags flags(aggregate.GetTypeInfo());
+  if (flags.Test(eTypeIsFloat) ||
+      !flags.AnySet(eTypeIsStructUnion | eTypeIsTuple))
+    return false;
+  uint32_t num_children =
+      llvm::expectedToOptional(
+          aggregate.GetNumChildren(/*omit_empty_base_classes=*/true, &exe_ctx))
+          .value_or(0);
+  for (uint32_t idx = 0; idx < num_children; ++idx) {
+    llvm::Expected<ChildTypeInfo> child = aggregate.GetChildAtIndex(
+        &exe_ctx, idx, /*transparent_pointers=*/false,
+        /*omit_empty_base_classes=*/true, /*ignore_array_bounds=*/false,
+        /*valobj=*/nullptr);
+    if (!child) {
+      llvm::consumeError(child.takeError());
+      return false;
+    }
+    // Swift doesn't pass empty fields.
+    if (child->byte_size == 0)
+      continue;
+    if (child->type.GetTypeInfo() & eTypeIsFloat) {
+      if (!base_type) {
+        base_type = child->type;
+        base_byte_size = child->byte_size;
+      } else if (child->byte_size != base_byte_size) {
+        return false;
+      }
+      ++count;
+      continue;
+    }
+    if (!CollectHomogeneousAggregate(child->type, exe_ctx, base_type,
+                                     base_byte_size, count))
+      return false;
+  }
+  return true;
+}
+
+uint32_t
+TypeSystemSwiftTypeRef::IsHomogeneousAggregate(opaque_compiler_type_t type,
+                                               CompilerType *base_type_ptr) {
+  ExecutionContext exe_ctx = GetExecutionContextForType(type).Lock(false);
+  if (!exe_ctx.HasTargetScope())
+    if (TargetSP target_sp = GetTargetWP().lock())
+      target_sp->CalculateExecutionContext(exe_ctx);
+
+  CompilerType base_type;
+  uint32_t base_byte_size = 0;
+  uint32_t count = 0;
+  if (!CollectHomogeneousAggregate({weak_from_this(), type}, exe_ctx, base_type,
+                                   base_byte_size, count))
+    return 0;
+  // Swift returns at most four values in registers.
+  if (count == 0 || count > 4)
+    return 0;
+  if (base_type_ptr)
+    *base_type_ptr = base_type;
+  return count;
+}
+
 bool TypeSystemSwiftTypeRef::IsDefined(opaque_compiler_type_t type) {
   auto impl = [&]() -> bool { return type; };
   VALIDATE_AND_RETURN(impl, IsDefined, type, g_no_exe_ctx,

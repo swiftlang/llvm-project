@@ -191,6 +191,8 @@ public:
                    CompilerType *element_type, uint64_t *size,
                    bool *is_incomplete) override;
   bool IsAggregateType(lldb::opaque_compiler_type_t type) override;
+  uint32_t IsHomogeneousAggregate(lldb::opaque_compiler_type_t type,
+                                  CompilerType *base_type_ptr) override;
   bool IsDefined(lldb::opaque_compiler_type_t type) override;
   bool IsFunctionType(lldb::opaque_compiler_type_t type) override;
   size_t
