@@ -2671,6 +2671,8 @@ void tools::AddRunTimeLibs(const ToolChain &TC, const Driver &D,
   ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(Args);
 
   switch (RLT) {
+  case ToolChain::RLT_None:
+    return;
   case ToolChain::RLT_CompilerRT:
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "builtins"));
     AddUnwindLibrary(TC, D, CmdArgs, Args);
