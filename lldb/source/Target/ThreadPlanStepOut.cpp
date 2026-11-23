@@ -656,8 +656,9 @@ void ThreadPlanStepOut::CalculateReturnValue() {
       // Computing a type's size may require a type from the language runtime.
       if (LanguageRuntime *runtime = m_process.GetLanguageRuntime(
               return_compiler_type.GetMinimumLanguage())) {
-        std::optional<CompilerType> runtime_type =
-            runtime->GetRuntimeType(return_compiler_type);
+        std::optional<CompilerType> runtime_type = runtime->GetRuntimeType(
+            return_compiler_type,
+            ExecutionContextRef(&GetThread(), /*adopt_selected=*/false));
         if (runtime_type && *runtime_type)
           return_compiler_type = *runtime_type;
       }
