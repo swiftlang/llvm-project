@@ -36,7 +36,7 @@ class TestCase(lldbtest.TestBase):
         thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
         while thread:
             function = re.search(
-                r"(\w+)(\(|\.getter)", thread.frames[0].GetFunctionName()
+                r"(\w+)(<[^>]*>)?(\(|\.getter)", thread.frames[0].GetFunctionName()
             )[1]
             seen.append(function)
             call_line = thread.frames[1].GetLineEntry().GetLine()
@@ -84,22 +84,56 @@ class TestCase(lldbtest.TestBase):
             "f_no_payload",
             "f_raw_value",
             "f_tuple",
+            "f_optional_int",
+            "f_optional_nil",
+            "f_optional_class",
+            "f_optional_string",
+            "f_array",
             "answer",
             "increment",
             "staticAnswer",
             "computed",
         ]
-        if self.isEmbeddedSwift():
+        if not self.isEmbeddedSwift():
             functions += [
-                "f_optional_int",
-                "f_optional_nil",
-                "f_optional_class",
-                "f_optional_string",
+                # FIXME: In Embedded Swift, printing the dictionary crashes the
+                # type system validation.
+                "f_dictionary",
+                # rdar://192368824
+                "f_throwing",
             ]
-        else:
-            # rdar://192368824
-            functions.append("f_throwing")
         self.assertEqual(self.return_value_problems(functions), [])
         _, _, thread, _ = lldbutil.run_to_name_breakpoint(self, "f_int")
         thread.StepOut()
         self.expect("thread info", patterns=[r"Return value: \(Int\) \$R\d+ = 42\n"])
+
+    @swiftTest
+    @skip
+    def test_known_problems(self):
+        """Test the values lldb gets wrong"""
+        functions = [
+            # FIXME: TypeSystemSwift reports no homogeneous aggregates.
+            "f_two_double",
+            "f_two_float",
+            "f_wrapped_double",
+            # FIXME: Swift returns the float in a floating-point register.
+            "f_float_int",
+            "f_float_int_tuple",
+            # FIXME: Swift returns up to four registers, not two.
+            "f_three_int",
+            "f_payload",
+            # FIXME: Swift returns this in memory, at an address lldb doesn't
+            # know after the return.
+            "f_existential",
+            # FIXME: This function has the type () -> ().
+            "f_generic",
+            # FIXME: For a typed error, the error register holds 1, not the
+            # error.
+            "f_typed_throwing",
+            "f_typed_throwing_large",
+        ]
+        if self.isEmbeddedSwift():
+            # FIXME: In Embedded Swift, lldb shows no thrown error.
+            # rdar://192368824
+            functions.append("f_throwing")
+        self.assertEqual(self.return_value_problems(functions), [])
