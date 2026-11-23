@@ -56,9 +56,6 @@
 
 #include "MachOTrie.h"
 #include "ObjectFileMachO.h"
-#ifdef LLDB_ENABLE_SWIFT
-#include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
-#endif //LLDB_ENABLE_SWIFT
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
