@@ -30,6 +30,7 @@ static_library("Sema") {
     "//clang/lib/APINotes",
     "//clang/lib/AST",
     "//clang/lib/Analysis",
+    "//clang/lib/Analysis/Ownership",
     "//clang/lib/Basic",
     "//clang/lib/Edit",
     "//clang/lib/Lex",
