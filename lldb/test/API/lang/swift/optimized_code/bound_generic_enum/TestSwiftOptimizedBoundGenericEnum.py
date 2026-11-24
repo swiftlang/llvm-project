@@ -11,7 +11,6 @@ class TestSwiftOptimizedBoundGenericEnum(lldbtest.TestBase):
 
     @skipEmbeddedSwiftOnWindows
     @swiftTest
-    @skipIf(debug_info=["pdb"])
     def test(self):
         """Test the bound generic enum types in "optimized" code."""
         self.build()
