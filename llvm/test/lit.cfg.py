@@ -137,10 +137,10 @@ def get_asan_rtlib():
     asan_dylib_dir_pattern = (
         host_lib_dir + "/clang/*/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
     )
-    found_dylibs = glob.glob(asan_dylib_dir_pattern)
+    found_dylibs = {os.path.realpath(p) for p in glob.glob(asan_dylib_dir_pattern)}
     if len(found_dylibs) != 1:
         return ""
-    return found_dylibs[0]
+    return next(iter(found_dylibs))
 
 
 llvm_config.use_default_substitutions()
