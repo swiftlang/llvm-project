@@ -603,11 +603,11 @@ UnlockableMu ab_var_arg_bad_5 ACQUIRED_BEFORE(mu_ab); // \
 
 // takes zero or more arguments, all locks (vars/fields)
 
-void elf_function() EXCLUSIVE_LOCK_FUNCTION(); // expected-warning {{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+void elf_function() EXCLUSIVE_LOCK_FUNCTION(); // expected-warning {{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 void elf_function_args() EXCLUSIVE_LOCK_FUNCTION(mu1, mu2);
 
-int elf_testfn(int y) EXCLUSIVE_LOCK_FUNCTION(); // expected-warning {{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+int elf_testfn(int y) EXCLUSIVE_LOCK_FUNCTION(); // expected-warning {{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int elf_testfn(int y) {
   int x EXCLUSIVE_LOCK_FUNCTION() = y; // \
@@ -634,7 +634,7 @@ void elf_fun_params1(MutexLock& scope EXCLUSIVE_LOCK_FUNCTION(mu1));
 void elf_fun_params2(int lvar EXCLUSIVE_LOCK_FUNCTION(mu1)); // \
   // expected-warning{{'exclusive_lock_function' attribute applies to function parameters only if their type is a function pointer or a reference to a 'scoped_lockable'-annotated type}}
 void elf_fun_params3(MutexLock& scope EXCLUSIVE_LOCK_FUNCTION()); // \
-  // expected-warning{{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning{{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 // Check argument parsing.
 
@@ -697,11 +697,11 @@ template int elf_variadic_template<Mutex, UnlockableMu>(Mutex&, UnlockableMu&);
 
 // takes zero or more arguments, all locks (vars/fields)
 
-void slf_function() SHARED_LOCK_FUNCTION(); // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+void slf_function() SHARED_LOCK_FUNCTION(); // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 void slf_function_args() SHARED_LOCK_FUNCTION(mu1, mu2);
 
-int slf_testfn(int y) SHARED_LOCK_FUNCTION(); // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+int slf_testfn(int y) SHARED_LOCK_FUNCTION(); // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int slf_testfn(int y) {
   int x SHARED_LOCK_FUNCTION() = y; // \
@@ -716,7 +716,7 @@ void slf_fun_params1(MutexLock& scope SHARED_LOCK_FUNCTION(mu1));
 void slf_fun_params2(int lvar SHARED_LOCK_FUNCTION(mu1)); // \
   // expected-warning {{'shared_lock_function' attribute applies to function parameters only if their type is a function pointer or a reference to a 'scoped_lockable'-annotated type}}
 void slf_fun_params3(MutexLock& scope SHARED_LOCK_FUNCTION()); // \
-  // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'shared_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 class SlfFoo {
  private:
@@ -798,10 +798,10 @@ void etf_function() __attribute__((exclusive_trylock_function)); // \
 void etf_function_args() EXCLUSIVE_TRYLOCK_FUNCTION(1, mu2);
 
 void etf_function_arg() EXCLUSIVE_TRYLOCK_FUNCTION(1); // \
-  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int etf_testfn(int y) EXCLUSIVE_TRYLOCK_FUNCTION(1); // \
-  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int etf_testfn(int y) {
   int x EXCLUSIVE_TRYLOCK_FUNCTION(1) = y; // \
@@ -839,7 +839,7 @@ int etf_function_6() EXCLUSIVE_TRYLOCK_FUNCTION(1, muRef);
 int etf_function_7() EXCLUSIVE_TRYLOCK_FUNCTION(1, muDoubleWrapper.getWrapper()->getMu());
 int etf_functetfn_8() EXCLUSIVE_TRYLOCK_FUNCTION(1, muPointer);
 int etf_function_9() EXCLUSIVE_TRYLOCK_FUNCTION(true); // \
-  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'exclusive_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 
 // illegal attribute arguments
@@ -893,10 +893,10 @@ void stf_function() __attribute__((shared_trylock_function));  // \
 void stf_function_args() SHARED_TRYLOCK_FUNCTION(1, mu2);
 
 void stf_function_arg() SHARED_TRYLOCK_FUNCTION(1); // \
-  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int stf_testfn(int y) SHARED_TRYLOCK_FUNCTION(1); // \
-  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int stf_testfn(int y) {
   int x SHARED_TRYLOCK_FUNCTION(1) = y; // \
@@ -935,7 +935,7 @@ int stf_function_6() SHARED_TRYLOCK_FUNCTION(1, muRef);
 int stf_function_7() SHARED_TRYLOCK_FUNCTION(1, muDoubleWrapper.getWrapper()->getMu());
 int stf_function_8() SHARED_TRYLOCK_FUNCTION(1, muPointer);
 int stf_function_9() SHARED_TRYLOCK_FUNCTION(true); // \
-  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'shared_trylock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 
 // illegal attribute arguments
@@ -983,13 +983,13 @@ template int stf_variadic_template<Mutex, UnlockableMu>(Mutex&, UnlockableMu&);
 // takes zero or more arguments, all locks (vars/fields)
 
 void uf_function() UNLOCK_FUNCTION(); // \
-  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 
 void uf_function_args() UNLOCK_FUNCTION(mu1, mu2);
 
 int uf_testfn(int y) UNLOCK_FUNCTION(); //\
-  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 int uf_testfn(int y) {
   int x UNLOCK_FUNCTION() = y; // \
@@ -1016,7 +1016,7 @@ void uf_fun_params1(MutexLock& scope UNLOCK_FUNCTION(mu1));
 void uf_fun_params2(int lvar UNLOCK_FUNCTION(mu1)); // \
   // expected-warning {{'unlock_function' attribute applies to function parameters only if their type is a function pointer or a reference to a 'scoped_lockable'-annotated type}}
 void uf_fun_params3(MutexLock& scope UNLOCK_FUNCTION()); // \
-  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods of a class}}
+  // expected-warning {{'unlock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
 
 // Check argument parsing.
 
@@ -1814,6 +1814,35 @@ void fn_ref_param(void (&rf)(void) EXCLUSIVE_LOCK_FUNCTION(mu1));
 void fn_ref_param_requires(void (&rf)(void) EXCLUSIVE_LOCKS_REQUIRED(mu1));
 Mutex &mu1_impl(void);
 Mutex &(&fn_ref_returned)(void) LOCK_RETURNED(mu1) = mu1_impl;
+
+// Without arguments, an attribute on a field refers to the object the field is
+// called through, as it refers to 'this' on a method. The class's own
+// attributes may follow its closing brace: a field's GNU attributes are parsed
+// after them, but C++11 ones are applied before.
+struct FPSelf {
+  void (*lock)(void) EXCLUSIVE_LOCK_FUNCTION();
+  void (*unlock)(void) UNLOCK_FUNCTION();
+#if __cplusplus >= 201103
+  [[clang::acquire_capability]] void (*lock11)(void);
+#endif
+} LOCKABLE;
+struct FPNotLockable {
+  void (*lock)(void) EXCLUSIVE_LOCK_FUNCTION(); // \
+    // expected-warning {{'exclusive_lock_function' attribute without capability arguments refers to the object it is called through, but 'FPNotLockable' isn't annotated with 'capability' or 'scoped_lockable' attribute}}
+#if __cplusplus >= 201103
+  [[clang::acquire_capability]] void (*lock11)(void); // \
+    // expected-warning {{'clang::acquire_capability' attribute without capability arguments refers to the object it is called through, but 'FPNotLockable' isn't annotated with 'capability' or 'scoped_lockable' attribute}}
+#endif
+};
+// The record may be a capability through a base, as the class of a method may.
+struct FPDerived : FPSelf {
+  void (*relock)(void) EXCLUSIVE_LOCK_FUNCTION();
+};
+// A static member is not called through an object.
+struct LOCKABLE FPStatic {
+  static void (*lock)(void) EXCLUSIVE_LOCK_FUNCTION(); // \
+    // expected-warning {{'exclusive_lock_function' attribute without capability arguments can only be applied to non-static methods and function pointer members of a class}}
+};
 
 // lock_returned may name the pointee's parameters.
 struct MutexHolder {
