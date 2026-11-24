@@ -581,29 +581,20 @@ static bool ExtractBytesFromRegisters(
     const bool transparent_pointers = false;
     const bool omit_empty_base_classes = true;
     const bool ignore_array_bounds = false;
-    uint32_t child_byte_size = 0;
-    int32_t child_byte_offset = 0;
-    uint32_t child_bitfield_bit_size = 0;
-    uint32_t child_bitfield_bit_offset = 0;
-    bool child_is_base_class = false;
-    bool child_is_deref_of_parent = false;
-    uint64_t language_flags;
-    CompilerType field_clang_type;
-    auto field_clang_type_or_err = clang_type.GetChildCompilerTypeAtIndex(
+    auto child_or_err = clang_type.GetChildAtIndex(
         &exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, nullptr, language_flags);
-    if (!field_clang_type_or_err)
-      LLDB_LOG_ERROR(GetLog(LLDBLog::Types),
-                     field_clang_type_or_err.takeError(),
+        ignore_array_bounds, nullptr);
+    if (!child_or_err) {
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Types), child_or_err.takeError(),
                      "could not find child #{1}: {0}", idx);
-    else
-      field_clang_type = *field_clang_type_or_err;
+      return false;
+    }
+    const ChildTypeInfo &child = *child_or_err;
+    CompilerType field_clang_type = child.type;
 
-    const uint64_t field_bit_offset = child_byte_offset * 8;
+    const uint64_t field_bit_offset = child.byte_offset * 8;
     const size_t field_bit_width =
-        child_byte_size * 8 + child_bitfield_bit_size;
+        child.byte_size * 8 + child.bitfield_bit_size;
 
     // If there are any unaligned fields, this is stored in memory.
     if (field_bit_offset % field_bit_width != 0) {
@@ -635,7 +626,7 @@ static bool ExtractBytesFromRegisters(
         field_type_flags & eTypeIsPointer ||
         field_type_flags & eTypeIsReference ||
         (field_type_flags & eTypeInstanceIsPointer &&
-         child_is_base_class == false) ||
+         child.is_base_class == false) ||
         is_simple_swift_enum) {
           if (integer_bytes < 8) {
             if (integer_bytes + field_byte_width <= 8) {
@@ -781,7 +772,7 @@ static bool ExtractBytesFromRegisters(
       if (ExtractBytesFromRegisters(
               exe_ctx, field_clang_type, rax_data, rdx_data, rcx_data, r8_data,
               xmm0_data, xmm1_data, xmm2_data, byte_order, data_sp,
-              data_byte_offset + child_byte_offset, integer_bytes, fp_bytes,
+              data_byte_offset + child.byte_offset, integer_bytes, fp_bytes,
               is_memory) == false) {
         return false;
       } else {
