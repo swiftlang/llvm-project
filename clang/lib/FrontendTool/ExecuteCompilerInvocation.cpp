@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/DiagnosticFrontend.h"
+#include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/CodeGenAction.h"
 #include "clang/Config/config.h"
 #include "clang/ExtractAPI/FrontendActions.h"
@@ -282,6 +283,8 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
   /*TO_UPSTREAM(BoundsSafety) OFF*/
 
   Clang->parseLLVMArgs();
+  if (!passPluginArguments(*Clang))
+    return false;
 
 #if CLANG_ENABLE_STATIC_ANALYZER
   // These should happen AFTER plugins have been loaded!
