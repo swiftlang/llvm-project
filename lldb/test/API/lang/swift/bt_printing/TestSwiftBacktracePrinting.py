@@ -21,7 +21,6 @@ import os
 class TestSwiftBacktracePrinting(TestBase):
     @skipEmbeddedSwiftOnWindows
     @swiftTest
-    @skipIf(debug_info=["pdb"])
     def test_swift_backtrace_printing(self):
         """Test printing Swift backtrace"""
         self.build()
