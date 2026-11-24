@@ -632,6 +632,12 @@ public:
 
   virtual void ClearModuleDependentCaches() {}
 
+  /// Whether FormatManager should also look up formatters by the display type
+  /// name.
+  /// Swift display names are not prefixed with 'Swift', '__C' and
+  /// debugger-generated module, so a formatter added for Array<Int> also
+  /// matches Swift.Array<Swift.Int>.
+  virtual bool MatchFormattersByDisplayTypeName() { return true; }
   // END SWIFT
 
 protected:
