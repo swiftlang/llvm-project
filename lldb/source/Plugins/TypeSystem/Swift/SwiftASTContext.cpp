@@ -8191,11 +8191,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
                                     llvm::Twine(idx)),
             size_or_err.takeError());
       child.byte_size = *size_or_err;
-      child.byte_offset = 0;
-      child.bitfield_bit_size = 0;
-      child.bitfield_bit_offset = 0;
-      child.is_base_class = false;
-      child.is_deref_of_parent = false;
       if (element_info->is_indirect) {
         child.language_flags |= LanguageFlags::eIsIndirectEnumCase;
         return with_type(
@@ -8225,8 +8220,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
                                   child.name),
           size_or_err.takeError());
     child.byte_size = *size_or_err;
-    child.is_base_class = false;
-    child.is_deref_of_parent = false;
 
     CompilerType compiler_type = ToCompilerType(GetSwiftType(type));
     std::optional<uint64_t> offset = GetInstanceVariableOffset(
@@ -8236,8 +8229,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
                                      child.name);
 
     child.byte_offset = *offset;
-    child.bitfield_bit_size = 0;
-    child.bitfield_bit_offset = 0;
 
     return with_type(child_type);
   }
@@ -8261,8 +8252,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
                                   child.name),
           size_or_err.takeError());
     child.byte_size = *size_or_err;
-    child.is_base_class = false;
-    child.is_deref_of_parent = false;
 
     CompilerType compiler_type = ToCompilerType(GetSwiftType(type));
     // FIXME: This is *not* generally correct, but there is no
@@ -8271,8 +8260,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
 
     // FIXME: Are there sub-byte strides?
     child.byte_offset = offset;
-    child.bitfield_bit_size = 0;
-    child.bitfield_bit_offset = 0;
 
     return with_type(child_type);
   }
@@ -8294,11 +8281,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
               size_or_err.takeError());
         child.byte_size = *size_or_err;
         child.is_base_class = true;
-        child.is_deref_of_parent = false;
-
-        child.byte_offset = 0;
-        child.bitfield_bit_size = 0;
-        child.bitfield_bit_offset = 0;
 
         return with_type(superclass_type);
       }
@@ -8337,11 +8319,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
                                           child.name),
                   size_or_err.takeError());
             child.byte_size = *size_or_err;
-            child.is_base_class = false;
-            child.is_deref_of_parent = false;
-            child.byte_offset = 0;
-            child.bitfield_bit_size = 0;
-            child.bitfield_bit_offset = 0;
             return with_type(child_type);
           }
           return llvm::createStringError("could not get size of field " +
@@ -8365,8 +8342,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
           llvm::createStringError("could not get size of field " + child.name),
           size_or_err.takeError());
     child.byte_size = *size_or_err;
-    child.is_base_class = false;
-    child.is_deref_of_parent = false;
 
     CompilerType compiler_type = ToCompilerType(GetSwiftType(type));
     std::optional<uint64_t> offset = GetInstanceVariableOffset(
@@ -8375,8 +8350,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
       return llvm::createStringError("could not get offset of field " +
                                      child.name);
     child.byte_offset = *offset;
-    child.bitfield_bit_size = 0;
-    child.bitfield_bit_offset = 0;
     return with_type(child_type);
   }
 
@@ -8405,10 +8378,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
           size_or_err.takeError());
     child.byte_size = *size_or_err;
     child.byte_offset = idx * child.byte_size;
-    child.bitfield_bit_size = 0;
-    child.bitfield_bit_offset = 0;
-    child.is_base_class = false;
-    child.is_deref_of_parent = false;
 
     return with_type(child_type);
   }
@@ -8433,7 +8402,6 @@ llvm::Expected<ChildTypeInfo> SwiftASTContext::GetChildAtIndex(
               llvm::createStringError("could not get size of lvalue"),
               size_or_err.takeError());
         child.byte_size = *size_or_err;
-        child.byte_offset = 0;
         return with_type(pointee_clang_type);
       }
     }
