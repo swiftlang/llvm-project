@@ -1370,6 +1370,13 @@ private:
   uint8_t DocDiagsExactComputed = 0;
   uint8_t DocDiagsExactEnabled = 0;
 
+  // Returns if a warning suppression mapping is active and affects
+  // documentation warnings.
+  bool areDocumentationDiagsSourceLocationDependent();
+
+  /// Lazily computed cache for areDocumentationDiagsSourceLocationDependent().
+  std::optional<bool> DocDiagsInSuppressionMapping;
+
 public:
   /// Returns true if a comment at \p Loc should be retained in the AST
   /// (some consumer such as -Wdocumentation, -fparse-all-comments, code
