@@ -1756,12 +1756,13 @@ def falign_loops_EQ : Joined<["-"], "falign-loops=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>, MetaVarName<"<N>">,
   HelpText<"N must be a power of two. Align loops to the boundary">,
   MarshallingInfoInt<CodeGenOpts<"LoopAlignment">>;
-def fno_align_functions: Flag<["-"], "fno-align-functions">, Group<f_Group>;
+def fno_align_functions: Flag<["-"], "fno-align-functions">, Group<f_Group>,
+  Visibility<[ClangOption, CLOption]>;
 defm allow_editor_placeholders : BoolFOption<"allow-editor-placeholders",
   LangOpts<"AllowEditorPlaceholders">, DefaultFalse,
-  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+  PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option],
           "Treat editor placeholders as valid source code">,
-  NegFlag<SetFalse>>;
+  NegFlag<SetFalse, [], [ClangOption, CLOption]>>;
 def fallow_unsupported : Flag<["-"], "fallow-unsupported">, Group<f_Group>;
 def fapple_kext : Flag<["-"], "fapple-kext">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
@@ -2366,7 +2367,7 @@ def fbpf_no_enum_reloc_EQ : CommaJoined<["-"], "fbpf-no-enum-reloc=">,
 def fbuiltin : Flag<["-"], "fbuiltin">, Group<f_Group>,
   Visibility<[ClangOption, CLOption, DXCOption, FlangOption, FC1Option]>;
 def fbuiltin_module_map : Flag <["-"], "fbuiltin-module-map">, Group<f_Group>,
-  Flags<[]>, HelpText<"Load the clang builtins module map file.">;
+  Visibility<[ClangOption, CLOption]>, HelpText<"Load the clang builtins module map file.">;
 defm caret_diagnostics : BoolFOption<"caret-diagnostics",
   DiagnosticOpts<"ShowCarets">, DefaultTrue,
   NegFlag<SetFalse, [], [ClangOption, CC1Option]>,
@@ -2405,7 +2406,7 @@ defm define_target_os_macros : OptInCC1FFlag<"define-target-os-macros",
   "Enable", "Disable", " predefined target OS macros",
   [ClangOption, CC1Option]>;
 def fparse_all_comments : Flag<["-"], "fparse-all-comments">, Group<f_clang_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
   MarshallingInfoFlag<LangOpts<"CommentOpts.ParseAllComments">>;
 def fretain_comments : Flag<["-"], "fretain-comments">, Group<f_clang_Group>,
   Visibility<[ClangOption, CC1Option]>,
@@ -2573,7 +2574,8 @@ defm diagnostics_show_inlining_chain
                           "Show inlining chain notes for "
                           "[[gnu::warning/error]] diagnostics">,
                   NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option]>>;
-def fdiagnostics_format_EQ : Joined<["-"], "fdiagnostics-format=">, Group<f_clang_Group>;
+def fdiagnostics_format_EQ : Joined<["-"], "fdiagnostics-format=">, Group<f_clang_Group>,
+  Visibility<[ClangOption, CLOption]>;
 def fdiagnostics_show_category_EQ : Joined<["-"], "fdiagnostics-show-category=">, Group<f_clang_Group>;
 def fdiagnostics_show_template_tree : Flag<["-"], "fdiagnostics-show-template-tree">,
     Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
@@ -4829,8 +4831,8 @@ defm show_source_location : BoolFOption<"show-source-location",
   PosFlag<SetTrue>>;
 defm spell_checking : BoolFOption<"spell-checking",
   LangOpts<"SpellChecking">, DefaultTrue,
-  NegFlag<SetFalse, [], [ClangOption, CC1Option], "Disable spell-checking">,
-  PosFlag<SetTrue>>;
+  NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "Disable spell-checking">,
+  PosFlag<SetTrue, [], [ClangOption, CLOption]>>;
 def fspell_checking_limit_EQ : Joined<["-"], "fspell-checking-limit=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set the maximum number of times to perform spell checking on unrecognized identifiers (0 = no limit)">,
@@ -7049,7 +7051,7 @@ def pedantic_errors : Flag<["-", "--"], "pedantic-errors">, Group<pedantic_Group
   Visibility<[ClangOption, CC1Option]>,
   MarshallingInfoFlag<DiagnosticOpts<"PedanticErrors">>;
 def pedantic : Flag<["-", "--"], "pedantic">, Group<pedantic_Group>,
-  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
+  Visibility<[ClangOption, CLOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Warn on language extensions">, MarshallingInfoFlag<DiagnosticOpts<"Pedantic">>;
 def p : Flag<["-"], "p">, HelpText<"Enable mcount instrumentation with prof">;
 def pg : Flag<["-"], "pg">, HelpText<"Enable mcount instrumentation">,
