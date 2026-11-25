@@ -19,9 +19,10 @@
 #include "llvm/DebugInfo/PDB/PDBTypes.h"
 
 #include "CompileUnitIndex.h"
-#include "PdbIndex.h"
 #include "PdbAstBuilder.h"
+#include "PdbIndex.h"
 #include <optional>
+#include <set>
 
 namespace clang {
 class TagDecl;
@@ -191,6 +192,8 @@ private:
       return lhs.file_addr < rhs.file_addr;
     }
   };
+  using LineSet =
+      std::set<lldb_private::LineTable::Entry, LineTableEntryComparator>;
 
   // From address range relative to function base to source line number.
   using RangeSourceLineVector =
@@ -205,6 +208,9 @@ private:
   };
 
   void BuildParentMap();
+
+  static void MarkPrologueAndEpilogue(LineSet &line_set, lldb::addr_t func_addr,
+                                      const llvm::codeview::ProcSym &proc);
 
   uint32_t CalculateNumCompileUnits() override;
 
@@ -316,6 +322,10 @@ private:
                                            PdbTypeSymId func_ty);
 
   std::string MakeFunctionCallLabel(PdbSymUid uid, llvm::StringRef lookup_name);
+
+  /// Append the function referenced by the S_PROCREF/S_LPROCREF \p global.
+  void AppendFunctionForProcRef(PdbGlobalSymId global,
+                                SymbolContextList &sc_list);
 
   /// Find the S_GPROC32/S_LPROC32 record named \p qualified_name whose type is
   /// \p method_type.
