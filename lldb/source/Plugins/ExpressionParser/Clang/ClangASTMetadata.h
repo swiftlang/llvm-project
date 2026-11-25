@@ -116,6 +116,10 @@ public:
 
   void Dump(Stream *s);
 
+  lldb::LanguageType GetLanguageType() const { return m_language; }
+
+  void SetLanguageType(lldb::LanguageType lang_type) { m_language = lang_type; }
+
 private:
   union {
     lldb::user_id_t m_user_id;
@@ -128,6 +132,7 @@ private:
       , m_is_potentially_swift_interop_type : 1
       // END SWIFT
       ;
+  lldb::LanguageType m_language = lldb::eLanguageTypeUnknown;
 };
 
 } // namespace lldb_private
