@@ -202,6 +202,11 @@ lldb::REPLSP SwiftREPL::CreateInstanceFromDebugger(Status &err,
     launch_info.SetExecutableFile(exe_module_sp->GetPlatformFileSpec(), true);
   }
 
+#ifdef _WIN32
+  // A pseudo console can deliver a line's end after the stop; pipes do not.
+  launch_info.GetFlags().Set(eLaunchFlagUsePipes);
+#endif
+
   debugger.SetAsyncExecution(false);
   err = target_sp->Launch(launch_info, nullptr);
   debugger.SetAsyncExecution(true);

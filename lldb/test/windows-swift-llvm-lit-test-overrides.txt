@@ -12,7 +12,6 @@ xfail lldb-shell :: Recognizer/verbose_trap.test
 xfail lldb-shell :: Swift/No.swiftmodule.test
 xfail lldb-shell :: Swift/global.test
 xfail lldb-shell :: Swift/runtime-initialization.test
-xfail lldb-shell :: SwiftREPL/ClosureScope.test
 
 ### Tests that pass locally, but fail in CI reliably ###
 
