@@ -180,7 +180,6 @@ define void @vld3_v16i32(ptr %src, ptr %dst) {
 ; CHECK-NEXT:    vmov.f32 s26, s15
 ; CHECK-NEXT:    vstrw.32 q0, [r1, #16]
 ; CHECK-NEXT:    vmov.f32 s30, s14
-; CHECK-NEXT:    vstrw.32 q1, [r1]
 ; CHECK-NEXT:    vmov.f32 s24, s17
 ; CHECK-NEXT:    vmov.f32 s27, s22
 ; CHECK-NEXT:    vmov.f32 s28, s16
@@ -192,6 +191,7 @@ define void @vld3_v16i32(ptr %src, ptr %dst) {
 ; CHECK-NEXT:    vmov.f32 s15, s23
 ; CHECK-NEXT:    vadd.i32 q3, q6, q3
 ; CHECK-NEXT:    vstrw.32 q3, [r1, #32]
+; CHECK-NEXT:    vstrw.32 q1, [r1]
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
 
@@ -1178,7 +1178,6 @@ define void @vld3_v16f32(ptr %src, ptr %dst) {
 ; CHECK-NEXT:    vmov.f32 s26, s15
 ; CHECK-NEXT:    vstrw.32 q0, [r1, #16]
 ; CHECK-NEXT:    vmov.f32 s30, s14
-; CHECK-NEXT:    vstrw.32 q1, [r1]
 ; CHECK-NEXT:    vmov.f32 s24, s17
 ; CHECK-NEXT:    vmov.f32 s27, s22
 ; CHECK-NEXT:    vmov.f32 s28, s16
@@ -1190,6 +1189,7 @@ define void @vld3_v16f32(ptr %src, ptr %dst) {
 ; CHECK-NEXT:    vmov.f32 s15, s23
 ; CHECK-NEXT:    vadd.f32 q3, q6, q3
 ; CHECK-NEXT:    vstrw.32 q3, [r1, #32]
+; CHECK-NEXT:    vstrw.32 q1, [r1]
 ; CHECK-NEXT:    vpop {d8, d9, d10, d11, d12, d13, d14, d15}
 ; CHECK-NEXT:    bx lr
 

@@ -650,10 +650,10 @@ define void @srem_v16i32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_128-NEXT:    sdiv z19.s, p0/m, z19.s, z5.s
 ; VBITS_GE_128-NEXT:    mls v0.4s, v16.4s, v6.4s
 ; VBITS_GE_128-NEXT:    mls v1.4s, v17.4s, v4.4s
-; VBITS_GE_128-NEXT:    stp q0, q1, [x0]
 ; VBITS_GE_128-NEXT:    mls v3.4s, v18.4s, v7.4s
 ; VBITS_GE_128-NEXT:    mls v2.4s, v19.4s, v5.4s
 ; VBITS_GE_128-NEXT:    stp q2, q3, [x0, #32]
+; VBITS_GE_128-NEXT:    stp q0, q1, [x0]
 ; VBITS_GE_128-NEXT:    ret
 ;
 ; VBITS_GE_256-LABEL: srem_v16i32:
@@ -1624,10 +1624,10 @@ define void @urem_v16i32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_128-NEXT:    udiv z19.s, p0/m, z19.s, z5.s
 ; VBITS_GE_128-NEXT:    mls v0.4s, v16.4s, v6.4s
 ; VBITS_GE_128-NEXT:    mls v1.4s, v17.4s, v4.4s
-; VBITS_GE_128-NEXT:    stp q0, q1, [x0]
 ; VBITS_GE_128-NEXT:    mls v3.4s, v18.4s, v7.4s
 ; VBITS_GE_128-NEXT:    mls v2.4s, v19.4s, v5.4s
 ; VBITS_GE_128-NEXT:    stp q2, q3, [x0, #32]
+; VBITS_GE_128-NEXT:    stp q0, q1, [x0]
 ; VBITS_GE_128-NEXT:    ret
 ;
 ; VBITS_GE_256-LABEL: urem_v16i32:

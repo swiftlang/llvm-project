@@ -84,10 +84,10 @@ define void @interleave_store_legalization(ptr %a, <8 x i32> %v1, <8 x i32> %v2)
 ; NONEON-NOSVE:       // %bb.0:
 ; NONEON-NOSVE-NEXT:    sub sp, sp, #128
 ; NONEON-NOSVE-NEXT:    .cfi_def_cfa_offset 128
-; NONEON-NOSVE-NEXT:    stp q1, q3, [sp, #16]
 ; NONEON-NOSVE-NEXT:    stp q0, q2, [sp, #80]
 ; NONEON-NOSVE-NEXT:    ldr w9, [sp, #100]
 ; NONEON-NOSVE-NEXT:    ldr w8, [sp, #84]
+; NONEON-NOSVE-NEXT:    stp q1, q3, [sp, #16]
 ; NONEON-NOSVE-NEXT:    stp w8, w9, [sp, #72]
 ; NONEON-NOSVE-NEXT:    ldr w9, [sp, #96]
 ; NONEON-NOSVE-NEXT:    ldr w8, [sp, #80]
@@ -113,8 +113,8 @@ define void @interleave_store_legalization(ptr %a, <8 x i32> %v1, <8 x i32> %v2)
 ; NONEON-NOSVE-NEXT:    ldr w8, [sp, #24]
 ; NONEON-NOSVE-NEXT:    stp w8, w9, [sp, #48]
 ; NONEON-NOSVE-NEXT:    ldp q0, q2, [sp, #48]
-; NONEON-NOSVE-NEXT:    stp q2, q3, [x0]
 ; NONEON-NOSVE-NEXT:    stp q1, q0, [x0, #32]
+; NONEON-NOSVE-NEXT:    stp q2, q3, [x0]
 ; NONEON-NOSVE-NEXT:    add sp, sp, #128
 ; NONEON-NOSVE-NEXT:    ret
   %interleaved.vec = shufflevector <8 x i32> %v1, <8 x i32> %v2, <16 x i32> <i32 0, i32 8, i32 1, i32 9, i32 2, i32 10, i32 3, i32 11,

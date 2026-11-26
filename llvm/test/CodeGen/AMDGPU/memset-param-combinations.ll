@@ -327,7 +327,6 @@ define void @memset_p0_sz1055_align_4_varsetval(ptr addrspace(0) align 4 %dst, i
 ; GFX942-NEXT:    v_lshl_add_u64 v[56:57], v[38:39], 0, s[16:17]
 ; GFX942-NEXT:    v_lshl_add_u64 v[58:59], v[38:39], 0, s[18:19]
 ; GFX942-NEXT:    v_lshl_add_u64 v[60:61], v[38:39], 0, s[20:21]
-; GFX942-NEXT:    flat_store_dwordx4 v[38:39], v[4:7] offset:128
 ; GFX942-NEXT:    flat_store_dwordx4 v[48:49], v[32:35]
 ; GFX942-NEXT:    flat_store_dwordx4 v[50:51], v[28:31]
 ; GFX942-NEXT:    flat_store_dwordx4 v[52:53], v[24:27]
@@ -339,6 +338,7 @@ define void @memset_p0_sz1055_align_4_varsetval(ptr addrspace(0) align 4 %dst, i
 ; GFX942-NEXT:    flat_store_dwordx4 v[56:57], v[16:19]
 ; GFX942-NEXT:    flat_store_dwordx4 v[58:59], v[12:15]
 ; GFX942-NEXT:    flat_store_dwordx4 v[60:61], v[8:11]
+; GFX942-NEXT:    flat_store_dwordx4 v[38:39], v[4:7] offset:128
 ; GFX942-NEXT:    s_cbranch_vccnz .LBB4_1
 ; GFX942-NEXT:  ; %bb.2: ; %static-memset-post-expansion
 ; GFX942-NEXT:    s_mov_b32 s0, 0x4040404
@@ -456,7 +456,6 @@ define void @memset_p0_sz2048_align_4_varsetval(ptr addrspace(0) align 4 %dst, i
 ; GFX942-NEXT:    v_lshl_add_u64 v[46:47], v[36:37], 0, s[16:17]
 ; GFX942-NEXT:    v_lshl_add_u64 v[56:57], v[36:37], 0, s[18:19]
 ; GFX942-NEXT:    v_lshl_add_u64 v[58:59], v[36:37], 0, s[20:21]
-; GFX942-NEXT:    flat_store_dwordx4 v[36:37], v[2:5] offset:128
 ; GFX942-NEXT:    flat_store_dwordx4 v[38:39], v[30:33]
 ; GFX942-NEXT:    flat_store_dwordx4 v[48:49], v[26:29]
 ; GFX942-NEXT:    flat_store_dwordx4 v[50:51], v[22:25]
@@ -468,6 +467,7 @@ define void @memset_p0_sz2048_align_4_varsetval(ptr addrspace(0) align 4 %dst, i
 ; GFX942-NEXT:    flat_store_dwordx4 v[46:47], v[14:17]
 ; GFX942-NEXT:    flat_store_dwordx4 v[56:57], v[10:13]
 ; GFX942-NEXT:    flat_store_dwordx4 v[58:59], v[6:9]
+; GFX942-NEXT:    flat_store_dwordx4 v[36:37], v[2:5] offset:128
 ; GFX942-NEXT:    s_cbranch_vccnz .LBB5_1
 ; GFX942-NEXT:  ; %bb.2: ; %static-memset-post-expansion
 ; GFX942-NEXT:    v_accvgpr_read_b32 v59, a11 ; Reload Reuse

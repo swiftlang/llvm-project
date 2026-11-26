@@ -933,8 +933,8 @@ define void @test_stnp_interleaved_store2_v3i32_non_pow2_elt_count(<3 x i32> %v0
 ; CHECK-LE-NEXT:    zip1 v2.4s, v0.4s, v1.4s
 ; CHECK-LE-NEXT:    zip2 v0.4s, v0.4s, v1.4s
 ; CHECK-LE-NEXT:    mov d3, v2.d[1]
-; CHECK-LE-NEXT:    str d0, [x0, #16]
 ; CHECK-LE-NEXT:    stnp d2, d3, [x0]
+; CHECK-LE-NEXT:    str d0, [x0, #16]
 ; CHECK-LE-NEXT:    ret
 ;
 ; CHECK-BE-LABEL: test_stnp_interleaved_store2_v3i32_non_pow2_elt_count:

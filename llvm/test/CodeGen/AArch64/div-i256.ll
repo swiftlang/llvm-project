@@ -84,9 +84,9 @@ define i256 @udiv256(i256 %a, i256 %b) nounwind {
 ; CHECK-NEXT:    stp x0, x1, [sp, #96]
 ; CHECK-NEXT:    adcs x9, x13, xzr
 ; CHECK-NEXT:    mvn w19, w11
-; CHECK-NEXT:    str x2, [sp, #112]
-; CHECK-NEXT:    adcs x10, x14, xzr
 ; CHECK-NEXT:    stp q0, q0, [sp, #64]
+; CHECK-NEXT:    adcs x10, x14, xzr
+; CHECK-NEXT:    str x2, [sp, #112]
 ; CHECK-NEXT:    ldp x15, x17, [x16, #8]
 ; CHECK-NEXT:    ldr x13, [x16, #24]
 ; CHECK-NEXT:    ldr x16, [x16]
@@ -299,10 +299,10 @@ define i256 @sdiv256(i256 %a, i256 %b) nounwind {
 ; CHECK-NEXT:    stp x14, x15, [sp, #96]
 ; CHECK-NEXT:    and x19, x3, #0x3f
 ; CHECK-NEXT:    adcs x16, x16, xzr
-; CHECK-NEXT:    stp x18, x0, [sp, #112]
+; CHECK-NEXT:    stp q0, q0, [sp, #64]
 ; CHECK-NEXT:    mvn w20, w3
 ; CHECK-NEXT:    eor x19, x19, #0x3f
-; CHECK-NEXT:    stp q0, q0, [sp, #64]
+; CHECK-NEXT:    stp x18, x0, [sp, #112]
 ; CHECK-NEXT:    adcs x17, x17, xzr
 ; CHECK-NEXT:    ldp x2, x6, [x4, #8]
 ; CHECK-NEXT:    ldr x7, [x4]
@@ -505,8 +505,8 @@ define i256 @urem256(i256 %a, i256 %b) nounwind {
 ; CHECK-NEXT:    adcs x9, x9, xzr
 ; CHECK-NEXT:    stp x0, x1, [sp, #112]
 ; CHECK-NEXT:    adcs x10, x10, xzr
-; CHECK-NEXT:    stp x2, x3, [sp, #128]
 ; CHECK-NEXT:    stp q0, q0, [sp, #80]
+; CHECK-NEXT:    stp x2, x3, [sp, #128]
 ; CHECK-NEXT:    ldp x12, x16, [x14, #8]
 ; CHECK-NEXT:    ldr x15, [x14, #24]
 ; CHECK-NEXT:    ldr x17, [x14]
@@ -745,12 +745,12 @@ define i256 @srem256(i256 %a, i256 %b) nounwind {
 ; CHECK-NEXT:    add x17, x17, #32
 ; CHECK-NEXT:    stp x22, x23, [sp, #112]
 ; CHECK-NEXT:    lsr x10, x9, #3
-; CHECK-NEXT:    stp x12, x11, [sp, #128]
 ; CHECK-NEXT:    and x6, x9, #0x3f
 ; CHECK-NEXT:    mvn w7, w9
 ; CHECK-NEXT:    eor x6, x6, #0x3f
 ; CHECK-NEXT:    and x10, x10, #0x18
 ; CHECK-NEXT:    stp q0, q0, [sp, #80]
+; CHECK-NEXT:    stp x12, x11, [sp, #128]
 ; CHECK-NEXT:    sub x10, x17, x10
 ; CHECK-NEXT:    adds x17, x2, #1
 ; CHECK-NEXT:    ldp x2, x5, [x10, #8]
@@ -990,9 +990,9 @@ define i256 @sdiv256_const(i256 %a) nounwind {
 ; CHECK-NEXT:    stp x18, x0, [sp, #96]
 ; CHECK-NEXT:    sub x14, x15, x14
 ; CHECK-NEXT:    eor x3, x3, #0x3f
-; CHECK-NEXT:    str x1, [sp, #112]
-; CHECK-NEXT:    adcs x11, x11, xzr
 ; CHECK-NEXT:    stp q0, q0, [sp, #64]
+; CHECK-NEXT:    adcs x11, x11, xzr
+; CHECK-NEXT:    str x1, [sp, #112]
 ; CHECK-NEXT:    ldp x16, x2, [x14, #8]
 ; CHECK-NEXT:    ldr x17, [x14, #24]
 ; CHECK-NEXT:    ldr x14, [x14]

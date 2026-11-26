@@ -162,14 +162,14 @@ define amdgpu_cs void @realign_stack(<32 x i32> %x) #0 {
 ; CHECK-NEXT:    scratch_store_b32 off, v32, s33 scope:SCOPE_SYS
 ; CHECK-NEXT:    s_wait_storecnt 0x0
 ; CHECK-NEXT:    s_clause 0x7
-; CHECK-NEXT:    scratch_store_b128 off, v[24:27], s33 offset:96
-; CHECK-NEXT:    scratch_store_b128 off, v[28:31], s33 offset:112
-; CHECK-NEXT:    scratch_store_b128 off, v[16:19], s33 offset:64
-; CHECK-NEXT:    scratch_store_b128 off, v[20:23], s33 offset:80
-; CHECK-NEXT:    scratch_store_b128 off, v[8:11], s33 offset:32
-; CHECK-NEXT:    scratch_store_b128 off, v[12:15], s33 offset:48
-; CHECK-NEXT:    scratch_store_b128 off, v[4:7], s33 offset:16
 ; CHECK-NEXT:    scratch_store_b128 off, v[0:3], s33
+; CHECK-NEXT:    scratch_store_b128 off, v[28:31], s33 offset:112
+; CHECK-NEXT:    scratch_store_b128 off, v[24:27], s33 offset:96
+; CHECK-NEXT:    scratch_store_b128 off, v[20:23], s33 offset:80
+; CHECK-NEXT:    scratch_store_b128 off, v[16:19], s33 offset:64
+; CHECK-NEXT:    scratch_store_b128 off, v[12:15], s33 offset:48
+; CHECK-NEXT:    scratch_store_b128 off, v[8:11], s33 offset:32
+; CHECK-NEXT:    scratch_store_b128 off, v[4:7], s33 offset:16
 ; CHECK-NEXT:    v_mov_b32_e32 v0, 0x47
 ; CHECK-NEXT:    s_movk_i32 s32, 0x100
 ; CHECK-NEXT:    s_cmovk_i32 s32, 0x300

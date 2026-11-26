@@ -151,6 +151,7 @@ body:             |
     ; X64-NEXT: [[OR:%[0-9]+]]:_(s64) = G_OR [[COPY]], [[COPY]]
     ; X64-NEXT: $rax = COPY [[OR]](s64)
     ; X64-NEXT: RET 0
+    ;
     ; X86-LABEL: name: test_or_i42
     ; X86: [[COPY:%[0-9]+]]:_(s64) = COPY $rdx
     ; X86-NEXT: [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[COPY]](s64)
@@ -184,6 +185,7 @@ body:             |
     ; X64-NEXT: [[OR:%[0-9]+]]:_(s64) = G_OR [[DEF]], [[DEF1]]
     ; X64-NEXT: $rax = COPY [[OR]](s64)
     ; X64-NEXT: RET 0
+    ;
     ; X86-LABEL: name: test_or_i64
     ; X86: [[DEF:%[0-9]+]]:_(s64) = IMPLICIT_DEF
     ; X86-NEXT: [[DEF1:%[0-9]+]]:_(s64) = IMPLICIT_DEF

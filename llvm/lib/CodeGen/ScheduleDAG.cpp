@@ -478,11 +478,12 @@ void ScheduleDAGTopologicalSort::InitDAGTopologicalSorting() {
   Reachable.clear();
 
   unsigned DAGSize = SUnits.size();
-  std::vector<SUnit*> WorkList;
-  WorkList.reserve(DAGSize);
 
   Index2Node.resize(DAGSize);
   Node2Index.resize(DAGSize);
+
+  WorkList.reserve(DAGSize);
+  WorkList.clear();
 
   // Initialize the data structures.
   if (ExitSU)
@@ -503,7 +504,7 @@ void ScheduleDAGTopologicalSort::InitDAGTopologicalSorting() {
 
   int Id = DAGSize;
   while (!WorkList.empty()) {
-    SUnit *SU = WorkList.back();
+    const SUnit *SU = WorkList.back();
     WorkList.pop_back();
     if (SU->NodeNum < DAGSize)
       Allocate(SU->NodeNum, --Id);
@@ -580,8 +581,7 @@ void ScheduleDAGTopologicalSort::RemovePred(SUnit *M, SUnit *N) {
 
 void ScheduleDAGTopologicalSort::DFS(const SUnit *SU, int UpperBound,
                                      bool &HasLoop) {
-  std::vector<const SUnit*> WorkList;
-  WorkList.reserve(SUnits.size());
+  WorkList.clear();
 
   WorkList.push_back(SU);
   do {
@@ -608,7 +608,6 @@ void ScheduleDAGTopologicalSort::DFS(const SUnit *SU, int UpperBound,
 std::vector<int> ScheduleDAGTopologicalSort::GetSubGraph(const SUnit &StartSU,
                                                          const SUnit &TargetSU,
                                                          bool &Success) {
-  std::vector<const SUnit*> WorkList;
   int LowerBound = Node2Index[StartSU.NodeNum];
   int UpperBound = Node2Index[TargetSU.NodeNum];
   bool Found = false;
@@ -620,7 +619,7 @@ std::vector<int> ScheduleDAGTopologicalSort::GetSubGraph(const SUnit &StartSU,
     return Nodes;
   }
 
-  WorkList.reserve(SUnits.size());
+  WorkList.clear();
   Visited.reset();
 
   // Starting from StartSU, visit all successors up

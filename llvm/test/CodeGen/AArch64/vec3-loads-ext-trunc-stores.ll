@@ -412,12 +412,12 @@ define void @store_trunc_add_from_64bits(ptr %src, ptr %dst) {
 ; BE-NEXT:    sub sp, sp, #16
 ; BE-NEXT:    .cfi_def_cfa_offset 16
 ; BE-NEXT:    ldr s0, [x0]
-; BE-NEXT:    add x8, x0, #4
-; BE-NEXT:    rev32 v0.4h, v0.4h
-; BE-NEXT:    ld1 { v0.h }[2], [x8]
 ; BE-NEXT:    adrp x8, .LCPI11_0
 ; BE-NEXT:    add x8, x8, :lo12:.LCPI11_0
+; BE-NEXT:    add x9, x0, #4
 ; BE-NEXT:    ld1 { v1.4h }, [x8]
+; BE-NEXT:    rev32 v0.4h, v0.4h
+; BE-NEXT:    ld1 { v0.h }[2], [x9]
 ; BE-NEXT:    add v0.4h, v0.4h, v1.4h
 ; BE-NEXT:    uzp1 v1.8b, v0.8b, v0.8b
 ; BE-NEXT:    mov h0, v0.h[2]
@@ -557,16 +557,16 @@ define void @load_ext_add_to_64bits(ptr %src, ptr %dst) {
 ; BE:       // %bb.0: // %entry
 ; BE-NEXT:    sub sp, sp, #16
 ; BE-NEXT:    .cfi_def_cfa_offset 16
-; BE-NEXT:    ldrh w8, [x0]
-; BE-NEXT:    strh w8, [sp, #12]
-; BE-NEXT:    add x8, x0, #2
-; BE-NEXT:    ldr s0, [sp, #12]
-; BE-NEXT:    rev32 v0.8b, v0.8b
-; BE-NEXT:    ushll v0.8h, v0.8b, #0
-; BE-NEXT:    ld1 { v0.b }[4], [x8]
+; BE-NEXT:    ldrh w9, [x0]
 ; BE-NEXT:    adrp x8, .LCPI15_0
 ; BE-NEXT:    add x8, x8, :lo12:.LCPI15_0
 ; BE-NEXT:    ld1 { v1.4h }, [x8]
+; BE-NEXT:    strh w9, [sp, #12]
+; BE-NEXT:    add x9, x0, #2
+; BE-NEXT:    ldr s0, [sp, #12]
+; BE-NEXT:    rev32 v0.8b, v0.8b
+; BE-NEXT:    ushll v0.8h, v0.8b, #0
+; BE-NEXT:    ld1 { v0.b }[4], [x9]
 ; BE-NEXT:    bic v0.4h, #255, lsl #8
 ; BE-NEXT:    add v0.4h, v0.4h, v1.4h
 ; BE-NEXT:    rev32 v1.8h, v0.8h

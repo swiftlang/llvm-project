@@ -1713,18 +1713,17 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    v_lshrrev_b32_e32 v3, 8, v0
 ; GFX6-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
-; GFX6-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:26
 ; GFX6-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:29
 ; GFX6-NEXT:    buffer_store_byte v3, off, s[8:11], 0 offset:28
+; GFX6-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:26
 ; GFX6-NEXT:    s_waitcnt expcnt(3)
 ; GFX6-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
-; GFX6-NEXT:    s_waitcnt expcnt(2)
+; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
 ; GFX6-NEXT:    s_waitcnt vmcnt(1)
 ; GFX6-NEXT:    v_readfirstlane_b32 s0, v0
 ; GFX6-NEXT:    s_waitcnt vmcnt(0)
 ; GFX6-NEXT:    v_readfirstlane_b32 s1, v1
-; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    ; return to shader part epilog
 ;
 ; GFX8-LABEL: s_fshl_v2i24:
@@ -1811,9 +1810,9 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX8-NEXT:    v_lshrrev_b32_e32 v2, 16, v1
 ; GFX8-NEXT:    v_lshrrev_b32_e32 v3, 8, v1
 ; GFX8-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:27
-; GFX8-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:26
 ; GFX8-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:29
 ; GFX8-NEXT:    buffer_store_byte v3, off, s[8:11], 0 offset:28
+; GFX8-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:26
 ; GFX8-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX8-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
 ; GFX8-NEXT:    s_waitcnt vmcnt(1)
@@ -1855,8 +1854,8 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX9-NEXT:    buffer_load_ubyte v9, off, s[8:11], 0 offset:3
 ; GFX9-NEXT:    buffer_load_ubyte v10, off, s[8:11], 0 offset:10
 ; GFX9-NEXT:    buffer_load_ubyte v11, off, s[8:11], 0 offset:19
-; GFX9-NEXT:    s_and_b32 s5, s4, 0xffff
 ; GFX9-NEXT:    s_mov_b32 s1, 0xaaaaaab
+; GFX9-NEXT:    s_and_b32 s5, s4, 0xffff
 ; GFX9-NEXT:    s_and_b32 s2, s2, 0xffff
 ; GFX9-NEXT:    s_and_b32 s3, s0, 0xffff
 ; GFX9-NEXT:    s_lshl_b32 s2, s2, 8
@@ -1873,30 +1872,30 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX9-NEXT:    v_lshl_or_b32 v3, v3, 8, v7
 ; GFX9-NEXT:    v_lshlrev_b32_e32 v6, 8, v6
 ; GFX9-NEXT:    v_lshlrev_b32_e32 v3, 8, v3
-; GFX9-NEXT:    s_waitcnt vmcnt(3)
-; GFX9-NEXT:    v_lshl_or_b32 v7, v8, 16, s3
+; GFX9-NEXT:    s_waitcnt vmcnt(2)
+; GFX9-NEXT:    v_or3_b32 v1, v6, v9, v1
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:    v_or3_b32 v0, v4, v11, v0
 ; GFX9-NEXT:    v_mul_hi_u32 v0, v0, s1
-; GFX9-NEXT:    v_lshl_or_b32 v8, v10, 24, s2
-; GFX9-NEXT:    v_or3_b32 v1, v6, v9, v1
 ; GFX9-NEXT:    v_lshl_or_b32 v2, v2, 24, v3
-; GFX9-NEXT:    v_lshl_add_u32 v3, v5, 3, s4
+; GFX9-NEXT:    v_lshl_or_b32 v7, v8, 16, s3
+; GFX9-NEXT:    v_lshl_or_b32 v8, v10, 24, s2
 ; GFX9-NEXT:    v_lshl_add_u32 v0, v0, 3, v11
-; GFX9-NEXT:    v_alignbit_b32 v4, s0, v8, 1
-; GFX9-NEXT:    v_lshrrev_b32_e32 v6, 1, v7
 ; GFX9-NEXT:    v_lshrrev_b32_e32 v1, 1, v1
 ; GFX9-NEXT:    v_alignbit_b32 v2, v9, v2, 1
-; GFX9-NEXT:    v_not_b32_e32 v3, v3
+; GFX9-NEXT:    v_lshl_add_u32 v3, v5, 3, s4
 ; GFX9-NEXT:    v_not_b32_e32 v0, v0
-; GFX9-NEXT:    v_alignbit_b32 v3, v6, v4, v3
+; GFX9-NEXT:    v_alignbit_b32 v4, s0, v8, 1
+; GFX9-NEXT:    v_lshrrev_b32_e32 v6, 1, v7
+; GFX9-NEXT:    v_not_b32_e32 v3, v3
 ; GFX9-NEXT:    v_alignbit_b32 v0, v1, v2, v0
+; GFX9-NEXT:    v_alignbit_b32 v3, v6, v4, v3
+; GFX9-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
 ; GFX9-NEXT:    buffer_store_byte_d16_hi v3, off, s[8:11], 0 offset:26
 ; GFX9-NEXT:    buffer_store_short v3, off, s[8:11], 0 offset:24
 ; GFX9-NEXT:    buffer_store_byte_d16_hi v0, off, s[8:11], 0 offset:29
-; GFX9-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
-; GFX9-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX9-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:28
+; GFX9-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX9-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX9-NEXT:    s_nop 0
 ; GFX9-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
@@ -1930,12 +1929,12 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX10-NEXT:    buffer_store_dword v3, off, s[8:11], 0 offset:8
 ; GFX10-NEXT:    buffer_store_short v4, off, s[8:11], 0 offset:12
 ; GFX10-NEXT:    s_clause 0xb
-; GFX10-NEXT:    buffer_load_ubyte v0, off, s[8:11], 0 offset:21
-; GFX10-NEXT:    buffer_load_ubyte v1, off, s[8:11], 0 offset:20
-; GFX10-NEXT:    buffer_load_ubyte v2, off, s[8:11], 0 offset:18
-; GFX10-NEXT:    buffer_load_ubyte v3, off, s[8:11], 0 offset:5
-; GFX10-NEXT:    buffer_load_ubyte v4, off, s[8:11], 0 offset:13
-; GFX10-NEXT:    buffer_load_ubyte v5, off, s[8:11], 0 offset:12
+; GFX10-NEXT:    buffer_load_ubyte v0, off, s[8:11], 0 offset:20
+; GFX10-NEXT:    buffer_load_ubyte v1, off, s[8:11], 0 offset:21
+; GFX10-NEXT:    buffer_load_ubyte v2, off, s[8:11], 0 offset:5
+; GFX10-NEXT:    buffer_load_ubyte v3, off, s[8:11], 0 offset:13
+; GFX10-NEXT:    buffer_load_ubyte v4, off, s[8:11], 0 offset:12
+; GFX10-NEXT:    buffer_load_ubyte v5, off, s[8:11], 0 offset:18
 ; GFX10-NEXT:    buffer_load_ubyte v6, off, s[8:11], 0 offset:19
 ; GFX10-NEXT:    buffer_load_ubyte v7, off, s[8:11], 0 offset:4
 ; GFX10-NEXT:    buffer_load_ubyte v8, off, s[8:11], 0 offset:11
@@ -1943,45 +1942,46 @@ define amdgpu_ps i48 @s_fshl_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX10-NEXT:    buffer_load_ubyte v10, off, s[8:11], 0 offset:3
 ; GFX10-NEXT:    buffer_load_ubyte v11, off, s[8:11], 0 offset:10
 ; GFX10-NEXT:    s_waitcnt vmcnt(11)
-; GFX10-NEXT:    v_lshlrev_b32_e32 v0, 16, v0
+; GFX10-NEXT:    v_lshlrev_b32_e32 v0, 8, v0
 ; GFX10-NEXT:    s_waitcnt vmcnt(10)
-; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 8, v1
+; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 16, v1
 ; GFX10-NEXT:    s_waitcnt vmcnt(9)
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v2, 16, v2
+; GFX10-NEXT:    s_waitcnt vmcnt(6)
+; GFX10-NEXT:    v_lshlrev_b32_e32 v5, 16, v5
 ; GFX10-NEXT:    s_waitcnt vmcnt(5)
-; GFX10-NEXT:    v_or3_b32 v0, v1, v6, v0
-; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 16, v3
+; GFX10-NEXT:    v_or3_b32 v0, v0, v6, v1
 ; GFX10-NEXT:    s_waitcnt vmcnt(3)
-; GFX10-NEXT:    v_lshl_or_b32 v3, v5, 8, v8
-; GFX10-NEXT:    v_and_or_b32 v2, 0xffff, s4, v2
-; GFX10-NEXT:    v_lshlrev_b32_e32 v5, 8, v7
+; GFX10-NEXT:    v_lshl_or_b32 v1, v4, 8, v8
+; GFX10-NEXT:    v_lshlrev_b32_e32 v4, 8, v7
+; GFX10-NEXT:    v_and_or_b32 v5, 0xffff, s4, v5
 ; GFX10-NEXT:    v_mul_hi_u32 v0, 0xaaaaaab, v0
 ; GFX10-NEXT:    s_waitcnt vmcnt(2)
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v7, 16, v9
-; GFX10-NEXT:    v_lshlrev_b32_e32 v3, 8, v3
-; GFX10-NEXT:    v_mul_hi_u32 v2, 0xaaaaaab, v2
+; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 8, v1
 ; GFX10-NEXT:    s_waitcnt vmcnt(1)
-; GFX10-NEXT:    v_or3_b32 v1, v5, v10, v1
-; GFX10-NEXT:    s_waitcnt vmcnt(0)
-; GFX10-NEXT:    v_lshl_or_b32 v5, v11, 24, s1
-; GFX10-NEXT:    v_lshl_or_b32 v3, v4, 24, v3
-; GFX10-NEXT:    v_lshl_add_u32 v0, v0, 3, v6
+; GFX10-NEXT:    v_or3_b32 v2, v4, v10, v2
+; GFX10-NEXT:    v_mul_hi_u32 v5, 0xaaaaaab, v5
 ; GFX10-NEXT:    v_and_or_b32 v4, 0xffff, s0, v7
-; GFX10-NEXT:    v_lshrrev_b32_e32 v1, 1, v1
-; GFX10-NEXT:    v_lshl_add_u32 v2, v2, 3, s4
-; GFX10-NEXT:    v_alignbit_b32 v3, v10, v3, 1
-; GFX10-NEXT:    v_not_b32_e32 v0, v0
-; GFX10-NEXT:    v_alignbit_b32 v5, s0, v5, 1
+; GFX10-NEXT:    v_lshl_or_b32 v1, v3, 24, v1
+; GFX10-NEXT:    v_lshl_add_u32 v0, v0, 3, v6
+; GFX10-NEXT:    s_waitcnt vmcnt(0)
+; GFX10-NEXT:    v_lshl_or_b32 v3, v11, 24, s1
+; GFX10-NEXT:    v_lshrrev_b32_e32 v2, 1, v2
 ; GFX10-NEXT:    v_lshrrev_b32_e32 v4, 1, v4
-; GFX10-NEXT:    v_not_b32_e32 v2, v2
-; GFX10-NEXT:    v_alignbit_b32 v0, v1, v3, v0
-; GFX10-NEXT:    v_alignbit_b32 v1, v4, v5, v2
+; GFX10-NEXT:    v_lshl_add_u32 v5, v5, 3, s4
+; GFX10-NEXT:    v_alignbit_b32 v1, v10, v1, 1
+; GFX10-NEXT:    v_not_b32_e32 v0, v0
+; GFX10-NEXT:    v_alignbit_b32 v3, s0, v3, 1
+; GFX10-NEXT:    v_not_b32_e32 v5, v5
+; GFX10-NEXT:    v_alignbit_b32 v0, v2, v1, v0
+; GFX10-NEXT:    v_alignbit_b32 v1, v4, v3, v5
 ; GFX10-NEXT:    v_lshrrev_b32_e32 v2, 8, v0
 ; GFX10-NEXT:    buffer_store_byte_d16_hi v0, off, s[8:11], 0 offset:29
 ; GFX10-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX10-NEXT:    buffer_store_byte_d16_hi v1, off, s[8:11], 0 offset:26
-; GFX10-NEXT:    buffer_store_short v1, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:28
+; GFX10-NEXT:    buffer_store_short v1, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    s_clause 0x1
 ; GFX10-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
