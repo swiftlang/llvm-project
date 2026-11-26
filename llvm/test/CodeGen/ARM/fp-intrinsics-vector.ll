@@ -848,15 +848,15 @@ define <2 x double> @uitofp_v2f64_v2i32(<2 x i32> %x) #0 {
 ; CHECK-NEXT:    movw r0, #0
 ; CHECK-NEXT:    mov r1, sp
 ; CHECK-NEXT:    movt r0, #17200
+; CHECK-NEXT:    vldr d16, .LCPI35_0
+; CHECK-NEXT:    str r0, [sp, #4]
 ; CHECK-NEXT:    vst1.32 {d0[1]}, [r1:32]
 ; CHECK-NEXT:    add r1, sp, #8
-; CHECK-NEXT:    str r0, [sp, #4]
 ; CHECK-NEXT:    vldr d17, [sp]
 ; CHECK-NEXT:    vst1.32 {d0[0]}, [r1:32]
-; CHECK-NEXT:    vldr d16, .LCPI35_0
 ; CHECK-NEXT:    str r0, [sp, #12]
-; CHECK-NEXT:    vldr d18, [sp, #8]
 ; CHECK-NEXT:    vsub.f64 d1, d17, d16
+; CHECK-NEXT:    vldr d18, [sp, #8]
 ; CHECK-NEXT:    vsub.f64 d0, d18, d16
 ; CHECK-NEXT:    add sp, sp, #16
 ; CHECK-NEXT:    bx lr
@@ -1271,9 +1271,9 @@ define <1 x double> @sitofp_v1f64_v1i32(<1 x i32> %x) #0 {
 ; CHECK-NEXT:    movw r1, #0
 ; CHECK-NEXT:    eor r0, r0, #-2147483648
 ; CHECK-NEXT:    movt r1, #17200
-; CHECK-NEXT:    str r0, [sp]
-; CHECK-NEXT:    str r1, [sp, #4]
 ; CHECK-NEXT:    vldr d16, .LCPI59_0
+; CHECK-NEXT:    str r1, [sp, #4]
+; CHECK-NEXT:    str r0, [sp]
 ; CHECK-NEXT:    vldr d17, [sp]
 ; CHECK-NEXT:    vsub.f64 d0, d17, d16
 ; CHECK-NEXT:    add sp, sp, #8
@@ -1293,10 +1293,10 @@ define <1 x double> @uitofp_v1f64_v1i32(<1 x i32> %x) #0 {
 ; CHECK-NEXT:    .pad #8
 ; CHECK-NEXT:    sub sp, sp, #8
 ; CHECK-NEXT:    movw r1, #0
-; CHECK-NEXT:    str r0, [sp]
-; CHECK-NEXT:    movt r1, #17200
 ; CHECK-NEXT:    vldr d16, .LCPI60_0
+; CHECK-NEXT:    movt r1, #17200
 ; CHECK-NEXT:    str r1, [sp, #4]
+; CHECK-NEXT:    str r0, [sp]
 ; CHECK-NEXT:    vldr d17, [sp]
 ; CHECK-NEXT:    vsub.f64 d0, d17, d16
 ; CHECK-NEXT:    add sp, sp, #8

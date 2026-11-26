@@ -1738,18 +1738,17 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX6-NEXT:    v_lshrrev_b32_e32 v2, 16, v0
 ; GFX6-NEXT:    v_lshrrev_b32_e32 v3, 8, v0
 ; GFX6-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
-; GFX6-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:26
 ; GFX6-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:29
 ; GFX6-NEXT:    buffer_store_byte v3, off, s[8:11], 0 offset:28
+; GFX6-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:26
 ; GFX6-NEXT:    s_waitcnt expcnt(3)
 ; GFX6-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
-; GFX6-NEXT:    s_waitcnt expcnt(2)
+; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
 ; GFX6-NEXT:    s_waitcnt vmcnt(1)
 ; GFX6-NEXT:    v_readfirstlane_b32 s0, v0
 ; GFX6-NEXT:    s_waitcnt vmcnt(0)
 ; GFX6-NEXT:    v_readfirstlane_b32 s1, v1
-; GFX6-NEXT:    s_waitcnt expcnt(0)
 ; GFX6-NEXT:    ; return to shader part epilog
 ;
 ; GFX8-LABEL: s_fshr_v2i24:
@@ -1832,9 +1831,9 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX8-NEXT:    v_lshrrev_b32_e32 v2, 16, v1
 ; GFX8-NEXT:    v_lshrrev_b32_e32 v3, 8, v1
 ; GFX8-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:27
-; GFX8-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:26
 ; GFX8-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:29
 ; GFX8-NEXT:    buffer_store_byte v3, off, s[8:11], 0 offset:28
+; GFX8-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:26
 ; GFX8-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX8-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
 ; GFX8-NEXT:    s_waitcnt vmcnt(1)
@@ -1902,22 +1901,22 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX9-NEXT:    v_or3_b32 v0, v4, v11, v0
 ; GFX9-NEXT:    v_mul_hi_u32 v4, v8, s1
 ; GFX9-NEXT:    v_lshlrev_b32_e32 v3, 8, v3
-; GFX9-NEXT:    v_lshl_or_b32 v2, v2, 24, v3
 ; GFX9-NEXT:    v_mul_u32_u24_e32 v1, 24, v1
+; GFX9-NEXT:    v_lshl_or_b32 v2, v2, 24, v3
 ; GFX9-NEXT:    v_mul_u32_u24_e32 v3, 24, v4
-; GFX9-NEXT:    v_sub_u32_e32 v3, s4, v3
 ; GFX9-NEXT:    v_sub_u32_e32 v1, v6, v1
+; GFX9-NEXT:    v_sub_u32_e32 v3, s4, v3
+; GFX9-NEXT:    v_add_u32_e32 v1, 8, v1
 ; GFX9-NEXT:    v_lshl_or_b32 v9, v10, 24, s2
 ; GFX9-NEXT:    v_add_u32_e32 v3, 8, v3
-; GFX9-NEXT:    v_add_u32_e32 v1, 8, v1
-; GFX9-NEXT:    v_alignbit_b32 v3, v7, v9, v3
 ; GFX9-NEXT:    v_alignbit_b32 v0, v0, v2, v1
+; GFX9-NEXT:    v_alignbit_b32 v3, v7, v9, v3
+; GFX9-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
 ; GFX9-NEXT:    buffer_store_byte_d16_hi v3, off, s[8:11], 0 offset:26
 ; GFX9-NEXT:    buffer_store_short v3, off, s[8:11], 0 offset:24
 ; GFX9-NEXT:    buffer_store_byte_d16_hi v0, off, s[8:11], 0 offset:29
-; GFX9-NEXT:    v_lshrrev_b32_e32 v1, 8, v0
-; GFX9-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX9-NEXT:    buffer_store_byte v1, off, s[8:11], 0 offset:28
+; GFX9-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX9-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX9-NEXT:    s_nop 0
 ; GFX9-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28
@@ -1935,26 +1934,25 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX10-NEXT:    s_load_dwordx4 s[8:11], s[8:9], 0x0
 ; GFX10-NEXT:    v_mov_b32_e32 v1, s1
 ; GFX10-NEXT:    v_mov_b32_e32 v2, s5
-; GFX10-NEXT:    v_mov_b32_e32 v3, s4
+; GFX10-NEXT:    v_mov_b32_e32 v3, s2
+; GFX10-NEXT:    v_mov_b32_e32 v4, s3
 ; GFX10-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX10-NEXT:    s_bitset0_b32 s11, 21
 ; GFX10-NEXT:    s_add_u32 s8, s8, s6
 ; GFX10-NEXT:    s_addc_u32 s9, s9, 0
 ; GFX10-NEXT:    s_and_b32 s1, s2, 0xffff
 ; GFX10-NEXT:    buffer_store_dword v0, off, s[8:11], 0
-; GFX10-NEXT:    v_mov_b32_e32 v0, s3
+; GFX10-NEXT:    v_mov_b32_e32 v0, s4
+; GFX10-NEXT:    s_lshl_b32 s1, s1, 8
+; GFX10-NEXT:    buffer_store_dword v0, off, s[8:11], 0 offset:16
 ; GFX10-NEXT:    buffer_store_short v1, off, s[8:11], 0 offset:4
 ; GFX10-NEXT:    buffer_store_short v2, off, s[8:11], 0 offset:20
-; GFX10-NEXT:    v_mov_b32_e32 v1, s2
-; GFX10-NEXT:    s_lshl_b32 s1, s1, 8
-; GFX10-NEXT:    buffer_store_short v0, off, s[8:11], 0 offset:12
-; GFX10-NEXT:    s_clause 0x1
+; GFX10-NEXT:    buffer_store_dword v3, off, s[8:11], 0 offset:8
+; GFX10-NEXT:    buffer_store_short v4, off, s[8:11], 0 offset:12
+; GFX10-NEXT:    s_clause 0xb
 ; GFX10-NEXT:    buffer_load_ubyte v0, off, s[8:11], 0 offset:21
-; GFX10-NEXT:    buffer_load_ubyte v2, off, s[8:11], 0 offset:20
-; GFX10-NEXT:    buffer_store_dword v3, off, s[8:11], 0 offset:16
-; GFX10-NEXT:    buffer_store_dword v1, off, s[8:11], 0 offset:8
-; GFX10-NEXT:    s_clause 0x9
-; GFX10-NEXT:    buffer_load_ubyte v1, off, s[8:11], 0 offset:18
+; GFX10-NEXT:    buffer_load_ubyte v1, off, s[8:11], 0 offset:20
+; GFX10-NEXT:    buffer_load_ubyte v2, off, s[8:11], 0 offset:18
 ; GFX10-NEXT:    buffer_load_ubyte v3, off, s[8:11], 0 offset:19
 ; GFX10-NEXT:    buffer_load_ubyte v4, off, s[8:11], 0 offset:11
 ; GFX10-NEXT:    buffer_load_ubyte v5, off, s[8:11], 0 offset:13
@@ -1964,14 +1962,15 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX10-NEXT:    buffer_load_ubyte v9, off, s[8:11], 0 offset:2
 ; GFX10-NEXT:    buffer_load_ubyte v10, off, s[8:11], 0 offset:3
 ; GFX10-NEXT:    buffer_load_ubyte v11, off, s[8:11], 0 offset:10
-; GFX10-NEXT:    s_waitcnt vmcnt(9)
-; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 16, v1
-; GFX10-NEXT:    v_and_or_b32 v1, 0xffff, s4, v1
+; GFX10-NEXT:    s_waitcnt vmcnt(11)
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v0, 16, v0
-; GFX10-NEXT:    v_lshlrev_b32_e32 v2, 8, v2
-; GFX10-NEXT:    v_mul_hi_u32 v1, 0xaaaaaab, v1
+; GFX10-NEXT:    s_waitcnt vmcnt(10)
+; GFX10-NEXT:    v_lshlrev_b32_e32 v1, 8, v1
+; GFX10-NEXT:    s_waitcnt vmcnt(9)
+; GFX10-NEXT:    v_lshlrev_b32_e32 v2, 16, v2
 ; GFX10-NEXT:    s_waitcnt vmcnt(8)
-; GFX10-NEXT:    v_or3_b32 v0, v2, v3, v0
+; GFX10-NEXT:    v_or3_b32 v0, v1, v3, v0
+; GFX10-NEXT:    v_and_or_b32 v1, 0xffff, s4, v2
 ; GFX10-NEXT:    s_waitcnt vmcnt(5)
 ; GFX10-NEXT:    v_lshl_or_b32 v2, v6, 8, v4
 ; GFX10-NEXT:    s_waitcnt vmcnt(4)
@@ -1979,28 +1978,29 @@ define amdgpu_ps i48 @s_fshr_v2i24(i48 inreg %lhs.arg, i48 inreg %rhs.arg, i48 i
 ; GFX10-NEXT:    s_waitcnt vmcnt(3)
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v6, 8, v8
 ; GFX10-NEXT:    v_mul_hi_u32 v0, 0xaaaaaab, v0
-; GFX10-NEXT:    v_mul_u32_u24_e32 v1, 24, v1
+; GFX10-NEXT:    v_mul_hi_u32 v1, 0xaaaaaab, v1
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v2, 8, v2
 ; GFX10-NEXT:    s_waitcnt vmcnt(1)
 ; GFX10-NEXT:    v_or3_b32 v4, v6, v10, v4
-; GFX10-NEXT:    v_sub_nc_u32_e32 v1, s4, v1
 ; GFX10-NEXT:    v_lshl_or_b32 v2, v5, 24, v2
 ; GFX10-NEXT:    v_mul_u32_u24_e32 v0, 24, v0
+; GFX10-NEXT:    v_mul_u32_u24_e32 v1, 24, v1
 ; GFX10-NEXT:    s_waitcnt vmcnt(0)
 ; GFX10-NEXT:    v_lshl_or_b32 v5, v11, 24, s1
-; GFX10-NEXT:    v_add_nc_u32_e32 v1, 8, v1
 ; GFX10-NEXT:    v_sub_nc_u32_e32 v0, v3, v0
 ; GFX10-NEXT:    v_lshlrev_b32_e32 v3, 16, v9
+; GFX10-NEXT:    v_sub_nc_u32_e32 v1, s4, v1
 ; GFX10-NEXT:    v_add_nc_u32_e32 v0, 8, v0
 ; GFX10-NEXT:    v_and_or_b32 v3, 0xffff, s0, v3
+; GFX10-NEXT:    v_add_nc_u32_e32 v1, 8, v1
 ; GFX10-NEXT:    v_alignbit_b32 v0, v4, v2, v0
 ; GFX10-NEXT:    v_alignbit_b32 v1, v3, v5, v1
 ; GFX10-NEXT:    v_lshrrev_b32_e32 v2, 8, v0
 ; GFX10-NEXT:    buffer_store_byte_d16_hi v0, off, s[8:11], 0 offset:29
 ; GFX10-NEXT:    buffer_store_byte v0, off, s[8:11], 0 offset:27
 ; GFX10-NEXT:    buffer_store_byte_d16_hi v1, off, s[8:11], 0 offset:26
-; GFX10-NEXT:    buffer_store_short v1, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    buffer_store_byte v2, off, s[8:11], 0 offset:28
+; GFX10-NEXT:    buffer_store_short v1, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    s_clause 0x1
 ; GFX10-NEXT:    buffer_load_dword v0, off, s[8:11], 0 offset:24
 ; GFX10-NEXT:    buffer_load_ushort v1, off, s[8:11], 0 offset:28

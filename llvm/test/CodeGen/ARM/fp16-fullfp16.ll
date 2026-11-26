@@ -751,9 +751,9 @@ define half @sitofp_f16_i32(i32 %x) #0 {
 ; CHECK-NEXT:    movw r1, #0
 ; CHECK-NEXT:    eor r0, r0, #-2147483648
 ; CHECK-NEXT:    movt r1, #17200
-; CHECK-NEXT:    str r0, [sp]
-; CHECK-NEXT:    str r1, [sp, #4]
 ; CHECK-NEXT:    vldr d16, .LCPI57_0
+; CHECK-NEXT:    str r1, [sp, #4]
+; CHECK-NEXT:    str r0, [sp]
 ; CHECK-NEXT:    vldr d17, [sp]
 ; CHECK-NEXT:    vsub.f64 d16, d17, d16
 ; CHECK-NEXT:    vcvtb.f16.f64 s0, d16
@@ -772,10 +772,10 @@ define half @uitofp_f16_i32(i32 %x) #0 {
 ; CHECK:         .pad #8
 ; CHECK-NEXT:    sub sp, sp, #8
 ; CHECK-NEXT:    movw r1, #0
-; CHECK-NEXT:    str r0, [sp]
-; CHECK-NEXT:    movt r1, #17200
 ; CHECK-NEXT:    vldr d16, .LCPI58_0
+; CHECK-NEXT:    movt r1, #17200
 ; CHECK-NEXT:    str r1, [sp, #4]
+; CHECK-NEXT:    str r0, [sp]
 ; CHECK-NEXT:    vldr d17, [sp]
 ; CHECK-NEXT:    vsub.f64 d16, d17, d16
 ; CHECK-NEXT:    vcvtb.f16.f64 s0, d16

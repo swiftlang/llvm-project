@@ -545,8 +545,8 @@ define void @transpose_s16_8x8_(ptr nocapture noundef %0) {
 ; CHECK-NEXT:    stp q3, q4, [x0]
 ; CHECK-NEXT:    zip2 v3.4s, v7.4s, v19.4s
 ; CHECK-NEXT:    stp q17, q18, [x0, #32]
-; CHECK-NEXT:    stp q1, q0, [x0, #96]
 ; CHECK-NEXT:    stp q5, q3, [x0, #64]
+; CHECK-NEXT:    stp q1, q0, [x0, #96]
 ; CHECK-NEXT:    ret
   %2 = load <8 x i16>, ptr %0, align 16
   %3 = getelementptr inbounds <8 x i16>, ptr %0, i64 1

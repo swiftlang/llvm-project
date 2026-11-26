@@ -1468,8 +1468,8 @@ define i64 @wmacc_first_mul_multiple_uses(i32 %a, i32 %b, i32 %c, i32 %d, ptr %o
 ; CHECK-NEXT:    mv a6, a2
 ; CHECK-NEXT:    wmacc a2, a0, a1
 ; CHECK-NEXT:    mvd a0, a2
-; CHECK-NEXT:    sw a6, 0(a4)
 ; CHECK-NEXT:    sw a5, 4(a4)
+; CHECK-NEXT:    sw a6, 0(a4)
 ; CHECK-NEXT:    ret
   %aext = sext i32 %a to i64
   %bext = sext i32 %b to i64

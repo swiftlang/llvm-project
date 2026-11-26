@@ -416,8 +416,8 @@ define void @if_then_else64(ptr %out, i64 %mask, ptr %if_true, ptr %if_false) no
 ; CHECK-LE-NEXT:    ldp d15, d14, [sp, #16] // 16-byte Folded Reload
 ; CHECK-LE-NEXT:    stp q16, q25, [x0, #128]
 ; CHECK-LE-NEXT:    stp q4, q1, [x0, #32]
-; CHECK-LE-NEXT:    stp q0, q6, [x0]
 ; CHECK-LE-NEXT:    stp q3, q2, [x0, #64]
+; CHECK-LE-NEXT:    stp q0, q6, [x0]
 ; CHECK-LE-NEXT:    add sp, sp, #80
 ; CHECK-LE-NEXT:    ret
 ;
@@ -596,8 +596,8 @@ define void @if_then_else64(ptr %out, i64 %mask, ptr %if_true, ptr %if_false) no
 ; CHECK-BE-NEXT:    ldp d9, d8, [sp, #16] // 16-byte Folded Reload
 ; CHECK-BE-NEXT:    st1 { v0.4s }, [x8]
 ; CHECK-BE-NEXT:    add x8, x0, #16
-; CHECK-BE-NEXT:    st1 { v2.4s }, [x0]
 ; CHECK-BE-NEXT:    st1 { v1.4s }, [x8]
+; CHECK-BE-NEXT:    st1 { v2.4s }, [x0]
 ; CHECK-BE-NEXT:    ldp d11, d10, [sp], #32 // 16-byte Folded Reload
 ; CHECK-BE-NEXT:    ret
 start:

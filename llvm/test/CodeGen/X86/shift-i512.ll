@@ -75,19 +75,19 @@ define i512 @shl_i512(i512 %a0, i512 %a1) nounwind {
 ; AVX2-NEXT:    pushq %r14
 ; AVX2-NEXT:    pushq %rbx
 ; AVX2-NEXT:    pushq %rax
-; AVX2-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; AVX2-NEXT:    vmovaps {{[0-9]+}}(%rsp), %xmm0
-; AVX2-NEXT:    movq {{[0-9]+}}(%rsp), %r10
-; AVX2-NEXT:    movq %r10, -{{[0-9]+}}(%rsp)
+; AVX2-NEXT:    movq {{[0-9]+}}(%rsp), %rax
+; AVX2-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    vmovups %xmm0, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    movq %r9, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    movq %r8, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    movq %rcx, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    movq %rdx, -{{[0-9]+}}(%rsp)
+; AVX2-NEXT:    movq %rsi, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    vxorps %xmm0, %xmm0, %xmm0
 ; AVX2-NEXT:    vmovups %ymm0, -{{[0-9]+}}(%rsp)
 ; AVX2-NEXT:    vmovups %ymm0, -{{[0-9]+}}(%rsp)
-; AVX2-NEXT:    movq %rsi, -{{[0-9]+}}(%rsp)
+; AVX2-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; AVX2-NEXT:    movl %eax, %ecx
 ; AVX2-NEXT:    andl $63, %ecx
 ; AVX2-NEXT:    shrl $3, %eax
@@ -169,19 +169,19 @@ define i512 @shl_i512(i512 %a0, i512 %a1) nounwind {
 ; AVX512VL-LABEL: shl_i512:
 ; AVX512VL:       # %bb.0:
 ; AVX512VL-NEXT:    pushq %rax
-; AVX512VL-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; AVX512VL-NEXT:    vmovaps {{[0-9]+}}(%rsp), %xmm0
-; AVX512VL-NEXT:    movq {{[0-9]+}}(%rsp), %r10
-; AVX512VL-NEXT:    movq %r10, -{{[0-9]+}}(%rsp)
+; AVX512VL-NEXT:    movq {{[0-9]+}}(%rsp), %rax
+; AVX512VL-NEXT:    movq %rax, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    vmovups %xmm0, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    movq %r9, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    movq %r8, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    movq %rcx, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    movq %rdx, -{{[0-9]+}}(%rsp)
+; AVX512VL-NEXT:    movq %rsi, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    vxorps %xmm0, %xmm0, %xmm0
 ; AVX512VL-NEXT:    vmovups %ymm0, -{{[0-9]+}}(%rsp)
 ; AVX512VL-NEXT:    vmovups %ymm0, -{{[0-9]+}}(%rsp)
-; AVX512VL-NEXT:    movq %rsi, -{{[0-9]+}}(%rsp)
+; AVX512VL-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; AVX512VL-NEXT:    movl %eax, %ecx
 ; AVX512VL-NEXT:    andl $63, %ecx
 ; AVX512VL-NEXT:    vpbroadcastq %rcx, %xmm0
