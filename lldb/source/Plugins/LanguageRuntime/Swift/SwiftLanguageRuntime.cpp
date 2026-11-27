@@ -1940,32 +1940,22 @@ public:
       const bool transparent_pointers = false;
       const bool omit_empty_base_classes = true;
       const bool ignore_array_bounds = false;
-      bool child_is_base_class = false;
-      bool child_is_deref_of_parent = false;
-      std::string child_name;
 
-      uint32_t child_byte_size;
-      uint32_t child_bitfield_bit_size;
-      uint32_t child_bitfield_bit_offset;
-      uint64_t language_flags;
-
-      auto type_or_err = parent_type.GetChildCompilerTypeAtIndex(
+      auto child_or_err = parent_type.GetChildAtIndex(
           exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-          ignore_array_bounds, child_name, child_byte_size, byte_offset,
-          child_bitfield_bit_size, child_bitfield_bit_offset,
-          child_is_base_class, child_is_deref_of_parent, valobj,
-          language_flags);
-      if (!type_or_err)
-        LLDB_LOG_ERROR(GetLog(LLDBLog::Types), type_or_err.takeError(),
+          ignore_array_bounds, valobj);
+      if (!child_or_err) {
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Types), child_or_err.takeError(),
                        "could not find child #{1}: {0}", idx);
-      else
-        type = *type_or_err;
-
-      if (child_is_base_class)
-        type.Clear(); // invalidate - base classes are dealt with outside of the
-                      // projection
-      else
-        name.SetCStringWithLength(child_name.c_str(), child_name.size());
+        return;
+      }
+      const ChildTypeInfo &child = *child_or_err;
+      // Base classes are dealt with outside of the projection.
+      if (child.is_base_class)
+        return;
+      type = child.type;
+      name = ConstString(child.name);
+      byte_offset = child.byte_offset;
     }
 
     bool IsValid() { return !name.IsEmpty() && type.IsValid(); }
