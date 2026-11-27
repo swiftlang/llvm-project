@@ -44,6 +44,11 @@ struct WrappedDouble {
   var value = 3.5
 }
 
+struct NestedFloats {
+  var two = TwoFloat()
+  var f: Float = 3.5
+}
+
 struct FloatInt {
   var f: Float = 1.5
   var i = 7
@@ -96,6 +101,8 @@ func f_closure() -> () -> Int { return { 12 } }
 func f_two_double() -> TwoDouble { return TwoDouble() }
 func f_two_float() -> TwoFloat { return TwoFloat() }
 func f_wrapped_double() -> WrappedDouble { return WrappedDouble() }
+func f_nested_floats() -> NestedFloats { return NestedFloats() }
+func f_double_tuple() -> (Double, Double) { return (4.5, 5.5) }
 func f_float_int() -> FloatInt { return FloatInt() }
 func f_throws() throws -> Int { return 14 }
 func f_throwing() throws -> Int { throw E() }
@@ -136,6 +143,8 @@ func main() {
   let v_two_double = f_two_double()
   let v_two_float = f_two_float()
   let v_wrapped_double = f_wrapped_double()
+  let v_nested_floats = f_nested_floats()
+  let v_double_tuple = f_double_tuple()
   let v_float_int = f_float_int()
   let v_throws = try! f_throws()
   let v_typed_throws = try! f_typed_throws()
@@ -178,6 +187,7 @@ func main() {
   _ = (v_int, v_int8, v_uint32, v_bool, v_float, v_double, v_class, v_string,
        v_long_string, v_two_int8, v_two_int, v_bool_int32,
        v_has_class, v_closure, v_two_double, v_two_float, v_wrapped_double,
+       v_nested_floats, v_double_tuple,
        v_float_int, v_throws, v_typed_throws, v_typed_throws_large,
        v_three_int, v_no_payload, v_raw_value,
        v_payload, v_optional_int, v_optional_nil, v_optional_class,
