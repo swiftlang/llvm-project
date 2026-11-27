@@ -331,6 +331,7 @@ SBValue SBThread::GetStopErrorValue() {
 SBValue SBThread::GetStopReturnOrErrorValue(bool &is_swift_error_value) {
   LLDB_INSTRUMENT_VA(this, is_swift_error_value);
 
+  is_swift_error_value = false;
   ThreadPlanReturnValue return_value = GetStopReturnValueImpl(m_opaque_sp);
   if (auto *returned = std::get_if<ReturnedValue>(&return_value))
     return SBValue(returned->valobj_sp);
