@@ -1136,9 +1136,11 @@ def swiftTest(func):
             "skipping Swift test because only Darwin, Linux and Windows are supported OSes"
         )(func)
 
+    # Likewise, whether LLDB has the Swift plugin is fixed for the whole run.
+    if not _get_bool_config("swift", fail_value=False):
+        return unittest.skip("Swift plugin not enabled")(func)
+
     def is_not_swift_compatible(self):
-        if not _get_bool_config("swift", fail_value=False):
-            return "Swift plugin not enabled"
         if self.getDebugInfo() == "gmodules":
             return "skipping (gmodules only makes sense for clang tests)"
         if "i386" == self.getArchitecture():
