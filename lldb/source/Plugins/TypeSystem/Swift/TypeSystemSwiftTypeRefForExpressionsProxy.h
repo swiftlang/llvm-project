@@ -201,19 +201,14 @@ public:
     return m_real->GetFieldAtIndex(type, idx, name, bit_offset_ptr,
                                    bitfield_bit_size_ptr, is_bitfield_ptr);
   }
-  llvm::Expected<CompilerType> GetChildCompilerTypeAtIndex(
-      lldb::opaque_compiler_type_t type, ExecutionContext *exe_ctx, size_t idx,
-      bool transparent_pointers, bool omit_empty_base_classes,
-      bool ignore_array_bounds, std::string &child_name,
-      uint32_t &child_byte_size, int32_t &child_byte_offset,
-      uint32_t &child_bitfield_bit_size, uint32_t &child_bitfield_bit_offset,
-      bool &child_is_base_class, bool &child_is_deref_of_parent,
-      ValueObject *valobj, uint64_t &language_flags) override {
-    return m_real->GetChildCompilerTypeAtIndex(
-        type, exe_ctx, idx, transparent_pointers, omit_empty_base_classes,
-        ignore_array_bounds, child_name, child_byte_size, child_byte_offset,
-        child_bitfield_bit_size, child_bitfield_bit_offset, child_is_base_class,
-        child_is_deref_of_parent, valobj, language_flags);
+  llvm::Expected<ChildTypeInfo>
+  GetChildAtIndex(lldb::opaque_compiler_type_t type, ExecutionContext *exe_ctx,
+                  size_t idx, bool transparent_pointers,
+                  bool omit_empty_base_classes, bool ignore_array_bounds,
+                  ValueObject *valobj) override {
+    return m_real->GetChildAtIndex(type, exe_ctx, idx, transparent_pointers,
+                                   omit_empty_base_classes, ignore_array_bounds,
+                                   valobj);
   }
   size_t
   GetIndexOfChildMemberWithName(lldb::opaque_compiler_type_t type,

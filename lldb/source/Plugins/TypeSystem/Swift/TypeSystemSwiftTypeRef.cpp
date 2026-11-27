@@ -3647,6 +3647,50 @@ bool Equivalent(std::optional<CompilerType> l, std::optional<CompilerType> r) {
   return Equivalent(*l, *r);
 }
 
+/// Version tailored to GetChildAtIndex.
+template <>
+bool Equivalent(std::optional<ChildTypeInfo> l,
+                std::optional<ChildTypeInfo> r) {
+  if (!Equivalent(l ? std::optional<CompilerType>(l->type) : std::nullopt,
+                  r ? std::optional<CompilerType>(r->type) : std::nullopt))
+    return false;
+  // Ignore the other properties if SwiftASTContext found no child.
+  if (!l || !r || r->name.empty())
+    return true;
+  llvm::StringRef ast_name(r->name);
+  ast_name.consume_front("__ObjC.");
+  bool equivalent_name = llvm::StringRef(l->name).contains('.') ||
+                         ast_name.contains('.') || ast_name.starts_with("_") ||
+                         Equivalent(l->name, ast_name.str());
+  // Only the runtime detects some indirect enum cases.
+  uint64_t ast_language_flags =
+      r->language_flags |
+      (l->language_flags & TypeSystemSwift::LanguageFlags::eIsIndirectEnumCase);
+  auto check = [](bool equivalent, llvm::StringRef property) {
+    if (!equivalent)
+      llvm::dbgs() << "ChildTypeInfo::" << property << " diverges\n";
+    return equivalent;
+  };
+  return check(equivalent_name, "name") &&
+         check(r->language_flags ||
+                   Equivalent(std::optional<uint64_t>(l->byte_size),
+                              std::optional<uint64_t>(r->byte_size)),
+               "byte_size") &&
+         check(Equivalent(std::optional<uint64_t>(l->byte_offset),
+                          std::optional<uint64_t>(r->byte_offset)),
+               "byte_offset") &&
+         check(Equivalent(l->bitfield_bit_offset, r->bitfield_bit_offset),
+               "bitfield_bit_offset") &&
+         check(Equivalent(l->bitfield_bit_size, r->bitfield_bit_size),
+               "bitfield_bit_size") &&
+         check(Equivalent(l->is_base_class, r->is_base_class),
+               "is_base_class") &&
+         check(Equivalent(l->is_deref_of_parent, r->is_deref_of_parent),
+               "is_deref_of_parent") &&
+         check(Equivalent(l->language_flags, ast_language_flags),
+               "language_flags");
+}
+
 // Introduced for `GetNumChildren`.
 template <typename T> bool Equivalent(std::optional<T> l, T r) {
   return Equivalent(l, std::optional<T>(r));
@@ -5096,36 +5140,20 @@ CompilerType TypeSystemSwiftTypeRef::ConvertClangTypeToSwiftType(
   return result;
 }
 
-llvm::Expected<CompilerType>
-TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
+llvm::Expected<ChildTypeInfo> TypeSystemSwiftTypeRef::GetChildAtIndex(
     opaque_compiler_type_t type, ExecutionContext *exe_ctx, size_t idx,
     bool transparent_pointers, bool omit_empty_base_classes,
-    bool ignore_array_bounds, std::string &child_name,
-    uint32_t &child_byte_size, int32_t &child_byte_offset,
-    uint32_t &child_bitfield_bit_size, uint32_t &child_bitfield_bit_offset,
-    bool &child_is_base_class, bool &child_is_deref_of_parent,
-    ValueObject *valobj, uint64_t &language_flags) {
+    bool ignore_array_bounds, ValueObject *valobj) {
   static constexpr const char *FUNC_NAME = __FUNCTION__;
-  child_name = "";
-  child_byte_size = 0;
-  child_byte_offset = 0;
-  child_bitfield_bit_size = 0;
-  child_bitfield_bit_offset = 0;
-  child_is_base_class = false;
-  child_is_deref_of_parent = false;
-  language_flags = 0;
-  auto fallback = [&]() -> llvm::Expected<CompilerType> {
+  auto fallback = [&]() -> llvm::Expected<ChildTypeInfo> {
     LLDB_LOG(GetLog(LLDBLog::Types),
              "Had to engage SwiftASTContext fallback for type {0}, field #{1}.",
              AsMangledName(type), idx);
     if (auto swift_ast_context =
             GetSwiftASTContext(GetSymbolContextForType(type, exe_ctx)))
-      return swift_ast_context->GetChildCompilerTypeAtIndex(
+      return swift_ast_context->GetChildAtIndex(
           ReconstructType(type, exe_ctx), exe_ctx, idx, transparent_pointers,
-          omit_empty_base_classes, ignore_array_bounds, child_name,
-          child_byte_size, child_byte_offset, child_bitfield_bit_size,
-          child_bitfield_bit_offset, child_is_base_class,
-          child_is_deref_of_parent, valobj, language_flags);
+          omit_empty_base_classes, ignore_array_bounds, valobj);
     return llvm::createStringError("no SwiftASTContext");
   };
   std::optional<unsigned> ast_num_children;
@@ -5139,7 +5167,7 @@ TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
                                             omit_empty_base_classes, exe_ctx));
     return ast_num_children.value_or(0);
   };
-  auto impl = [&]() -> llvm::Expected<CompilerType> {
+  auto impl = [&]() -> llvm::Expected<ChildTypeInfo> {
     std::string error = "unknown error";
     ExecutionContextScope *exe_scope = nullptr;
     if (exe_ctx)
@@ -5147,19 +5175,17 @@ TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
     if (exe_scope) {
       if (auto *runtime =
               SwiftLanguageRuntime::Get(exe_scope->CalculateProcess())) {
-        auto result = runtime->GetChildCompilerTypeAtIndex(
+        auto result = runtime->GetChildAtIndex(
             GetCanonicalType(type, exe_ctx), idx, transparent_pointers,
-            omit_empty_base_classes, ignore_array_bounds, child_name,
-            child_byte_size, child_byte_offset, child_bitfield_bit_size,
-            child_bitfield_bit_offset, child_is_base_class,
-            child_is_deref_of_parent, valobj, language_flags);
-        if (result && *result) {
+            omit_empty_base_classes, ignore_array_bounds, valobj);
+        if (result && result->type) {
           // This type is treated specially by ClangImporter.  It's really a
           // typedef to NSString *, but ClangImporter introduces an extra
           // layer of indirection that we simulate here.
           if (llvm::StringRef(AsMangledName(type))
                   .ends_with("sSo18NSNotificationNameaD"))
-            return GetTypeFromMangledTypename(ConstString("$sSo8NSStringCD"));
+            result->type =
+                GetTypeFromMangledTypename(ConstString("$sSo8NSStringCD"));
           return result;
         }
         if (!result)
@@ -5213,59 +5239,22 @@ TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex(
           runtime->GetNumChildren({weak_from_this(), type}, exe_scope))
           .value_or(0))
     return result;
-  // When the child compiler type is an anonymous clang type,
-  // GetChildCompilerTypeAtIndex will return the clang type directly. In this
-  // case validation will fail as it can't correctly compare the mangled 
-  // clang and Swift names, so return early.
+  // When the child is an anonymous clang type, GetChildAtIndex returns the
+  // clang type directly, and validation can't compare the mangled clang and
+  // Swift names, so return early.
   if (result) {
     if (auto ts_clang =
-            result->GetTypeSystem().dyn_cast_or_null<TypeSystemClang>())
-      if (ts_clang->IsAnonymousType(result->GetOpaqueQualType()))
+            result->type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>())
+      if (ts_clang->IsAnonymousType(result->type.GetOpaqueQualType()))
         return result;
   } else {
     llvm::consumeError(result.takeError());
   }
-  std::string ast_child_name;
-  uint32_t ast_child_byte_size = 0;
-  int32_t ast_child_byte_offset = 0;
-  uint32_t ast_child_bitfield_bit_size = 0;
-  uint32_t ast_child_bitfield_bit_offset = 0;
-  bool ast_child_is_base_class = false;
-  bool ast_child_is_deref_of_parent = false;
-  uint64_t ast_language_flags = 0;
-  auto defer = llvm::scope_exit([&] {
-    // Ignore if SwiftASTContext got no result.
-    if (ast_child_name.empty())
-      return;
-    llvm::StringRef suffix(ast_child_name);
-    if (suffix.consume_front("__ObjC."))
-      ast_child_name = suffix.str();
-    assert((llvm::StringRef(child_name).contains('.') ||
-            llvm::StringRef(ast_child_name).contains('.') ||
-            llvm::StringRef(ast_child_name).starts_with("_") ||
-            Equivalent(child_name, ast_child_name)));
-    assert(ast_language_flags ||
-           (Equivalent(std::optional<uint64_t>(child_byte_size),
-                       std::optional<uint64_t>(ast_child_byte_size))));
-    assert(Equivalent(std::optional<uint64_t>(child_byte_offset),
-                      std::optional<uint64_t>(ast_child_byte_offset)));
-    assert(
-        Equivalent(child_bitfield_bit_offset, ast_child_bitfield_bit_offset));
-    assert(Equivalent(child_bitfield_bit_size, ast_child_bitfield_bit_size));
-    assert(Equivalent(child_is_base_class, ast_child_is_base_class));
-    assert(Equivalent(child_is_deref_of_parent, ast_child_is_deref_of_parent));
-    // There are cases where only the runtime correctly detects an indirect enum.
-    ast_language_flags |= (language_flags & LanguageFlags::eIsIndirectEnumCase);
-    assert(Equivalent(language_flags, ast_language_flags));
-  });
 #endif
-  VALIDATE_AND_RETURN_EXPECTED(
-      impl, GetChildCompilerTypeAtIndex, type, exe_ctx,
-      (ReconstructType(type, exe_ctx), exe_ctx, idx, transparent_pointers,
-       omit_empty_base_classes, ignore_array_bounds, ast_child_name,
-       ast_child_byte_size, ast_child_byte_offset, ast_child_bitfield_bit_size,
-       ast_child_bitfield_bit_offset, ast_child_is_base_class,
-       ast_child_is_deref_of_parent, valobj, ast_language_flags));
+  VALIDATE_AND_RETURN_EXPECTED(impl, GetChildAtIndex, type, exe_ctx,
+                               (ReconstructType(type, exe_ctx), exe_ctx, idx,
+                                transparent_pointers, omit_empty_base_classes,
+                                ignore_array_bounds, valobj));
 }
 
 size_t TypeSystemSwiftTypeRef::GetIndexOfChildMemberWithName(

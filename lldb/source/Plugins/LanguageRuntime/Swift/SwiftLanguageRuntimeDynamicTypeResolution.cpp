@@ -1014,23 +1014,27 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       if (!visit_only || *visit_only == i) {
         bool transparent_pointers = false;
         bool ignore_array_bounds = false;
-        std::string child_name;
-        ChildInfo child;
-        auto child_type_or_err = clang_type.GetChildCompilerTypeAtIndex(
+        auto clang_child_or_err = clang_type.GetChildAtIndex(
             &m_exe_ctx, i, transparent_pointers, m_omit_empty_base_classes,
-            ignore_array_bounds, child_name, child.byte_size, child.byte_offset,
-            child.bitfield_bit_size, child.bitfield_bit_offset,
-            child.is_base_class, child.is_deref_of_parent, clang_valobj.get(),
-            child.language_flags);
-        if (!child_type_or_err)
-          return child_type_or_err.takeError();
+            ignore_array_bounds, clang_valobj.get());
+        if (!clang_child_or_err)
+          return clang_child_or_err.takeError();
+        const ChildTypeInfo &clang_child = *clang_child_or_err;
+        ChildInfo child;
+        child.byte_size = clang_child.byte_size;
+        child.byte_offset = clang_child.byte_offset;
+        child.bitfield_bit_size = clang_child.bitfield_bit_size;
+        child.bitfield_bit_offset = clang_child.bitfield_bit_offset;
+        child.is_base_class = clang_child.is_base_class;
+        child.is_deref_of_parent = clang_child.is_deref_of_parent;
+        child.language_flags = clang_child.language_flags;
         // A base class of a foreign reference type is a subobject of the
         // same Clang object, not a reference of its own.
         bool is_subobject = child.is_base_class &&
                             TypeSystemSwift::IsForeignReferenceType(m_type);
         CompilerType type =
-            is_subobject ? *child_type_or_err : swiftify(*child_type_or_err);
-        auto get_name = [&]() -> std::string { return child_name; };
+            is_subobject ? clang_child.type : swiftify(clang_child.type);
+        auto get_name = [&]() -> std::string { return clang_child.name; };
         auto get_info = [&]() -> llvm::Expected<ChildInfo> { return child; };
         if (auto err = visit_callback(type, depth, get_name, get_info))
           return err;
@@ -1762,10 +1766,9 @@ SwiftRuntimeTypeVisitor::VisitImpl(std::optional<unsigned> visit_only,
       return success;
     }
 
-    // Clang enums have an artificial rawValue property. We could
-    // consider handling them here, but
-    // TypeSystemSwiftTypeRef::GetChildCompilerTypeAtIndex can also
-    // handle them and without a Process.
+    // Clang enums have an artificial rawValue property. It could be handled
+    // here, but TypeSystemSwiftTypeRef::GetChildAtIndex can also handle it
+    // without a Process.
     if (!TypeSystemSwiftTypeRef::IsBuiltinType(m_type) &&
         !type_flags.AnySet(eTypeIsMetatype) && !m_type.IsFunctionType()) {
       LLDB_LOG(GetLog(LLDBLog::Types),
@@ -2061,15 +2064,11 @@ SwiftLanguageRuntime::GetIndexOfChildMemberWithName(
   return {SwiftLanguageRuntime::eFound, child_indexes.size()};
 }
 
-llvm::Expected<CompilerType> SwiftLanguageRuntime::GetChildCompilerTypeAtIndex(
+llvm::Expected<ChildTypeInfo> SwiftLanguageRuntime::GetChildAtIndex(
     CompilerType type, size_t idx, bool transparent_pointers,
     bool omit_empty_base_classes, bool ignore_array_bounds,
-    std::string &child_name, uint32_t &child_byte_size,
-    int32_t &child_byte_offset, uint32_t &child_bitfield_bit_size,
-    uint32_t &child_bitfield_bit_offset, bool &child_is_base_class,
-    bool &child_is_deref_of_parent, ValueObject *valobj,
-    uint64_t &language_flags) {
-  CompilerType child_type;
+    ValueObject *valobj) {
+  ChildTypeInfo child;
   bool found = false;
   SwiftRuntimeTypeVisitor visitor(*this, type, valobj, omit_empty_base_classes);
   llvm::Error error = visitor.VisitChildAtIndex(
@@ -2079,24 +2078,24 @@ llvm::Expected<CompilerType> SwiftLanguageRuntime::GetChildCompilerTypeAtIndex(
         auto info_or_err = get_child_info();
         if (!info_or_err)
           return info_or_err.takeError();
-        auto child = *info_or_err;
+        const SwiftRuntimeTypeVisitor::ChildInfo &info = *info_or_err;
         found = true;
-        child_type = type;
-        child_name = get_child_name();
-        child_byte_size = child.byte_size;
-        child_byte_offset = child.byte_offset;
-        child_bitfield_bit_size = child.bitfield_bit_size;
-        child_bitfield_bit_offset = child.bitfield_bit_offset;
-        child_is_base_class = child.is_base_class;
-        child_is_deref_of_parent = child.is_deref_of_parent;
-        language_flags = child.language_flags;
+        child.type = type;
+        child.name = get_child_name();
+        child.byte_size = info.byte_size;
+        child.byte_offset = info.byte_offset;
+        child.bitfield_bit_size = info.bitfield_bit_size;
+        child.bitfield_bit_offset = info.bitfield_bit_offset;
+        child.is_base_class = info.is_base_class;
+        child.is_deref_of_parent = info.is_deref_of_parent;
+        child.language_flags = info.language_flags;
         return llvm::Error::success();
       });
   if (error)
     return error;
   if (!found)
     return llvm::createStringError("index out of bounds");
-  return child_type;
+  return child;
 }
 
 CompilerType SwiftLanguageRuntime::GetBaseClass(CompilerType class_ty) {
