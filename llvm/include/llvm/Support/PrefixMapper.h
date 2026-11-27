@@ -1,13 +1,18 @@
-//===- llvm/Support/PrefixMapper.h - Prefix mapping utility -----*- C++ -*-===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// Prefix mapping utility.
+///
+//===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TABLEGEN_PREFIXMAPPER_H
-#define LLVM_TABLEGEN_PREFIXMAPPER_H
+#ifndef LLVM_SUPPORT_PREFIXMAPPER_H
+#define LLVM_SUPPORT_PREFIXMAPPER_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -18,7 +23,6 @@
 #include <optional>
 
 namespace llvm {
-class StringSaver;
 
 namespace vfs {
 class FileSystem;
@@ -38,6 +42,7 @@ struct MappedPrefix {
   bool operator==(const MappedPrefix &RHS) const {
     return Old == RHS.Old && New == RHS.New;
   }
+
   bool operator!=(const MappedPrefix &RHS) const { return !(*this == RHS); }
 
   LLVM_ABI static std::optional<MappedPrefix>
@@ -60,9 +65,21 @@ struct MappedPrefix {
 
 /// Remap path prefixes.
 ///
-/// FIXME: The StringSaver should be optional. Only APIs returning StringRef
-/// need it, and those could assert/crash if one is not configured.
-class PrefixMapper {
+/// Mappings are tried in order and the first match wins. A mapping only
+/// matches whole path components: \c Old must be followed by a separator or
+/// the end of the path, unless \c Old itself ends with a separator. For
+/// example, "/old=/new" remaps "/old" and "/old/a" but not "/old-a", and
+/// "/=/new" remaps every absolute path. With a Windows path style, matching is
+/// case- and separator-insensitive.
+///
+/// The rest of the path is joined to \c New with \a sys::path::append(): a
+/// separator is added if neither side has one, and leading separators are
+/// dropped from the rest if \c New ends with one. For example, "/old/a" maps to
+/// "/new/a" with either "/old=/new" or "/old/=/new/".
+///
+/// Paths are not canonicalized, so "/old/../a" maps to "/new/../a", "/old//a"
+/// maps to "/new//a", and "//old" is not matched by "/old".
+class LLVM_ABI PrefixMapper {
 public:
   virtual ~PrefixMapper() = default;
 
@@ -70,31 +87,31 @@ public:
   ///
   /// \pre \p Path is not a reference into \p NewPath.
   /// \returns true if \c NewPath was mapped.
-  LLVM_ABI bool map(StringRef Path, SmallVectorImpl<char> &NewPath);
+  bool map(StringRef Path, SmallVectorImpl<char> &NewPath) const;
   /// Map \p Path, and saving the new (or existing) path in \p NewPath.
   ///
   /// \pre \p Path is not a reference into \p NewPath.
   /// \returns true if \c NewPath was mapped.
-  LLVM_ABI bool map(StringRef Path, std::string &NewPath);
+  bool map(StringRef Path, std::string &NewPath) const;
 
   /// Map \p Path, returning \a std::string.
-  LLVM_ABI std::string mapToString(StringRef Path);
+  std::string mapToString(StringRef Path) const;
 
   /// Map \p Path in place.
   /// \returns true if the path was modified.
-  LLVM_ABI bool mapInPlace(SmallVectorImpl<char> &Path);
+  bool mapInPlace(SmallVectorImpl<char> &Path) const;
 
   /// Map \p Path in place.
   /// \returns true if the path was modified.
-  LLVM_ABI bool mapInPlace(std::string &Path);
+  bool mapInPlace(std::string &Path) const;
 
 protected:
   /// Map (or unmap) \p Path. On a match, fills \p Storage with the mapped path
   /// unless it's an exact match.
   ///
   /// \pre \p Path is not a reference into \p Storage.
-  LLVM_ABI virtual std::optional<StringRef>
-  mapImpl(StringRef Path, SmallVectorImpl<char> &Storage);
+  virtual std::optional<StringRef>
+  mapImpl(StringRef Path, SmallVectorImpl<char> &Storage) const;
 
 public:
   virtual void add(const MappedPrefix &MP) { Mappings.push_back(MP); }
@@ -104,14 +121,12 @@ public:
   /// if both the source and build directories are remapped and one is nested
   /// inside the other, the nested one will come first.
   ///
-  /// FIXME: Doubtful that this would work correctly on windows, since it's
-  /// case- and separator-sensitive.
+  /// FIXME: The comparison is case- and separator-sensitive, unlike matching
+  /// with a Windows path style.
   ///
   /// FIXME: Should probably be done implicitly, maybe by moving to a std::set
   /// or std::map.
-  ///
-  /// TODO: Test.
-  LLVM_ABI void sort();
+  void sort();
 
   template <class RangeT> void addRange(const RangeT &Mappings) {
     for (const MappedPrefix &M : Mappings)
@@ -129,7 +144,7 @@ public:
 
   sys::path::Style getPathStyle() const { return PathStyle; }
 
-  PrefixMapper(sys::path::Style PathStyle = sys::path::Style::native)
+  explicit PrefixMapper(sys::path::Style PathStyle = sys::path::Style::native)
       : PathStyle(PathStyle) {}
 
 private:
@@ -170,19 +185,19 @@ private:
 class TreePathPrefixMapper : public PrefixMapper {
 private:
   LLVM_ABI std::optional<StringRef>
-  mapImpl(StringRef Path, SmallVectorImpl<char> &Storage) override;
+  mapImpl(StringRef Path, SmallVectorImpl<char> &Storage) const override;
 
   /// Find the tree path for \p Path, getting the real path for its parent
   /// directory but not following symlinks in \a sys::path::filename().
   ///
   /// \returns The tree path, or none if there are any errors.
-  LLVM_ABI std::optional<StringRef> getTreePath(StringRef Path);
+  LLVM_ABI std::optional<StringRef> getTreePath(StringRef Path) const;
 
 public:
   LLVM_ABI void add(const MappedPrefix &Mapping) override;
 
   LLVM_ABI StringRef mapDirEntry(const vfs::CachedDirectoryEntry &Entry,
-                                 SmallVectorImpl<char> &Storage);
+                                 SmallVectorImpl<char> &Storage) const;
 
   LLVM_ABI
   TreePathPrefixMapper(IntrusiveRefCntPtr<vfs::FileSystem> FS,
@@ -195,4 +210,4 @@ private:
 
 } // end namespace llvm
 
-#endif // LLVM_TABLEGEN_PREFIXMAPPER_H
+#endif // LLVM_SUPPORT_PREFIXMAPPER_H
