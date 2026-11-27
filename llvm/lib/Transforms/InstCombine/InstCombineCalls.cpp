@@ -5394,7 +5394,7 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
     return NewCall;
   }
 
-  if (isRemovableAlloc(&Call, &TLI))
+  if (isRemovableAlloc(&Call))
     return visitAllocSite(Call);
 
   // Handle intrinsics which can be used in both call and invoke context.
