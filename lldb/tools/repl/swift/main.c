@@ -63,6 +63,8 @@ int main() {
 #elif defined(__linux__) || defined(__FreeBSD__)
   dlopen("libswiftCore.so", RTLD_LAZY);
 #elif defined(_WIN32)
+  // The REPL reads stdout through a pipe, which the CRT would buffer.
+  setvbuf(stdout, NULL, _IONBF, 0);
   HMODULE hModule = LoadLibraryW(L"swiftCore.dll");
   if (hModule == NULL)
     return EXIT_FAILURE;
