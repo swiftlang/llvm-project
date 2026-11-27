@@ -36,8 +36,8 @@ class TestFunctionVariables(TestBase):
         self.assertEqual(func_ptr_value.GetChildAtIndex(0).GetNumChildren(), 0)
         self.assertEqual(func_ptr_value.GetChildAtIndex(1).GetNumChildren(), 0)
 
-        # Grab the function pointer value as an unsigned load address
-        func_ptr_addr = func_ptr_value.GetValueAsUnsigned()
+        # Grab the function pointer value as a load address
+        func_ptr_addr = func_ptr_value.GetValueAsAddress()
 
         # Resolve the load address into a section + offset address
         # (lldb.SBAddress)

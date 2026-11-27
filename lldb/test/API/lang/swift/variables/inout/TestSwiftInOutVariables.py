@@ -206,6 +206,6 @@ class TestSwiftInOutVariables(TestBase):
         self.assertTrue(dict_var.IsValid(), "Got an invalid value for the first element: %s"%(dict_var.GetError().GetCString()))
         func_value = dict_var.GetChildMemberWithName("value")
         self.assertTrue(func_value.IsValid(), "Got an invalid value for func ptr: %s"%(func_value.GetError().GetCString()))
-        func_sc = target.ResolveSymbolContextForAddress(target.ResolveLoadAddress(func_value.GetValueAsUnsigned()), lldb.eSymbolContextFunction)
+        func_sc = target.ResolveSymbolContextForAddress(target.ResolveLoadAddress(func_value.GetValueAsAddress()), lldb.eSymbolContextFunction)
         self.assertTrue(func_sc.GetFunction().IsValid(), "We couldn't look up the function target.") 
 
