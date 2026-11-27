@@ -122,7 +122,7 @@ bool ClangIndexRecordWriter::writeRecord(StringRef Filename,
     auto DeclOrMacro =
         llvm::PointerUnion<const Decl *, const MacroInfo *>::getFromOpaqueValue(
             const_cast<void *>(OD));
-    if (auto *MI = DeclOrMacro.dyn_cast<const MacroInfo *>()) {
+    if (auto *MI = dyn_cast<const MacroInfo *>(DeclOrMacro)) {
       auto *II = MacroNames[MI];
       assert(II);
       Sym.SymInfo = getSymbolInfoForMacro(*MI);

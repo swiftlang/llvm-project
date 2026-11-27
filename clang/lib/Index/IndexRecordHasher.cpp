@@ -162,7 +162,7 @@ std::array<uint8_t, 8> index::hashRecord(const FileIndexRecord &record,
     hasher.HashBuilder.add(Info.Roles);
     hasher.HashBuilder.add(Info.Offset);
 
-    if (auto *D = Info.DeclOrMacro.dyn_cast<const Decl *>()) {
+    if (auto *D = dyn_cast<const Decl *>(Info.DeclOrMacro)) {
       hasher.hashDecl(D);
     } else {
       hasher.hashMacro(Info.MacroName,
