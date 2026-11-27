@@ -20,9 +20,9 @@ int * __counted_by(len) baz(int len);
 // CHECK-SAME: i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @baz(i32 noundef [[LEN]]) #[[ATTR4:[0-9]+]]
-// CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
+// CHECK-NEXT:    [[IDX_EXT:%.*]] = zext nneg i32 [[LEN]] to i64
 // CHECK-NEXT:    [[CALL1:%.*]] = tail call ptr @bar(i32 noundef [[LEN]]) #[[ATTR4]]
-// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META5:![0-9]+]]
+// CHECK-NEXT:    [[MUL:%.*]] = shl nuw nsw i64 [[IDX_EXT]], 2, !annotation [[META5:![0-9]+]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META7:![0-9]+]]
@@ -59,9 +59,9 @@ struct Outer *foo(int len) {
 // CHECK-SAME: i32 noundef [[LEN:%.*]]) local_unnamed_addr #[[ATTR0]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[CALL:%.*]] = tail call ptr @baz(i32 noundef [[LEN]]) #[[ATTR4]]
-// CHECK-NEXT:    [[IDX_EXT:%.*]] = sext i32 [[LEN]] to i64
+// CHECK-NEXT:    [[IDX_EXT:%.*]] = zext nneg i32 [[LEN]] to i64
 // CHECK-NEXT:    [[CALL1:%.*]] = tail call ptr @bar(i32 noundef [[LEN]]) #[[ATTR4]]
-// CHECK-NEXT:    [[MUL:%.*]] = shl nsw i64 [[IDX_EXT]], 2, !annotation [[META5]]
+// CHECK-NEXT:    [[MUL:%.*]] = shl nuw nsw i64 [[IDX_EXT]], 2, !annotation [[META5]]
 // CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[LEN]], -5
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP]])
 // CHECK-NEXT:    [[TMP0:%.*]] = getelementptr i8, ptr [[CALL1]], i64 [[MUL]], !annotation [[META7]]

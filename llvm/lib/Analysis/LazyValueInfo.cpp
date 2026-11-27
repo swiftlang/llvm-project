@@ -491,7 +491,7 @@ public:
                                      BasicBlock *ToBB,
                                      Instruction *CxtI = nullptr);
 
-  ValueLatticeElement getValueAtUse(const Use &U);
+  ValueLatticeElement getValueAtUse(const Use &U, bool AssumeFrozen = false);
 
   /// Complete flush all previously computed values
   void clear() {
@@ -1842,7 +1842,8 @@ getValueOnEdge(Value *V, BasicBlock *FromBB, BasicBlock *ToBB,
   return *Result;
 }
 
-ValueLatticeElement LazyValueInfoImpl::getValueAtUse(const Use &U) {
+ValueLatticeElement LazyValueInfoImpl::getValueAtUse(const Use &U,
+                                                     bool AssumeFrozen) {
   Value *V = U.get();
   auto *CxtI = cast<Instruction>(U.getUser());
   ValueLatticeElement VL = getValueInBlock(V, CxtI->getParent(), CxtI);
@@ -1851,8 +1852,7 @@ ValueLatticeElement LazyValueInfoImpl::getValueAtUse(const Use &U) {
   // Check whether the only (possibly transitive) use of the value is in a
   // position where V can be constrained by a select or branch condition.
   const Use *CurrU = &U;
-  // TODO: Increase limit?
-  const unsigned MaxUsesToInspect = 3;
+  const unsigned MaxUsesToInspect = 6;
   for (unsigned I = 0; I < MaxUsesToInspect; ++I) {
     std::optional<ValueLatticeElement> CondVal;
     auto *CurrI = cast<Instruction>(CurrU->getUser());
@@ -1868,10 +1868,13 @@ ValueLatticeElement LazyValueInfoImpl::getValueAtUse(const Use &U) {
     }
 
     if (auto *SI = dyn_cast<SelectInst>(CurrI)) {
-      // If the value is undef, a different value may be chosen in
-      // the select condition and at use.
-      if (!isGuaranteedNotToBeUndef(SI->getCondition(), AC))
+      // If the value is undef, a different value may be chosen in the select
+      // condition and at use, so bail.
+      //
+      // Allow if AssumeFrozen (the caller is going to freeze V).
+      if (!AssumeFrozen && !isGuaranteedNotToBeUndef(SI->getCondition(), AC))
         break;
+
       if (CurrU->getOperandNo() == 1)
         CondVal =
             *getValueFromCondition(V, SI->getCondition(), /*IsTrueDest*/ true,
@@ -2022,8 +2025,9 @@ ConstantRange LazyValueInfo::getConstantRange(Value *V, Instruction *CxtI,
 }
 
 ConstantRange LazyValueInfo::getConstantRangeAtUse(const Use &U,
-                                                   bool UndefAllowed) {
-  ValueLatticeElement Result = getOrCreateImpl().getValueAtUse(U);
+                                                   bool UndefAllowed,
+                                                   bool AssumeFrozen) {
+  ValueLatticeElement Result = getOrCreateImpl().getValueAtUse(U, AssumeFrozen);
   return Result.asConstantRange(U->getType(), UndefAllowed);
 }
 
