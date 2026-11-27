@@ -2355,7 +2355,7 @@ private:
 
   llvm::Constant *applyOffsetArgument(llvm::Constant *C,
                                       llvm::Constant *Offset) {
-    return llvm::ConstantExpr::getGetElementPtr(CGM.Int8Ty, C, Offset);
+    return llvm::ConstantExpr::getPtrAdd(C, Offset);
   }
   /* TO_UPSTREAM(BoundsSafety) OFF */
 };
