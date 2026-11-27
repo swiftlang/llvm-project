@@ -62,6 +62,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/TimeProfiler.h"
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -1364,7 +1365,10 @@ OnDiskGraphDB::load(ObjectID ExternalRef) {
 
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
-  auto File = sys::fs::openNativeFileForRead(Path);
+  auto File = [&] {
+    TimeTraceScope OpenScope("Open Object File", Path);
+    return sys::fs::openNativeFileForRead(Path);
+  }();
   if (!File)
     return createFileError(Path, File.takeError());
 
@@ -1633,6 +1637,7 @@ Error OnDiskGraphDB::store(ObjectID ID, ArrayRef<ObjectID> Refs,
     if (Existing.SK != TrieRecord::StorageKind::Unknown)
       return Error::success();
   }
+  TimeTraceScope CreateScope("Create Object");
 
   auto BypassSandbox = sys::sandbox::scopedDisable();
 
@@ -1750,6 +1755,7 @@ Error OnDiskGraphDB::storeFile(ObjectID ID, StringRef FilePath) {
 Error OnDiskGraphDB::storeFile(
     ObjectID ID, StringRef FilePath,
     std::optional<InternalUpstreamImportKind> ImportKind) {
+  TimeTraceScope TimeScope("OnDiskGraphDB::storeFile", FilePath);
   auto I = getIndexProxyFromRef(getInternalRef(ID));
   if (LLVM_UNLIKELY(!I))
     return I.takeError();
@@ -1863,6 +1869,7 @@ OnDiskGraphDB::open(StringRef AbsPath, StringRef HashName,
                     unsigned HashByteSize, OnDiskGraphDB *UpstreamDB,
                     std::shared_ptr<OnDiskCASLogger> Logger,
                     FaultInPolicy Policy) {
+  TimeTraceScope TimeScope("OnDiskGraphDB::open", AbsPath);
   if (std::error_code EC = sys::fs::create_directories(AbsPath))
     return createFileError(AbsPath, EC);
 
@@ -2062,6 +2069,7 @@ Expected<std::optional<ObjectHandle>>
 OnDiskGraphDB::faultInFromUpstream(ObjectID PrimaryID) {
   if (!UpstreamDB)
     return std::nullopt;
+  TimeTraceScope TimeScope("OnDiskGraphDB::faultInFromUpstream");
 
   auto UpstreamID = UpstreamDB->getReference(getDigest(PrimaryID));
   if (LLVM_UNLIKELY(!UpstreamID))

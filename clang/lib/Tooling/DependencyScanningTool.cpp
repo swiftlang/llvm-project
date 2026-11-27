@@ -23,6 +23,7 @@
 #include "llvm/ADT/iterator.h"
 #include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/TargetParser/Host.h"
 #include <optional>
 
@@ -506,6 +507,12 @@ Expected<llvm::cas::CASID> clang::scanAndUpdateCC1InlineWithTool(
     DependencyScanningTool &Tool, DiagnosticConsumer &DiagsConsumer,
     raw_ostream *VerboseOS, CompilerInvocation &Invocation,
     StringRef WorkingDirectory) {
+  llvm::TimeTraceScope TimeScope("scanAndUpdateCC1InlineWithTool", [&] {
+    const auto &Inputs = Invocation.getFrontendOpts().Inputs;
+    return !Inputs.empty() && Inputs.front().isFile()
+               ? Inputs.front().getFile().str()
+               : std::string();
+  });
   llvm::PrefixMapper Mapper;
   DepscanPrefixMapping::configurePrefixMapper(Invocation, Mapper);
 

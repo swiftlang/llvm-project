@@ -28,6 +28,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/TargetParser.h"
@@ -2107,6 +2108,7 @@ static llvm::StringRef getGCCToolchainDir(const ArgList &Args,
 /// triple.
 void Generic_GCC::GCCInstallationDetector::init(
     const llvm::Triple &TargetTriple, const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("Generic_GCC::GCCInstallationDetector::init");
   llvm::Triple BiarchVariantTriple = TargetTriple.isArch32Bit()
                                          ? TargetTriple.get64BitArchVariant()
                                          : TargetTriple.get32BitArchVariant();

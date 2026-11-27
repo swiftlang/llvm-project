@@ -81,6 +81,7 @@
 #include "llvm/Support/PrefixMapper.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1567,6 +1568,8 @@ createBaseFS(const FileSystemOptions &FSOpts, const FrontendOptions &FEOpts,
   auto makeIncludeTreeFS = [&](std::shared_ptr<llvm::cas::ObjectStore> CAS,
                                llvm::cas::CASID &ID)
       -> Expected<IntrusiveRefCntPtr<llvm::vfs::FileSystem>> {
+    llvm::TimeTraceScope TimeScope("createBaseFS::makeIncludeTreeFS",
+                                   FEOpts.CASIncludeTreeID);
     std::optional<llvm::cas::ObjectRef> Ref = CAS->getReference(ID);
     if (!Ref)
       return llvm::createStringError(llvm::inconvertibleErrorCode(),

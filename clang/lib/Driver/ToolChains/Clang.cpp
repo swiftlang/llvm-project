@@ -5243,6 +5243,15 @@ static void addCachingOptions(ArgStringList &CmdArgs) {
     CmdArgs.push_back("-Werror=reproducible-caching");
 }
 
+static void addTimeTraceArgs(Compilation &C, const JobAction &JA,
+                             const ArgList &Args, ArgStringList &CmdArgs) {
+  if (const char *Name = C.getTimeTraceFile(&JA)) {
+    CmdArgs.push_back(Args.MakeArgString("-ftime-trace=" + Twine(Name)));
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_verbose);
+  }
+}
+
 void Clang::ConstructJob(Compilation &C, const JobAction &Job,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -5350,6 +5359,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
       // Pass depscan related options to cc1depscan.
       Args.addAllArgs(CmdArgs, DepScanOpts);
 
+      Args.AddLastArg(CmdArgs, options::OPT_ftime_trace,
+                      options::OPT_ftime_trace_EQ);
+      Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+      Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_verbose);
+
       assert(Output.isFilename() && "Depscan needs to have file output");
       CmdArgs.push_back("-o");
       CmdArgs.push_back(Output.getFilename());
@@ -5399,6 +5413,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
       }
       CmdArgs.push_back(Args.MakeArgString(Out));
     }
+    addTimeTraceArgs(C, JA, Args, CmdArgs);
     // FIXME: Clean up this code and factor out the common logic (see the end of
     // the function)
     const char *Exec = D.getDriverProgramPath();
@@ -7536,11 +7551,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &Job,
   Args.AddLastArg(CmdArgs, options::OPT_fno_temp_file);
   Args.AddLastArg(CmdArgs, options::OPT_fsuppress_conflicting_types);
 
-  if (const char *Name = C.getTimeTraceFile(&JA)) {
-    CmdArgs.push_back(Args.MakeArgString("-ftime-trace=" + Twine(Name)));
-    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
-    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_verbose);
-  }
+  addTimeTraceArgs(C, JA, Args, CmdArgs);
 
   if (Arg *A = Args.getLastArg(options::OPT_ftrapv_handler_EQ)) {
     CmdArgs.push_back("-ftrapv-handler");

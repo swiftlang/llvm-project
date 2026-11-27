@@ -11,6 +11,7 @@
 #include "llvm/CAS/BuiltinUnifiedCASDatabases.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
 using namespace llvm::cas;
@@ -29,6 +30,7 @@ CASConfiguration::createDatabases() const {
   if (CASPath.empty()) {
     return std::pair(createInMemoryCAS(), createInMemoryActionCache());
   }
+  TimeTraceScope TimeScope("CASConfiguration::createDatabases", CASPath);
 
   SmallString<128> PathBuf;
   if (auto E = getResolvedCASPath(PathBuf))

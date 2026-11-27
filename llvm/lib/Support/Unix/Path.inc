@@ -18,6 +18,7 @@
 #include "Unix.h"
 
 #include "llvm/Support/IOSandbox.h"
+#include "llvm/Support/TimeProfiler.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -862,6 +863,7 @@ std::error_code setLastAccessAndModificationTime(int FD, TimePoint<> AccessTime,
 
 std::error_code mapped_file_region::init(int FD, uint64_t Offset, mapmode Mode,
                                          const char *Name) {
+  TimeTraceScope TimeScope("mapped_file_region::init");
   assert(Size != 0);
 
   int flags = (Mode == readwrite) ? MAP_SHARED : MAP_PRIVATE;
@@ -908,11 +910,14 @@ mapped_file_region::mapped_file_region(int fd, mapmode mode, size_t length,
 }
 
 void mapped_file_region::unmapImpl() {
-  if (Mapping)
+  if (Mapping) {
+    TimeTraceScope TimeScope("mapped_file_region::unmapImpl");
     ::munmap(Mapping, Size);
+  }
 }
 
 std::error_code mapped_file_region::sync() const {
+  TimeTraceScope TimeScope("mapped_file_region::sync");
   if (int Res = sys::RetryAfterSignal(-1, ::msync, Mapping, Size, MS_SYNC))
     return std::error_code(Res, std::generic_category());
   return std::error_code();

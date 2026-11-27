@@ -19,8 +19,26 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/TimeProfiler.h"
 
 using namespace clang;
+
+std::optional<unsigned>
+clang::getClangCacheTimeTraceGranularity(DiagnosticsEngine *Diags) {
+  if (!llvm::sys::Process::GetEnv("CLANG_CACHE_TIME_TRACE"))
+    return std::nullopt;
+  auto Value = llvm::sys::Process::GetEnv("CLANG_CACHE_TIME_TRACE_GRANULARITY");
+  if (!Value)
+    return 500;
+  unsigned Granularity;
+  if (!llvm::to_integer(*Value, Granularity)) {
+    if (Diags)
+      Diags->Report(diag::err_clang_cache_env_var)
+          << "CLANG_CACHE_TIME_TRACE_GRANULARITY" << *Value;
+    return std::nullopt;
+  }
+  return Granularity;
+}
 
 static bool isSameProgram(StringRef clangCachePath, StringRef compilerPath) {
   using namespace llvm::sys;
@@ -47,6 +65,7 @@ static bool isSameProgram(StringRef clangCachePath, StringRef compilerPath) {
 static bool shouldCacheInvocation(ArrayRef<const char *> Args,
                                   IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
                                   bool &SupportsMCCAS, bool &IsCOFF) {
+  llvm::TimeTraceScope TimeScope("shouldCacheInvocation");
   SmallVector<const char *, 128> CheckArgs(Args.begin(), Args.end());
   // Make sure "-###" is not present otherwise we won't get an object back.
   CheckArgs.erase(
@@ -139,7 +158,8 @@ static void addCommonArgs(bool ForDriver, SmallVectorImpl<const char *> &Args,
 /// Arguments specific to \p clang-cache compiler launcher functionality.
 static void addLauncherArgs(SmallVectorImpl<const char *> &AllArgs,
                             llvm::StringSaver &Saver, bool SupportsMCCAS,
-                            bool IsCLMode, bool IsCOFF) {
+                            bool IsCLMode, bool IsCOFF,
+                            std::optional<unsigned> TimeTraceGranularity) {
   // Split the args at the end of option (EOO) marker "--", if any.
   auto InsertPoint =
       llvm::find_if(AllArgs, [](const char *Elem) { return StringRef(Elem) == "--"; });
@@ -228,6 +248,10 @@ static void addLauncherArgs(SmallVectorImpl<const char *> &AllArgs,
   }
   AppendArgs({"-greproducible"});
 
+  if (TimeTraceGranularity)
+    AppendArgs({"-ftime-trace", "-ftime-trace-granularity=" +
+                                    std::to_string(*TimeTraceGranularity)});
+
   if (SupportsMCCAS && !ServicePath &&
       !llvm::sys::Process::GetEnv("CLANG_CACHE_DISABLE_MCCAS")) {
     AppendArgs({"-Xclang", "-fcas-backend"});
@@ -305,6 +329,13 @@ clang::handleClangCacheInvocation(SmallVectorImpl<const char *> &Args,
     return std::nullopt;
   }
 
+  std::optional<unsigned> TimeTraceGranularity =
+      getClangCacheTimeTraceGranularity(&Diags);
+  if (Diags.hasErrorOccurred())
+    return 1;
+  if (TimeTraceGranularity)
+    llvm::timeTraceProfilerInitialize(*TimeTraceGranularity, clangCachePath);
+
   llvm::ErrorOr<std::string> compilerPathOrErr =
       llvm::sys::findProgramByName(Args.front());
   if (!compilerPathOrErr) {
@@ -318,12 +349,15 @@ clang::handleClangCacheInvocation(SmallVectorImpl<const char *> &Args,
   if (isSameProgram(clangCachePath, compilerPath)) {
     bool SupportsMCCAS = false, IsCOFF = false;
     if (!shouldCacheInvocation(Args, DiagsPtr, SupportsMCCAS, IsCOFF)) {
+      if (llvm::timeTraceProfilerEnabled())
+        llvm::timeTraceProfilerCleanup();
       if (Diags.hasErrorOccurred())
         return 1;
       return std::nullopt;
     }
     bool IsCLMode = driver::getDriverMode(compilerPath, ArrayRef(Args)) == "cl";
-    addLauncherArgs(Args, Saver, SupportsMCCAS, IsCLMode, IsCOFF);
+    addLauncherArgs(Args, Saver, SupportsMCCAS, IsCLMode, IsCOFF,
+                    TimeTraceGranularity);
     return std::nullopt;
   }
 
