@@ -7,7 +7,6 @@ import lldbsuite.test.lldbutil as lldbutil
 class TestSwiftOpaqueReturnResilientCollection(TestBase):
     @swiftTest
     @requireNotEmbeddedSwift
-    @skipIf(debug_info=["pdb"])
     def test(self):
         self.build()
         self.runCmd("settings set symbols.swift-enable-ast-context false")

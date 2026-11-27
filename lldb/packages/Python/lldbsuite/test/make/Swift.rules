@@ -59,6 +59,11 @@ SWIFTFLAGS ?= $(SWIFT_DEBUG_INFO_FLAG) -Onone -Xfrontend -serialize-debugging-op
 
 ifeq "$(MAKE_PDB)" "YES"
 SWIFT_LINK_FLAGS = $(SWIFTFLAGS) -Xlinker /debug
+# link.exe has no -rpath and takes the directory after it for an input file.
+LD_EXTRAS := $(subst -Xlinker -rpath -Xlinker $(BUILDDIR),,$(LD_EXTRAS))
+# link.exe names the import library of a.out a.lib, which is also the import
+# library of a module named A, and refuses to overwrite an input.
+SWIFT_EXE_LINK_FLAGS = -Xlinker /IMPLIB:$(EXE).lib
 else
 # On Darwin, debug-info flags (`-g`, `-gdwarf-types`) automatically run
 # `dsymutil` at link time. Removed so it can be enabled explicitly as needed.
@@ -378,7 +383,7 @@ LD_SWIFTFLAGS =
 endif
 $(EXE): $(OBJECTS) $(call tool_prereq,$(SWIFTC_PATH))
 	@echo "### Linking" $(EXE)
-	$(SWIFTC) $(LD_EXTRAS) $(SWIFT_EMBEDDED_LD_EXTRAS) $(LD_SWIFTFLAGS) $(OBJECTS) $(SWIFT_LINK_FLAGS) -o "$(EXE)"
+	$(SWIFTC) $(LD_EXTRAS) $(SWIFT_EMBEDDED_LD_EXTRAS) $(LD_SWIFTFLAGS) $(OBJECTS) $(SWIFT_LINK_FLAGS) $(SWIFT_EXE_LINK_FLAGS) -o "$(EXE)"
 ifneq "$(CODESIGN)" ""
 	$(CODESIGN) -s - "$(EXE)"
 endif
@@ -392,7 +397,7 @@ endif
 
 $(EXE): $(OBJECTS) $(call tool_prereq,$(SWIFTC_PATH))
 	@echo "### Linking" $(EXE)
-	$(SWIFTC) $(LD_EXTRAS) $(SWIFT_EMBEDDED_LD_EXTRAS) $(LD_SWIFTFLAGS) $(WRAPPED_SWIFTMODULE) $(OBJECTS) $(SWIFT_LINK_FLAGS) -o "$(EXE)"
+	$(SWIFTC) $(LD_EXTRAS) $(SWIFT_EMBEDDED_LD_EXTRAS) $(LD_SWIFTFLAGS) $(WRAPPED_SWIFTMODULE) $(OBJECTS) $(SWIFT_LINK_FLAGS) $(SWIFT_EXE_LINK_FLAGS) -o "$(EXE)"
 ifneq "$(HIDE_SWIFTMODULE)" ""
 	rm -f $(MODULENAME).swiftmodule
 endif
