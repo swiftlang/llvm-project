@@ -35,6 +35,7 @@
 
 #include "LogChannelSwift.h"
 #include "ObjCRuntimeSyntheticProvider.h"
+#include "SwiftExpressionOptions.h"
 #include "SwiftFormatters.h"
 
 #include <cassert>
@@ -1586,6 +1587,11 @@ SwiftLanguage::GetFormatterLanguages(lldb::LanguageType language) const {
       language != eLanguageTypeObjC_plus_plus)
     return {eLanguageTypeSwift};
   return {};
+}
+
+std::unique_ptr<OptionGroupLanguageExpression>
+SwiftLanguage::CreateExpressionOptions() {
+  return std::make_unique<SwiftExpressionOptions>();
 }
 
 static void SplitDottedName(llvm::StringRef name,

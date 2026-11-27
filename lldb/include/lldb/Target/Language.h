@@ -214,6 +214,11 @@ public:
   virtual std::vector<lldb::LanguageType>
   GetFormatterLanguages(lldb::LanguageType language) const;
 
+  /// Returns the options that this language adds to the commands that
+  /// evaluate expressions, or nullptr.
+  virtual std::unique_ptr<OptionGroupLanguageExpression>
+  CreateExpressionOptions();
+
   virtual std::unique_ptr<TypeScavenger> GetTypeScavenger();
 
   virtual const char *GetLanguageSpecificTypeLookupHelp();

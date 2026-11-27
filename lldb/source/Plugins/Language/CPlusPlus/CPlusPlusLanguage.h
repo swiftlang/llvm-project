@@ -70,6 +70,9 @@ public:
   std::vector<lldb::LanguageType>
   GetFormatterLanguages(lldb::LanguageType language) const override;
 
+  std::unique_ptr<OptionGroupLanguageExpression>
+  CreateExpressionOptions() override;
+
   HardcodedFormatters::HardcodedSummaryFinder GetHardcodedSummaries() override;
 
   HardcodedFormatters::HardcodedSyntheticFinder

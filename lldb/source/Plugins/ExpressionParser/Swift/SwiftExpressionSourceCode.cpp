@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SwiftExpressionSourceCode.h"
+#include "Plugins/Language/Swift/SwiftExpressionOptions.h"
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "SwiftPersistentExpressionState.h"
 
@@ -462,7 +463,7 @@ do {
 
     // The expression text is inserted into the body of $__lldb_user_expr_%u.
     if (!SwiftASTManipulator::ShouldBindGenericTypes(
-            options.GetSwiftBindGenericTypes())) {
+            SwiftExpressionOptions::GetBindGenericTypes(options))) {
       // A Swift program can't have types with non-bound generic type parameters
       // inside a non generic function. For example, the following program would
       // not compile as T is not part of foo's signature.
@@ -574,7 +575,7 @@ func $__lldb_expr(_ $__lldb_arg : UnsafeMutablePointer<Any>) {
                             current_counter);
     }
   } else if (!SwiftASTManipulator::ShouldBindGenericTypes(
-                 options.GetSwiftBindGenericTypes())) {
+                 SwiftExpressionOptions::GetBindGenericTypes(options))) {
     // Without a self there is no extension to inherit generic parameters
     // from: $__lldb_user_expr is emitted at the top level and has to declare
     // them itself.

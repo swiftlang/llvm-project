@@ -6583,20 +6583,3 @@ bool EvaluateExpressionOptions::GetCppIgnoreContextQualifiers() const {
       GetBooleanLanguageOption(s_cpp_ignore_context_qualifiers_option));
 }
 
-// BEGIN SWIFT
-// FIXME: this option is Swift plugin specific and should be registered by it,
-// instead of hard-coding it here.
-constexpr llvm::StringLiteral s_swift_bind_generic_types_option =
-    "swift-bind-generic-types";
-
-lldb::BindGenericTypes
-EvaluateExpressionOptions::GetSwiftBindGenericTypes() const {
-  auto value_or_err =
-      GetBooleanLanguageOption(s_swift_bind_generic_types_option);
-  if (!value_or_err) {
-    llvm::consumeError(value_or_err.takeError());
-    return lldb::eBindAuto;
-  }
-  return *value_or_err ? lldb::eBind : lldb::eDontBind;
-}
-// END SWIFT

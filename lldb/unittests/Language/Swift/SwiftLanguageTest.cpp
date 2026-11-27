@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Plugins/Language/Swift/SwiftLanguage.h"
+#include "Plugins/Language/Swift/SwiftExpressionOptions.h"
 #include "Plugins/LanguageRuntime/Swift/SwiftLanguageRuntime.h"
 #include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Core/Mangled.h"
+#include "lldb/Target/Language.h"
+#include "lldb/Target/Target.h"
 #include "lldb/lldb-enumerations.h"
 
 #include "gtest/gtest.h"
@@ -105,4 +108,27 @@ TEST(SwiftLanguage, ParsesSwiftFunctionNames) {
   ASSERT_TRUE(method);
   EXPECT_EQ(method->basename, ConstString("baz"));
   EXPECT_EQ(method->kind, Mangled::FunctionNameKind::Method);
+}
+
+TEST(SwiftLanguage, ExpressionOptions) {
+  SubsystemRAII<SwiftLanguage> langs;
+  Language *language = Language::FindPlugin(lldb::eLanguageTypeSwift);
+  ASSERT_NE(language, nullptr);
+  std::unique_ptr<OptionGroupLanguageExpression> options =
+      language->CreateExpressionOptions();
+  ASSERT_TRUE(options);
+  llvm::ArrayRef<OptionDefinition> definitions = options->GetDefinitions();
+  ASSERT_EQ(definitions.size(), 1u);
+  EXPECT_STREQ(definitions[0].long_option, "bind-generic-types");
+
+  EvaluateExpressionOptions expression_options;
+  options->OptionParsingStarting(nullptr);
+  options->Apply(expression_options);
+  EXPECT_EQ(SwiftExpressionOptions::GetBindGenericTypes(expression_options),
+            lldb::eBindAuto);
+
+  ASSERT_TRUE(options->SetOptionValue(0, "false", nullptr).Success());
+  options->Apply(expression_options);
+  EXPECT_EQ(SwiftExpressionOptions::GetBindGenericTypes(expression_options),
+            lldb::eDontBind);
 }

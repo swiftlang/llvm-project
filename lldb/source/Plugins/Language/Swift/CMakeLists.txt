@@ -1,3 +1,7 @@
+lldb_tablegen(LanguageSwiftOptions.inc -gen-lldb-option-defs
+  SOURCE LanguageSwiftOptions.td
+  TARGET LLDBPluginLanguageSwiftOptionsGen)
+
 lldb_tablegen(LanguageSwiftProperties.inc -gen-lldb-property-defs
   SOURCE LanguageSwiftProperties.td
   TARGET LLDBPluginLanguageSwiftPropertiesGen)
@@ -15,6 +19,7 @@ add_lldb_library(lldbPluginSwiftLanguage PLUGIN
   SwiftArray.cpp
   SwiftBasicTypes.cpp
   SwiftDictionary.cpp
+  SwiftExpressionOptions.cpp
   SwiftFormatters.cpp
   SwiftHashedContainer.cpp
   SwiftLanguage.cpp
@@ -51,6 +56,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL Clang AND NOT SWIFT_COMPILER_MSVC_LIKE)
 endif()
 
 add_dependencies(lldbPluginSwiftLanguage
+  LLDBPluginLanguageSwiftOptionsGen
   LLDBPluginLanguageSwiftPropertiesGen
   LLDBPluginLanguageSwiftPropertiesEnumGen)
 
