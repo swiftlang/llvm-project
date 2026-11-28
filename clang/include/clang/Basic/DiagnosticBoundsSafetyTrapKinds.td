@@ -28,19 +28,26 @@ def trap_bs_upper_lower_overflow_bound : Trap<
     "%Lower{below lower bound"
   "}}2 in %1">;
 
+// The trap reasons involving `__terminated_by` types describe the type and its
+// terminator using these arguments (see
+// `CodeGenFunction::AddTerminatedByTypeToTrapReason()`):
+//
+// %1 - The pointee type of the `__terminated_by` type.
+// %2 - 0 if the terminator is zero, otherwise 1.
+// %3 - The terminator value.
+defvar TerminatedByType =
+  "'%1 *%select{__null_terminated|__terminated_by(%3)}2'";
+defvar TerminatedByTerm = "%select{null terminator|terminator '%3'}2";
+
 // Trap reasons for the checks performed by
 // `__unsafe_terminated_by_from_indexable(T, PTR [, PTR_TO_TERM])`.
 //
 // They all start by describing the conversion using these arguments:
 //
 // %0 - The `__indexable` type being converted from.
-// %1 - The pointee type of the `__terminated_by` type being converted to.
-// %2 - 0 if the terminator is zero, otherwise 1.
-// %3 - The terminator value.
+// %1-%3 - The `__terminated_by` type being converted to.
 defvar TerminatedByFromIndexableConversion =
-  "converting %0 to '%1 *%select{__null_terminated|__terminated_by(%3)}2' "
-  "where ";
-defvar TerminatedByFromIndexableTerm = "%select{null terminator|terminator '%3'}2";
+  !strconcat("converting %0 to ", TerminatedByType, " where ");
 
 // Checks on the pointer being converted.
 //
@@ -63,7 +70,7 @@ def trap_bs_terminated_by_from_indexable_ptr : Trap<!strconcat(
 // %6 - The check that failed.
 def trap_bs_terminated_by_from_indexable_term_ptr : Trap<!strconcat(
   TerminatedByFromIndexableConversion,
-  "pointer %4 to the ", TerminatedByFromIndexableTerm, " "
+  "pointer %4 to the ", TerminatedByTerm, " "
   "%enum_select<BoundsSafetyTermPtrCheckKind>{"
     "%Lower{is below the lower bound of %5}|"
     "%Overflow{overflows the address space}|"
@@ -78,11 +85,20 @@ def trap_bs_terminated_by_from_indexable_term_ptr : Trap<!strconcat(
 def trap_bs_terminated_by_from_indexable_term : Trap<!strconcat(
   TerminatedByFromIndexableConversion,
   "%enum_select<BoundsSafetyTermCheckKind>{"
-    "%NotFound{there is no ", TerminatedByFromIndexableTerm,
+    "%NotFound{there is no ", TerminatedByTerm,
       " within the bounds of %4}|"
     "%NotTerm{pointer %4 does not point to the ",
-      TerminatedByFromIndexableTerm, "}"
+      TerminatedByTerm, "}"
   "}5")>;
+
+// Check that a `__terminated_by` pointer isn't incremented past its
+// terminator.
+//
+// %0 - The expression incrementing the pointer.
+// %1-%3 - The `__terminated_by` type of the pointer.
+def trap_bs_terminated_by_ptr_arith : Trap<!strconcat(
+  "incrementing ", TerminatedByType, " pointer past the ", TerminatedByTerm,
+  " in %0")>;
 
 }
 }
