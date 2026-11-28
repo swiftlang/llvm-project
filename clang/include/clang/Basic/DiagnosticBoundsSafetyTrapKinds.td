@@ -110,5 +110,14 @@ def trap_bs_terminated_by_term_assign : Trap<!strconcat(
   "assigning to %0 overwrites the ", TerminatedByTerm, " of ",
   TerminatedByType, " pointer %4")>;
 
+// Check performed when converting a `__bidi_indexable` pointer to an
+// `__indexable` pointer.
+//
+// %0 - The `__bidi_indexable` type being converted from.
+// %1 - The `__indexable` type being converted to.
+// %2 - The pointer being converted.
+def trap_bs_bidi_to_indexable_lower_bound : Trap<
+  "converting %0 to %1 where pointer %2 is below its lower bound">;
+
 }
 }
