@@ -4955,6 +4955,14 @@ TypeSystemClang::GetBitSize(lldb::opaque_compiler_type_t type,
       GetTypeName(type, base_name_only).AsCString(""));
 }
 
+std::optional<uint64_t>
+TypeSystemClang::GetByteStride(lldb::opaque_compiler_type_t type,
+                               ExecutionContextScope *exe_scope) {
+  // In C/C++/Objective-C, sizeof already includes any tail padding, so the
+  // stride is the same as the size.
+  return llvm::expectedToOptional(GetByteSize(type, nullptr));
+}
+
 std::optional<size_t>
 TypeSystemClang::GetTypeBitAlign(lldb::opaque_compiler_type_t type,
                                  ExecutionContextScope *exe_scope) {
