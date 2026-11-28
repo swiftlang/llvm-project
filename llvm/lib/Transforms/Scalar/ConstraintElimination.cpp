@@ -14,6 +14,7 @@
 #include "llvm/Transforms/Scalar/ConstraintElimination.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -430,6 +431,30 @@ struct Decomposition {
         return true;
     return false;
   }
+
+  /// Merge entries that refer to the same variable, and remove any whose
+  /// coefficient is zero. \returns true if any operation overflows, i.e. the
+  /// decomposition is invalid.
+  [[nodiscard]] bool canonicalize() {
+    // Sum the coefficients of each variable.
+    SmallMapVector<Value *, int64_t, 4> Coefficients;
+    for (const DecompEntry &E : Vars) {
+      int64_t &Sum = Coefficients[E.Variable];
+      if (AddOverflow(Sum, E.Coefficient, Sum))
+        return true;
+    }
+    Vars.clear();
+    for (const auto &[Variable, Coefficient] : Coefficients)
+      if (Coefficient != 0)
+        Vars.emplace_back(Coefficient, Variable);
+    return false;
+  }
+
+  /// Returns a new decomposition with \p Variable replaced by \p Replacement.
+  /// Returns std::nullopt if a coefficient overflows, i.e. the decomposition is
+  /// invalid.
+  [[nodiscard]] std::optional<Decomposition>
+  substitute(Value *Variable, Value *Replacement, ConstraintInfo &Info);
 };
 
 /// Wrapper encapsulating separate constraint systems and corresponding value
@@ -496,6 +521,8 @@ public:
     return Signed ? SignedCS : UnsignedCS;
   }
 
+  const DataLayout &getDataLayout() const { return State.DL; }
+
   void popLastConstraint(bool Signed) {
     assert(DecomposeCache.empty() && "Cache must be cleared");
     getCS(Signed).popLastConstraint();
@@ -515,10 +542,12 @@ public:
   /// system implies it or because ValueTracking can prove it.
   bool isKnownPositive(Value *V);
 
-  /// Returns true if \p V is known to be negative, false if \p V is known to be
-  /// nonnegative, or std::nullopt if neither the signed system nor
-  /// ValueTracking can prove it.
-  std::optional<bool> getKnownSign(Value *V);
+  /// Returns the sign of \p V, if known. The result is false if \p V is known
+  /// to be non-negative. Otherwise it is true if \p V is known to be negative
+  /// (if \p StrictlyNegative), or non-positive (if not \p StrictlyNegative).
+  /// Returns std::nullopt if neither ValueTracking, nor the signed system can
+  /// prove either fact.
+  std::optional<bool> getKnownSign(Value *V, bool StrictlyNegative);
 
   void addFact(CmpInst::Predicate Pred, Value *A, Value *B, unsigned NumIn,
                unsigned NumOut, SmallVectorImpl<StackEntry> &DFSInStack);
@@ -695,6 +724,127 @@ static bool doesHoldInRange(ConstraintInfo &Info, Value *Op,
   return true;
 }
 
+std::optional<Decomposition> Decomposition::substitute(Value *Variable,
+                                                       Value *Replacement,
+                                                       ConstraintInfo &Info) {
+  Decomposition Result(Offset);
+  int64_t Coefficient = 0;
+  for (const DecompEntry &E : Vars) {
+    if (E.Variable != Variable)
+      Result.Vars.push_back(E);
+    else if (AddOverflow(Coefficient, E.Coefficient, Coefficient))
+      return std::nullopt;
+  }
+  Decomposition ReplacementDec =
+      decompose(Replacement, Info, /*IsSigned=*/true, Info.getState());
+  if (ReplacementDec.mul(Coefficient) || Result.add(ReplacementDec))
+    return std::nullopt;
+  return Result;
+}
+
+enum class SignedBound { Upper, Lower };
+
+/// Returns true if \p Info implies that the value of \p D does not exceed the
+/// signed maximum of \p Ty (if \p Bound is Upper) or is not below the signed
+/// minimum of \p Ty (if \p Bound is Lower).
+///
+/// The constraint systems do not record that every variable is within the
+/// range of its type, so only decompositions that are trivially in range, or
+/// that reduce to a single variable plus an offset, are handled. A min/max
+/// intrinsic result in \p D is split across its respective operands, using the
+/// fact that the value of \p D is monotonic in it: for an upper bound on a
+/// maximum, both sides must be in range, while for a lower bound only one side
+/// must be.
+static bool isKnownWithinSignedRange(Decomposition D, SignedBound Bound,
+                                     Type *Ty, ConstraintInfo &Info,
+                                     unsigned Depth) {
+  if (D.canonicalize())
+    return false;
+
+  if (Depth != 0) {
+    for (const DecompEntry &E : D.Vars) {
+      auto *MM = dyn_cast<MinMaxIntrinsic>(E.Variable);
+      if (!MM || !MM->isSigned() || MM->getType() != Ty)
+        continue;
+      auto LHS = D.substitute(E.Variable, MM->getLHS(), Info);
+      auto RHS = D.substitute(E.Variable, MM->getRHS(), Info);
+      if (!LHS || !RHS)
+        return false;
+
+      // D is increasing in the min/max result iff its coefficient is positive.
+      // Then D is a max over the respective sides iff the intrinsic is a max.
+      bool IsMax =
+          (MM->getIntrinsicID() == Intrinsic::smax) == (E.Coefficient > 0);
+      bool L = isKnownWithinSignedRange(*LHS, Bound, Ty, Info, Depth - 1);
+      if ((Bound == SignedBound::Upper) == IsMax)
+        return L && isKnownWithinSignedRange(*RHS, Bound, Ty, Info, Depth - 1);
+      return L || isKnownWithinSignedRange(*RHS, Bound, Ty, Info, Depth - 1);
+    }
+  }
+
+  // Compare in a type wide enough for both the bounds of Ty and the int64_t
+  // offset, so this does not depend on the width of Ty.
+  unsigned BitWidth = Ty->getScalarSizeInBits();
+  unsigned WideBits = std::max(BitWidth, 64u);
+  APInt SMax = APInt::getSignedMaxValue(BitWidth).sext(WideBits);
+  APInt SMin = APInt::getSignedMinValue(BitWidth).sext(WideBits);
+  APInt Offset(WideBits, D.Offset, /*isSigned=*/true);
+  if (D.Vars.empty())
+    return Bound == SignedBound::Upper ? Offset.sle(SMax) : Offset.sge(SMin);
+
+  // V + C is at most the maximum if C <= 0 and at least the minimum if C >= 0,
+  // since V is itself in range.
+  if (D.Vars.size() != 1 || D.Vars[0].Coefficient != 1)
+    return false;
+
+  Value *V = D.Vars[0].Variable;
+  if (V->getType() != Ty)
+    return false;
+
+  if (Bound == SignedBound::Upper) {
+    if (D.Offset <= 0)
+      return true;
+
+    // V + C <= SMax iff V <= SMax - C, which is only satisfiable in range.
+    APInt Limit = SMax - Offset;
+    return Limit.sge(SMin) &&
+           Info.doesHold(CmpInst::ICMP_SLE, V,
+                         ConstantInt::get(Ty, Limit.trunc(BitWidth)));
+  }
+
+  if (D.Offset >= 0)
+    return true;
+
+  // V + C >= SMin iff V >= SMin - C, which is only satisfiable in range.
+  APInt Limit = SMin - Offset;
+  return Limit.sle(SMax) &&
+         Info.doesHold(CmpInst::ICMP_SGE, V,
+                       ConstantInt::get(Ty, Limit.trunc(BitWidth)));
+}
+
+/// Returns true if the signed \p Opcode (Add or Sub) of \p Op0 and \p Op1 is
+/// known to not overflow because the result is in the range of the type.
+/// For example, A + (B - A) is B and therefore cannot overflow.
+static bool isKnownNoSignedWrap(Instruction::BinaryOps Opcode, Value *Op0,
+                                Value *Op1, ConstraintInfo &Info) {
+  if (Opcode != Instruction::Add && Opcode != Instruction::Sub)
+    return false;
+
+  Type *Ty = Op0->getType();
+  if (!Ty->isIntegerTy())
+    return false;
+
+  Decomposition LHS = decompose(Op0, Info, /*IsSigned=*/true, Info.getState());
+  Decomposition RHS = decompose(Op1, Info, /*IsSigned=*/true, Info.getState());
+  if (Opcode == Instruction::Add ? LHS.add(RHS) : LHS.sub(RHS))
+    return false;
+
+  constexpr unsigned MaxDepth = 2;
+  return isKnownWithinSignedRange(LHS, SignedBound::Upper, Ty, Info,
+                                  MaxDepth) &&
+         isKnownWithinSignedRange(LHS, SignedBound::Lower, Ty, Info, MaxDepth);
+}
+
 /// Returns true if \p Opcode applied to \p Op0 and \p Op1 with \p NoWrapFlags
 /// is known to not wrap in signed or unsigned, depending on \p Signed.
 static bool isKnownNoWrap(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
@@ -716,6 +866,16 @@ static bool isKnownNoWrap(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
       return true;
   }
 
+  // A signed sum of operands with opposite signs cannot wrap.
+  if (Signed && Opcode == Instruction::Add) {
+    std::optional<bool> Op0Sign =
+        Info.getKnownSign(Op0, /*StrictlyNegative=*/false);
+    std::optional<bool> Op1Sign =
+        Info.getKnownSign(Op1, /*StrictlyNegative=*/false);
+    if (Op0Sign && Op1Sign && *Op0Sign != *Op1Sign)
+      return true;
+  }
+
   if (!Signed && (NoWrapFlags & OBO::NoSignedWrap) &&
       (Opcode == Instruction::Shl || Info.isKnownNonNegative(Op1)) &&
       Info.isKnownNonNegative(Op0))
@@ -723,15 +883,14 @@ static bool isKnownNoWrap(Instruction::BinaryOps Opcode, Value *Op0, Value *Op1,
 
   // For a constant Op1, the ranges of Op0 for which the operation does not
   // wrap are known exactly; check if the systems imply one of them.
-  auto *C = dyn_cast<ConstantInt>(Op1);
-  if (!C)
-    return false;
+  if (auto *C = dyn_cast<ConstantInt>(Op1)) {
+    auto Range = ConstantRange::makeExactNoWrapRegion(
+        Opcode, C->getValue(),
+        Signed ? OBO::NoSignedWrap : OBO::NoUnsignedWrap);
+    return doesHoldInRange(Info, Op0, Range, Signed);
+  }
 
-  return doesHoldInRange(Info, Op0,
-                         ConstantRange::makeExactNoWrapRegion(
-                             Opcode, C->getValue(),
-                             Signed ? OBO::NoSignedWrap : OBO::NoUnsignedWrap),
-                         Signed);
+  return false;
 }
 
 /// Returns true if \p V is known to not wrap in signed or unsigned, depending
@@ -740,9 +899,16 @@ static bool isKnownNoWrap(Value *V, ConstraintInfo &Info, bool Signed) {
   if (match(V, m_DisjointOr(m_Value(), m_Value())))
     return true;
 
-  if (auto *WO = dyn_cast<WithOverflowInst>(V))
-    return isKnownNoWrap(WO->getBinaryOp(), WO->getLHS(), WO->getRHS(),
-                         /*NoWrapFlags=*/0, Info, Signed);
+  if (auto *WO = dyn_cast<WithOverflowInst>(V)) {
+    if (isKnownNoWrap(WO->getBinaryOp(), WO->getLHS(), WO->getRHS(),
+                      /*NoWrapFlags=*/0, Info, Signed))
+      return true;
+    // Reasoning about the infinite precision sum is costlier than the checks
+    // above, so only do it for the overflow intrinsics themselves, not
+    // for the plain adds and subs that decompose() analyzes.
+    return Signed && isKnownNoSignedWrap(WO->getBinaryOp(), WO->getLHS(),
+                                         WO->getRHS(), Info);
+  }
 
   if (auto *Trunc = dyn_cast<TruncInst>(V)) {
     if (Signed)
@@ -1162,7 +1328,7 @@ ConstraintTy ConstraintInfo::getConstraintForSolving(CmpInst::Predicate Pred,
 
 std::optional<bool>
 ConstraintTy::isImpliedBy(const ConstraintSystem &CS) const {
-  const auto &[SubCS, NewCoefficients] = CS.getSubSystem(Coefficients);
+  auto [SubCS, NewCoefficients] = CS.getSubSystem(Coefficients);
   bool IsConditionImplied = SubCS.isConditionImplied(NewCoefficients);
 
   if (IsEq || IsNe) {
@@ -1182,7 +1348,8 @@ ConstraintTy::isImpliedBy(const ConstraintSystem &CS) const {
 
     auto StrictLessThan = ConstraintSystem::toStrictLessThan(NewCoefficients);
     bool IsStrictLessThanImplied =
-        !StrictLessThan.empty() && SubCS.isConditionImplied(StrictLessThan);
+        !StrictLessThan.empty() &&
+        std::move(SubCS).isConditionImplied(std::move(StrictLessThan));
 
     // In order to check that `%a != %b` is true (non-equality), either
     // condition `%a > %b` or `%a < %b` must hold true. When checking for
@@ -1198,7 +1365,9 @@ ConstraintTy::isImpliedBy(const ConstraintSystem &CS) const {
     return true;
 
   auto Negated = ConstraintSystem::negate(NewCoefficients);
-  auto IsNegatedImplied = !Negated.empty() && SubCS.isConditionImplied(Negated);
+  auto IsNegatedImplied =
+      !Negated.empty() &&
+      std::move(SubCS).isConditionImplied(std::move(Negated));
   if (IsNegatedImplied)
     return false;
 
@@ -1235,16 +1404,20 @@ bool ConstraintInfo::isKnownPositive(Value *V) {
          doesHold(CmpInst::ICMP_SGT, V, ConstantInt::get(V->getType(), 0));
 }
 
-std::optional<bool> ConstraintInfo::getKnownSign(Value *V) {
+std::optional<bool> ConstraintInfo::getKnownSign(Value *V,
+                                                 bool StrictlyNegative) {
+  if (auto *CI = dyn_cast<ConstantInt>(V))
+    return CI->isNegative();
   KnownBits Known = computeKnownBits(V, State.DL);
   if (Known.isNonNegative())
     return false;
-  if (Known.isNegative())
+  if (StrictlyNegative ? Known.isNegative() : Known.isNonPositive())
     return true;
   Constant *Zero = ConstantInt::get(V->getType(), 0);
   if (doesHold(CmpInst::ICMP_SGE, V, Zero))
     return false;
-  if (doesHold(CmpInst::ICMP_SLT, V, Zero))
+  auto NegativePred = StrictlyNegative ? CmpInst::ICMP_SLT : CmpInst::ICMP_SLE;
+  if (doesHold(NegativePred, V, Zero))
     return true;
   return std::nullopt;
 }
@@ -2490,6 +2663,61 @@ static RowTy getDecompositionLinkRow(Value *V, const ConstraintTy &C,
   return NewVariables.empty() ? Row : RowTy();
 }
 
+/// Checks the signed relation \p A \p Pred \p B, splitting signed min/max
+/// results across their respective operands.
+static bool isSignedMinMaxCmpKnownTrue(CmpInst::Predicate Pred, Value *A,
+                                       Value *B, ConstraintInfo &Info) {
+  if (!A->getType()->isIntegerTy())
+    return false;
+
+  // Canonicalize to "<" and "<=".
+  if (Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SGE) {
+    Pred = CmpInst::getSwappedPredicate(Pred);
+    std::swap(A, B);
+  }
+
+  if (Pred != CmpInst::ICMP_SLT && Pred != CmpInst::ICMP_SLE)
+    return false;
+
+  const DataLayout &DL = Info.getDataLayout();
+  Decomposition D = decompose(A, Info, /*IsSigned=*/true, Info.getState());
+  if (D.sub(decompose(B, Info, /*IsSigned=*/true, Info.getState())))
+    return false;
+
+  for (const DecompEntry &E : D.Vars) {
+    auto *MM = dyn_cast<MinMaxIntrinsic>(E.Variable);
+    if (!MM || !MM->isSigned())
+      continue;
+    Decomposition Rest(D.Offset);
+    int64_t Coefficient = 0;
+    for (const DecompEntry &Other : D.Vars) {
+      if (Other.Variable != MM)
+        Rest.Vars.push_back(Other);
+      else if (AddOverflow(Coefficient, Other.Coefficient, Coefficient))
+        return false;
+    }
+    if (Coefficient == 0)
+      continue;
+    auto IsKnown = [&](Value *Op) {
+      Decomposition Side = decompose(Op, Info, /*IsSigned=*/true, Info.getState());
+      if (Side.mul(Coefficient) || Side.add(Rest) || Side.mul(-1))
+        return false;
+      SmallVector<Value *> NewVariables;
+      const auto &Value2Index = Info.getValue2Index(/*Signed=*/true);
+      RowTy R = getRowForLessEqual(Decomposition(Pred == CmpInst::ICMP_SLT),
+                                   Side, Value2Index, NewVariables);
+      return !R.empty() && R.back().Id <= Value2Index.size() &&
+             Info.getCS(/*Signed=*/true).isConditionImpliedInSubSystem(R);
+    };
+    if ((MM->getIntrinsicID() == Intrinsic::smax) == (Coefficient > 0)
+            ? IsKnown(MM->getLHS()) && IsKnown(MM->getRHS())
+            : IsKnown(MM->getLHS()) || IsKnown(MM->getRHS()))
+      return true;
+  }
+
+  return false;
+}
+
 static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
                                           Value *B, Instruction *CheckInst,
                                           ConstraintInfo &Info) {
@@ -2580,6 +2808,9 @@ static std::optional<bool> checkCondition(CmpInst::Predicate Pred, Value *A,
       }
     }
   }
+
+  if (isSignedMinMaxCmpKnownTrue(Pred, A, B, Info))
+    return true;
 
   /* TO_UPSTREAM(BoundsSafety) ON*/
   // Failed to prove the condition; record a missed optimization when the
@@ -3115,8 +3346,10 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT, LoopInfo &LI,
           // The operands also have the same sign: if one of them is known to
           // be non-negative (or negative), so is the other.
           if (A->getType()->isIntegerTy()) {
-            std::optional<bool> ASign = Info.getKnownSign(A);
-            std::optional<bool> BSign = Info.getKnownSign(B);
+            std::optional<bool> ASign =
+                Info.getKnownSign(A, /*StrictlyNegative=*/true);
+            std::optional<bool> BSign =
+                Info.getKnownSign(B, /*StrictlyNegative=*/true);
             if (ASign.has_value() != BSign.has_value()) {
               bool IsNegative = ASign ? *ASign : *BSign;
               Value *OtherOp = ASign ? B : A;
