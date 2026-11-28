@@ -281,12 +281,10 @@ void CodeGenFunction::EmitBoundsSafetyRangeCheck(llvm::Value *LowerBound,
   }
 }
 
-llvm::Value *CodeGenFunction::EmitWideToRawPtr(const Expr *E, bool BoundsCheck,
-                                               BoundsSafetyTrapCtx::Kind TrapCtx,
-                                               bool LowerOnlyCheck,
-                                               llvm::Value **UpperPtr,
-                                               llvm::Value **LowerPtr,
-                                               bool IsNullAllowed) {
+llvm::Value *CodeGenFunction::EmitWideToRawPtr(
+    const Expr *E, bool BoundsCheck, BoundsSafetyTrapCtx::Kind TrapCtx,
+    bool LowerOnlyCheck, llvm::Value **UpperPtr, llvm::Value **LowerPtr,
+    bool IsNullAllowed, PartialDiagnostic *PD) {
   auto PT = E->getType()->getAs<PointerType>();
   assert(PT && !PT->hasRawPointerLayout() && "Expected wide pointer type");
   RValue PtrRV = EmitAnyExpr(E);
@@ -299,8 +297,8 @@ llvm::Value *CodeGenFunction::EmitWideToRawPtr(const Expr *E, bool BoundsCheck,
   // XXX: Lower bound check only for wide to counted_by
   if (BoundsCheck || LowerOnlyCheck)
     EmitBoundsSafetyBoundsCheck(ConvertTypeForMem(PT->getPointeeType()), Ptr,
-                             LowerOnlyCheck ? nullptr : Upper, Lower,
-                             IsNullAllowed, TrapCtx);
+                                LowerOnlyCheck ? nullptr : Upper, Lower,
+                                IsNullAllowed, TrapCtx, PD);
   if (UpperPtr)
     *UpperPtr = Upper;
   if (LowerPtr)
@@ -4566,8 +4564,14 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     LValue LV;
     const auto *PT = E->getSubExpr()->getType()->getAs<PointerType>();
     if (PT && !PT->hasRawPointerLayout()) {
-      llvm::Value *Ptr = EmitWideToRawPtr(E->getSubExpr(), /*BoundsCheck=*/true,
-                                          /*TrapCtx=*/BoundsSafetyTrapCtx::DEREF);
+      auto PD =
+          CGM.BuildPartialTrapReason(diag::trap_bs_upper_lower_overflow_bound);
+      PD << /*%0=*/diag::BoundsCheckContextKind::Dereferencing << /*%1=*/E;
+      llvm::Value *Ptr = EmitWideToRawPtr(
+          E->getSubExpr(), /*BoundsCheck=*/true,
+          /*TrapCtx=*/BoundsSafetyTrapCtx::DEREF, /*LowerOnlyCheck=*/false,
+          /*UpperPtr=*/nullptr, /*LowerPtr=*/nullptr, /*IsNullAllowed=*/false,
+          &PD);
       LV = MakeAddrLValue(Ptr, T, getContext().getTypeAlignInChars(T));
     } else {
     /*TO_UPSTREAM(BoundsSafety) OFF*/
