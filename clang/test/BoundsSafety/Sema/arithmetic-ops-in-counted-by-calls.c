@@ -71,6 +71,6 @@ void call_param_with_shared_size(void) {
 void *__sized_by(count * size) return_with_count_size(int count, int size);
 
 void call_return_with_count_size(void) {
-  // FIXME: rdar://103368466
+  // expected-error@+1{{negative size value of -1 for 'void *__single __sized_by(count * size)' (aka 'void *__single')}}
   void *buf = return_with_count_size(-1, 1);
 }

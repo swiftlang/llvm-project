@@ -71,7 +71,8 @@ void TestUCountNegFail(void) {
 // CHECK-NEXT:    unreachable, {{!annotation ![0-9]+}}
 //
 void TestCountNegRetFail(void) {
-  int *local_p = my_alloc_int(-1); //rdar://80808704
+  int x = -1;
+  int *local_p = my_alloc_int(x);
   (void)*local_p;
 }
 
