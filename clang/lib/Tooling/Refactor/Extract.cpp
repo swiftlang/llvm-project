@@ -617,7 +617,7 @@ public:
       const Expr *E, llvm::function_ref<void(CaptureInfo &)> Handler) {
     findEntitiesDirectlyReferencedInExpr(
         E, [&Handler, this](const ReferencedEntity &Entity) {
-          if (const auto *DRE = Entity.dyn_cast<const DeclRefExpr *>()) {
+          if (const auto *DRE = dyn_cast<const DeclRefExpr *>(Entity)) {
             const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
             if (!VD || !VD->isLocalVarDeclOrParm() || VD->isImplicit())
               return;

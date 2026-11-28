@@ -66,11 +66,11 @@ public:
     SelectionRangeOverlapKind SelectionRangeOverlap = UnknownOverlap;
 
     const Stmt *getStmtOrNull() const {
-      return StmtOrDecl.dyn_cast<const Stmt *>();
+      return dyn_cast<const Stmt *>(StmtOrDecl);
     }
 
     const Decl *getDeclOrNull() const {
-      return StmtOrDecl.dyn_cast<const Decl *>();
+      return dyn_cast<const Decl *>(StmtOrDecl);
     }
 
     Node(const Stmt *S, const Stmt *ParentStmt, const Decl *ParentDecl,

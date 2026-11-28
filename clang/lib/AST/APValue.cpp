@@ -137,7 +137,7 @@ template <class T>
 APValue::LValueBase::EnableIfDAOrForged<T>
 APValue::LValueBase::dyn_cast() const {
   if (is<T>())
-    return cast<DynamicAllocOrForgedPtrLValue>(Ptr).dyn_cast<T>();
+    return get<T>();
   return T();
 }
 
