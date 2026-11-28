@@ -1993,6 +1993,19 @@ void TypePrinter::printValueTerminatedAfter(const ValueTerminatedType *T,
   }
 }
 /* TO_UPSTREAM(BoundsSafety) OFF */
+void TypePrinter::printLateParsedAttrBefore(const LateParsedAttrType *T,
+                                            raw_ostream &OS) {
+  // LateParsedAttrType is a transient placeholder that should not appear
+  // in user-facing output. Just print the wrapped type.
+  printBefore(T->getWrappedType(), OS);
+}
+
+void TypePrinter::printLateParsedAttrAfter(const LateParsedAttrType *T,
+                                           raw_ostream &OS) {
+  // LateParsedAttrType is a transient placeholder that should not appear
+  // in user-facing output. Just print the wrapped type.
+  printAfter(T->getWrappedType(), OS);
+}
 
 void TypePrinter::printLateParsedAttrBefore(const LateParsedAttrType *T,
                                             raw_ostream &OS) {
