@@ -8,7 +8,7 @@
 
 #include "clang/DependencyScanning/DependencyScanningFilesystem.h"
 #include "clang/DependencyScanning/DependencyScanningService.h"
-#include "llvm/CAS/CASFileSystem.h"
+#include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Threading.h"
 #include <optional>
@@ -18,7 +18,8 @@ using namespace dependencies;
 
 llvm::ErrorOr<DependencyScanningWorkerFilesystem::TentativeEntry>
 DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
-                                             llvm::vfs::FileSystem &FS) {
+                                             llvm::vfs::FileSystem &FS,
+                                             cas::ObjectStore *CAS) {
   // Load the file and its content from the file system.
   auto MaybeFile = FS.openFileForRead(Filename);
   if (!MaybeFile)
@@ -35,13 +36,20 @@ DependencyScanningWorkerFilesystem::readFile(StringRef Filename,
     return MaybeBuffer.getError();
   auto Buffer = std::move(*MaybeBuffer);
 
-  std::optional<cas::ObjectRef> CASContents;
-  if (auto *CASFile = dyn_cast<llvm::cas::CASBackedFile>(File.get()))
-    CASContents = CASFile->getObjectRefForContent();
-
   // If the file size changed between read and stat, pretend it didn't.
   if (Stat.getSize() != Buffer->getBufferSize())
     Stat = llvm::vfs::Status::copyWithNewSize(Stat, Buffer->getBufferSize());
+
+  // Store the contents at the one point where the bytes are produced, so that
+  // the CAS reference is carried along with them in this cache and nobody
+  // downstream has to re-derive it.
+  std::optional<cas::ObjectRef> CASContents;
+  if (CAS) {
+    auto MaybeRef = CAS->storeFromString({}, Buffer->getBuffer());
+    if (!MaybeRef)
+      return llvm::errorToErrorCode(MaybeRef.takeError());
+    CASContents = *MaybeRef;
+  }
 
   return TentativeEntry(Stat, std::move(Buffer), std::move(CASContents));
 }
@@ -251,7 +259,7 @@ DependencyScanningWorkerFilesystem::DependencyScanningWorkerFilesystem(
                         llvm::vfs::ProxyFileSystem>(
           combineGlobalAndLocalFS(FS, LocalFS)),
       Service(Service), WorkingDirForCacheLookup(llvm::errc::invalid_argument),
-      LocalFS(std::move(LocalFS)), BaseFS(FS) {
+      LocalFS(std::move(LocalFS)), BaseFS(FS), CAS(Service.getCAS().get()) {
   updateWorkingDirForCacheLookup();
 }
 
@@ -287,7 +295,7 @@ DependencyScanningWorkerFilesystem::resolveUIDThroughSharedCache(
   auto UIDProducer = std::move(std::get<SlotProducer>(UIDSlot));
 
   auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                                   : readFile(OriginalFilename, *BaseFS);
+                                   : readFile(OriginalFilename, *BaseFS, CAS);
 
   // Allocate the entry and bind the UID slot under one shard-lock acquisition
   // (BumpPtrAllocator isn't thread-safe). On read-failure, the entry wraps
@@ -311,8 +319,9 @@ const CachedFileSystemEntry *
 DependencyScanningWorkerFilesystem::createCachedFSEntryForLocal(
     StringRef OriginalFilename, const llvm::vfs::Status &Stat) {
   assert(LocalFS);
-  auto TEntry = Stat.isDirectory() ? TentativeEntry(Stat)
-                                   : readFile(OriginalFilename, *LocalFS);
+  auto TEntry = Stat.isDirectory()
+                    ? TentativeEntry(Stat)
+                    : readFile(OriginalFilename, *LocalFS, /*CAS=*/nullptr);
   return createEntry(TEntry, LocalContentsStorage, LocalEntryStorage);
 }
 
@@ -389,7 +398,22 @@ DependencyScanningWorkerFilesystem::getOrCreateFileSystemEntry(
   if (!MaybeEntry)
     return MaybeEntry.getError();
   Local.File = *MaybeEntry;
+  if (!Local.File->isError() && !Local.File->isDirectory())
+    LocalEntriesByUID.try_emplace(Local.File->getStatus().getUniqueID(),
+                                  Local.File);
   return EntryRef(OriginalFilename, **MaybeEntry).unwrapError();
+}
+
+std::optional<cas::ObjectRef>
+DependencyScanningWorkerFilesystem::getObjectRefForContents(
+    llvm::sys::fs::UniqueID UID, StringRef Contents) const {
+  const CachedFileSystemEntry *Entry = LocalEntriesByUID.lookup(UID);
+  if (!Entry)
+    return std::nullopt;
+  StringRef Cached = Entry->getOriginalContents();
+  if (Cached.data() != Contents.data() || Cached.size() != Contents.size())
+    return std::nullopt;
+  return Entry->getObjectRefForContent();
 }
 
 llvm::ErrorOr<llvm::vfs::Status>
@@ -442,33 +466,6 @@ private:
   llvm::vfs::Status Stat;
 };
 
-class DepScanCASFile final : public llvm::cas::CASBackedFile {
-public:
-  DepScanCASFile(std::unique_ptr<llvm::MemoryBuffer> Buffer,
-                 cas::ObjectRef CASContents, llvm::vfs::Status Stat)
-      : Buffer(std::move(Buffer)), CASContents(CASContents),
-        Stat(std::move(Stat)) {}
-
-  static llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> create(EntryRef Entry);
-
-  llvm::ErrorOr<llvm::vfs::Status> status() override { return Stat; }
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
-  getBuffer(const Twine &Name, int64_t FileSize, bool RequiresNullTerminator,
-            bool IsVolatile) override {
-    return std::move(Buffer);
-  }
-
-  cas::ObjectRef getObjectRefForContent() override { return CASContents; }
-
-  std::error_code close() override { return {}; }
-
-private:
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
-  cas::ObjectRef CASContents;
-  llvm::vfs::Status Stat;
-};
-
 } // end anonymous namespace
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
@@ -478,21 +475,11 @@ DepScanFile::create(EntryRef Entry) {
   if (Entry.isDirectory())
     return std::make_error_code(std::errc::is_a_directory);
 
-  std::unique_ptr<llvm::vfs::File> Result;
-  if (Entry.getObjectRefForContent())
-    Result = std::make_unique<DepScanCASFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        *Entry.getObjectRefForContent(), Entry.getStatus());
-  else
-    Result = std::make_unique<DepScanFile>(
-        llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
-                                         Entry.getStatus().getName(),
-                                         /*RequiresNullTerminator=*/false),
-        Entry.getStatus());
-
-  return Result;
+  return std::unique_ptr<llvm::vfs::File>(std::make_unique<DepScanFile>(
+      llvm::MemoryBuffer::getMemBuffer(Entry.getContents(),
+                                       Entry.getStatus().getName(),
+                                       /*RequiresNullTerminator=*/false),
+      Entry.getStatus()));
 }
 
 llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>

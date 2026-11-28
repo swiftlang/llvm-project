@@ -2,7 +2,6 @@
 #include "clang/DependencyScanning/ScanAndUpdateArgs.h"
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Tooling/DependencyScanningTool.h"
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -50,9 +49,7 @@ TEST(IncludeTree, IncludeTreeScan) {
   add("sys_indirect.h", "");
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [DB = DB, FS] {
-    return llvm::cas::createCASProvidingFileSystem(DB, FS);
-  };
+  Opts.MakeVFS = [FS] { return FS; };
   Opts.Compilation = IncludeTreeCompilation{CASOpts, DB, Cache};
   DependencyScanningService Service(std::move(Opts));
   DependencyScanningTool ScanTool(Service);

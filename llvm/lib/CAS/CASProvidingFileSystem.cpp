@@ -17,29 +17,6 @@ using namespace llvm::vfs;
 
 namespace {
 
-class CASProvidingFile final : public CASBackedFile {
-  std::unique_ptr<File> UnderlyingFile;
-  ObjectRef Ref;
-
-public:
-  CASProvidingFile(ObjectRef Ref, std::unique_ptr<File> UnderlyingFile)
-      : UnderlyingFile(std::move(UnderlyingFile)), Ref(Ref) {}
-
-  ErrorOr<vfs::Status> status() final { return UnderlyingFile->status(); }
-
-  ErrorOr<std::unique_ptr<MemoryBuffer>> getBuffer(const Twine &Name,
-                                                   int64_t FileSize,
-                                                   bool RequiresNullTerminator,
-                                                   bool IsVolatile) final {
-    return UnderlyingFile->getBuffer(Name, FileSize, RequiresNullTerminator,
-                                     IsVolatile);
-  }
-
-  cas::ObjectRef getObjectRefForContent() final { return Ref; }
-
-  std::error_code close() final { return UnderlyingFile->close(); }
-};
-
 class CASProvidingFileSystem final : public CASBackedFileSystem {
   std::shared_ptr<ObjectStore> DB;
   IntrusiveRefCntPtr<vfs::FileSystem> FS;
@@ -87,14 +64,29 @@ public:
               IndentLevel + 1);
   }
 
-  llvm::Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForRead(const Twine &Path) final {
+  ErrorOr<std::unique_ptr<vfs::File>> openFileForRead(const Twine &Path) final {
     auto F = FS->openFileForRead(Path);
     if (!F)
-      return errorCodeToError(F.getError());
+      return F;
 
     auto Buffer = (*F)->getBuffer("<contents>", /*FileSize*/ -1,
                                   /*RequiresNullTerminator*/ false);
+    if (!Buffer)
+      return Buffer.getError();
+
+    auto Blob = DB->storeFromString({}, (*Buffer)->getBuffer());
+    if (!Blob)
+      return errorToErrorCode(Blob.takeError());
+
+    return F;
+  }
+
+  llvm::Expected<std::pair<std::unique_ptr<MemoryBuffer>, ObjectRef>>
+  getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                               bool RequiresNullTerminator, bool IsVolatile,
+                               bool IsText) final {
+    auto Buffer = FS->getBufferForFile(Name, FileSize, RequiresNullTerminator,
+                                       IsVolatile, IsText);
     if (!Buffer)
       return errorCodeToError(Buffer.getError());
 
@@ -102,7 +94,7 @@ public:
     if (!Blob)
       return Blob.takeError();
 
-    return std::make_unique<CASProvidingFile>(*Blob, std::move(*F));
+    return std::pair{std::move(*Buffer), *Blob};
   }
 
   IntrusiveRefCntPtr<CASBackedFileSystem> createThreadSafeProxyFS() final {
@@ -111,8 +103,7 @@ public:
 };
 } // namespace
 
-
-std::unique_ptr<vfs::FileSystem> cas::createCASProvidingFileSystem(
+std::unique_ptr<CASBackedFileSystem> cas::createCASProvidingFileSystem(
     std::shared_ptr<ObjectStore> DB,
     IntrusiveRefCntPtr<vfs::FileSystem> UnderlyingFS) {
   return std::make_unique<CASProvidingFileSystem>(std::move(DB),

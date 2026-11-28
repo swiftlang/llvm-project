@@ -253,27 +253,33 @@ TEST(DependencyScanner, DepScanFSWithCASProvider) {
   StringRef Path = "a.h";
   StringRef Contents = "a";
   FS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Contents));
-  std::unique_ptr<llvm::vfs::FileSystem> CASFS =
-      llvm::cas::createCASProvidingFileSystem(DB, FS);
 
-  DependencyScanningService Service({});
+  // For an include-tree compilation, the filesystem stores the files it reads
+  // in the CAS itself.
+  DependencyScanningServiceOptions Opts;
+  Opts.Compilation = IncludeTreeCompilation{
+      CASOptions(), DB, llvm::cas::createInMemoryActionCache()};
+  DependencyScanningService Service(std::move(Opts));
   {
-    DependencyScanningWorkerFilesystem DepFS(Service, std::move(CASFS));
+    DependencyScanningWorkerFilesystem DepFS(Service, FS);
     llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> File =
         DepFS.openFileForRead(Path);
     ASSERT_TRUE(File);
-    llvm::cas::CASBackedFile *CASFile =
-        dyn_cast<llvm::cas::CASBackedFile>(File->get());
-    ASSERT_TRUE(CASFile);
-    auto Buf = CASFile->getBuffer(Path, /*FileSize*/ -1,
+    auto Buf = (*File)->getBuffer(Path, /*FileSize*/ -1,
                                   /*RequiresNullTerminator*/ false,
                                   /*IsVolatile*/ false);
     ASSERT_TRUE(Buf);
     EXPECT_EQ(Contents, (*Buf)->getBuffer());
+
+    // The reference is captured when the contents are read and stored
+    // alongside them in the cache, so it is available from the cache entry.
+    auto Entry = DepFS.getOrCreateFileSystemEntry(Path);
+    ASSERT_TRUE(Entry);
+    std::optional<ObjectRef> Ref = Entry->getObjectRefForContent();
+    ASSERT_TRUE(Ref);
     std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(
-        DB->getProxy(CASFile->getObjectRefForContent()).moveInto(BlobContents),
-        llvm::Succeeded());
+    ASSERT_THAT_ERROR(DB->getProxy(*Ref).moveInto(BlobContents),
+                      llvm::Succeeded());
     EXPECT_EQ(BlobContents->getData(), Contents);
   }
   {
@@ -283,18 +289,62 @@ TEST(DependencyScanner, DepScanFSWithCASProvider) {
     DependencyScanningWorkerFilesystem DepFS(Service,
                                              new llvm::vfs::InMemoryFileSystem);
     DepFS.setCurrentWorkingDirectory("/root");
-    llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> File =
-        DepFS.openFileForRead(Path);
-    ASSERT_TRUE(File);
-    llvm::cas::CASBackedFile *CASFile =
-        dyn_cast<llvm::cas::CASBackedFile>(File->get());
-    ASSERT_TRUE(CASFile);
-    ObjectRef Ref = CASFile->getObjectRefForContent();
+    auto Entry = DepFS.getOrCreateFileSystemEntry(Path);
+    ASSERT_TRUE(Entry);
+    std::optional<ObjectRef> Ref = Entry->getObjectRefForContent();
+    ASSERT_TRUE(Ref);
     std::optional<ObjectProxy> BlobContents;
-    ASSERT_THAT_ERROR(DB->getProxy(Ref).moveInto(BlobContents),
+    ASSERT_THAT_ERROR(DB->getProxy(*Ref).moveInto(BlobContents),
                       llvm::Succeeded());
     EXPECT_EQ(BlobContents->getData(), Contents);
   }
+}
+
+TEST(DependencyScanner, DepScanFSObjectRefForContents) {
+  std::shared_ptr<ObjectStore> DB = llvm::cas::createInMemoryCAS();
+  auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  FS->setCurrentWorkingDirectory("/root");
+  StringRef Path = "a.h";
+  StringRef Contents = "a";
+  FS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Contents));
+
+  DependencyScanningServiceOptions Opts;
+  Opts.Compilation = IncludeTreeCompilation{
+      CASOptions(), DB, llvm::cas::createInMemoryActionCache()};
+  DependencyScanningService Service(std::move(Opts));
+
+  DependencyScanningWorkerFilesystem DepFS(Service, FS);
+  llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>> File =
+      DepFS.openFileForRead(Path);
+  ASSERT_TRUE(File);
+  llvm::ErrorOr<llvm::vfs::Status> Stat = (*File)->status();
+  ASSERT_TRUE(Stat);
+  llvm::sys::fs::UniqueID UID = Stat->getUniqueID();
+  auto Buf = (*File)->getBuffer(Path);
+  ASSERT_TRUE(Buf);
+
+  // The buffer handed out by the scanning filesystem is a view of the cached
+  // contents, so it finds the reference captured when the file was read.
+  std::optional<ObjectRef> Ref =
+      DepFS.getObjectRefForContents(UID, (*Buf)->getBuffer());
+  ASSERT_TRUE(Ref);
+  std::optional<ObjectProxy> BlobContents;
+  ASSERT_THAT_ERROR(DB->getProxy(*Ref).moveInto(BlobContents),
+                    llvm::Succeeded());
+  EXPECT_EQ(BlobContents->getData(), Contents);
+
+  // Identical bytes in a different buffer (e.g. a content override) miss.
+  std::string Copy = Contents.str();
+  EXPECT_FALSE(DepFS.getObjectRefForContents(UID, Copy));
+
+  // So does the right buffer under a different file's ID.
+  llvm::sys::fs::UniqueID OtherUID(UID.getDevice(), UID.getFile() + 1);
+  EXPECT_FALSE(DepFS.getObjectRefForContents(OtherUID, (*Buf)->getBuffer()));
+
+  // The lookup only consults this worker's local cache: another worker that
+  // has not read the file itself misses, even though the shared cache has it.
+  DependencyScanningWorkerFilesystem OtherDepFS(Service, FS);
+  EXPECT_FALSE(OtherDepFS.getObjectRefForContents(UID, (*Buf)->getBuffer()));
 }
 
 TEST(DependencyScanner, ScanDepsWithModuleLookup) {

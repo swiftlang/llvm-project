@@ -27,7 +27,6 @@
 #include "clang/Options/Options.h"
 #include "clang/Tooling/DependencyScanningTool.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Process.h"
@@ -176,12 +175,6 @@ clang_experimental_DependencyScannerService_create_v1(
   if (CAS && Cache)
     Opts.Compilation =
         IncludeTreeCompilation{unwrap(WrappedOpts)->CASOpts, CAS, Cache};
-  Opts.MakeVFS = [CAS = CAS] {
-    auto FS = llvm::vfs::createPhysicalFileSystem();
-    if (CAS)
-      FS = llvm::cas::createCASProvidingFileSystem(CAS, std::move(FS));
-    return FS;
-  };
   Opts.OptimizeArgs = unwrap(WrappedOpts)->OptimizeArgs;
   if (unwrap(WrappedOpts)->CacheNegativeStats)
     Opts.CacheNegativeStats = *unwrap(WrappedOpts)->CacheNegativeStats;
@@ -793,10 +786,6 @@ enum CXErrorCode clang_experimental_DependencyScanner_generateReproducer(
   bool IsReproducerCASBased{UpstreamCAS};
   DependencyScanningServiceOptions ServiceOpts;
   if (IsReproducerCASBased) {
-    ServiceOpts.MakeVFS = [UpstreamCAS] {
-      return llvm::cas::createCASProvidingFileSystem(
-          UpstreamCAS, llvm::vfs::createPhysicalFileSystem());
-    };
     ServiceOpts.Compilation =
         IncludeTreeCompilation{Opts.CASOpts, Opts.CAS, Opts.Cache};
   }

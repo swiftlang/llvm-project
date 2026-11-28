@@ -16,31 +16,12 @@ using namespace llvm::cas;
 
 const char CASBackedFileSystem::ID = 0;
 
-llvm::Expected<std::pair<std::unique_ptr<llvm::MemoryBuffer>, cas::ObjectRef>>
-CASBackedFileSystem::getBufferAndObjectRefForFile(const Twine &Name,
-                                                  int64_t FileSize,
-                                                  bool RequiresNullTerminator,
-                                                  bool IsVolatile,
-                                                  bool IsText) {
-  auto F = openCASBackedFileForRead(Name);
-  if (!F)
-    return F.takeError();
-
-  auto Buf =
-      (*F)->getBuffer(Name, FileSize, RequiresNullTerminator, IsVolatile);
-  if (!Buf)
-    return errorCodeToError(Buf.getError());
-
-  auto CASRef = (*F)->getObjectRefForContent();
-  return std::pair{std::move(*Buf), CASRef};
-}
-
 llvm::Expected<cas::ObjectRef>
 CASBackedFileSystem::getObjectRefForFileContent(const Twine &Name) {
-  auto F = openCASBackedFileForRead(Name);
-  if (!F)
-    return F.takeError();
-  return (*F)->getObjectRefForContent();
+  auto BufAndRef = getBufferAndObjectRefForFile(Name);
+  if (!BufAndRef)
+    return BufAndRef.takeError();
+  return BufAndRef->second;
 }
 
 namespace {
@@ -72,9 +53,16 @@ public:
   Expected<DirectoryEntry *> lookupPath(StringRef Path,
                                         bool FollowSymlinks = true);
 
+  /// Look up \p Path and require that it names a file whose node is loaded.
+  Expected<DirectoryEntry *> lookupFileEntry(const Twine &Path,
+                                             StringRef PathRef);
+
   ErrorOr<vfs::Status> status(const Twine &Path) final;
-  Expected<std::unique_ptr<CASBackedFile>>
-  openCASBackedFileForRead(const Twine &Path) final;
+  ErrorOr<std::unique_ptr<vfs::File>> openFileForRead(const Twine &Path) final;
+  Expected<std::pair<std::unique_ptr<MemoryBuffer>, ObjectRef>>
+  getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                               bool RequiresNullTerminator, bool IsVolatile,
+                               bool IsText) final;
 
   Expected<const vfs::CachedDirectoryEntry *>
   getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const final;
@@ -123,7 +111,7 @@ private:
 };
 } // namespace
 
-class CASFileSystem::VFSFile final : public CASBackedFile {
+class CASFileSystem::VFSFile final : public vfs::File {
 public:
   ErrorOr<vfs::Status> status() final {
     return Entry->getStatus(Name, /*FollowSymlinks=*/true);
@@ -141,8 +129,6 @@ public:
     SmallString<256> Storage;
     return Object->getMemoryBuffer(Name.toStringRef(Storage));
   }
-
-  cas::ObjectRef getObjectRefForContent() final { return *Entry->getRef(); }
 
   /// Closes the file.
   std::error_code close() final { return std::error_code(); }
@@ -335,11 +321,8 @@ CASFileSystem::getDirectoryEntry(const Twine &Path, bool FollowSymlinks) const {
   return const_cast<CASFileSystem *>(this)->lookupPath(PathRef, FollowSymlinks);
 }
 
-Expected<std::unique_ptr<CASBackedFile>>
-CASFileSystem::openCASBackedFileForRead(const Twine &Path) {
-  PathStorage PathStorage(Path, PathStyle);
-  StringRef PathRef = PathStorage.Path;
-
+Expected<CASFileSystem::DirectoryEntry *>
+CASFileSystem::lookupFileEntry(const Twine &Path, StringRef PathRef) {
   Expected<DirectoryEntry *> ExpectedEntry = lookupPath(PathRef);
   if (!ExpectedEntry)
     return ExpectedEntry.takeError();
@@ -353,7 +336,39 @@ CASFileSystem::openCASBackedFileForRead(const Twine &Path) {
     if (Error E = loadFile(*Entry))
       return std::move(E);
 
-  return std::make_unique<VFSFile>(DB, *Entry, PathRef);
+  return Entry;
+}
+
+ErrorOr<std::unique_ptr<vfs::File>>
+CASFileSystem::openFileForRead(const Twine &Path) {
+  PathStorage PathStorage(Path, PathStyle);
+  StringRef PathRef = PathStorage.Path;
+
+  Expected<DirectoryEntry *> Entry = lookupFileEntry(Path, PathRef);
+  if (!Entry)
+    return errorToErrorCode(Entry.takeError());
+
+  return std::unique_ptr<vfs::File>(
+      std::make_unique<VFSFile>(DB, **Entry, PathRef));
+}
+
+Expected<std::pair<std::unique_ptr<MemoryBuffer>, ObjectRef>>
+CASFileSystem::getBufferAndObjectRefForFile(const Twine &Name, int64_t FileSize,
+                                            bool RequiresNullTerminator,
+                                            bool IsVolatile, bool IsText) {
+  PathStorage PathStorage(Name, PathStyle);
+  StringRef PathRef = PathStorage.Path;
+
+  Expected<DirectoryEntry *> Entry = lookupFileEntry(Name, PathRef);
+  if (!Entry)
+    return Entry.takeError();
+
+  ObjectRef Ref = *(*Entry)->getRef();
+  Expected<ObjectProxy> Object = DB.getProxy(Ref);
+  if (!Object)
+    return Object.takeError();
+  assert(Object->getNumReferences() == 0 && "Expected a leaf node");
+  return std::pair{Object->getMemoryBuffer(PathRef), Ref};
 }
 
 ErrorOr<vfs::directory_iterator>

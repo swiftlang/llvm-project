@@ -23,6 +23,10 @@
 #include <optional>
 #include <variant>
 
+namespace llvm::cas {
+class ObjectStore;
+} // namespace llvm::cas
+
 namespace clang {
 namespace dependencies {
 
@@ -336,6 +340,9 @@ class DependencyScanningWorkerFilesystem
 public:
   static const char ID;
 
+  /// If \p Service performs an include-tree compilation, files that go
+  /// through the shared cache are stored in its CAS when they are read, and
+  /// their CAS references are cached alongside their contents.
   DependencyScanningWorkerFilesystem(
       DependencyScanningService &Service,
       IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -375,6 +382,21 @@ public:
   /// Check whether \p Path exists. By default checks cached result of \c
   /// status(), and falls back on FS if unable to do so.
   bool exists(const Twine &Path) override;
+
+  /// Returns the CAS reference this filesystem captured when it read the file
+  /// with \p UID, provided \p Contents is the very buffer it handed out for
+  /// that file.
+  ///
+  /// This filesystem hands out non-owning views of the contents it caches, so
+  /// a buffer that came through it still points into the cache. Comparing
+  /// addresses rather than bytes makes this lookup cheap and exact: any other
+  /// buffer -- a content override, a copy made by a VFS layer, an in-memory
+  /// input -- simply misses, and the caller is expected to compute the
+  /// reference itself. Only consults the local cache, so it never contends
+  /// with other workers.
+  std::optional<cas::ObjectRef>
+  getObjectRefForContents(llvm::sys::fs::UniqueID UID,
+                          StringRef Contents) const;
 
 private:
   /// Resolves the cache entry for \p FilenameForLookup through the shared
@@ -417,9 +439,11 @@ private:
   };
 
   /// Reads file at the given path. Enforces consistency between the file size
-  /// in status and size of read contents.
+  /// in status and size of read contents. If \p CAS is non-null, the contents
+  /// are stored in it and their CAS reference is captured too.
   static llvm::ErrorOr<TentativeEntry> readFile(StringRef Filename,
-                                                llvm::vfs::FileSystem &FS);
+                                                llvm::vfs::FileSystem &FS,
+                                                cas::ObjectStore *CAS);
 
   void printImpl(raw_ostream &OS, PrintType Type,
                  unsigned IndentLevel) const override {
@@ -445,6 +469,10 @@ private:
   /// locally instead of querying the global cache every time.
   llvm::StringMap<LocalEntry, llvm::BumpPtrAllocator> LocalCache;
 
+  /// The local cache entries keyed by unique ID.
+  llvm::DenseMap<llvm::sys::fs::UniqueID, const CachedFileSystemEntry *>
+      LocalEntriesByUID;
+
   /// The working directory to use for making relative paths absolute before
   /// using them for cache lookups.
   llvm::ErrorOr<std::string> WorkingDirForCacheLookup;
@@ -456,6 +484,11 @@ private:
 
   /// The FS that is used for queries going through the global shared cache.
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS;
+
+  /// The CAS of an include-tree compilation, or null. Files going through the
+  /// global shared cache are stored in it when read, so each is stored exactly
+  /// once per service. Owned by \c Service.
+  cas::ObjectStore *CAS;
 
   /// The backing storage for cached entries resolved from local FS only.
   llvm::SpecificBumpPtrAllocator<CachedFileSystemEntry> LocalEntryStorage;

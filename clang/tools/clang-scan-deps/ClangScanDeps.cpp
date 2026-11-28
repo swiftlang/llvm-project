@@ -21,7 +21,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/CAS/ActionCache.h"
-#include "llvm/CAS/CASProvidingFileSystem.h"
 #include "llvm/CAS/ObjectStore.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Driver.h"
@@ -1320,12 +1319,6 @@ int clang_scan_deps_main(int argc, char **argv, const llvm::ToolContext &) {
   };
 
   DependencyScanningServiceOptions Opts;
-  Opts.MakeVFS = [CAS] {
-    auto FS = llvm::vfs::createPhysicalFileSystem();
-    if (CAS)
-      FS = llvm::cas::createCASProvidingFileSystem(CAS, std::move(FS));
-    return FS;
-  };
   Opts.Mode = ScanMode;
   if (CAS && Cache)
     Opts.Compilation = IncludeTreeCompilation{CASOpts, CAS, Cache};
