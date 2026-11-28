@@ -1,8 +1,16 @@
-
-// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o %t.ll
 // RUN: echo "; __SEPERATOR__" > %t.sep
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm %s -o %t.ll
 // RUN: cat %t.ll %t.sep %t.ll > %t.repeated.ll
-// RUN: FileCheck %s --input-file=%t.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,BASIC --input-file=%t.repeated.ll
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm %s -o %t2.ll
+// RUN: cat %t2.ll %t.sep %t2.ll > %t2.repeated.ll
+// RUN: FileCheck %s --check-prefixes=CHECK,DETAILED --input-file=%t2.repeated.ll
 #include <ptrcheck.h>
 
 int* shift(int* __indexable i, int offset) {
@@ -19,7 +27,8 @@ int* shift(int* __indexable i, int offset) {
 
 // In first copy of the file
 // CHECK-DAG: [[OPT_REMARK:![0-9]+]] = !{!"bounds-safety-check-new-indexable-ptr-ge-old"}
-// CHECK-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$New lower bound less than old lower bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// BASIC-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$New lower bound less than old lower bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-DAG: [[TRAP_SCOPE:![0-9]+]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$pointer arithmetic 'i += offset' moves 'int *__indexable' pointer 'i' below its lower bound", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
 // CHECK-DAG: [[TRAP_LOC:![0-9]+]] = !DILocation(line: 0, scope: [[TRAP_SCOPE]], inlinedAt: [[SRC_LOC:![0-9]+]])
 // CHECK-LABEL: ; __SEPERATOR__
 
