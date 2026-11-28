@@ -112,6 +112,22 @@ def trap_bs_terminated_by_term_assign : Trap<!strconcat(
   "assigning to %0 overwrites the ", TerminatedByTerm, " of ",
   TerminatedByType, " pointer %4")>;
 
+// Bounds checks performed when converting a pointer with bounds to a
+// `__single` pointer.
+//
+// %0 - The type being converted from.
+// %1 - The `__single` type being converted to.
+// %2 - The pointer being converted.
+// %3 - The check that failed. This is appended by
+//      `CodeGenFunction::EmitBoundsSafetyBoundsCheck()` so it uses the
+//      `BoundsSafetyPtrCheckKind` values.
+def trap_bs_convert_to_single : Trap<
+  "converting %0 to %1 where pointer %2 %select{"
+    "is above its upper bound|"
+    "overflows the address space|"
+    "is below its lower bound"
+  "}3">;
+
 // Check performed when converting a `__bidi_indexable` pointer to an
 // `__indexable` pointer.
 //
