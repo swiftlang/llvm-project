@@ -438,10 +438,6 @@ sys.path.append(os.path.join(config.lldb_src_root, "test"))
 sys.path.append(os.path.join(config.lldb_src_root, "test", "API"))
 import lldbtest
 
-import lldbprewarm
-
-lldbprewarm.prewarm(lit_config, config)
-
 # testFormat: The test format to use to interpret tests.
 config.test_format = lldbtest.LLDBTest(dotest_cmd)
 
