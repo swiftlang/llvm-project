@@ -182,6 +182,12 @@ void DepscanPrefixMapping::remapInvocationPaths(
     Res.Replace = Mapper.map(Path, NewPath);
     return Res;
   });
+
+  // -fdebug-prefix-map applies to the remapped paths, so remap the prefixes
+  // it replaces as well to get the same debug info as without remapping.
+  if (!Invocation.getCodeGenOpts().DebugPrefixMap.empty())
+    for (auto &Entry : Invocation.getMutCodeGenOpts().DebugPrefixMap)
+      Mapper.mapInPlace(Entry.first);
 }
 
 void DepscanPrefixMapping::configurePrefixMapper(const CompilerInvocation &CI,
