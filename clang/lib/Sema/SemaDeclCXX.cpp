@@ -17773,6 +17773,8 @@ static bool UsefulToPrintExpr(const Expr *E) {
 }
 
 void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
+  // FIXME: Should we also ignore explicit casts?
+  E = E->IgnoreParenImpCasts();
   if (const auto *Op = dyn_cast<BinaryOperator>(E);
       Op && Op->getOpcode() != BO_LOr) {
     const Expr *LHS = Op->getLHS()->IgnoreParenImpCasts();
@@ -17807,6 +17809,8 @@ void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
           << DiagSides[0].ValueString << Op->getOpcodeStr()
           << DiagSides[1].ValueString << Op->getSourceRange();
     }
+  } else if (const auto *RE = dyn_cast<RequiresExpr>(E)) {
+    DiagnoseUnsatisfiedRequiresExpr(RE);
   } else {
     DiagnoseTypeTraitDetails(E);
   }
@@ -18028,7 +18032,7 @@ Decl *Sema::BuildStaticAssertDeclaration(SourceLocation StaticAssertLoc,
               dyn_cast_or_null<ConceptSpecializationExpr>(InnerCond)) {
         const ASTConstraintSatisfaction &Satisfaction =
             ConceptIDExpr->getSatisfaction();
-        if (!Satisfaction.ContainsErrors || Satisfaction.NumRecords) {
+        if (!Satisfaction.containsErrors() || Satisfaction.record_size()) {
           Diag(AssertExpr->getBeginLoc(), diag::err_static_assert_failed)
               << !HasMessage << Msg.str() << AssertExpr->getSourceRange();
           // Drill down into concept specialization expressions to see why they

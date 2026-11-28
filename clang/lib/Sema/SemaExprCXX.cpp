@@ -8136,7 +8136,7 @@ Sema::BuildExprRequirement(
     if (!HasError) {
       SubstitutedConstraintExpr =
           cast<ConceptSpecializationExpr>(Constraint.get());
-      if (SubstitutedConstraintExpr->getSatisfaction().ContainsErrors)
+      if (SubstitutedConstraintExpr->getSatisfaction().containsErrors())
         HasError = true;
     }
     if (HasError) {
@@ -8193,16 +8193,17 @@ Sema::BuildNestedRequirement(Expr *Constraint) {
                                   /*TemplateArgs=*/{},
                                   Constraint->getSourceRange(), Satisfaction))
     return nullptr;
+
+  if (Satisfaction.HasSubstitutionFailure()) {
+    SmallString<128> Entity;
+    llvm::raw_svector_ostream OS(Entity);
+    Constraint->printPretty(OS, nullptr, SemaRef.getPrintingPolicy());
+    return new (Context) concepts::NestedRequirement(
+        Context, Context.backupStr(Entity), std::move(Satisfaction));
+  }
+
   return new (Context) concepts::NestedRequirement(Context, Constraint,
                                                    Satisfaction);
-}
-
-concepts::NestedRequirement *
-Sema::BuildNestedRequirement(StringRef InvalidConstraintEntity,
-                       const ASTConstraintSatisfaction &Satisfaction) {
-  return new (Context) concepts::NestedRequirement(
-      InvalidConstraintEntity,
-      ASTConstraintSatisfaction::Rebuild(Context, Satisfaction));
 }
 
 RequiresExprBodyDecl *
