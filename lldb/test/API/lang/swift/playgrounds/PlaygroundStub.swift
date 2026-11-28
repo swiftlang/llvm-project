@@ -10,7 +10,7 @@
 //
 // -----------------------------------------------------------------------------
 
-@_silgen_name ("playground_logger_initialize") func builtin_initialize();
+@_silgen_name("playground_logger_initialize") func builtin_initialize();
 
 builtin_initialize();
 
