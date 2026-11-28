@@ -1,18 +1,51 @@
+// =============================================================================
+// Null terminator
+// =============================================================================
 
-// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 -fbounds-safety -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,BASIC,NULL %s
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,DETAILED-NULL,NULL %s
+
+// =============================================================================
+// Non-null terminator
+// =============================================================================
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=basic \
+// RUN:   -emit-llvm -DNON_NULL_TERM %s -o - | \
+// RUN:   FileCheck --check-prefixes=CHECK,BASIC,NON-NULL %s
+
+// RUN: %clang_cc1 -O0 -debug-info-kind=standalone -dwarf-version=5 \
+// RUN:   -fbounds-safety -fbounds-safety-debug-trap-reasons=detailed \
+// RUN:   -emit-llvm -DNON_NULL_TERM %s -o - | \
+// RUN:   FileCheck --check-prefixes=CHECK,DETAILED-NON-NULL,NON-NULL %s
+
 #include <ptrcheck.h>
 
+#ifndef NON_NULL_TERM
 void assign(char* __null_terminated str) {
     str[0] = 'x';
 }
+#else
+void assign(int* __terminated_by(-1) buf) {
+    buf[0] = 1;
+}
+#endif
 
 // CHECK-LABEL: @assign
 
-// CHECK: %[[CMP_REG:[a-z0-9]+]] = icmp ne i8 %{{.+}}, 0, !dbg [[LOC:![0-9]+]]
+// NULL: %[[CMP_REG:[a-z0-9]+]] = icmp ne i8 %{{.+}}, 0, !dbg [[LOC:![0-9]+]]
+// NON-NULL: %[[CMP_REG:[a-z0-9]+]] = icmp ne i32 %{{.+}}, -1, !dbg [[LOC:![0-9]+]]
 // CHECK-NEXT: br i1 %[[CMP_REG]], label %{{.+}}, label %[[TRAP_LABEL:[a-z0-9]+]], !dbg [[LOC]]
 
 // CHECK: [[TRAP_LABEL]]:
 // CHECK-NEXT: call void @llvm.ubsantrap(i8 25) {{.*}}!dbg [[TRAP_LOC:![0-9]+]]
 
 // CHECK-DAG: [[TRAP_LOC]] = !DILocation(line: 0, scope: [[TRAP_SCOPE:![0-9]+]], inlinedAt: [[LOC]])
-// CHECK-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$The terminator cannot be assigned", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// BASIC-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$The terminator cannot be assigned", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-NULL-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$assigning to 'str[0]' overwrites the null terminator of 'char *__null_terminated' pointer 'str'", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
+// DETAILED-NON-NULL-DAG: [[TRAP_SCOPE]] = distinct !DISubprogram(name: "__clang_trap_msg$Bounds check failed$assigning to 'buf[0]' overwrites the terminator '-1' of 'int *__terminated_by(-1)' pointer 'buf'", scope: [[FILE_SCOPE:![0-9]+]], file: [[FILE_SCOPE:![0-9]+]], type: {{![0-9]+}}, flags: DIFlagArtificial, spFlags: DISPFlagDefinition, unit: {{![0-9]+}}
