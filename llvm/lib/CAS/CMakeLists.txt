@@ -9,6 +9,7 @@ add_llvm_component_library(LLVMCAS
   BuiltinObjectHasher.cpp
   BuiltinUnifiedCASDatabases.cpp
   CASConfiguration.cpp
+  CASExportingOutputBackend.cpp
   CASFileSystem.cpp
   CASFSBuilder.cpp
   CASNodeSchema.cpp
