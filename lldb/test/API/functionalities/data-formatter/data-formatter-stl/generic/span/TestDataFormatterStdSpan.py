@@ -17,8 +17,68 @@ class StdSpanDataFormatterTestCase(TestBase):
         self.assertTrue(var.IsValid())
         return var
 
+    def dump_span_layout(self, var):
+        """Print the on-target layout of a std::span.
+
+        The MSVC STL synthetic provider finds the element count either in a
+        `_Mysize` member or in a `_Mysize` constant on the extent base class.
+        When neither resolves it reports an empty span, and the only way to tell
+        what the STL actually named them is to read the type back off the
+        target, so dump enough of it to be diagnosable from a CI log alone.
+        """
+        out = []
+        try:
+            type_name = var.GetTypeName()
+            out.append(f"type={type_name}")
+            out.append(f"num_children(synthetic)={var.GetNumChildren()}")
+
+            raw = var.GetNonSyntheticValue()
+            out.append(f"num_children(raw)={raw.GetNumChildren()}")
+            for i in range(raw.GetNumChildren()):
+                child = raw.GetChildAtIndex(i)
+                out.append(
+                    f"  raw child[{i}] name={child.GetName()!r} "
+                    f"type={child.GetTypeName()!r} value={child.GetValue()!r}"
+                )
+
+            def dump_type(t, indent):
+                pad = " " * indent
+                out.append(
+                    f"{pad}type={t.GetName()!r} fields={t.GetNumberOfFields()} "
+                    f"bases={t.GetNumberOfDirectBaseClasses()}"
+                )
+                for i in range(t.GetNumberOfFields()):
+                    f = t.GetFieldAtIndex(i)
+                    out.append(
+                        f"{pad}  field[{i}] name={f.GetName()!r} "
+                        f"type={f.GetType().GetName()!r}"
+                    )
+                for i in range(t.GetNumberOfDirectBaseClasses()):
+                    base = t.GetDirectBaseClassAtIndex(i).GetType()
+                    out.append(f"{pad}  base[{i}]:")
+                    dump_type(base, indent + 4)
+
+            dump_type(raw.GetType(), 0)
+
+            interp = self.dbg.GetCommandInterpreter()
+            for cmd in (
+                f"type lookup {type_name}",
+                f"frame variable --raw {var.GetName()}",
+            ):
+                res = lldb.SBCommandReturnObject()
+                interp.HandleCommand(cmd, res)
+                out.append(f"--- {cmd} ---")
+                out.append(res.GetOutput() or res.GetError() or "<no output>")
+        except Exception as e:
+            out.append(f"<dump failed: {e!r}>")
+
+        print("### std::span layout dump ###")
+        print("\n".join(out), flush=True)
+
     def check_size(self, var_name, size):
         var = self.findVariable(var_name)
+        if var.GetNumChildren() != size:
+            self.dump_span_layout(var)
         self.assertEqual(var.GetNumChildren(), size)
 
     def check_numbers(self, var_name):
