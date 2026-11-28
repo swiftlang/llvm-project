@@ -2015,11 +2015,11 @@ public:
   }
 
   /* TO_UPSTREAM(BoundsSafety) ON*/
-  PartialDiagnostic BuildPartialTrapReason() {
-    // When building trap reasons we sometimes don't know exactly
-    // which diagnostic is going to be emitted so we just specify
-    // `0` as place holder.
-    return PartialDiagnostic(0, getContext().getDiagAllocator());
+  /// \p DiagID is the trap diagnostic that will be emitted. When building trap
+  /// reasons we sometimes don't know exactly which diagnostic is going to be
+  /// emitted in which case `0` is used as place holder.
+  PartialDiagnostic BuildPartialTrapReason(unsigned DiagID = 0) {
+    return PartialDiagnostic(DiagID, getContext().getDiagAllocator());
   }
   /* TO_UPSTREAM(BoundsSafety) OFF*/
 
