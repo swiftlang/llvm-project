@@ -129,5 +129,29 @@ def trap_bs_bidi_to_indexable_lower_bound : Trap<
 def trap_bs_indexable_ptr_arith_lower_bound : Trap<
   "pointer arithmetic %0 moves %1 pointer %2 below its lower bound">;
 
+// Checks performed on a pointer to a struct with a flexible array member when
+// the pointer is converted to a `__single` pointer or dereferenced.
+//
+// %0 - 0 if the pointer is being converted, 1 if it's being dereferenced.
+// %1 - The type of the pointer.
+// %2 - The `__single` type the pointer is being converted to.
+// %3 - The pointer.
+// %4 - The flexible array member.
+// %5 - The count of the flexible array member.
+// %6 - The check that failed. `PtrBelowLower` is appended by
+//      `CodeGenFunction::EmitBoundsSafetyBoundsCheck()` so it must have the
+//      same value as `BoundsSafetyPtrCheckKind::Lower`.
+def trap_bs_flexible_array_member : Trap<
+  "%select{converting %1 to %2|dereferencing %1}0 where "
+  "%enum_select<BoundsSafetyFamCheckKind>{"
+    "%FamAboveUpper{flexible array member %4 starts above the upper bound of "
+      "pointer %3}|"
+    "%PtrOverflow{pointer %3 overflows the address space}|"
+    "%PtrBelowLower{pointer %3 is below its lower bound}|"
+    "%CountNegative{count %5 for flexible array member %4 is negative}|"
+    "%CountTooBig{count %5 for flexible array member %4 exceeds the bounds of "
+      "pointer %3}"
+  "}6">;
+
 }
 }
