@@ -28,10 +28,11 @@ declare swiftcorocc void @func_continuation_prototype(ptr noalias, ptr)
 ; CHECK-SAME:      ptr noalias %0,
 ; CHECK-SAME:      ptr %1
 ; CHECK-SAME:  ) {
-; CHECK-NEXT:  entryresume.0:
-; CHECK-NOT:     llvm.ret.popless
-; CHECK:         ret void
-; CHECK-NEXT:  }
+; CHECK:       coro.return.popless:
+; CHECK-NEXT:    unreachable
+; CHECK:       coro.return.normal:
+; CHECK-NEXT:    unreachable
+; CHECK:       }
 
 define swiftcorocc { ptr, ptr } @func(ptr noalias %buffer, ptr %allocator, ptr nocapture swiftself dereferenceable(16) %2) {
 entry:
