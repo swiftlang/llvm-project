@@ -10891,6 +10891,10 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
                                 ? alignTo(NumBytes, StackAlign)
                                 : 0;
 
+  // See AArch64FunctionInfo::HasWinCallToCalleePopFunction.
+  if (Subtarget->isTargetWindows() && CalleePopBytes != 0)
+    FuncInfo->setHasWinCallToCalleePopFunction(true);
+
   Chain = DAG.getCALLSEQ_END(Chain, NumBytes, CalleePopBytes, InGlue, DL);
   InGlue = Chain.getValue(1);
 
