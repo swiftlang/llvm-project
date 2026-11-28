@@ -207,7 +207,7 @@ public:
 /// This class is used to gather all the unique data bits of a node.  When all
 /// the bits are gathered this class is used to produce a hash value for the
 /// node.
-class FoldingSetNodeID {
+class LLVM_ATTRIBUTE_WARN_UNUSED FoldingSetNodeID {
   /// Vector of all the data bits that make the node unique.
   /// Use a SmallVector to avoid a heap allocation in the common case.
   SmallVector<unsigned, 32> Bits;
